@@ -71,8 +71,8 @@ graph TD
 
     subgraph "DevOps Agent Core"
         direction TD
-        C[DevOpsAgent];
-        E[Agent Tools];
+        C;
+        E;
         P[prompt.py - Instructions];
         T[tools/ - Available Tools];
     end
