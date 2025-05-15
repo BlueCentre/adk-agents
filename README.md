@@ -151,3 +151,33 @@ graph TD
 ```
 
 This mechanism significantly enhances the agent's ability to act as a knowledgeable assistant for development-related queries.
+
+## Agent Interaction Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant ADK_CLI_API
+    participant DevOpsAgent
+    participant LLM
+    participant AgentTools
+    participant CodebaseSystem
+
+    User->>ADK_CLI_API: Input Query
+    ADK_CLI_API->>DevOpsAgent: Forward Query
+    DevOpsAgent->>LLM: Process Request
+    LLM-->>DevOpsAgent: Thought & Tool Selection
+    DevOpsAgent->>AgentTools: Invoke Tool
+    AgentTools-->>DevOpsAgent: Tool Output
+
+    alt If Codebase Tool
+        AgentTools->>CodebaseSystem: Search (retrieve_code_context_tool)
+        CodebaseSystem-->>AgentTools: Relevant Code Chunks (from DB)
+        AgentTools-->>DevOpsAgent: Code Snippets
+    end
+
+    DevOpsAgent->>LLM: LLM Response Generation
+    LLM-->>DevOpsAgent: Final Response
+    DevOpsAgent->>ADK_CLI_API: Send Output
+    ADK_CLI_API-->>User: Display Output
+```
