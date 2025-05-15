@@ -61,7 +61,7 @@ The DevOps Agent is architected as an `LlmAgent` within the Google ADK framework
 graph TD
     A[User Input] --> B{Google ADK CLI / API};
     B --> C[DevOpsAgent];
-    C --> D{LLM (e.g., Gemini)};
+    C --> D{LLM};
     D -- Thought & Tool Selection --> C;
     C --> E[Agent Tools];
     E -- Tool Output --> C;
@@ -86,7 +86,7 @@ graph TD
 1.  **User Input:** The user interacts with the agent, typically via the ADK CLI (`adk run`) or an API endpoint if deployed.
 2.  **ADK Framework:** The ADK receives the input and routes it to the configured DevOps Agent.
 3.  **DevOps Agent (`LlmAgent`):** The agent, using its instructions from `prompt.py` and the user query, consults the LLM.
-4.  **LLM (e.g., Gemini):** The LLM processes the input, "thinks" about the request, and decides if a tool needs to be used. It might select one or more tools from the agent's toolset.
+4.  **LLM:** The LLM processes the input, "thinks" about the request, and decides if a tool needs to be used. It might select one or more tools from the agent's toolset.
 5.  **Tool Invocation:** If a tool is selected, the `LlmAgent` invokes the corresponding Python function (e.g., `read_file_content`, `execute_vetted_shell_command`).
 6.  **Tool Output:** The tool executes and returns its output to the `LlmAgent`.
 7.  **LLM Response Generation:** The agent sends the tool output (if any) back to the LLM, which then formulates the final response to the user.
@@ -107,7 +107,7 @@ The DevOps Agent is fundamentally an application built *on top of* the Google AD
 graph LR
     subgraph "Google ADK Framework"
         direction LR
-        ADK_Core[Core Engine / LlmAgent Abstraction];
+        ADK_Core[Core Engine LlmAgent Abstraction];
         ADK_Tools[Tool Management];
         ADK_LLM[LLM Integration];
         ADK_CLI[CLI / Deployment]
