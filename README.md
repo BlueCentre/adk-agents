@@ -71,10 +71,10 @@ graph TD
 
     subgraph "DevOps Agent Core"
         direction TD
-        C
-        E
-        P[prompt.py - Instructions]
-        T[tools/ - Available Tools]
+        C[DevOpsAgent];
+        E[Agent Tools];
+        P[prompt.py - Instructions];
+        T[tools/ - Available Tools];
     end
 
     P --> C;
@@ -110,7 +110,7 @@ graph LR
         ADK_Core[Core Engine LlmAgent Abstraction];
         ADK_Tools[Tool Management];
         ADK_LLM[LLM Integration];
-        ADK_CLI[CLI / Deployment]
+        ADK_CLI[CLI / Deployment];
     end
 
     subgraph "DevOps Agent (Application)"
