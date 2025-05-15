@@ -325,6 +325,7 @@ class MyDevopsAgent(LlmAgent):
         # END: MCP CallToolResult Handling
 
         if isinstance(tool_response, str):
+            # Keep existing special handling for index_directory_tool
             if tool.name == 'index_directory_tool':
                 self._console.print(
                     Panel(
@@ -334,10 +335,13 @@ class MyDevopsAgent(LlmAgent):
                         expand=False
                     )
                 )
-                return None
+                return None # Explicitly return None as it's handled
 
+            # Attempt to parse as JSON
+            parsed_successfully = False
             try:
                 potential_json_string = tool_response.strip()
+                # Remove markdown code blocks if present
                 if potential_json_string.startswith("```json"):
                     potential_json_string = potential_json_string[len("```json"):]
                 elif potential_json_string.startswith("```"):
@@ -350,10 +354,28 @@ class MyDevopsAgent(LlmAgent):
                 if isinstance(parsed_response, dict):
                     tool_response = parsed_response 
                     logger.info(f"Successfully parsed string response from tool {tool.name} into a dictionary.")
+                    parsed_successfully = True
                 else:
-                    logger.warning(f"Tool {tool.name} returned a string that was valid JSON, but not a JSON object. Type: {type(parsed_response)}. Will proceed to error handling.")
+                    logger.warning(f"Tool {tool.name} returned a string that was valid JSON, but not a JSON object. Type: {type(parsed_response)}.")
             except json.JSONDecodeError as e:
-                logger.warning(f"Tool {tool.name} returned a string that could not be parsed as JSON. Error: {e}. String (first 200 chars): '{tool_response[:200]}...'. Will proceed to error handling for non-dict types.")
+                logger.warning(f"Tool {tool.name} returned a string that could not be parsed as JSON. Error: {e}. String (first 200 chars): '{tool_response[:200]}...'.")
+
+            if not parsed_successfully:
+                # If parsing failed or it wasn't a dict, and the tool is 'observability'
+                if tool.name == "observability":
+                    logger.warning(f"Observability tool returned a non-JSON string. Wrapping it for user display: '{tool_response[:200]}...'")
+                    # Wrap the string response in a dictionary to pass checks and inform the LLM
+                    tool_response = {
+                        "status": "clarification_needed", # Using a custom status
+                        "tool_name": tool.name,
+                        "message_from_observability_agent": tool_response,
+                        "details": "The observability agent requires more information or could not directly fulfill the request, returning a textual response."
+                    }
+                    # This wrapped response will now be a dict and pass the subsequent checks.
+                    # The LLM can then decide to present this message to the user.
+                # else:
+                    # For other tools, if not parsed, it will fall through to the `if not isinstance(tool_response, dict):` error handling below
+                    # No change needed here for other tools, they will be caught by the existing error handling
 
         elif isinstance(tool_response, ExecuteVettedShellCommandOutput):
             logger.info(f"Handling ExecuteVettedShellCommandOutput from tool {tool.name}")
@@ -447,12 +469,19 @@ class MyDevopsAgent(LlmAgent):
                     expand=False
                 )
             )
-            return {
-                "status": "error",
-                "tool_name": tool.name,
-                "error_summary": f"The tool {tool.name} failed with: {str(error_val)[:100]}{'...' if len(str(error_val)) > 100 else ''}",
-                "full_error_log_for_llm": llm_full_error
-            }
+            # If the status is 'clarification_needed' from our special handling above, don't return it as a hard error to the LLM.
+            # Instead, let it pass through as a non-error dictionary, so the LLM can see the message.
+            if tool_response.get("status") == "clarification_needed":
+                logger.info(f"Passing clarification_needed response from {tool.name} to LLM.")
+                # No specific rich print here, as the LLM will decide how to present it.
+                # The 'None' return will allow the agent framework to use the modified tool_response.
+            else:
+                return {
+                    "status": "error",
+                    "tool_name": tool.name,
+                    "error_summary": f"The tool {tool.name} failed with: {str(error_val)[:100]}{'...' if len(str(error_val)) > 100 else ''}",
+                    "full_error_log_for_llm": llm_full_error
+                }
         
         result_summary = escape(str(tool_response)[:300])
         self._console.print(
@@ -464,7 +493,7 @@ class MyDevopsAgent(LlmAgent):
             )
         )
         logger.info(f"Tool {tool.name} appears to have executed successfully based on initial checks.")
-        return None
+        return None # Return None to indicate the callback has handled the response if necessary, or that the original/modified tool_response should be used.
 
     @override
     async def _run_async_impl(
