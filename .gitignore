@@ -32,6 +32,9 @@ __pycache__/
 venv/
 env/
 
+# Local environment
+.env
+
 # Chroma index
 chroma_data/
 
