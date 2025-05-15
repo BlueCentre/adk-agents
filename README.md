@@ -59,7 +59,7 @@ The DevOps Agent is architected as an `LlmAgent` within the Google ADK framework
 
 ```mermaid
 graph TD
-    A[User Input] --> B{Google ADK CLI / API};
+    A[User Input] --> B{Google ADK CLI API};
     B --> C[DevOpsAgent];
     C --> D{LLM};
     D -- Thought & Tool Selection --> C;
@@ -69,12 +69,9 @@ graph TD
     D -- Final Response --> C;
     C --> F[User Output];
 
-    subgraph "DevOps Agent Core"
-        direction TD
-        C;
-        E;
-        P[prompt.py - Instructions];
-        T[tools/ - Available Tools];
+    subgraph DevOpsAgentCore
+        P[prompt.py Instructions]
+        T[tools Available Tools]
     end
 
     P --> C;
@@ -105,28 +102,25 @@ The DevOps Agent is fundamentally an application built *on top of* the Google AD
 
 ```mermaid
 graph LR
-    subgraph "Google ADK Framework"
-        direction LR
-        ADK_Core[Core Engine LlmAgent Abstraction];
-        ADK_Tools[Tool Management];
-        ADK_LLM[LLM Integration];
-        ADK_CLI[CLI / Deployment];
+    subgraph GoogleADKFramework
+        ADK_Core[Core Engine]
+        ADK_Tools[Tool Management]
+        ADK_LLM[LLM Integration]
+        ADK_CLI[CLI Deployment]
     end
 
-    subgraph "DevOps Agent (Application)"
-        direction LR
-        AgentPy[AgentNode];
-        PromptPy[prompt.py];
-        CustomTools[Custom Tools (e.g., devops specific)]
+    subgraph DevOpsAgentApplication
+        AgentPy[AgentNode]
+        PromptPy[prompt.py]
+        CustomTools[Custom Tools]
     end
 
-    AgentPy -- Uses --> ADK_Core;
-    AgentPy -- Uses --> ADK_Tools;
-    AgentPy -- Uses --> ADK_LLM;
-    PromptPy -- Configures --> AgentPy;
-    CustomTools -- Registered With --> ADK_Tools;
-    ADK_CLI -- Manages/Runs --> AgentPy;
-
+    AgentPy --> ADK_Core
+    AgentPy --> ADK_Tools
+    AgentPy --> ADK_LLM
+    PromptPy --> AgentPy
+    CustomTools --> ADK_Tools
+    ADK_CLI --> AgentPy
 ```
 
 In essence, the ADK provides the "operating system" for the agent, while `agent.py`, `prompt.py`, and the custom tools define the specific "application" logic and capabilities of the DevOps Agent. This separation allows developers to focus on the unique aspects of their agent without needing to rebuild common agent infrastructure.
