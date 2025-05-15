@@ -57,6 +57,15 @@ from . import prompt
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG) # Ensure debug messages from this module are processed
 
+# Import mcp.types specifically for CallToolResult if available, otherwise use a placeholder
+# This is placed AFTER logger initialization to allow logging within the try-except block.
+try:
+    from mcp import types as mcp_types
+except ImportError:
+    logger.warning("mcp.types not found, Playwright tool responses might not be fully processed if they are CallToolResult.")
+    mcp_types = None # Placeholder if mcp.types is not available
+
+
 # Load .env file
 load_dotenv()
 
@@ -285,6 +294,36 @@ class MyDevopsAgent(LlmAgent):
             duration = time.time() - tool_context.start_time
             logger.info(f"Agent {self.name}: Tool '{tool.name}' executed in {duration:.4f} seconds.")
 
+        # BEGIN: MCP CallToolResult Handling
+        if mcp_types and isinstance(tool_response, mcp_types.CallToolResult):
+            logger.info(f"Handling mcp.types.CallToolResult from tool {tool.name}")
+            combined_text_content = []
+            if hasattr(tool_response, 'content') and tool_response.content:
+                for item in tool_response.content:
+                    if hasattr(item, 'text') and item.text:
+                        combined_text_content.append(item.text)
+            
+            message = " ".join(combined_text_content)
+            
+            if hasattr(tool_response, 'isError') and tool_response.isError:
+                logger.warning(f"Tool {tool.name} (MCP CallToolResult) indicated an error. Message: {message}")
+                tool_response = {
+                    "status": "error",
+                    "tool_name": tool.name,
+                    "error_summary": f"Tool {tool.name} reported an error.",
+                    "full_error_log_for_llm": f"Tool '{tool.name}' (MCP CallToolResult) failed. Message: {message}",
+                    "message": message
+                }
+            else:
+                logger.info(f"Tool {tool.name} (MCP CallToolResult) processed successfully. Message: {message}")
+                tool_response = {
+                    "status": "success",
+                    "tool_name": tool.name,
+                    "message": message,
+                    "output": message # Adding output for consistency
+                }
+        # END: MCP CallToolResult Handling
+
         if isinstance(tool_response, str):
             if tool.name == 'index_directory_tool':
                 self._console.print(
@@ -418,7 +457,7 @@ class MyDevopsAgent(LlmAgent):
         result_summary = escape(str(tool_response)[:300])
         self._console.print(
             Panel(
-                Text.from_markup(f"[dim][b]Tool:[/b] {escape(tool.name)}\n[b]Result:[/b] {result_summary}{'...' if len(str(tool_response)) > 300 else ''}[/dim]"),
+                Text.from_markup(f"[dim][b]Tool:[/b] {escape(tool.name)}\n[b]Result:[/b] {result_summary}{'...' if len(str(tool_response)) > 300 else ''}\n[b]Duration:[/b] {duration:.4f} seconds[/dim]"),
                 title="[green]✅ Tool Finished[/green]",
                 border_style="green",
                 expand=False
@@ -460,12 +499,13 @@ class MyDevopsAgent(LlmAgent):
             )
 
             # Enhance error reporting for unhandled exceptions
-            rich_error_message_display = f"Type: {escape(error_type)}\nMessage: {escape(error_message)}\{escape(mcp_related_hint) if mcp_related_hint else ''}"
+            rich_error_message_display = f"Type: {escape(error_type)}\nMessage: {escape(error_message)}\n{escape(mcp_related_hint) if mcp_related_hint else ''}"
             
             # Also print to rich console if available
             self._console.print(
                 Panel(
-                    Text.from_markup(f"""[bold red]💥 Unhandled Agent Error[/bold red]\n{rich_error_message_display}"""),
+                    Text.from_markup(f"""[bold red]💥 Unhandled Agent Error[/bold red]\n{rich_error_message_display}"""
+                    ),
                     title="[red]Critical Error[/red]",
                     border_style="red"
                 )
