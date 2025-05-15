@@ -1,0 +1,88 @@
+# Agents/devops/tools/file_summarizer_tool.py
+import os
+import logging # Good practice!
+from google.adk.tools import FunctionTool # Assuming this is the correct base class
+from vertexai.generative_models import GenerativeModel # For direct Gemini API calls
+from typing import Optional # Import Optional
+
+# Initialize logger for this tool
+logger = logging.getLogger(__name__)
+
+# Configuration for the summarizer model
+SUMMARIZER_MODEL_NAME = os.getenv("SUMMARIZER_GEMINI_MODEL", "gemini-1.5-flash-latest")
+MAX_CONTENT_CHARS_FOR_SUMMARIZER_SINGLE_PASS = 200000
+
+
+class FileSummarizerTool(FunctionTool):
+    def __init__(self):
+        super().__init__(
+            func=self._execute # Pass the execute method as the function for the tool
+        )
+        try:
+            self.model = GenerativeModel(SUMMARIZER_MODEL_NAME)
+            logger.info(f"FileSummarizerTool initialized with model: {SUMMARIZER_MODEL_NAME}")
+        except Exception as e:
+            logger.error(f"Failed to initialize GenerativeModel for FileSummarizerTool with model {SUMMARIZER_MODEL_NAME}: {e}")
+            self.model = None # Ensure model is None if initialization fails
+
+    def _execute(self, filepath: str, instructions: str, max_summary_length_words: Optional[int] = None) -> dict:
+        logger.info(
+            f"FileSummarizerTool executing for filepath: '{filepath}' "
+            f"with instructions: '{instructions}', max_summary_length_words: {max_summary_length_words}"
+        )
+        if not self.model:
+            return {"summary": None, "error": "Summarizer model not initialized."}
+
+        try:
+            file_size = os.path.getsize(filepath)
+            logger.info(f"File size for {filepath}: {file_size} bytes.")
+
+            if file_size == 0:
+                return {"summary": "<File is empty>", "error": None}
+
+            with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+
+        except FileNotFoundError:
+            logger.warning(f"File not found: {filepath}")
+            return {"summary": None, "error": f"File not found: {filepath}"}
+        except Exception as e:
+            logger.error(f"Error reading file {filepath}: {e}")
+            return {"summary": None, "error": f"Error reading file {filepath}: {str(e)}"}
+
+        content_to_summarize = content
+        if len(content) > MAX_CONTENT_CHARS_FOR_SUMMARIZER_SINGLE_PASS:
+            logger.warning(
+                f"Content from {filepath} (length {len(content)}) exceeds "
+                f"MAX_CONTENT_CHARS_FOR_SUMMARIZER_SINGLE_PASS ({MAX_CONTENT_CHARS_FOR_SUMMARIZER_SINGLE_PASS}). "
+                "Truncating content for this summarization pass. Implement chunking for full coverage."
+            )
+            content_to_summarize = content[:MAX_CONTENT_CHARS_FOR_SUMMARIZER_SINGLE_PASS]
+
+        prompt_parts = [
+            "You are an expert assistant specialized in summarizing text documents accurately and concisely.",
+            "Please summarize the following document based on the provided instructions.",
+            f"Instructions from user: \"{instructions}\"",
+        ]
+        if max_summary_length_words:
+            prompt_parts.append(f"Aim for a summary of approximately {max_summary_length_words} words, but prioritize accuracy and completeness of the requested information.")
+        
+        prompt_parts.append("\nDocument to summarize:\n---\n")
+        prompt_parts.append(content_to_summarize)
+        prompt_parts.append("\n---\nEnd of Document.\n\nProvide your summary:")
+
+        final_prompt = "\n".join(prompt_parts)
+        
+        logger.debug(f"Prompt for summarizer LLM:\n{final_prompt[:500]}... (truncated for brevity)")
+
+        try:
+            response = self.model.generate_content(final_prompt)
+            summary_text = response.text
+            
+            logger.info(f"Successfully received summary from LLM for {filepath}.")
+            return {"summary": summary_text.strip(), "error": None}
+
+        except Exception as e:
+            logger.error(f"Error calling summarizer LLM for {filepath}: {e}")
+            return {"summary": None, "error": f"An error occurred while calling the summarization model: {str(e)}"}
+

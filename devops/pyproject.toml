@@ -1,0 +1,17 @@
+[project]
+name = "devops_agent_v2"
+version = "0.1.0"
+description = "DevOps Agent v2 with RAG capabilities."
+dependencies = [
+    "chromadb~=1.0.8",  # Using ~= for compatible releases with 1.0.x
+    "google-genai~=1.14.0" # Migrated from google-generativeai
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+# Optional: If you want to make your agent's modules importable nicely
+# [tool.setuptools.packages.find]
+# where = ["."] # or the directory where your main agent code is if not root
+# include = ["devops_v2*"] # Adjust if your modules are structured differently

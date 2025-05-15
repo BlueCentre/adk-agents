@@ -1,0 +1,67 @@
+# .indexignore - Files and directories to exclude from indexing
+
+# Version control
+.git/
+.svn/
+.hg/
+
+# Compiled files and binaries
+*.pyc
+*.pyo
+*.o
+*.so
+*.dll
+*.exe
+*.class
+*.jar
+*.war
+*.ear
+*.wasm
+*.bin
+
+# Logs
+*.log
+logs/
+Log/
+
+# Large data files (examples, add more specific ones as needed)
+# *.csv
+# *.json # Be careful, some JSON might be config you want - decided to include .json for indexing for now
+# *.xml # Same as JSON
+*.parquet
+*.hdf5
+*.zip
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+*.iso
+*.img
+*.bak
+*.tmp
+*.swp
+
+# IDE and editor specific files
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+nbproject/
+*.DS_Store
+
+# Dependency directories
+node_modules/
+vendor/
+bower_components/
+jspm_packages/
+target/ # Common for Java/Scala builds
+build/
+dist/
+env/
+venv/
+.venv/
+
+# OS-specific
+Thumbs.db
+ehthumbs.db
+Desktop.ini
