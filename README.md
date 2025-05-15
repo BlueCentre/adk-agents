@@ -60,7 +60,7 @@ The DevOps Agent is architected as an `LlmAgent` within the Google ADK framework
 ```mermaid
 graph TD
     A[User Input] --> B{Google ADK CLI / API};
-    B --> C{DevOps Agent (LlmAgent)};
+    B --> C[DevOps Agent (LlmAgent)];
     C --> D{LLM (e.g., Gemini)};
     D -- Thought & Tool Selection --> C;
     C -- Tool Invocation --> E[Agent Tools];
@@ -141,7 +141,7 @@ This RAG (Retrieval Augmented Generation) approach allows the agent to ground it
 
 ```mermaid
 graph TD
-    U[User asks: "How does the auth module work?"] --> DA{DevOps Agent}
+    U[User asks: \"How does the auth module work?\"] --> DA{DevOps Agent}
     DA -- "Need to understand 'auth module'" --> RCT{retrieve_code_context_tool};
     RCT -- Query: "auth module functionality" --> VDB[(Vector Database - Indexed Code)];
     VDB -- Relevant Code Chunks --> RCT;
