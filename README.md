@@ -60,16 +60,17 @@ The DevOps Agent is architected as an `LlmAgent` within the Google ADK framework
 ```mermaid
 graph TD
     A[User Input] --> B{Google ADK CLI / API};
-    B --> C[DevOps Agent];
+    B --> C[DevOpsAgent];
     C --> D{LLM (e.g., Gemini)};
     D -- Thought & Tool Selection --> C;
-    C -- Tool Invocation --> E[Agent Tools];
+    C --> E[Agent Tools];
     E -- Tool Output --> C;
     C -- LLM Response Generation --> D;
     D -- Final Response --> C;
     C --> F[User Output];
 
     subgraph "DevOps Agent Core"
+        direction TD
         C
         E
         P[prompt.py - Instructions]
@@ -106,16 +107,16 @@ The DevOps Agent is fundamentally an application built *on top of* the Google AD
 graph LR
     subgraph "Google ADK Framework"
         direction LR
-        ADK_Core[Core Engine / LlmAgent Abstraction]
-        ADK_Tools[Tool Management]
-        ADK_LLM[LLM Integration]
+        ADK_Core[Core Engine / LlmAgent Abstraction];
+        ADK_Tools[Tool Management];
+        ADK_LLM[LLM Integration];
         ADK_CLI[CLI / Deployment]
     end
 
     subgraph "DevOps Agent (Application)"
         direction LR
-        AgentPy[agent.py (LlmAgent instance)]
-        PromptPy[prompt.py]
+        AgentPy[AgentNode];
+        PromptPy[prompt.py];
         CustomTools[Custom Tools (e.g., devops specific)]
     end
 
@@ -143,7 +144,7 @@ This RAG (Retrieval Augmented Generation) approach allows the agent to ground it
 graph TD
     U[User Input Query] --> DA{DevOps Agent}
     DA -- Understand auth module --> RCT{retrieve_code_context_tool};
-    RCT -- Query auth module functionality --> VDB[(Vector Database - Indexed Code)];
+    RCT -- Query --> VDB[(Vector Database - Indexed Code)];
     VDB -- Relevant Code Chunks --> RCT;
     RCT -- Code Snippets --> DA;
     DA -- Combines snippets with LLM reasoning --> LR[LLM Response];
