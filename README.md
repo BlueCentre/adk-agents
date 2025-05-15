@@ -142,8 +142,8 @@ This RAG (Retrieval Augmented Generation) approach allows the agent to ground it
 ```mermaid
 graph TD
     U[User Input Query] --> DA{DevOps Agent}
-    DA -- "Need to understand 'auth module'" --> RCT{retrieve_code_context_tool};
-    RCT -- Query: "auth module functionality" --> VDB[(Vector Database - Indexed Code)];
+    DA -- Understand auth module --> RCT{retrieve_code_context_tool};
+    RCT -- Query auth module functionality --> VDB[(Vector Database - Indexed Code)];
     VDB -- Relevant Code Chunks --> RCT;
     RCT -- Code Snippets --> DA;
     DA -- Combines snippets with LLM reasoning --> LR[LLM Response];
