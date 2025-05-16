@@ -85,7 +85,7 @@ Use this context to inform your responses, but DO NOT directly refer to this con
     new_request = LlmRequest(
         model=llm_request.model,
         contents=new_contents,
-        generation_config=llm_request.generation_config
+        config=llm_request.config # Changed generation_config to config
     )
     
-    return new_request 
+    return new_request

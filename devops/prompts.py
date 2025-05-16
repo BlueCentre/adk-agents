@@ -25,6 +25,16 @@ Your operational context (environment, tools, workflows) is provided separately 
 3.  and or searching the web using `google_search_tool`.
 """
 
+# Current user:
+#   <user_profile>
+#   {user_profile}
+#   </user_profile>
+
+# Current project:
+#   <project_context>
+#   {project_context}
+#   </project_context>
+
 CODE_EXECUTION_AGENT_INSTR = """
 **Role:** Generate/refine scripts or code snippets based on the main agent\'s goal and context.
 **Input:** Goal, Context (code, errors, env details), Script/Code Type (e.g., bash, python, kubectl).
@@ -57,16 +67,6 @@ You will ask the user for the following information if their request lacks infor
 
 You will then use the datadog API to query the data and return the results to the devops_agent.
 """
-
-# Current user:
-#   <user_profile>
-#   {user_profile}
-#   </user_profile>
-
-# Current project:
-#   <project_context>
-#   {project_context}
-#   </project_context>
 
 
 # --- Prompts for Interactive Planning Feature ---
