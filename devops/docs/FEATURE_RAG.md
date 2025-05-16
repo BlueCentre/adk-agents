@@ -137,3 +137,6 @@ With these changes, the agent can now be instructed to index directories and ret
 ## Prompt References
 
 * "Hi! Please re-index the Agents/devops/ directory. Use the following file extensions: .py, .md, .txt, .sh, .yaml, .yml, .json, .tf, .hcl, and .go. Make sure to force re-indexing. After it's done, please tell me the summary message, especially the part about how many files and directories were ignored based on the .indexignore rules."
+
+
+---Gemini 2.5 Pro---

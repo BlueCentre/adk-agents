@@ -67,3 +67,46 @@ You will then use the datadog API to query the data and return the results to th
 #   <project_context>
 #   {project_context}
 #   </project_context>
+
+
+# --- Prompts for Interactive Planning Feature ---
+
+PLANNING_PROMPT_TEMPLATE = """
+You are an expert software development assistant. The user has made the following request:
+--- USER REQUEST ---
+{user_request}
+--- END USER REQUEST ---
+
+{code_context_section}
+
+Based on the user's request and the provided codebase context (if any), generate a concise, step-by-step plan to address the request.
+The plan should outline:
+1.  Files you intend to create or modify.
+2.  Key functions, classes, or modules you plan to add or change.
+3.  The main logic or flow you intend to implement for each significant step.
+4.  Any important considerations, potential impacts, or questions you have for the user regarding the plan.
+
+Keep the plan easy to understand and focused on the core tasks.
+Phrase your output as a proposal that the user can review. Start your response with "Okay, here's my proposed plan to address your request:"
+
+Example of a good plan format:
+Okay, here's my proposed plan to address your request:
+1.  **Modify `src/api/user_service.py`:**
+    *   Add a new method `get_user_profile(user_id)` that retrieves user details from the database.
+    *   Ensure appropriate error handling for non-existent users.
+2.  **Create `src/schemas/profile_schemas.py`:**
+    *   Define a Pydantic schema `UserProfileResponse` for the API response.
+3.  **Update `src/api/endpoints/users.py`:**
+    *   Add a new GET endpoint `/users/{{user_id}}/profile` that calls `user_service.get_user_profile` and returns the data using the `UserProfileResponse` schema.
+4.  **Considerations:**
+    *   Will this profile include sensitive information? If so, we need to discuss authorization.
+
+Now, generate the plan for the user's request.
+"""
+
+CODE_CONTEXT_SECTION_TEMPLATE = """
+--- RELEVANT CODE CONTEXT ---
+The following code snippets from the existing codebase might be relevant:
+{retrieved_code_snippets}
+--- END RELEVANT CODE CONTEXT ---
+"""

@@ -62,6 +62,9 @@ from .context_management import (
     inject_structured_context,
 )
 
+# Load .env file
+load_dotenv()
+
 # Initialize logger for this module
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG) # Ensure debug messages from this module are processed
@@ -75,9 +78,6 @@ except ImportError:
     mcp_types = None # Placeholder if mcp.types is not available
 
 
-# Load .env file
-load_dotenv()
-
 # Get allowed directories from environment variable
 mcp_allowed_dirs_str = os.getenv("MCP_ALLOWED_DIRECTORIES")
 mcp_allowed_dirs = []
@@ -86,6 +86,18 @@ if mcp_allowed_dirs_str:
 if not mcp_allowed_dirs:
     mcp_allowed_dirs = [os.path.dirname(os.path.abspath(__file__))]
     logger.info(f"MCP_ALLOWED_DIRECTORIES not set, defaulting to agent directory: {mcp_allowed_dirs[0]}")
+
+# Get ENABLE_INTERACTIVE_PLANNING from environment variable
+ENABLE_INTERACTIVE_PLANNING_STR = os.getenv("ENABLE_INTERACTIVE_PLANNING", "false")
+ENABLE_INTERACTIVE_PLANNING = ENABLE_INTERACTIVE_PLANNING_STR.lower() == "true"
+
+# Get MCP_PLAYWRIGHT_ENABLED from environment variable
+MCP_PLAYWRIGHT_ENABLED_STR = os.getenv("MCP_PLAYWRIGHT_ENABLED", "false")
+MCP_PLAYWRIGHT_ENABLED = MCP_PLAYWRIGHT_ENABLED_STR.lower() == "true"
+
+# Log the status of this feature flag
+logger.info(f"Interactive Planning Feature Enabled: {ENABLE_INTERACTIVE_PLANNING}")
+logger.info(f"MCP Playwright Feature Enabled: {MCP_PLAYWRIGHT_ENABLED}")
 
 file_summarizer_tool_instance = FileSummarizerTool()
 
@@ -122,9 +134,9 @@ try:
         devops_observability_tools.append(mcp_datadog_toolset)
         logger.info("MCP Datadog Toolset loaded successfully.")
     else:
-        logger.warning("DATADOG_API_KEY or DATADOG_APP_KEY not set. MCP Datadog Toolset will not be loaded.")
+        logger.warning("DATADOG_API_KEY or DATADOG_APP_KEY not set. MCP Datadog Toolset will not be loaded. Agent will continue.")
 except Exception as e:
-    logger.warning(f"Failed to load MCP DatADOG Toolset: {e}.")
+    logger.warning(f"Failed to load MCP DatADOG Toolset: {e}. The Datadog tools will be unavailable. Agent will continue.")
 
 _observability_agent = LlmAgent( # Explicitly LlmAgent
     model="gemini-1.5-flash-latest",
@@ -162,21 +174,22 @@ try:
 except Exception as e:
     logger.warning(
         f"Failed to load MCP Filesystem Toolset: {e}. "
-        "DevOps agent will operate without these MCP file tools."
+        "DevOps agent will operate without these MCP file tools. Agent will continue."
     )
 
 mcp_playwright_toolset = None # Initialize to None
-try:
-    mcp_playwright_toolset = MCPToolset(
-        connection_params=StdioServerParameters(
-            command="npx",
-            args=["-y", "@executeautomation/playwright-mcp-server"],
-        ),
-    )
-    devops_core_tools.append(mcp_playwright_toolset)
-    logger.info("MCP Playwright Toolset loaded successfully.")
-except Exception as e:
-    logger.warning(f"Failed to load MCP Playwright Toolset: {e}.")
+if MCP_PLAYWRIGHT_ENABLED:
+    try:
+        mcp_playwright_toolset = MCPToolset(
+            connection_params=StdioServerParameters(
+                command="npx",
+                args=["-y", "@executeautomation/playwright-mcp-server"],
+            ),
+        )
+        devops_core_tools.append(mcp_playwright_toolset)
+        logger.info("MCP Playwright Toolset loaded successfully.")
+    except Exception as e:
+        logger.warning(f"Failed to load MCP Playwright Toolset: {e}. Playwright tools will be unavailable. Agent will continue.")
 
 
 class MyDevopsAgent(LlmAgent):
@@ -186,21 +199,20 @@ class MyDevopsAgent(LlmAgent):
     _context_manager: ContextManager = PrivateAttr()
     _is_new_conversation: bool = PrivateAttr(default=True)
 
+    # --- State for Interactive Planning ---
+    _pending_plan_text: Optional[str] = PrivateAttr(default=None)
+    _is_awaiting_plan_approval: bool = PrivateAttr(default=False)
+    _is_plan_generation_turn: bool = PrivateAttr(default=False) # Flag to signal plan generation turn
+
     def __init__(self, **data: any):
         """Initializes the MyDevopsAgent with custom callback handlers."""
         super().__init__(**data)
-        # self._console is initialized by PrivateAttr default_factory
-        # self._status_indicator is initialized by PrivateAttr default
-        
-        # Initialize context manager with configurable parameters
         self._context_manager = ContextManager(
             max_token_limit=90000,  # Adjust based on model limits
             recent_turns_to_keep=5,
             max_code_snippets=10,
             max_tool_results=20
         )
-        
-        # Set up callbacks for model and tool interactions
         self.before_model_callback = self.handle_before_model
         self.after_model_callback = self.handle_after_model
         self.before_tool_callback = self.handle_before_tool
@@ -209,101 +221,163 @@ class MyDevopsAgent(LlmAgent):
     async def handle_before_model(
         self, callback_context: CallbackContext, llm_request: LlmRequest
     ) -> LlmResponse | None:
-        """Handles actions to perform before an LLM model call, showing a thinking indicator."""
-        # Check if this is a new user message and process it
-        user_message = get_last_user_content(llm_request)
-        if user_message:
-            # Process the user message for goal extraction, etc.
-            process_user_message(self._context_manager, user_message)
+        """Handles actions before an LLM call, including interactive planning flow."""
+        user_message_content = get_last_user_content(llm_request)
+
+        # --- Check for Plan Approval Response ---
+        if self._is_awaiting_plan_approval and user_message_content:
+            user_feedback_lower = user_message_content.strip().lower()
+            if user_feedback_lower == "approve":
+                logger.info("User approved the plan. Storing approved plan.")
+                if self._pending_plan_text:
+                    self._context_manager.add_system_message(
+                        f"The user has approved the following plan. Proceed with implementation based on this plan:\n" 
+                        f"--- APPROVED PLAN ---\n{self._pending_plan_text}\n--- END APPROVED PLAN ---"
+                    )
+                    logger.info(f"Approved plan added to context: {self._pending_plan_text[:200]}...")
+                
+                self._is_awaiting_plan_approval = False
+                self._pending_plan_text = None
+                if self._status_indicator: self._status_indicator.stop()
+                self._status_indicator = self._console.status("[bold yellow](Agent is implementing the plan...)")
+                self._status_indicator.start()
+            else:
+                logger.info("User provided feedback on the plan. Resetting planning state.")
+                self._is_awaiting_plan_approval = False
+                self._pending_plan_text = None
+                if self._status_indicator: self._status_indicator.stop()
+                response_part = genai_types.Part(text="Okay, I've received your feedback. I will consider it for the next step. If you'd like me to try planning again with this new information, please let me know or re-state your goal.")
+                return LlmResponse(content=genai_types.Content(parts=[response_part]))
+
+        # --- Interactive Planning Heuristic & Initial Plan Generation ---
+        trigger_plan_generation_this_turn = False 
+
+        if not self._is_awaiting_plan_approval and ENABLE_INTERACTIVE_PLANNING and user_message_content:
+            lower_user_message = user_message_content.lower()
+            explicit_planning_keywords = [
+                "plan this", "create a plan", "show me the plan", 
+                "draft a plan", "plan for me", "let's plan"
+            ]
+            complex_task_keywords = [
+                "implement", "create new", "design a", "develop a", 
+                "refactor module", "add feature", "build a new"
+            ]
+
+            should_enter_planning_phase = False 
+            if any(keyword in lower_user_message for keyword in explicit_planning_keywords):
+                should_enter_planning_phase = True
+                logger.info("Explicit planning request detected by keyword.")
+            elif any(keyword in lower_user_message for keyword in complex_task_keywords):
+                should_enter_planning_phase = True
+                logger.info("Complex task keywords detected, heuristic suggests planning.")
             
-        # Build our structured context and inject it into the request
-        context_dict, estimated_tokens = self._context_manager.assemble_context()
-        
-        # Inject structured context into the request
-        try:
-            # Modify the llm_request in-place to include our structured context
-            modified_request = inject_structured_context(llm_request, context_dict)
+            if should_enter_planning_phase:
+                logger.info("HEURISTIC: Agent will attempt interactive planning.")
+                trigger_plan_generation_this_turn = True 
+                self._is_plan_generation_turn = True 
+
+                code_context_str = "" 
+                planning_prompt_text = prompt.PLANNING_PROMPT_TEMPLATE.format(
+                    user_request=user_message_content,
+                    code_context_section=code_context_str
+                )
+                
+                # Replace current request contents with the planning prompt, assigning the 'user' role.
+                llm_request.contents = [genai_types.Content(parts=[genai_types.Part(text=planning_prompt_text)], role="user")]
+                
+                if hasattr(llm_request, 'tools'): 
+                    llm_request.tools = [] 
+                else:
+                    logger.warning("'LlmRequest' object has no 'tools' attribute to clear for planning turn. Tools might remain active.")
+                
+                logger.info("LLM request modified for plan generation.")
+                if self._status_indicator: self._status_indicator.stop()
+                self._status_indicator = self._console.status("[bold yellow](Agent is drafting a plan...)")
+                self._status_indicator.start()
+
+        # --- Context Processing and Injection ---
+        if user_message_content and not trigger_plan_generation_this_turn and not self._is_awaiting_plan_approval:
+            process_user_message(self._context_manager, user_message_content)
             
-            # Replace the request in the callback_context
-            # Note: This might not be supported in all implementations
-            if hasattr(callback_context, "llm_request"):
-                callback_context.llm_request = modified_request
-        except Exception as e:
-            logger.error(f"Failed to inject structured context: {e}")
-        
+        if not trigger_plan_generation_this_turn:
+            context_dict, estimated_tokens = self._context_manager.assemble_context()
+            try:
+                if hasattr(llm_request, 'model') and llm_request.model: 
+                    modified_request = inject_structured_context(llm_request, context_dict)
+                    if hasattr(callback_context, "llm_request"):
+                        callback_context.llm_request = modified_request
+                    logger.info(f"Estimated token count for structured context: {estimated_tokens}")
+                else:
+                    logger.warning("Skipping structured context injection as LlmRequest seems incomplete.")
+            except Exception as e:
+                logger.error(f"Failed to inject structured context: {e} - LlmRequest: {llm_request}") 
+        else:
+            logger.info("Plan generation turn: Skipping general context assembly and injection.")
+
         num_parts_info = 'N/A'
-        if llm_request.contents:
-            last_content_object = llm_request.contents[-1]
-            if last_content_object and last_content_object.parts:
-                num_parts_info = str(len(last_content_object.parts))
-            elif last_content_object:
-                num_parts_info = '0 (no parts in last content)'
+        if llm_request.contents and llm_request.contents[-1] and llm_request.contents[-1].parts:
+            num_parts_info = str(len(llm_request.contents[-1].parts))
         logger.debug(f"Agent {self.name}: Before model call. Parts in last content object: {num_parts_info}")
-        logger.info(f"Estimated token count for structured context: {estimated_tokens}")
-        
-        if self._status_indicator: # Stop previous if any (should not happen often)
-            self._status_indicator.stop()
-            
-        # Start the thinking indicator unless it's a tool-only turn
-        # (We need to check the *original* request for tool calls before injection)
-        original_tool_calls = callback_context.tool_calls if hasattr(callback_context, 'tool_calls') else []
-        if not original_tool_calls:
-             self._status_indicator = self._console.status("[bold yellow](Agent is thinking...)")
-             self._status_indicator.start()
+
+        if not self._status_indicator: 
+            original_tool_calls = callback_context.tool_calls if hasattr(callback_context, 'tool_calls') else []
+            if not original_tool_calls:
+                 self._status_indicator = self._console.status("[bold yellow](Agent is thinking...)")
+                 self._status_indicator.start()
         
         return None
 
     async def handle_after_model(
         self, callback_context: CallbackContext, llm_response: LlmResponse
     ) -> LlmResponse | None:
-        """Handles actions to perform after an LLM model call, stopping the thinking indicator."""
-        logger.debug(f"Agent {self.name}: ENTERING handle_after_model.")
-        if self._status_indicator:
+        """Handles actions after an LLM call, including intercepting generated plans."""
+        if self._status_indicator: 
             self._status_indicator.stop()
             self._status_indicator = None
 
-        # Extract and log token usage if available
+        if self._is_plan_generation_turn: 
+            self._is_plan_generation_turn = False 
+            plan_text = self._extract_response_text(llm_response)
+            if plan_text:
+                logger.info(f"LLM generated plan: {plan_text[:300]}...")
+                self._pending_plan_text = plan_text
+                self._is_awaiting_plan_approval = True
+                
+                user_facing_plan_message = (
+                    f"{plan_text}\n\n" 
+                    "Does this plan look correct? Please type 'approve' to proceed, "
+                    "or provide feedback to revise the plan."
+                )
+                response_part = genai_types.Part(text=user_facing_plan_message)
+                final_response = LlmResponse(content=genai_types.Content(parts=[response_part]), 
+                                           usage_metadata=llm_response.usage_metadata if hasattr(llm_response, 'usage_metadata') else None)
+                return final_response 
+            else:
+                logger.error("Plan generation turn, but could not extract plan text from LLM response.")
+                error_message = "I tried to generate a plan, but something went wrong. Please try rephrasing your request."
+                return LlmResponse(content=genai_types.Content(parts=[genai_types.Part(text=error_message)]))
+
         if hasattr(llm_response, 'usage_metadata') and llm_response.usage_metadata:
             usage = llm_response.usage_metadata
             prompt_tokens = getattr(usage, 'prompt_token_count', 'N/A')
             completion_tokens = getattr(usage, 'candidates_token_count', 'N/A')
             total_tokens = getattr(usage, 'total_token_count', 'N/A')
-            
             logger.info(f"Agent {self.name}: Token Usage - Prompt: {prompt_tokens}, Completion: {completion_tokens}, Total: {total_tokens}")
-            
-            # Display token usage to the user
             token_panel_content = Text.from_markup(
                 f"[dim][b]Token Usage:[/b] Prompt: {prompt_tokens}, Completion: {completion_tokens}, Total: {total_tokens}[/dim]"
             )
-            token_panel = Panel(
-                token_panel_content,
-                title="[blue]📊 Model Usage[/blue]",
-                border_style="blue",
-                expand=False
-            )
-            self._console.print(token_panel)
+            self._console.print(Panel(token_panel_content, title="[blue]📊 Model Usage[/blue]", border_style="blue", expand=False))
 
-        # Extract agent's response to store in context manager
         extracted_text = self._extract_response_text(llm_response)
         if extracted_text and isinstance(extracted_text, str):
-            # Update the current turn with the agent's response
             current_turn = self._context_manager.current_turn_number
             self._context_manager.update_agent_response(current_turn, extracted_text)
         
-        # Mark that it's no longer the first turn/new conversation for the next cycle
         self._is_new_conversation = False
-        
         return None
         
     def _extract_response_text(self, llm_response: LlmResponse) -> Optional[str]:
-        """Extract the text content from an LLM response.
-        
-        Args:
-            llm_response: The LLM response object
-            
-        Returns:
-            The extracted text, or None if extraction failed
-        """
+        """Extract the text content from an LLM response."""
         try:
             if hasattr(llm_response, 'content') and getattr(llm_response, 'content'):
                 content_obj = getattr(llm_response, 'content')
@@ -311,6 +385,13 @@ class MyDevopsAgent(LlmAgent):
                     parts_texts = [part.text for part in content_obj.parts if hasattr(part, 'text') and part.text is not None]
                     if parts_texts:
                         return "".join(parts_texts)
+            elif hasattr(llm_response, 'parts') and getattr(llm_response, 'parts'):
+                parts = getattr(llm_response, 'parts')
+                if isinstance(parts, list):
+                     parts_texts = [part.text for part in parts if hasattr(part, 'text') and part.text is not None]
+                     if parts_texts:
+                        return "".join(parts_texts)
+
         except Exception as e:
             logger.warning(f"Failed to extract text from LLM response: {e}")
         return None
@@ -320,16 +401,13 @@ class MyDevopsAgent(LlmAgent):
     ) -> dict | None:
         """Logs information before tool execution and tracks tool calls."""
         try:
-            # Ensure we have a callback_context
             if callback_context is None:
                 logger.warning(f"Agent {self.name}: handle_before_tool called without callback_context")
-                return None  # Cannot proceed effectively without callback_context
+                return None 
                 
-            # Add tool call to the current conversation turn
             current_turn = self._context_manager.current_turn_number
             self._context_manager.add_tool_call(current_turn, tool.name, args)
             
-            # Log the start of tool execution with rich output to terminal
             tool_args_display = ", ".join([f"{k}={v}" for k, v in args.items()])
             if len(tool_args_display) > 100:
                 tool_args_display = tool_args_display[:97] + "..."
@@ -343,8 +421,6 @@ class MyDevopsAgent(LlmAgent):
                     expand=False
                 )
             )
-            
-            # Return None to indicate no modification to the arguments
             return None
         except Exception as e:
             logger.error(f"Agent {self.name}: Error in handle_before_tool: {e}")
@@ -354,52 +430,33 @@ class MyDevopsAgent(LlmAgent):
         self, tool: BaseTool, tool_response: dict | str, callback_context: CallbackContext | None = None, args: dict | None = None, tool_context: ToolContext | None = None
     ) -> dict | None:
         """Processes tool results, enhances error reporting, and stores tool output in context manager."""
-        # Start timing here to measure post-processing duration for performance logging
         start_time = time.time()
         logger.debug(f"Agent {self.name}: Handling tool response from {tool.name}")
         
-        # Use a custom processor for this tool type if available
         custom_processor_used = False
         if tool.name in TOOL_PROCESSORS:
             try:
-                # Process the tool result with our custom processor
-                # We need to pass the original args to the processor for some tools (like edit_file)
                 TOOL_PROCESSORS[tool.name](self._context_manager, tool, tool_response, args)
                 custom_processor_used = True
             except Exception as e:
                 logger.error(f"Error in custom processor for {tool.name}: {e}")
         
-        # If we didn't use a custom processor, add the result with default handling
         if not custom_processor_used:
             self._context_manager.add_tool_result(tool.name, tool_response)
         
-        # Calculate duration for performance logging
         duration = time.time() - start_time
         
-        # Check if this is a special result type from MCP tools
-        # (Original handling for MCP tools)
-        
-        # Special handling for CallToolResult if mcp_types is available
         if mcp_types and isinstance(tool_response, mcp_types.CallToolResult):
-            # The rest of the original CallToolResult handling...
-            pass  # (Include the original MCP tool handling here)
-            
-        # Handle ExecuteVettedShellCommandOutput responses
+            pass 
         elif isinstance(tool_response, ExecuteVettedShellCommandOutput):
-            # The rest of the original shell command output handling...
-            pass  # (Include the original shell command output handling here)
+            pass 
         
-        # Handle non-dictionary responses
         if not isinstance(tool_response, dict):
-            # The rest of the original non-dictionary response handling...
-            pass  # (Include the original non-dictionary handling here)
+            pass 
             
-        # Handle error status in dictionary responses
         if isinstance(tool_response, dict) and (tool_response.get("status") == "error" or tool_response.get("error")):
-            # The rest of the original error handling...
-            pass  # (Include the original error handling here)
+            pass 
         
-        # Success case - this will happen for all responses that don't match the above conditions
         if isinstance(tool_response, dict):
             result_summary = escape(str(tool_response)[:300])
             self._console.print(
@@ -412,7 +469,7 @@ class MyDevopsAgent(LlmAgent):
             )
             logger.info(f"Tool {tool.name} appears to have executed successfully based on initial checks.")
             
-        return None  # Return None to indicate the callback has handled the response if necessary, or that the original/modified tool_response should be used.
+        return None
 
     @override
     async def _run_async_impl(
@@ -420,28 +477,23 @@ class MyDevopsAgent(LlmAgent):
     ) -> AsyncGenerator[Event, None]:
         """Runs the agent's main asynchronous logic, handling exceptions and reporting errors."""
         try:
-            # Initialize or reset the context manager for this invocation if it's a new conversation
-            # Use the _is_new_conversation flag set in handle_after_model
             if self._is_new_conversation:
-                logger.info(f"Agent {self.name}: New conversation detected, resetting context manager")
-                # Re-initialize the context manager to clear its state
+                logger.info(f"Agent {self.name}: New conversation detected, resetting context manager and planning state.")
                 self._context_manager = ContextManager(
                     max_token_limit=90000,
                     recent_turns_to_keep=5,
                     max_code_snippets=10,
                     max_tool_results=20
                 )
-                # Process the initial user message(s) from the invocation context
-                # The first user message should be available in ctx.conversation_history if the framework provides it,
-                # or will be processed in handle_before_model for the first turn.
-                # For now, we rely on handle_before_model to process the first user message.
+                self._pending_plan_text = None
+                self._is_awaiting_plan_approval = False
+                self._is_plan_generation_turn = False # Reset this flag too
             
-            # Proceed with the normal agent execution
             async for event in super()._run_async_impl(ctx):
                 yield event
                 
         except Exception as e:
-            if self._status_indicator: # Ensure spinner is stopped on error
+            if self._status_indicator: 
                 self._status_indicator.stop()
                 self._status_indicator = None
 
@@ -464,13 +516,9 @@ class MyDevopsAgent(LlmAgent):
                 f"I cannot proceed with this request. Details: {error_type}."
             )
 
-            # Enhance error reporting for unhandled exceptions
-            rich_error_message_display = f"Type: {escape(error_type)}\nMessage: {escape(error_message)}\n{escape(mcp_related_hint) if mcp_related_hint else ''}"
-            
-            # Also print to rich console if available
             self._console.print(
                 Panel(
-                    Text.from_markup(f"""[bold red]💥 Unhandled Agent Error[/bold red]\n{rich_error_message_display}"""
+                    Text.from_markup(f"""[bold red]💥 Unhandled Agent Error[/bold red]\nType: {escape(error_type)}\nMessage: {escape(error_message)}\n{escape(mcp_related_hint) if mcp_related_hint else ''}"""
                     ),
                     title="[red]Critical Error[/red]",
                     border_style="red"
