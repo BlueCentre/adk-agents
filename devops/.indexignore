@@ -1,5 +1,8 @@
 # .indexignore - Files and directories to exclude from indexing
 
+# Self
+./index_data/
+
 # Version control
 .git/
 .svn/

@@ -8,14 +8,16 @@ from google.adk.tools.google_search_tool import google_search
 from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset
 from google.adk.tools.mcp_tool.mcp_toolset import StdioServerParameters
 
-from .. import config as agent_config # Corrected relative import
-from .. import prompts # Corrected relative import, will use prompts.VAR_NAME
+from .. import config as agent_config
+from .. import prompts
 
 # Import specific tools from the current package (tools/)
 # These are assumed to be exposed by Agents/devops/tools/__init__.py
+# or directly from their defining modules if they are FunctionTool instances.
 from . import (
-    index_directory_tool,
-    retrieve_code_context_tool,
+    index_directory_tool,       # Assuming this is already a FunctionTool or similar
+    retrieve_code_context_tool, # Assuming this is already a FunctionTool or similar
+    purge_rag_index_tool,       # Assuming this is already a FunctionTool or similar
     read_file_tool,
     list_dir_tool,
     edit_file_tool,
@@ -74,19 +76,23 @@ def load_core_tools_and_toolsets():
         name="observability",
         description="Agent specialized in Observability",
         instruction=prompts.OBSERVABILITY_AGENT_INSTR,
-        tools=devops_observability_tools, 
+        tools=devops_observability_tools,
     )
 
     devops_core_tools_list = [
-        index_directory_tool,
-        retrieve_code_context_tool,
+        # RAG and File System Tools
+        index_directory_tool,      # Assuming this is the FunctionTool instance
+        retrieve_code_context_tool, # Assuming this is the FunctionTool instance
+        purge_rag_index_tool,      # <--- USING THE FunctionTool INSTANCE
         read_file_tool,
         list_dir_tool,
         edit_file_tool,
         file_summarizer_tool_instance,
         codebase_search_tool,
+        # Shell and Command Execution
         execute_vetted_shell_command_tool,
         check_command_exists_tool,
+        # Sub-Agents
         AgentTool(agent=_code_execution_agent),
         AgentTool(agent=_search_agent),
         AgentTool(agent=_observability_agent),

@@ -6,8 +6,9 @@ from pathlib import Path # Added for .indexignore and path manipulation
 from typing import Optional # Added import
 
 # from google.adk.tools.utils import tool_utils # For defining ADK tools
-from google.adk.tools import FunctionTool, ToolContext # For defining ADK tools and accessing context
-from ..rag_components import chunking, indexing # Relative import from parent dir
+# from google.adk.tools import FunctionTool, ToolContext # For defining ADK tools and accessing context
+from google.adk.tools import FunctionTool # For defining ADK tools
+from ..rag_components import chunking, indexing, purging # Relative import from parent dir
 
 logger = logging.getLogger(__name__)
 
@@ -247,3 +248,17 @@ def retrieve_code_context_tool(query: str, top_k: int = 5) -> dict | str:
         "retrieved_chunks": retrieved_data
     }
 
+# Definition for the new purge_rag_index_tool
+@FunctionTool # Assuming FunctionTool decorator or similar
+def purge_rag_index_tool(): # The decorated function
+    """
+    Wraps the purge_rag_index_data function to be used as a tool.
+
+    Deletes the entire ChromaDB data directory for the RAG system.
+    This is a destructive operation and will remove ALL indexed codebase data.
+    Use with extreme caution. The agent might need a restart after this operation
+    for the RAG system to reinitialize correctly.
+
+    No parameters_schema needed here as purge_rag_index_data takes no arguments.
+    """
+    return purging.purge_rag_index_data()

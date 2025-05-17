@@ -55,6 +55,7 @@ from . import rag_tools # Import the new module
 from .rag_tools import (
     index_directory_tool,
     retrieve_code_context_tool,
+    purge_rag_index_tool,
 )
 
 
@@ -83,4 +84,5 @@ __all__ = [
     # RAG Tools
     "index_directory_tool",
     "retrieve_code_context_tool",
+    "purge_rag_index_tool",
 ]
