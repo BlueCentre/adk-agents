@@ -4,7 +4,12 @@ version = "0.1.0"
 description = "DevOps Agent v2 with RAG capabilities."
 dependencies = [
     "chromadb~=1.0.8",  # Using ~= for compatible releases with 1.0.x
-    "google-genai~=1.14.0" # Migrated from google-generativeai
+    "google-genai~=1.14.0", # Migrated from google-generativeai
+    "google-api-core~=2.11.0",
+    "chromadb~=1.0.8",
+    "protobuf~=4.25.0",
+    "openai~=1.10.0",
+    "tiktoken~=1.39.0",
 ]
 
 [build-system]

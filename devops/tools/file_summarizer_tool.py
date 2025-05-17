@@ -4,13 +4,14 @@ import logging # Good practice!
 from google.adk.tools import FunctionTool # Assuming this is the correct base class
 from vertexai.generative_models import GenerativeModel # For direct Gemini API calls
 from typing import Optional # Import Optional
+from .. import config as agent_config
 
 # Initialize logger for this tool
 logger = logging.getLogger(__name__)
 
 # Configuration for the summarizer model
-SUMMARIZER_MODEL_NAME = os.getenv("SUMMARIZER_GEMINI_MODEL", "gemini-1.5-flash-latest")
-MAX_CONTENT_CHARS_FOR_SUMMARIZER_SINGLE_PASS = 200000
+# SUMMARIZER_MODEL_NAME = os.getenv("SUMMARIZER_GEMINI_MODEL", "gemini-1.5-flash-latest")
+# MAX_CONTENT_CHARS_FOR_SUMMARIZER_SINGLE_PASS = 200000
 
 
 class FileSummarizerTool(FunctionTool):
@@ -19,15 +20,15 @@ class FileSummarizerTool(FunctionTool):
             func=self._execute # Pass the execute method as the function for the tool
         )
         try:
-            self.model = GenerativeModel(SUMMARIZER_MODEL_NAME)
-            logger.info(f"FileSummarizerTool initialized with model: {SUMMARIZER_MODEL_NAME}")
+            self.model = GenerativeModel(agent_config.SUMMARIZER_MODEL_NAME)
+            logger.info(f"FileSummarizerTool initialized with model: {agent_config.SUMMARIZER_MODEL_NAME}")
         except Exception as e:
-            logger.error(f"Failed to initialize GenerativeModel for FileSummarizerTool with model {SUMMARIZER_MODEL_NAME}: {e}")
+            logger.error(f"Failed to initialize GenerativeModel for FileSummarizerTool with model {agent_config.SUMMARIZER_MODEL_NAME}: {e}")
             self.model = None # Ensure model is None if initialization fails
 
     def _execute(self, filepath: str, instructions: str, max_summary_length_words: Optional[int] = None) -> dict:
         logger.info(
-            f"FileSummarizerTool executing for filepath: '{filepath}' "
+            f"Summarizing file '{filepath}' "
             f"with instructions: '{instructions}', max_summary_length_words: {max_summary_length_words}"
         )
         if not self.model:
@@ -51,13 +52,13 @@ class FileSummarizerTool(FunctionTool):
             return {"summary": None, "error": f"Error reading file {filepath}: {str(e)}"}
 
         content_to_summarize = content
-        if len(content) > MAX_CONTENT_CHARS_FOR_SUMMARIZER_SINGLE_PASS:
+        if len(content) > agent_config.MAX_CONTENT_CHARS_FOR_SUMMARIZER_SINGLE_PASS:
             logger.warning(
-                f"Content from {filepath} (length {len(content)}) exceeds "
-                f"MAX_CONTENT_CHARS_FOR_SUMMARIZER_SINGLE_PASS ({MAX_CONTENT_CHARS_FOR_SUMMARIZER_SINGLE_PASS}). "
-                "Truncating content for this summarization pass. Implement chunking for full coverage."
+                f"File content length ({len(content)} chars) exceeds "
+                f"MAX_CONTENT_CHARS_FOR_SUMMARIZER_SINGLE_PASS ({agent_config.MAX_CONTENT_CHARS_FOR_SUMMARIZER_SINGLE_PASS}). "
+                f"Will summarize only the first part."
             )
-            content_to_summarize = content[:MAX_CONTENT_CHARS_FOR_SUMMARIZER_SINGLE_PASS]
+            content_to_summarize = content[:agent_config.MAX_CONTENT_CHARS_FOR_SUMMARIZER_SINGLE_PASS]
 
         prompt_parts = [
             "You are an expert assistant specialized in summarizing text documents accurately and concisely.",

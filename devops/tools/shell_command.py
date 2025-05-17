@@ -4,7 +4,7 @@ import logging
 import shlex
 import shutil  # <-- Added import
 import subprocess
-from typing import Literal, Optional
+from typing import Literal, Optional, Dict, Any
 
 # Import ToolContext for state management
 from google.adk.tools import (
@@ -12,6 +12,8 @@ from google.adk.tools import (
     ToolContext,
 )
 from pydantic import BaseModel, Field
+
+from .. import config as agent_config
 
 logger = logging.getLogger(__name__)
 
@@ -135,8 +137,8 @@ def configure_shell_whitelist(args: dict, tool_context: ToolContext) -> Configur
     # Initialize whitelist in state if it doesn't exist
     if "shell_command_whitelist" not in tool_context.state:
         # Initialize with default safe commands
-        tool_context.state["shell_command_whitelist"] = DEFAULT_SAFE_COMMANDS[:]
-        logger.info(f"Initialized shell command whitelist with defaults: {DEFAULT_SAFE_COMMANDS}")
+        tool_context.state["shell_command_whitelist"] = agent_config.DEFAULT_SAFE_COMMANDS[:]
+        logger.info(f"Initialized shell command whitelist with defaults: {agent_config.DEFAULT_SAFE_COMMANDS}")
 
     whitelist: list[str] = tool_context.state["shell_command_whitelist"]
 
@@ -316,6 +318,18 @@ class ExecuteVettedShellCommandOutput(BaseModel):
     message: str = Field(description="Additional information about the status.")
 
 
+MAX_OUTPUT_CAPTURE_LENGTH = 1024 * 10  # Max 10KB for stdout/stderr to keep in full
+TRUNCATE_HEAD_TAIL_LENGTH = 1024 * 2 # Show first/last 2KB if truncating
+
+def _truncate_output(output: str, max_len: int, head_tail_len: int) -> str:
+    if output is None or len(output) <= max_len:
+        return output
+    
+    truncated_msg = f"[Output truncated. Original length: {len(output)} chars. Showing first and last {head_tail_len} chars]\\n"
+    head = output[:head_tail_len]
+    tail = output[-head_tail_len:]
+    return truncated_msg + head + "\\n...\\n" + tail
+
 def execute_vetted_shell_command(args: dict, tool_context: ToolContext) -> ExecuteVettedShellCommandOutput:
     """Executes a shell command that has ALREADY BEEN VETTED or explicitly approved.
 
@@ -362,9 +376,13 @@ def execute_vetted_shell_command(args: dict, tool_context: ToolContext) -> Execu
             check=False,  # Don't raise exception on non-zero exit
         )
         logger.info(f"Vetted command '{command}' finished with return code {process.returncode}")
+        
+        stdout_processed = _truncate_output(process.stdout.strip(), MAX_OUTPUT_CAPTURE_LENGTH, TRUNCATE_HEAD_TAIL_LENGTH)
+        stderr_processed = _truncate_output(process.stderr.strip(), MAX_OUTPUT_CAPTURE_LENGTH, TRUNCATE_HEAD_TAIL_LENGTH)
+        
         return ExecuteVettedShellCommandOutput(
-            stdout=process.stdout.strip(),
-            stderr=process.stderr.strip(),
+            stdout=stdout_processed,
+            stderr=stderr_processed,
             return_code=process.returncode,
             command_executed=command,
             status="executed",
@@ -373,7 +391,8 @@ def execute_vetted_shell_command(args: dict, tool_context: ToolContext) -> Execu
     except FileNotFoundError:
         logger.error(f"Command not found during execution: {command_parts[0]}")
         return ExecuteVettedShellCommandOutput(
-            stderr=f"Error: Command not found: {command_parts[0]}",
+            stdout=None,
+            stderr=_truncate_output(f"Error: Command not found: {command_parts[0]}", MAX_OUTPUT_CAPTURE_LENGTH, TRUNCATE_HEAD_TAIL_LENGTH),
             return_code=-1,  # Using distinct negative codes for different errors
             command_executed=command,
             status="error",
@@ -382,7 +401,8 @@ def execute_vetted_shell_command(args: dict, tool_context: ToolContext) -> Execu
     except subprocess.TimeoutExpired:
         logger.error(f"Vetted command '{command}' timed out after {timeout_sec} seconds.")
         return ExecuteVettedShellCommandOutput(
-            stderr=f"Error: Command timed out after {timeout_sec} seconds.",
+            stdout=None,
+            stderr=_truncate_output(f"Error: Command timed out after {timeout_sec} seconds.", MAX_OUTPUT_CAPTURE_LENGTH, TRUNCATE_HEAD_TAIL_LENGTH),
             return_code=-2,
             command_executed=command,
             status="error",
@@ -391,7 +411,12 @@ def execute_vetted_shell_command(args: dict, tool_context: ToolContext) -> Execu
     except Exception as e:
         logger.exception(f"An unexpected error occurred while running vetted command '{command}': {e}")
         return ExecuteVettedShellCommandOutput(
-            stderr=f"An unexpected error occurred: {e}", return_code=-3, command_executed=command, status="error", message=f"An unexpected error occurred: {e}"
+            stdout=None,
+            stderr=_truncate_output(f"An unexpected error occurred: {e}", MAX_OUTPUT_CAPTURE_LENGTH, TRUNCATE_HEAD_TAIL_LENGTH),
+            return_code=-3,
+            command_executed=command,
+            status="error",
+            message=f"An unexpected error occurred: {e}"
         )
 
 
@@ -402,6 +427,6 @@ def execute_vetted_shell_command(args: dict, tool_context: ToolContext) -> Execu
 
 configure_shell_approval_tool = FunctionTool(configure_shell_approval)
 configure_shell_whitelist_tool = FunctionTool(configure_shell_whitelist)
-check_command_exists_tool = FunctionTool(check_command_exists)  # <-- Added tool
+check_command_exists_tool = FunctionTool(check_command_exists)
 check_shell_command_safety_tool = FunctionTool(check_shell_command_safety)
 execute_vetted_shell_command_tool = FunctionTool(execute_vetted_shell_command)

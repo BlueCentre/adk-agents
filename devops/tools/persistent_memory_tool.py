@@ -1,19 +1,20 @@
 """Placeholder tools for manually saving/loading session memory to a file."""
 
 import logging
-from typing import Any, Dict
+import os
+from typing import Any, Dict, List
 
 from google.adk.tools import FunctionTool, ToolContext
+from google.adk.tools.base_tool import BaseTool
+from google.adk.tools.function_tool import FunctionTool
+from .. import config as agent_config
 
 logger = logging.getLogger(__name__)
-
-# Default path for the memory file, could be configurable
-DEFAULT_MEMORY_FILE = "./.manual_agent_memory.json"
 
 # === Tool Implementation Functions (Commented Out) ===
 
 
-def _save_current_session_to_file_impl(tool_context: ToolContext, filepath: str = DEFAULT_MEMORY_FILE) -> Dict[str, str]:
+def _save_current_session_to_file_impl(tool_context: ToolContext, filepath: str = None) -> Dict[str, str]:
     """
     (Placeholder) Saves the *current* session's state to a specified JSON file.
     NOTE: This is a placeholder and not fully implemented.
@@ -25,6 +26,15 @@ def _save_current_session_to_file_impl(tool_context: ToolContext, filepath: str 
     Returns:
         A dictionary indicating the status of the operation.
     """
+    if filepath is None:
+        filepath = agent_config.DEFAULT_MEMORY_FILE
+
+    # Get the current conversation history from the tool context state
+    history = tool_context.state.get("conversation_history", [])
+    
+    if not history:
+        return {"status": "error", "message": "No conversation history to save."}
+
     # TODO: Implement this tool if manual file-based persistence is needed
     #       for the standard 'adk run' environment.
     # Implications:
@@ -71,7 +81,7 @@ def _save_current_session_to_file_impl(tool_context: ToolContext, filepath: str 
     return {"status": "skipped", "message": "Tool is not implemented."}
 
 
-def _load_memory_from_file_impl(query: str, filepath: str = DEFAULT_MEMORY_FILE) -> Dict[str, Any]:
+def _load_memory_from_file_impl(query: str, filepath: str = None) -> Dict[str, Any]:
     """
     (Placeholder) Loads memory from a JSON file and performs a simple query.
     NOTE: This is a placeholder and not fully implemented.
@@ -83,6 +93,17 @@ def _load_memory_from_file_impl(query: str, filepath: str = DEFAULT_MEMORY_FILE)
     Returns:
         A dictionary containing the search results or an error message.
     """
+    if filepath is None:
+        filepath = agent_config.DEFAULT_MEMORY_FILE
+
+    # Check if file exists
+    if not os.path.exists(filepath):
+        return {
+            "status": "error", 
+            "message": f"Memory file not found: {filepath}",
+            "results": []
+        }
+
     # TODO: Implement this tool if manual file-based persistence is needed
     #       for the standard 'adk run' environment.
     # Implications:

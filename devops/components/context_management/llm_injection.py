@@ -52,30 +52,42 @@ def inject_structured_context(
         return llm_request
         
     # Create a new content object with the structured context
-    context_json = json.dumps(context_dict, indent=2)
+    # Use compact JSON for token efficiency
+    context_json = json.dumps(context_dict, separators=(',', ':'))
     
-    context_message = f"""
-CONTEXT INFORMATION:
-The following is important context about the current task and conversation:
+    # More concise preamble
+    context_message = f"""SYSTEM CONTEXT (JSON):
 ```json
 {context_json}
 ```
-Use this context to inform your responses, but DO NOT directly refer to this context block.
-"""
+Use this context to inform your response. Do not directly refer to this context block."""
     
     context_content = genai_types.Content(
-        role="user",
+        role="user", # Still using 'user' role as it's a common and effective way to inject context
         parts=[genai_types.Part(text=context_message)]
     )
     
     # Find the right position to insert our context
-    # We want it after system messages but before the first user message
+    # We want it after system messages but before the first non-system message that isn't our own context block
     first_non_system_idx = 0
     for i, content in enumerate(llm_request.contents):
         if content.role != "system":
+            # Avoid inserting multiple times if this function is called repeatedly on the same request
+            if content.parts and content.parts[0].text.startswith("SYSTEM CONTEXT (JSON):"):
+                logger.debug("Context block already present, replacing.")
+                new_contents = list(llm_request.contents)
+                new_contents[i] = context_content # Replace existing context block
+                return LlmRequest(
+                    model=llm_request.model,
+                    contents=new_contents,
+                    config=llm_request.config
+                )
             first_non_system_idx = i
             break
-    
+    else: # If only system messages exist or no messages at all (though we checked for empty contents)
+        first_non_system_idx = len(llm_request.contents)
+
+
     # Create a new list of contents with our context inserted
     new_contents = llm_request.contents[:first_non_system_idx]
     new_contents.append(context_content)
@@ -85,7 +97,7 @@ Use this context to inform your responses, but DO NOT directly refer to this con
     new_request = LlmRequest(
         model=llm_request.model,
         contents=new_contents,
-        config=llm_request.config # Changed generation_config to config
+        config=llm_request.config 
     )
     
     return new_request
