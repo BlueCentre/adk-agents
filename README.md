@@ -10,7 +10,8 @@ The DevOps Agent is a sophisticated AI assistant built using the Google Agent De
 *   **Infrastructure Management:** Helps with provisioning, configuring, and managing infrastructure resources.
 *   **Codebase Understanding:** Can index and analyze code repositories to answer questions about functionality, find relevant snippets, and assist with refactoring.
 *   **Workflow Automation:** Automates repetitive DevOps tasks through a combination of LLM reasoning and tool execution.
-*   **Tool Integration:** Comes equipped with a rich set of tools for file system operations, code search (ripgrep), shell command execution, and web interaction (Playwright).
+*   **Comprehensive Tool Integration:** Equipped with a versatile set of tools for file system operations (reading, writing, listing, editing), code search (`ripgrep`), shell command execution (`execute_vetted_shell_command`, `check_command_exists`), codebase indexing and retrieval, and web research (`google_search_grounding`). It can interact with common DevOps command-line tools like `git`, `docker`, `kubectl`, `terraform`, `jira`, and `bw` based on availability and project context.
+*   **Proactive & Safe Tool Usage:** Intelligently discovers available command-line tools and executes shell commands with a strong emphasis on safety, including pre-vetting and user approval for state-changing operations.
 *   **Rich Interactive Loop:** Powered by the ADK's `LlmAgent`, enabling complex, multi-turn conversations and sophisticated tool usage.
 *   **Enhanced Tool Execution Feedback:** Provides clear console output detailing tool arguments, execution status (success/failure), duration, and results or errors.
 *   **Granular Error Reporting:** Offers detailed error messages for failed tool executions and unhandled agent exceptions, including relevant context like command executed, return codes, and stderr/stdout for shell commands.
@@ -58,11 +59,11 @@ The DevOps Agent is architected as an `LlmAgent` within the Google ADK framework
 *   **`agent.py`:** This is the main file that defines the agent. It initializes the `LlmAgent` with:
     *   A specific LLM model (e.g., Gemini).
     *   A name and description.
-    *   Detailed instructions defined in `prompt.py`.
+    *   Detailed instructions defined in `prompts.py`.
     *   A collection of tools available to the agent (filesystem tools, code indexing, shell execution, etc.).
     *   Configuration for content generation.
     It also defines custom callback handlers (`handle_before_model`, `handle_after_model`, `handle_before_tool`, `handle_after_tool`) to provide rich, interactive feedback during model and tool interactions.
-*   **`prompt.py`:** Contains the core instructions and persona definition for the LLM, guiding its behavior, capabilities, and how it should interact with users and tools.
+*   **`prompts.py`:** Contains the core instructions and persona definition for the LLM, guiding its behavior, capabilities, and how it should interact with users and tools. It works in conjunction with `AGENT.md` (located in the agent's operational directory, e.g., `./devops/AGENT.md`) which provides detailed operational context, tool availability, and workflow procedures.
 *   **Tools:** A collection of Python functions that the agent can invoke to perform specific actions. These tools are the agent's interface to the external world (e.g., reading files, running commands, searching code).
 *   **Google ADK Framework:** Provides the underlying machinery for agent execution, tool management, LLM interaction, session management, and deployment.
 
@@ -81,11 +82,13 @@ graph TD
     C --> F[User Output];
 
     subgraph DevOpsAgentCore
-        P[prompt.py Instructions]
+        P[prompts.py Instructions]
+        AM[AGENT.md Context]
         T[tools Available Tools]
     end
 
     P --> C;
+    AM --> C;
     T --> C;
 ```
 
@@ -93,7 +96,7 @@ graph TD
 
 1.  **User Input:** The user interacts with the agent, typically via the ADK CLI (`adk run`) or an API endpoint if deployed.
 2.  **ADK Framework:** The ADK receives the input and routes it to the configured DevOps Agent.
-3.  **DevOps Agent (`LlmAgent`):** The agent, using its instructions from `prompt.py` and the user query, consults the LLM.
+3.  **DevOps Agent (`LlmAgent`):** The agent, using its instructions from `prompts.py`, context from `AGENT.md`, and the user query, consults the LLM.
 4.  **LLM:** The LLM processes the input, "thinks" about the request, and decides if a tool needs to be used. It might select one or more tools from the agent's toolset.
 5.  **Tool Invocation:** If a tool is selected, the `LlmAgent` invokes the corresponding Python function (e.g., `read_file_content`, `execute_vetted_shell_command`).
 6.  **Tool Output:** The tool executes and returns its output to the `LlmAgent`.
@@ -122,7 +125,8 @@ graph LR
 
     subgraph DevOpsAgentApplication
         AgentPy[AgentNode]
-        PromptPy[prompt.py]
+        PromptPy[prompts.py]
+        AgentMD[AGENT.md]
         CustomTools[Custom Tools]
     end
 
@@ -130,11 +134,12 @@ graph LR
     AgentPy --> ADK_Tools
     AgentPy --> ADK_LLM
     PromptPy --> AgentPy
+    AgentMD --> AgentPy
     CustomTools --> ADK_Tools
     ADK_CLI --> AgentPy
 ```
 
-In essence, the ADK provides the "operating system" for the agent, while `agent.py`, `prompt.py`, and the custom tools define the specific "application" logic and capabilities of the DevOps Agent. This separation allows developers to focus on the unique aspects of their agent without needing to rebuild common agent infrastructure.
+In essence, the ADK provides the "operating system" for the agent, while `agent.py`, `prompts.py`, `AGENT.md`, and the custom tools define the specific "application" logic and capabilities of the DevOps Agent. This separation allows developers to focus on the unique aspects of their agent without needing to rebuild common agent infrastructure.
 
 ## Codebase Indexing and Retrieval
 
@@ -144,6 +149,7 @@ A key feature of this DevOps agent is its ability to understand and interact wit
 2.  **`retrieve_code_context_tool`:** When the agent needs to understand a part of the codebase to answer a question or perform a task, it uses this tool. It takes a natural language query, converts it to an embedding, and searches the vector database for the most similar (relevant) code chunks.
 
 This RAG (Retrieval Augmented Generation) approach allows the agent to ground its responses and actions in the actual content of the codebase, leading to more accurate and context-aware assistance.
+*Note: To ensure the codebase understanding remains accurate, the indexed directory should be re-indexed using `index_directory_tool` with `force_reindex=True` after any significant code modifications.*
 
 ```mermaid
 graph TD
@@ -176,7 +182,7 @@ sequenceDiagram
 
     User->>ADK_CLI_API: Input Query
     ADK_CLI_API->>DevOpsAgent: Forward Query
-    DevOpsAgent->>LLM: Process Request
+    DevOpsAgent->>LLM: Process Request (using prompts.py, AGENT.md)
     LLM-->>DevOpsAgent: Thought & Tool Selection
     DevOpsAgent->>AgentTools: Invoke Tool
     AgentTools-->>DevOpsAgent: Tool Output
