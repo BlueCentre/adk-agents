@@ -25,14 +25,6 @@ The DevOps Agent is a sophisticated AI assistant built using the Google Agent De
 To get started with the DevOps Agent, you can use `uvx` to handle dependencies and run the agent without needing to install the Google ADK globally.
 
 1.  **Run the Agent Locally:**
-    Use the following command from the root of the repository to run the agent locally with the necessary dependencies and a workaround for a compatibility issue:
-    
-    ```bash
-    PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python uvx --with extensions --with google-generativeai --with google-api-core --with chromadb --with protobuf --with openai --with tiktoken --no-cache --python 3.13 --from git+https://github.com/BlueCentre/adk-python.git@main adk run devops
-    ```
-    
-    *Note:* The `PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python` part is a workaround for a compatibility issue between recent `protobuf` versions and older pre-compiled code in some dependencies (`chromadb` via `opentelemetry` components).
-
     *Important:* Make sure you have set the `GOOGLE_API_KEY` environment variable with your Google API key:
 
     ```bash
@@ -40,6 +32,14 @@ To get started with the DevOps Agent, you can use `uvx` to handle dependencies a
     ```
 
     This is required for the agent to create a GenAI client when running with the ADK. The key is loaded via the configuration system in `config.py`.
+
+    Use the following command from the root of the repository to run the agent locally with the necessary dependencies and a workaround for a compatibility issue:
+    
+    ```bash
+    PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python uvx --with extensions --with google-generativeai --with google-api-core --with chromadb --with protobuf --with openai --with tiktoken --no-cache --python 3.13 --from git+https://github.com/BlueCentre/adk-python.git@main adk run devops
+    ```
+    
+    *Note:* The `PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python` part is a workaround for a compatibility issue between recent `protobuf` versions and older pre-compiled code in some dependencies (`chromadb` via `opentelemetry` components).
 
     This command will set up a virtual environment with the required packages and start an interactive CLI session with the DevOps agent.
 

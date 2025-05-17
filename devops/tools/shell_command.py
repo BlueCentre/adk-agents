@@ -191,14 +191,15 @@ class CheckCommandExistsOutput(BaseModel):
 
 def check_command_exists(args: dict, tool_context: ToolContext) -> CheckCommandExistsOutput:
     """Checks if a command exists in the system's PATH. Extracts the base command."""
+    # Handle potential nested args structure from LLM function calls
     command_name = args.get("command")
     base_command = None
     message = ""
 
-    if not command_name:
-        message = "Error: 'command' argument is missing."
+    if not command_name or not isinstance(command_name, str):
+        message = "Error: 'command' argument is missing or not a string."
         logger.error(message)
-        return CheckCommandExistsOutput(exists=False, command_checked=command_name or "", message=message)
+        return CheckCommandExistsOutput(exists=False, command_checked=str(command_name) if command_name is not None else "", message=message)
 
     try:
         # Extract base command if it includes arguments (shutil.which needs the command name only)
@@ -224,7 +225,7 @@ def check_command_exists(args: dict, tool_context: ToolContext) -> CheckCommandE
     status_msg = "exists" if exists else "does not exist"
     message = f"Command '{base_command}' {status_msg} in system PATH."
     logger.info(f"Checked existence for command '{base_command}': {exists}")
-    return CheckCommandExistsOutput(exists=exists, command_checked=base_command, message=message).model_dump()
+    return CheckCommandExistsOutput(exists=exists, command_checked=base_command, message=message)
 
 
 # <--- Added section end
