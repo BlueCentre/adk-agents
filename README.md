@@ -218,16 +218,6 @@ graph TD
         L --> M;
         L --> N;
     end
-
-    classDef default fill:#f9f,stroke:#333,stroke-width:2px;
-    classDef component fill:#ccf,stroke:#333,stroke-width:2px;
-    classDef data fill:#ffc,stroke:#333,stroke-width:2px;
-
-    class DevOpsAgent,LLM component;
-    class F,G,L component;
-    class A,C data;
-    class E,H,I,J,M,N data;
-    class K data;
 ```
 
 ## Agent Interaction Sequence Diagram
