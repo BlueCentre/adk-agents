@@ -10,12 +10,14 @@ The DevOps Agent is a sophisticated AI assistant built using the Google Agent De
 *   **Infrastructure Management:** Helps with provisioning, configuring, and managing infrastructure resources.
 *   **Codebase Understanding:** Can index and analyze code repositories to answer questions about functionality, find relevant snippets, and assist with refactoring.
 *   **Workflow Automation:** Automates repetitive DevOps tasks through a combination of LLM reasoning and tool execution.
-*   **Comprehensive Tool Integration:** Equipped with a versatile set of tools for file system operations (reading, writing, listing, editing), code search (`ripgrep`), shell command execution (`execute_vetted_shell_command`, `check_command_exists`), codebase indexing and retrieval, and web research (`google_search_grounding`). It can interact with common DevOps command-line tools like `git`, `docker`, `kubectl`, `terraform`, `jira`, and `bw` based on availability and project context.
+*   **Comprehensive Tool Integration:** Equipped with a versatile suite of tools enabling interaction with the environment. This includes core file system operations (reading, writing, listing, editing), powerful code search capabilities (`grep_search` for patterns, `file_search` for paths), secure shell command execution (`execute_vetted_shell_command` with vetting and user approval), codebase indexing and retrieval (`index_directory_tool`, `retrieve_code_context_tool` for RAG), and web research (`google_search_grounding`). The agent can intelligently utilize common DevOps command-line tools found in the user's environment (like `git`, `docker`, `kubectl`, `terraform`) based on availability and context.
+*   **Interactive Planning:** For complex tasks or when explicitly requested, the agent can generate a detailed, multi-step plan outlining its proposed approach. It presents this plan to the user for review and approval, allowing for feedback and refinement before proceeding with execution. This enhances collaboration and ensures alignment on the intended solution.
+*   **Context Management and Token Optimization:** Implements a structured approach to managing conversation history, relevant code snippets, and tool outputs. This system prioritizes key information and employs token counting strategies (including leveraging the LLM client's capabilities, `tiktoken` if available, and fallback methods) to stay within model context limits while maintaining high-quality context for the LLM.
+*   **LLM Usage Transparency:** Displays and logs token usage for each model interaction (prompt, candidate, total), providing clear insight into the cost and complexity of agent responses.
 *   **Proactive & Safe Tool Usage:** Intelligently discovers available command-line tools and executes shell commands with a strong emphasis on safety, including pre-vetting and user approval for state-changing operations.
 *   **Rich Interactive Loop:** Powered by the ADK's `LlmAgent`, enabling complex, multi-turn conversations and sophisticated tool usage.
 *   **Enhanced Tool Execution Feedback:** Provides clear console output detailing tool arguments, execution status (success/failure), duration, and results or errors.
 *   **Granular Error Reporting:** Offers detailed error messages for failed tool executions and unhandled agent exceptions, including relevant context like command executed, return codes, and stderr/stdout for shell commands.
-*   **LLM Usage Transparency:** Displays and logs token usage for each model interaction, providing insight into the cost and complexity of agent responses.
 *   **Robust Agent Lifecycle:** The ADK provides a stable framework for agent execution, state management, and error handling.
 *   **Interactive CLI:** Allows users to interact with the agent through a command-line interface.
 *   **Cloud Deployment:** Can be deployed as a service on Google Cloud Run.
@@ -56,13 +58,7 @@ To get started with the DevOps Agent, you can use `uvx` to handle dependencies a
 
 The DevOps Agent is architected as an `LlmAgent` within the Google ADK framework. Its core components are:
 
-*   **`agent.py`:** This is the main file that defines the agent. It initializes the `LlmAgent` with:
-    *   A specific LLM model (e.g., Gemini).
-    *   A name and description.
-    *   Detailed instructions defined in `prompts.py`.
-    *   A collection of tools available to the agent (filesystem tools, code indexing, shell execution, etc.).
-    *   Configuration for content generation.
-    It also defines custom callback handlers (`handle_before_model`, `handle_after_model`, `handle_before_tool`, `handle_after_tool`) to provide rich, interactive feedback during model and tool interactions.
+*   **`agent.py`:** This is the main file that defines the agent class (`MyDevopsAgent`), inheriting from the ADK's `LlmAgent`. It initializes the agent with the LLM model, instructions, and tools. Crucially, it integrates the `PlanningManager` to handle interactive planning and utilizes the context management system to prepare relevant input for the LLM. It also defines custom callback handlers (`handle_before_model`, `handle_after_model`, etc.) to manage the agent's state, process tool outputs, and provide interactive feedback, including handling the planning workflow and integrating with context management.
 *   **`prompts.py`:** Contains the core instructions and persona definition for the LLM, guiding its behavior, capabilities, and how it should interact with users and tools. It works in conjunction with `AGENT.md` (located in the agent's operational directory, e.g., `./devops/AGENT.md`) which provides detailed operational context, tool availability, and workflow procedures.
 *   **Tools:** A collection of Python functions that the agent can invoke to perform specific actions. These tools are the agent's interface to the external world (e.g., reading files, running commands, searching code).
 *   **Google ADK Framework:** Provides the underlying machinery for agent execution, tool management, LLM interaction, session management, and deployment.
