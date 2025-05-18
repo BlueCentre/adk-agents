@@ -10,8 +10,8 @@ The DevOps Agent is a sophisticated AI assistant built using the Google Agent De
 *   **Infrastructure Management:** Helps with provisioning, configuring, and managing infrastructure resources.
 *   **Codebase Understanding:** Can index and analyze code repositories to answer questions about functionality, find relevant snippets, and assist with refactoring.
 *   **Workflow Automation:** Automates repetitive DevOps tasks through a combination of LLM reasoning and tool execution.
+*   **Interactive Planning:** Supports an interactive planning workflow for complex tasks, allowing users to review and approve the agent's proposed approach before execution. See the [Interactive Planning Workflow](#interactive-planning-workflow) section for details.
 *   **Comprehensive Tool Integration:** Equipped with a versatile suite of tools enabling interaction with the environment. This includes core file system operations (reading, writing, listing, editing), powerful code search capabilities (`grep_search` for patterns, `file_search` for paths), secure shell command execution (`execute_vetted_shell_command` with vetting and user approval), codebase indexing and retrieval (`index_directory_tool`, `retrieve_code_context_tool` for RAG), and web research (`google_search_grounding`). The agent can intelligently utilize common DevOps command-line tools found in the user's environment (like `git`, `docker`, `kubectl`, `terraform`) based on availability and context.
-*   **Interactive Planning:** For complex tasks or when explicitly requested, the agent can generate a detailed, multi-step plan outlining its proposed approach. It presents this plan to the user for review and approval, allowing for feedback and refinement before proceeding with execution. This enhances collaboration and ensures alignment on the intended solution.
 *   **Context Management and Token Optimization:** Implements a structured approach to managing conversation history, relevant code snippets, and tool outputs. This system prioritizes key information and employs token counting strategies (including leveraging the LLM client's capabilities, `tiktoken` if available, and fallback methods) to stay within model context limits while maintaining high-quality context for the LLM.
 *   **LLM Usage Transparency:** Displays and logs token usage for each model interaction (prompt, candidate, total), providing clear insight into the cost and complexity of agent responses.
 *   **Proactive & Safe Tool Usage:** Intelligently discovers available command-line tools and executes shell commands with a strong emphasis on safety, including pre-vetting and user approval for state-changing operations.
@@ -61,43 +61,9 @@ The DevOps Agent is architected as an `LlmAgent` within the Google ADK framework
 *   **`agent.py`:** This is the main file that defines the agent class (`MyDevopsAgent`), inheriting from the ADK's `LlmAgent`. It initializes the agent with the LLM model, instructions, and tools. Crucially, it integrates the `PlanningManager` to handle interactive planning and utilizes the context management system to prepare relevant input for the LLM. It also defines custom callback handlers (`handle_before_model`, `handle_after_model`, etc.) to manage the agent's state, process tool outputs, and provide interactive feedback, including handling the planning workflow and integrating with context management.
 *   **`prompts.py`:** Contains the core instructions and persona definition for the LLM, guiding its behavior, capabilities, and how it should interact with users and tools. It works in conjunction with `AGENT.md` (located in the agent's operational directory, e.g., `./devops/AGENT.md`) which provides detailed operational context, tool availability, and workflow procedures.
 *   **Tools:** A collection of Python functions that the agent can invoke to perform specific actions. These tools are the agent's interface to the external world (e.g., reading files, running commands, searching code).
+*   **Context Management (`context_management/`):** This module is responsible for maintaining a rich and optimized context for the LLM. It manages the history of the conversation, tracks relevant code snippets identified during interactions (e.g., via file reads or edits), and processes tool outputs to include key information concisely. It incorporates logic for accurate token counting and prioritizes information to ensure the context stays within model context limits. See the [Token Counting and Management](#token-counting-and-management) section for details on token handling.
+*   **Planning Manager (`components/planning_manager.py`):** This component orchestrates the interactive planning process. Based on the user's request and the agent's state, it can trigger the generation of a proposed plan by the LLM. It then manages the interaction with the user for plan approval or refinement before allowing the agent to proceed with the implementation phase. See the [Interactive Planning Workflow](#interactive-planning-workflow) section for a detailed explanation of the workflow.
 *   **Google ADK Framework:** Provides the underlying machinery for agent execution, tool management, LLM interaction, session management, and deployment.
-
-### Agent Interaction Flow
-
-```mermaid
-graph TD
-    A[User Input] --> B{Google ADK CLI API};
-    B --> C[DevOpsAgent];
-    C --> D{LLM};
-    D -- Thought & Tool Selection --> C;
-    C --> E[Agent Tools];
-    E -- Tool Output --> C;
-    C -- LLM Response Generation --> D;
-    D -- Final Response --> C;
-    C --> F[User Output];
-
-    subgraph DevOpsAgentCore
-        P[prompts.py Instructions]
-        AM[AGENT.md Context]
-        T[tools Available Tools]
-    end
-
-    P --> C;
-    AM --> C;
-    T --> C;
-```
-
-**Explanation:**
-
-1.  **User Input:** The user interacts with the agent, typically via the ADK CLI (`adk run`) or an API endpoint if deployed.
-2.  **ADK Framework:** The ADK receives the input and routes it to the configured DevOps Agent.
-3.  **DevOps Agent (`LlmAgent`):** The agent, using its instructions from `prompts.py`, context from `AGENT.md`, and the user query, consults the LLM.
-4.  **LLM:** The LLM processes the input, "thinks" about the request, and decides if a tool needs to be used. It might select one or more tools from the agent's toolset.
-5.  **Tool Invocation:** If a tool is selected, the `LlmAgent` invokes the corresponding Python function (e.g., `read_file_content`, `execute_vetted_shell_command`).
-6.  **Tool Output:** The tool executes and returns its output to the `LlmAgent`.
-7.  **LLM Response Generation:** The agent sends the tool output (if any) back to the LLM, which then formulates the final response to the user.
-8.  **User Output:** The ADK framework delivers the agent's response to the user.
 
 ### Relation to Google ADK Framework
 
@@ -120,7 +86,7 @@ graph LR
     end
 
     subgraph DevOpsAgentApplication
-        AgentPy[AgentNode]
+        AgentPy[LlmAgent]
         PromptPy[prompts.py]
         AgentMD[AGENT.md]
         CustomTools[Custom Tools]
@@ -216,32 +182,92 @@ graph TD
     end
 ```
 
+## Interactive Planning Workflow
+
+The DevOps Agent includes an interactive planning phase to improve collaboration and the quality of output for complex tasks. This workflow is triggered for requests deemed sufficiently complex or when the user explicitly asks for a plan.
+
+**Workflow Steps:**
+
+1.  **Task Assessment:** Upon receiving a user request, the agent assesses its complexity to determine if a planning phase is beneficial.
+2.  **Plan Proposal:** If planning is needed, the agent uses the LLM to generate a detailed, multi-step plan outlining the proposed approach to fulfill the request.
+3.  **User Review:** The agent presents the generated plan to the user.
+4.  **Approval or Refinement:** The user can review the plan and either approve it to proceed or provide feedback for refinement. The agent can iterate on the plan based on user feedback.
+5.  **Implementation:** Once the plan is approved by the user, the agent proceeds with executing the steps outlined in the plan, leveraging its tools and context management.
+
+This interactive approach ensures that the agent and the user are aligned on the strategy before significant work is performed, reducing rework and improving the final outcome.
+
+### Agent Interaction Flow
+
+```mermaid
+graph TD
+    User --> Agent;
+    Agent --> Planning{Planning Needed?};
+    Planning -- Yes --> ProposePlan[Propose Plan];
+    ProposePlan --> User[Review Plan];
+    User --> Agent[Approve Plan];
+    Agent -- Plan Approved --> ContextMgt[Context Management];
+    Planning -- No --> ContextMgt;
+    ContextMgt --> LLM[LLM];
+    LLM -- Tool Calls --> Agent[Execute Tools];
+    Agent[Execute Tools] --> Tools[Tools];
+    Tools --> Agent[Process Tool Output];
+    Agent[Process Tool Output] --> ContextMgt;
+    LLM -- Response --> User;
+
+    subgraph Agent Components
+        Planning
+        ContextMgt
+        Tools
+    end
+```
+
+**Explanation:**
+
+1.  **User Input:** The user interacts with the agent, typically via the ADK CLI (`adk run`) or an API endpoint if deployed.
+2.  **Agent Decision:** The agent determines if a planning step is needed based on the complexity of the task.
+3.  **Propose Plan:** If planning is needed, the agent generates a detailed plan.
+4.  **Review Plan:** The user reviews the proposed plan.
+5.  **Approve Plan:** The user approves the plan.
+6.  **Context Management:** The agent prepares the context for the LLM, including relevant code snippets and tool outputs.
+7.  **LLM:** The LLM processes the input, "thinks" about the request, and decides if a tool needs to be used. It might select one or more tools from the agent's toolset.
+8.  **Tool Invocation:** If a tool is selected, the `LlmAgent` invokes the corresponding Python function (e.g., `read_file_content`, `execute_vetted_shell_command`).
+9.  **Tool Output:** The tool executes and returns its output to the `LlmAgent`.
+10. **Process Tool Output:** The agent processes the tool output and integrates it with the context.
+11. **LLM Response Generation:** The agent sends the processed output back to the LLM, which then formulates the final response to the user.
+12. **User Output:** The ADK framework delivers the agent's response to the user.
+
 ## Agent Interaction Sequence Diagram
 
 ```mermaid
 sequenceDiagram
     participant User
-    participant ADK_CLI_API
-    participant DevOpsAgent
+    participant ADK
+    participant Agent
+    participant Planning
+    participant Context
     participant LLM
-    participant AgentTools
-    participant CodebaseSystem
+    participant Tools
 
-    User->>ADK_CLI_API: Input Query
-    ADK_CLI_API->>DevOpsAgent: Forward Query
-    DevOpsAgent->>LLM: Process Request (using prompts.py, AGENT.md)
-    LLM-->>DevOpsAgent: Thought & Tool Selection
-    DevOpsAgent->>AgentTools: Invoke Tool
-    AgentTools-->>DevOpsAgent: Tool Output
-
-    alt If Codebase Tool
-        AgentTools->>CodebaseSystem: Search (retrieve_code_context_tool)
-        CodebaseSystem-->>AgentTools: Relevant Code Chunks (from DB)
-        AgentTools-->>DevOpsAgent: Code Snippets
+    User->>ADK: Query
+    ADK->>Agent: Query
+    Agent->>Planning: Assess Need
+    alt Planning Needed
+        Planning->>LLM: Request Plan
+        LLM-->>Planning: Proposed Plan
+        Planning->>Agent: Forward Plan
+        Agent->>User: Present Plan
+        User->>Agent: Approve
+        Agent->>Planning: Approval Status
     end
-
-    DevOpsAgent->>LLM: LLM Response Generation
-    LLM-->>DevOpsAgent: Final Response
-    DevOpsAgent->>ADK_CLI_API: Send Output
-    ADK_CLI_API-->>User: Display Output
+    Agent->>Context: Prepare Context
+    Context-->>Agent: Optimized Context
+    Agent->>LLM: Process Request
+    LLM-->>Agent: Thought Selection
+    Agent->>Tools: Invoke Tool
+    Tools-->>Agent: Tool Output
+    Agent->>Context: Update Context
+    Agent->>LLM: Generate Response
+    LLM-->>Agent: Final Response
+    Agent->>ADK: Send Output
+    ADK-->>User: Display Output
 ```
