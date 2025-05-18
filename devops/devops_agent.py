@@ -30,10 +30,8 @@ from pydantic import PrivateAttr
 from . import config as agent_config
 from .components.planning_manager import PlanningManager
 from .components.context_management import (
-    ContextManager,
     TOOL_PROCESSORS,
     get_last_user_content,
-    inject_structured_context,
 )
 from .tools.shell_command import ExecuteVettedShellCommandOutput
 from .utils import ui as ui_utils
@@ -49,7 +47,6 @@ except ImportError:
 class MyDevopsAgent(LlmAgent):
     _console: Console = PrivateAttr(default_factory=lambda: Console(stderr=True))
     _status_indicator: Optional[Status] = PrivateAttr(default=None)
-    _context_manager: Optional[ContextManager] = PrivateAttr(default=None)
     _is_new_conversation: bool = PrivateAttr(default=True)
     _planning_manager: Optional[PlanningManager] = PrivateAttr(default=None)
     _actual_llm_token_limit: int = PrivateAttr(default=agent_config.DEFAULT_TOKEN_LIMIT_FALLBACK)
@@ -102,16 +99,6 @@ class MyDevopsAgent(LlmAgent):
         self._determine_actual_token_limit()
         logger.info(f"Agent {self.name} initialized with token limit: {self._actual_llm_token_limit}")
 
-        self._context_manager = ContextManager(
-            model_name=self.model or agent_config.GEMINI_MODEL_NAME,
-            max_llm_token_limit=self._actual_llm_token_limit,
-            llm_client=self.llm_client,
-            target_recent_turns=agent_config.CONTEXT_TARGET_RECENT_TURNS,
-            target_code_snippets=agent_config.CONTEXT_TARGET_CODE_SNIPPETS,
-            target_tool_results=agent_config.CONTEXT_TARGET_TOOL_RESULTS,
-            max_stored_code_snippets=agent_config.CONTEXT_MAX_STORED_CODE_SNIPPETS,
-            max_stored_tool_results=agent_config.CONTEXT_MAX_STORED_TOOL_RESULTS
-        )
         self._planning_manager = PlanningManager(console_manager=self._console)
 
     def _determine_actual_token_limit(self):
@@ -172,14 +159,51 @@ class MyDevopsAgent(LlmAgent):
         self, callback_context: CallbackContext, llm_request: LlmRequest
     ) -> LlmResponse | None:
         user_message_content = get_last_user_content(llm_request)
-        if user_message_content and (not self._context_manager.conversation_turns or self._context_manager.conversation_turns[-1].user_message != user_message_content):
-            if self._context_manager.current_turn_number == 0 or self._context_manager.conversation_turns[-1].agent_message is not None:
-                 logger.debug(f"Starting new turn in CM with user message: {user_message_content[:100]}")
-                 self._context_manager.start_new_turn(user_message_content)
-            elif self._context_manager.conversation_turns[-1].user_message is None:
-                 logger.debug(f"Updating current turn in CM with user message: {user_message_content[:100]}")
-                 self._context_manager.conversation_turns[-1].user_message = user_message_content
-                 self._context_manager.conversation_turns[-1].user_message_tokens = self._context_manager._count_tokens(user_message_content)
+        if callback_context and hasattr(callback_context, 'state') and callback_context.state is not None:
+            conversation_history = callback_context.state.get('user:conversation_history', [])
+            current_turn = callback_context.state.get('temp:current_turn', {})
+
+            if user_message_content:
+                 if not conversation_history or conversation_history[-1].get('agent_message') is not None:
+                      logger.debug(f"Starting new turn in context.state with user message: {user_message_content[:100]}")
+                      current_turn = {'user_message': user_message_content}
+                      conversation_history.append(current_turn)
+                 elif conversation_history[-1].get('user_message') is None:
+                      logger.debug(f"Updating current turn in context.state with user message: {user_message_content[:100]}")
+                      conversation_history[-1]['user_message'] = user_message_content
+                      current_turn = conversation_history[-1]
+                 else:
+                       logger.debug(f"Appending to last user message in context.state: {user_message_content[:100]}")
+                       last_user_msg = conversation_history[-1].get('user_message', '')
+                       conversation_history[-1]['user_message'] = last_user_msg + "\n" + user_message_content
+                       current_turn = conversation_history[-1]
+
+            callback_context.state['user:conversation_history'] = conversation_history
+            callback_context.state['temp:current_turn'] = current_turn
+
+            # New logic using context.state to determine if it's a new conversation and initialize state
+            is_new_conversation = callback_context.state.get('temp:is_new_conversation', True)
+            if is_new_conversation:
+                logger.info(f"Agent {self.name}: New conversation detected (based on context.state), initializing state.")
+                callback_context.state['user:conversation_history'] = [] # Initialize conversation history
+                callback_context.state['app:code_snippets'] = [] # Initialize code snippets history if needed
+                callback_context.state['temp:is_new_conversation'] = False # Mark as not a new conversation for subsequent calls
+
+            # Ensure current turn temporary state is cleared at the start of a new turn processing
+            # This assumes each call to handle_before_model corresponds to processing a new turn input.
+            # Replacing .pop() with .get() and setting to None/empty
+            tool_calls_current_turn = callback_context.state.get('temp:tool_calls_current_turn', None)
+            if tool_calls_current_turn is not None:
+                logger.debug("Clearing temp:tool_calls_current_turn state.")
+                callback_context.state['temp:tool_calls_current_turn'] = None
+
+            tool_results_current_turn = callback_context.state.get('temp:tool_results_current_turn', None)
+            if tool_results_current_turn is not None:
+                 logger.debug("Clearing temp:tool_results_current_turn state.")
+                 callback_context.state['temp:tool_results_current_turn'] = None
+            # Note: 'temp:current_turn' is managed above where user message is added.
+        else:
+             logger.warning("callback_context or callback_context.state is not available in handle_before_model. State will not be managed.")
 
         planning_response, approved_plan_text = await self._planning_manager.handle_before_model_planning_logic(
             user_message_content, llm_request
@@ -190,52 +214,47 @@ class MyDevopsAgent(LlmAgent):
             return planning_response
 
         if approved_plan_text:
-            logger.info("MyDevopsAgent: Plan approved. Adding to context manager as system message.")
-            self._context_manager.add_system_message(
-                f"The user has approved the following plan. Proceed with implementation based on this plan:\n"
-                f"--- APPROVED PLAN ---\n{approved_plan_text}\n--- END APPROVED PLAN ---"
-            )
+            logger.info("MyDevopsAgent: Plan approved. Adding to context.state as system message.")
+            current_turn = callback_context.state.get('temp:current_turn', {})
+            system_message = f"SYSTEM: The user has approved the following plan. Proceed with implementation:\n{approved_plan_text}"
+            current_turn['system_message_plan'] = system_message
+            callback_context.state['temp:current_turn'] = current_turn
+            conversation_history = callback_context.state.get('user:conversation_history', [])
+            conversation_history.append({'system_message': system_message})
+            callback_context.state['user:conversation_history'] = conversation_history
+
             self._start_status("[bold yellow](Agent is implementing the plan...)")
 
         is_currently_a_plan_generation_turn = self._planning_manager.is_plan_generation_turn
 
         if not is_currently_a_plan_generation_turn:
-            base_prompt_tokens = 0
-            if self.instruction:
-                base_prompt_tokens += self._context_manager._count_tokens(self.instruction)
+            logger.info("Assembling context from context.state (user:conversation_history, temp:tool_results, etc.)")
+            context_dict = self._assemble_context_from_state(callback_context.state)
+            context_tokens = self._count_context_tokens(context_dict)
 
-            cm_has_current_user_msg = False
-            if user_message_content and self._context_manager.conversation_turns:
-                last_cm_turn = self._context_manager.conversation_turns[-1]
-                if last_cm_turn.user_message == user_message_content and last_cm_turn.turn_number == self._context_manager.current_turn_number:
-                    cm_has_current_user_msg = True
-
-            if user_message_content and not cm_has_current_user_msg:
-                 base_prompt_tokens += self._context_manager._count_tokens(user_message_content)
-
-            context_dict, context_tokens = self._context_manager.assemble_context(base_prompt_tokens)
-            logger.info(f"Structured context assembled: {context_tokens} tokens.")
             try:
                 if hasattr(llm_request, 'model') and llm_request.model:
-                    # inject_structured_context(llm_request, context_dict) # Removed direct modification of callback_context.llm_request
-                    # Note: Context injection might need to be handled differently
-                    # if simply injecting into llm_request doesn't work.
-                    context_block_wrapper_text = f"SYSTEM CONTEXT (JSON):\n```json\n```\nUse this context to inform your response. Do not directly refer to this context block."
-                    wrapper_tokens = self._context_manager._count_tokens(context_block_wrapper_text)
-                    total_context_block_tokens = wrapper_tokens + context_tokens
-                    logger.info(f"Total tokens for prompt (base + context_block): {base_prompt_tokens + total_context_block_tokens}")
+                    system_context_message = f"SYSTEM CONTEXT (JSON):\n```json\n{json.dumps(context_dict, indent=2)}\n```\nUse this context to inform your response. Do not directly refer to this context block unless asked."
+
+                    if hasattr(llm_request, 'messages') and isinstance(llm_request.messages, list):
+                        try:
+                            from google.genai import types as genai_types
+                            system_message_part = genai_types.Part(text=system_context_message)
+                            system_content = genai_types.Content(role='system', parts=[system_message_part])
+                            llm_request.messages.insert(0, system_content)
+                            logger.info("Injected structured context into llm_request messages.")
+                        except Exception as e:
+                             logger.warning(f"Could not inject structured context into llm_request messages: {e}")
+
+                    total_context_block_tokens = self._count_tokens(system_context_message)
+                    logger.info(f"Total tokens for prompt (base + context_block): {self._count_tokens(get_last_user_content(llm_request)) + total_context_block_tokens}")
+
                 else:
                     logger.warning("Skipping structured context injection as LlmRequest seems incomplete.")
             except Exception as e:
                 logger.error(f"Failed to inject structured context: {e} - LlmRequest: {llm_request}", exc_info=True)
         else:
             logger.info("Plan generation turn: Skipping general context assembly and injection.")
-
-        if is_currently_a_plan_generation_turn:
-            self._start_status("[bold yellow](Agent is drafting a plan...)")
-        elif not self._status_indicator:
-            if not (hasattr(callback_context, 'tool_calls') and callback_context.tool_calls):
-                 self._start_status("[bold yellow](Agent is thinking...)")
 
         return None
 
@@ -260,27 +279,67 @@ class MyDevopsAgent(LlmAgent):
 
         processed_response = self._process_llm_response(llm_response)
 
-        # Handle text parts
         if processed_response["text_parts"]:
             extracted_text = "".join(processed_response["text_parts"])
             if extracted_text:
-                if not self._context_manager.conversation_turns or \
-                   self._context_manager.conversation_turns[-1].turn_number != self._context_manager.current_turn_number:
-                    logger.warning("Attempting to update agent response for a turn that doesn't match current_turn_number. This might indicate a turn management issue.")
-                self._context_manager.update_agent_response(self._context_manager.current_turn_number, extracted_text)
+                conversation_history = callback_context.state.get('user:conversation_history', [])
+                if conversation_history:
+                    last_turn = conversation_history[-1]
+                    if last_turn.get('agent_message') is None:
+                        last_turn['agent_message'] = extracted_text
+                        callback_context.state['user:conversation_history'] = conversation_history
+                    else:
+                         last_turn['agent_message'] += "\n" + extracted_text
+                         callback_context.state['user:conversation_history'] = conversation_history
+                    logger.debug(f"Updated agent response in context.state for last turn: {extracted_text[:100]}")
+                else:
+                    logger.warning("Attempting to update agent response in context.state but no conversation history found.")
 
-        # Handle function call parts (placeholder for now)
         if processed_response["function_calls"]:
             logger.info(f"Handle function calls here: {processed_response["function_calls"]}")
-            # TODO: Implement logic to execute function calls
+            current_turn = callback_context.state.get('temp:current_turn', {})
+            current_turn['function_calls'] = processed_response["function_calls"]
+            callback_context.state['temp:current_turn'] = current_turn
 
-        self._is_new_conversation = False
-        # Return None to allow the framework to process the original llm_response
+        callback_context.state['temp:is_new_conversation'] = False # Use state instead of attribute
+
+        # After processing the model response, integrate tool calls and results from temp state into history
+        if callback_context and hasattr(callback_context, 'state') and callback_context.state is not None:
+            # Replacing .pop() with .get() and setting to None/empty
+            current_turn_tool_calls = callback_context.state.get('temp:tool_calls_current_turn', [])
+            if current_turn_tool_calls is None:
+                 current_turn_tool_calls = [] # Ensure it's a list if None
+
+            current_turn_tool_results = callback_context.state.get('temp:tool_results_current_turn', [])
+            if current_turn_tool_results is None:
+                 current_turn_tool_results = [] # Ensure it's a list if None
+
+            current_turn_data = callback_context.state.get('temp:current_turn', {})
+            if current_turn_data is None:
+                 current_turn_data = {} # Ensure it's a dict if None
+            # Clear the temporary current turn data after retrieving
+            callback_context.state['temp:current_turn'] = None
+
+            # Integrate tool calls and results into the last turn in conversation history
+            conversation_history = callback_context.state.get('user:conversation_history', [])
+            if conversation_history:
+                last_turn = conversation_history[-1]
+                # Add tool calls and results to the last turn
+                if current_turn_tool_calls:
+                    last_turn['tool_calls'] = last_turn.get('tool_calls', []) + current_turn_tool_calls
+                if current_turn_tool_results:
+                    last_turn['tool_results'] = last_turn.get('tool_results', []) + current_turn_tool_results
+                # Potentially add other current_turn_data if needed, e.g., system_message_plan
+                last_turn.update({k: v for k, v in current_turn_data.items() if k not in ['user_message', 'agent_message', 'tool_calls', 'tool_results']})
+                callback_context.state['user:conversation_history'] = conversation_history # Ensure state is updated
+                logger.debug("Integrated tool calls and results into conversation history.")
+        else:
+            logger.warning("callback_context or callback_context.state is not available in handle_after_model. Tool data not integrated into history.")
+
         return None
 
     def _extract_response_text(self, llm_response: LlmResponse) -> Optional[str]:
         try:
-            # Safely check for and get the 'text' attribute
             extracted_text = getattr(llm_response, 'text', None)
             if extracted_text:
                 return llm_response.text
@@ -297,7 +356,6 @@ class MyDevopsAgent(LlmAgent):
                      if parts_texts:
                         return "".join(parts_texts)
         except Exception as e:
-            # Log the type and attributes of the llm_response object
             logger.warning(f"Failed to extract text from LLM response: {e}. "
                            f"LLM response type: {type(llm_response)}. "
                            f"LLM response attributes: {dir(llm_response)}")
@@ -310,35 +368,28 @@ class MyDevopsAgent(LlmAgent):
             "function_calls": []
         }
 
-        # Prioritize content/parts if available
         if hasattr(llm_response, 'content') and getattr(llm_response, 'content'):
             content_obj = getattr(llm_response, 'content')
             if isinstance(content_obj, genai_types.Content) and content_obj.parts:
                 for part in content_obj.parts:
                     if hasattr(part, 'text') and part.text is not None:
                         extracted_data["text_parts"].append(part.text)
-                    # Assuming function_call parts have a 'function_call' attribute
                     elif hasattr(part, 'function_call') and part.function_call is not None:
                          extracted_data["function_calls"].append(part.function_call)
 
-        # Fallback for models that might put parts directly on the response object
         elif hasattr(llm_response, 'parts') and getattr(llm_response, 'parts'):
             parts = getattr(llm_response, 'parts')
             if isinstance(parts, list):
                  for part in parts:
                     if hasattr(part, 'text') and part.text is not None:
                          extracted_data["text_parts"].append(part.text)
-                    # Assuming function_call parts have a 'function_call' attribute
                     elif hasattr(part, 'function_call') and part.function_call is not None:
                          extracted_data["function_calls"].append(part.function_call)
 
-        # Final fallback: check for a direct 'text' attribute on the response (less common for complex responses)
-        # Safely check for and get the 'text' attribute
         direct_text = getattr(llm_response, 'text', None)
         if direct_text and not extracted_data["text_parts"] and not extracted_data["function_calls"]:
              extracted_data["text_parts"].append(direct_text)
 
-        # Log if function calls were found
         if extracted_data["function_calls"]:
             logger.info(f"Detected function calls in LLM response: {extracted_data["function_calls"]}")
 
@@ -348,9 +399,17 @@ class MyDevopsAgent(LlmAgent):
         self, tool: BaseTool, args: dict, tool_context: ToolContext, callback_context: CallbackContext | None = None
     ) -> dict | None:
         try:
-            # Only add to context manager if callback_context is provided
-            if callback_context is not None and self._context_manager is not None:
-                self._context_manager.add_tool_call(self._context_manager.current_turn_number, tool.name, args)
+            if tool_context and hasattr(tool_context, 'state') and tool_context.state is not None:
+                # Initialize or get the list of tool calls for the current turn
+                tool_calls = tool_context.state.get('temp:tool_calls_current_turn', [])
+                if tool_calls is None: # Ensure tool_calls is a list even if state had None
+                    tool_calls = []
+                tool_calls.append({'tool_name': tool.name, 'args': args})
+                tool_context.state['temp:tool_calls_current_turn'] = tool_calls
+                logger.info(f"Added tool call to context.state: {tool.name} with args: {args}")
+            else:
+                logger.warning("tool_context or tool_context.state is not available in handle_before_tool. Tool call not logged to state.")
+
             logger.info(f"Agent {self.name}: Executing tool {tool.name} with args: {args}")
             ui_utils.display_tool_execution_start(self._console, tool.name, args)
             return None
@@ -366,14 +425,28 @@ class MyDevopsAgent(LlmAgent):
         custom_processor_used = False
         if tool.name in TOOL_PROCESSORS:
             try:
-                # Call the custom processor, assuming it takes context manager, tool, and response
-                TOOL_PROCESSORS[tool.name](self._context_manager, tool, tool_response)
+                # Pass state to custom processors only if available
+                if tool_context and hasattr(tool_context, 'state') and tool_context.state is not None:
+                    TOOL_PROCESSORS[tool.name](tool_context.state, tool, tool_response)
+                else:
+                     logger.warning(f"tool_context or tool_context.state is not available for custom processor {tool.name}. State not passed.")
+                     TOOL_PROCESSORS[tool.name](None, tool, tool_response) # Pass None for state if not available
                 custom_processor_used = True
             except Exception as e:
                 logger.error(f"Error in custom processor for {tool.name}: {e}", exc_info=True)
 
         if not custom_processor_used:
-            self._context_manager.add_tool_result(tool.name, tool_response)
+            # New logic using context.state
+            if tool_context and hasattr(tool_context, 'state') and tool_context.state is not None:
+                # Initialize or get the list of tool results for the current turn
+                tool_results = tool_context.state.get('temp:tool_results_current_turn', [])
+                if tool_results is None: # Ensure tool_results is a list even if state had None
+                    tool_results = []
+                tool_results.append({'tool_name': tool.name, 'response': tool_response})
+                tool_context.state['temp:tool_results_current_turn'] = tool_results
+                logger.info(f"Added tool result to context.state for tool {tool.name}.")
+            else:
+                logger.warning(f"tool_context or tool_context.state is not available in handle_after_tool. Tool result not logged to state.")
 
         duration = time.time() - start_time
 
@@ -392,39 +465,14 @@ class MyDevopsAgent(LlmAgent):
         self, ctx: InvocationContext
     ) -> AsyncGenerator[Event, None]:
         try:
-            if self._is_new_conversation:
-                logger.info(f"Agent {self.name}: New conversation detected, resetting context manager and planning state.")
-                self._determine_actual_token_limit() # Ensure limit is up-to-date
-                logger.info(f"Agent {self.name} re-initialized token limit for new conversation: {self._actual_llm_token_limit}")
-
-                if hasattr(ctx, 'llm_client') and ctx.llm_client:
-                    logger.info(f"Found llm_client from context: {type(ctx.llm_client).__name__}")
-                    self.llm_client = ctx.llm_client
-
-                if self.llm_client is None:
-                    logger.warning("No llm_client provided. Attempting to create a default genai client.")
-                    try:
-                        if agent_config.GOOGLE_API_KEY:
-                            self.llm_client = genai.Client(api_key=agent_config.GOOGLE_API_KEY)
-                            logger.info("Created genai client with API key from environment in _run_async_impl")
-                        else:
-                            self.llm_client = genai.Client()
-                            logger.info("Created default genai client without explicit API key in _run_async_impl")
-                        logger.info("Created default genai client.")
-                    except Exception as e:
-                        logger.error(f"Failed to create default genai client: {e}")
-
-                self._context_manager = ContextManager(
-                    model_name=self.model or agent_config.GEMINI_MODEL_NAME,
-                    max_llm_token_limit=self._actual_llm_token_limit,
-                    llm_client=self.llm_client,
-                    target_recent_turns=agent_config.CONTEXT_TARGET_RECENT_TURNS,
-                    target_code_snippets=agent_config.CONTEXT_TARGET_CODE_SNIPPETS,
-                    target_tool_results=agent_config.CONTEXT_TARGET_TOOL_RESULTS,
-                    max_stored_code_snippets=agent_config.CONTEXT_MAX_STORED_CODE_SNIPPETS,
-                    max_stored_tool_results=agent_config.CONTEXT_MAX_STORED_TOOL_RESULTS
-                )
-                self._planning_manager.reset_planning_state()
+            # Need to add placeholder methods for context assembly and token counting that operate on state
+            # For simplicity, add them at the end of the class
+            if not hasattr(self, '_assemble_context_from_state'):
+                self._assemble_context_from_state = self._placeholder_assemble_context
+            if not hasattr(self, '_count_context_tokens'):
+                self._count_context_tokens = self._placeholder_count_tokens_for_context
+            if not hasattr(self, '_count_tokens'):
+                self._count_tokens = self._placeholder_count_tokens # Use a placeholder for now
 
             async for event in super()._run_async_impl(ctx):
                 yield event
@@ -439,7 +487,7 @@ class MyDevopsAgent(LlmAgent):
                 f"{error_type}: {error_message}\n{tb_str}"
             )
             mcp_related_hint = ""
-            if isinstance(e, (BrokenPipeError, EOFError)): # type: ignore[misc]
+            if isinstance(e, (BrokenPipeError, EOFError)):
                 logger.error(f"This error ({error_type}) often indicates an MCP server communication failure.")
                 mcp_related_hint = " (possibly due to an issue with an external MCP tool process)."
 
@@ -455,3 +503,40 @@ class MyDevopsAgent(LlmAgent):
                 actions=EventActions()
             )
             ctx.end_invocation = True
+
+    def _assemble_context_from_state(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        """Placeholder: Assembles context dictionary from state for LLM injection."""
+        context_dict = {}
+
+        history = state.get('user:conversation_history', [])
+        recent_history = history[-agent_config.CONTEXT_TARGET_RECENT_TURNS:]
+
+        formatted_history = []
+        for turn in recent_history:
+            if turn.get('user_message'):
+                formatted_history.append({'role': 'user', 'content': turn['user_message']})
+            if turn.get('agent_message'):
+                formatted_history.append({'role': 'agent', 'content': turn['agent_message']})
+            if turn.get('system_message'):
+                 formatted_history.append({'role': 'system', 'content': turn['system_message']})
+            if turn.get('tool_calls'):
+                 formatted_history.append({'role': 'tool_code', 'content': json.dumps(turn['tool_calls'], indent=2)})
+            if turn.get('tool_results'):
+                 formatted_history.append({'role': 'tool_result', 'content': json.dumps(turn['tool_results'], indent=2)})
+
+        context_dict['conversation_history'] = formatted_history
+
+        code_snippets = state.get('app:code_snippets', [])
+        context_dict['code_snippets'] = code_snippets[-agent_config.CONTEXT_TARGET_CODE_SNIPPETS:]
+
+        return context_dict
+
+    def _count_tokens(self, text: str) -> int:
+        """Placeholder: Counts tokens for a given text using the LLM client."""
+        logger.warning("Using placeholder token counting. Replace with actual LLM client token counter.")
+        return len(text) // 4
+
+    def _count_context_tokens(self, context_dict: Dict[str, Any]) -> int:
+        """Placeholder: Counts tokens for the assembled context dictionary."""
+        logger.warning("Using placeholder context token counting. Replace with actual LLM client token counter.")
+        return len(json.dumps(context_dict)) // 4

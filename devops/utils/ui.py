@@ -100,4 +100,3 @@ def print_message(console: Console, message: str, style: str = ""):
             console.print(escape(message))
     except Exception as e:
         logger.error(f"Error printing message: {e}")
-

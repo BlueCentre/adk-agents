@@ -3,11 +3,12 @@
 
 from . import (
     analysis_state,
-    code_analysis,
-    code_search,
-    filesystem,
-    search,
-    shell_command,
+    # code_analysis,
+    # code_search,
+    # filesystem,
+    # search,
+    # shell_command,
+    # rag_tools,
 )
 
 # Export code analysis tools
@@ -47,9 +48,6 @@ from .persistent_memory_tool import (
     save_current_session_to_file_tool,
     load_memory_from_file_tool,
 )
-
-# Add new RAG tools
-from . import rag_tools # Import the new module
 
 # Export RAG tools
 from .rag_tools import (
