@@ -36,7 +36,8 @@ logger = logging.getLogger(__name__)
 _loaded_mcp_toolsets = {
     "datadog": None,
     "filesystem": None,
-    "gitmcp": None,
+    "gitmcp-adk": None,
+    "gitmcp-genai": None,
     "playwright": None,
 }
 
@@ -136,26 +137,43 @@ def load_core_tools_and_toolsets():
     else:
         logger.info("MCP Filesystem Toolset was not loaded or already loaded, not adding to core tools list again unless it's the first load.")
 
-    if not _loaded_mcp_toolsets["gitmcp"]:
+    if not _loaded_mcp_toolsets["gitmcp-adk"]:
         try:
-            mcp_gitmcp_toolset = MCPToolset(
+            mcp_gitmcp_adk_toolset = MCPToolset(
                 connection_params=SseServerParams(
                     url="https://gitmcp.io/google/adk-python",
                 ),
             )
-            _loaded_mcp_toolsets["gitmcp"] = mcp_gitmcp_toolset
-            logger.info("MCP GitMCP Toolset initialized successfully by setup.py.")
+            _loaded_mcp_toolsets["gitmcp-adk"] = mcp_gitmcp_adk_toolset
+            logger.info("MCP GitMCP ADK Toolset initialized successfully by setup.py.")
         except Exception as e:
             logger.warning(
-                f"Failed to load MCP GitMCP Toolset in setup.py: {e}. "
-                "DevOps agent will fallback to using the built-in git tools."
+                f"Failed to load MCP GitMCP ADK Toolset in setup.py: {e}. "
             )
     
-    if _loaded_mcp_toolsets["gitmcp"]:
-        devops_core_tools_list.append(_loaded_mcp_toolsets["gitmcp"])
+    if _loaded_mcp_toolsets["gitmcp-adk"]:
+        devops_core_tools_list.append(_loaded_mcp_toolsets["gitmcp-adk"])
     else:
-        logger.info("MCP GitMCP Toolset was not loaded or already loaded, not adding to core tools list again unless it's the first load.")
+        logger.info("MCP GitMCP ADK Toolset was not loaded or already loaded, not adding to core tools list again unless it's the first load.")
 
+    if not _loaded_mcp_toolsets["gitmcp-genai"]:
+        try:
+            mcp_gitmcp_genai_toolset = MCPToolset(
+                connection_params=SseServerParams(
+                    url="https://gitmcp.io/googleapis/python-genai",
+                ),
+            )
+            _loaded_mcp_toolsets["gitmcp-genai"] = mcp_gitmcp_genai_toolset
+            logger.info("MCP GitMCP GenAI Toolset initialized successfully by setup.py.")
+        except Exception as e:
+            logger.warning(
+                f"Failed to load MCP GitMCP GenAI Toolset in setup.py: {e}. "
+            )
+    
+    if _loaded_mcp_toolsets["gitmcp-genai"]:
+        devops_core_tools_list.append(_loaded_mcp_toolsets["gitmcp-genai"])
+    else:
+        logger.info("MCP GitMCP GenAI Toolset was not loaded or already loaded, not adding to core tools list again unless it's the first load.")
 
     if agent_config.MCP_PLAYWRIGHT_ENABLED:
         if not _loaded_mcp_toolsets["playwright"]:
