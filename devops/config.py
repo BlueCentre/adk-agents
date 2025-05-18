@@ -26,7 +26,7 @@ DEFAULT_SUB_AGENT_MODEL = GEMINI_FLASH_MODEL_NAME
 
 # --- LLM Generation Configuration ---
 MAIN_LLM_GENERATION_CONFIG = genai_types.GenerateContentConfig(
-    temperature=0.3,
+    temperature=0.2,
     max_output_tokens=8000,
     safety_settings=[
         genai_types.SafetySetting(
