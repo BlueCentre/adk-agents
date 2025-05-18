@@ -11,6 +11,7 @@ from google.adk.tools import built_in_code_execution
 from google.adk.tools.google_search_tool import google_search
 from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset
 from google.adk.tools.mcp_tool.mcp_toolset import StdioServerParameters
+from google.adk.tools.mcp_tool.mcp_toolset import SseServerParams
 
 from .. import config as agent_config
 from .. import prompts
@@ -35,6 +36,7 @@ logger = logging.getLogger(__name__)
 _loaded_mcp_toolsets = {
     "datadog": None,
     "filesystem": None,
+    "gitmcp": None,
     "playwright": None,
 }
 
@@ -133,6 +135,26 @@ def load_core_tools_and_toolsets():
         devops_core_tools_list.append(_loaded_mcp_toolsets["filesystem"])
     else:
         logger.info("MCP Filesystem Toolset was not loaded or already loaded, not adding to core tools list again unless it's the first load.")
+
+    if not _loaded_mcp_toolsets["gitmcp"]:
+        try:
+            mcp_gitmcp_toolset = MCPToolset(
+                connection_params=SseServerParams(
+                    url="https://gitmcp.io/google/adk-python",
+                ),
+            )
+            _loaded_mcp_toolsets["gitmcp"] = mcp_gitmcp_toolset
+            logger.info("MCP GitMCP Toolset initialized successfully by setup.py.")
+        except Exception as e:
+            logger.warning(
+                f"Failed to load MCP GitMCP Toolset in setup.py: {e}. "
+                "DevOps agent will fallback to using the built-in git tools."
+            )
+    
+    if _loaded_mcp_toolsets["gitmcp"]:
+        devops_core_tools_list.append(_loaded_mcp_toolsets["gitmcp"])
+    else:
+        logger.info("MCP GitMCP Toolset was not loaded or already loaded, not adding to core tools list again unless it's the first load.")
 
 
     if agent_config.MCP_PLAYWRIGHT_ENABLED:
