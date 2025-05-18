@@ -183,38 +183,38 @@ The goal is to ensure token usage is transparent, context is managed effectively
 
 ```mermaid
 graph TD
-    A[LLM Response] --> B{has usage_metadata?};
-    B -- Yes --> C[Extract Token Counts (Prompt, Candidate, Total)];
-    C --> D[ui_utils.display_model_usage];
-    D --> E[User Console Display];
+    A[LLM Response] --> B{Has Usage Metadata?};
+    B -- Yes --> C[Extract Token Counts];
+    C --> D[Display Usage];
+    D --> E[User Console];
 
-    DevOpsAgent --> F[Context Management (context_manager.py)];
+    Agent --> F[Context Management];
     F --> G{Count Tokens};
     G -- using LLM Client API --> H[Accurate Count];
-    G -- using tiktoken (if available) --> I[More Accurate Count];
-    G -- using Placeholder Methods --> J[Estimated Count (Fallback)];
+    G -- using tiktoken --> I[More Accurate Count];
+    G -- using Fallback --> J[Estimated Count];
 
-    F -- Formatted Context --> K[LLM Request];
+    F -- Context --> K[LLM Request];
     K --> LLM[LLM];
 
-    DevOpsAgent --> L[Determine Token Limit];
+    Agent --> L[Determine Token Limit];
     L -- using LLM Client API --> M[Dynamic Limit];
     L -- using Fallback Constants --> N[Fallback Limit];
-    L --> F; % Context management uses the limit
+    L --> F;
 
     subgraph Token Handling Flow
         A --> B;
         B --> C;
         C --> D;
         D --> E;
-        DevOpsAgent --> F;
+        Agent --> F;
         F --> G;
         G --> H;
         G --> I;
         G --> J;
         F --> K;
         K --> LLM;
-        DevOpsAgent --> L;
+        Agent --> L;
         L --> M;
         L --> N;
     end
