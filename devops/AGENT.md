@@ -25,6 +25,7 @@ This document provides context about the user's environment and preferences to h
 ## Common Tools Available
 
 *   **Version Control:** `git`
+*   **Source Code Management:** `gh`
 *   **Containerization:** `docker`
 *   **Orchestration:** `kubectl`
 *   **IaC:** `terraform`
@@ -33,7 +34,7 @@ This document provides context about the user's environment and preferences to h
 *   **Node.js/Frontend:** `npm`
 *   **CI/CD Platform:** (e.g., GitHub Actions, GitLab CI, Jenkins - *Please specify*)
 *   **Cloud Provider CLI:** (e.g., `gcloud`, `aws`, `az` - *Please specify if used*)
-*   **Task Management:** `jira` (Confirmed available)
+*   **Task Management:** `jira` (use 'jira me' to get user)
 *   **Secrets Management:** `bw` (Bitwarden CLI - Confirmed installed)
 *   **Monitoring/Observability:** `datadog-ci` (Confirmed installed at `/Users/$HOME/bin/datadog-ci`)
 

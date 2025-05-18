@@ -67,7 +67,7 @@ DEFAULT_SAFE_COMMANDS = [
     "cd", "mkdir", "rm", "cp", "mv", "git", "gh", "docker", "kubectl", 
     "helm", "terraform", "aws", "gcloud", "az", "df", "du", "ps", 
     "curl", "wget", "jq", "yq", "awk", "sed", "python", "pip", "npm",
-    "node", "yarn", "go", "make", "mvn", "gradle"
+    "node", "yarn", "go", "make", "mvn", "gradle", "jira", "bw"
 ]
 
 # Persistent Memory Tool
