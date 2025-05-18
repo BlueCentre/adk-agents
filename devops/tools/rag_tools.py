@@ -101,7 +101,10 @@ def index_directory_tool(directory_path: str, file_extensions: Optional[list[str
     """
     if file_extensions is None:
         file_extensions = ['.py', '.md', '.txt', '.sh', '.yaml', '.yml', '.json', '.tf', '.hcl', '.go'] # Default to a wider set of extensions
-    
+
+    if not directory_path:
+        directory_path = os.getcwd()
+
     # Ensure file_extensions is a set for efficient lookup
     file_extensions_set = set(file_extensions)
 
