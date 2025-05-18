@@ -6,11 +6,15 @@ import time
 import json
 import os
 
-from google.adk.agents.llm_agent import LlmAgent
-from google.genai import types as genai_types
-from google import genai
+from pydantic import PrivateAttr
+from rich.console import Console
+from rich.status import Status
 from typing_extensions import override
 from typing import AsyncGenerator, Optional, Any, Dict, List, Tuple, Callable
+
+from google import genai
+from google.adk.agents.llm_agent import LlmAgent
+from google.genai import types as genai_types
 
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
@@ -20,21 +24,17 @@ from google.adk.agents.callback_context import CallbackContext
 from google.adk.events.event import Event, EventActions
 from google.adk.agents.invocation_context import InvocationContext
 
-from rich.console import Console
-from rich.status import Status
-
-from pydantic import PrivateAttr
-
-# Assuming these relative imports become sibling imports or need adjustment based on final structure
-# If devops_agent.py is in devops/, then these should be from devops.*
-from . import config as agent_config
 from .components.planning_manager import PlanningManager
 from .components.context_management import (
     TOOL_PROCESSORS,
     get_last_user_content,
 )
 from .tools.shell_command import ExecuteVettedShellCommandOutput
-from .utils import ui as ui_utils
+from .shared_libraries import ui as ui_utils
+
+# Assuming these relative imports become sibling imports or need adjustment based on final structure
+# If devops_agent.py is in devops/, then these should be from devops.*
+from . import config as agent_config
 
 logger = logging.getLogger(__name__)
 
@@ -47,9 +47,9 @@ except ImportError:
 class MyDevopsAgent(LlmAgent):
     _console: Console = PrivateAttr(default_factory=lambda: Console(stderr=True))
     _status_indicator: Optional[Status] = PrivateAttr(default=None)
+    _actual_llm_token_limit: int = PrivateAttr(default=agent_config.DEFAULT_TOKEN_LIMIT_FALLBACK)
     _is_new_conversation: bool = PrivateAttr(default=True)
     _planning_manager: Optional[PlanningManager] = PrivateAttr(default=None)
-    _actual_llm_token_limit: int = PrivateAttr(default=agent_config.DEFAULT_TOKEN_LIMIT_FALLBACK)
     llm_client: Optional[genai.Client] = None
 
     def __init__(self, **data: any):
@@ -64,37 +64,38 @@ class MyDevopsAgent(LlmAgent):
 
     def model_post_init(self, __context: Any) -> None:
         super().model_post_init(__context)
-        logger.debug("DEBUG: Attributes available in MyDevopsAgent.model_post_init after super().model_post_init:")
-        try:
-            for attr_name in dir(self):
-                if not attr_name.startswith('__'):
-                    try:
-                        attr_value = getattr(self, attr_name)
-                        logger.debug(f"  self.{attr_name} (type: {type(attr_value)})")
-                        if attr_name == "llm_client" or "client" in attr_name.lower() or "llm" in attr_name.lower():
-                            logger.debug(f"    Potential LLM client found: self.{attr_name} = {attr_value}")
-                    except Exception as e_getattr:
-                        logger.debug(f"  self.{attr_name} (could not getattr: {e_getattr})")
-        except Exception as e_dir:
-            logger.debug(f"  Error during dir(self): {e_dir}")
-        logger.debug("--- End Debugging ---  ")
+        # logger.debug("DEBUG: Attributes available in MyDevopsAgent.model_post_init after super().model_post_init:")
+        # try:
+        #     for attr_name in dir(self):
+        #         if not attr_name.startswith('__'):
+        #             try:
+        #                 attr_value = getattr(self, attr_name)
+        #                 logger.debug(f"  self.{attr_name} (type: {type(attr_value)})")
+        #                 if attr_name == "llm_client" or "client" in attr_name.lower() or "llm" in attr_name.lower():
+        #                     logger.debug(f"    Potential LLM client found: self.{attr_name} = {attr_value}")
+        #             except Exception as e_getattr:
+        #                 logger.debug(f"  self.{attr_name} (could not getattr: {e_getattr})")
+        # except Exception as e_dir:
+        #     logger.debug(f"  Error during dir(self): {e_dir}")
+        # logger.debug("--- End Debugging ---  ")
 
         if hasattr(__context, 'llm_client') and __context.llm_client:
             logger.info(f"Found llm_client in __context: {type(__context.llm_client).__name__}")
             self.llm_client = __context.llm_client
 
         if not hasattr(self, 'llm_client') or self.llm_client is None:
-            logger.warning("llm_client not available after model_post_init. Attempting to create a default client.")
-            try:
-                if agent_config.GOOGLE_API_KEY:
-                    self.llm_client = genai.Client(api_key=agent_config.GOOGLE_API_KEY)
-                    logger.info("Created genai client with API key from environment")
-                else:
-                    self.llm_client = genai.Client()
-                    logger.info("Created default genai client without explicit API key")
-                logger.info("Created default genai client in model_post_init.")
-            except Exception as e:
-                logger.error(f"Failed to create default genai client in model_post_init: {e}")
+            logger.warning("llm_client not available after model_post_init.")
+            # try:
+            #     logger.info("Attempting to creating default genai client in model_post_init.")
+            #     if agent_config.GOOGLE_API_KEY:
+            #         self.llm_client = genai.Client(api_key=agent_config.GOOGLE_API_KEY)
+            #         logger.info("Created genai client with API key from environment")
+            #     else:
+            #         self.llm_client = genai.Client()
+            #         logger.info("Created default genai client without explicit API key")
+            #     logger.info("Created default genai client in model_post_init.")
+            # except Exception as e:
+            #     logger.error(f"Failed to create default genai client in model_post_init: {e}")
 
         self._determine_actual_token_limit()
         logger.info(f"Agent {self.name} initialized with token limit: {self._actual_llm_token_limit}")
