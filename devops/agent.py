@@ -17,9 +17,9 @@ devops_agent_instance = MyDevopsAgent(
     name="devops_agent",
     description="Self-sufficient agent specialized in Platform Engineering, DevOps, and SRE practices.",
     instruction=agent_prompts.DEVOPS_AGENT_INSTR,
+    generate_content_config=agent_config.MAIN_LLM_GENERATION_CONFIG,
     tools=load_core_tools_and_toolsets(),
     output_key="devops",
-    generate_content_config=agent_config.MAIN_LLM_GENERATION_CONFIG,
 )
 
 # Comment out if this will be used as a sub-agent

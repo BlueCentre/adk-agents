@@ -465,6 +465,10 @@ class MyDevopsAgent(LlmAgent):
     async def _run_async_impl(
         self, ctx: InvocationContext
     ) -> AsyncGenerator[Event, None]:
+        # total_prompt_tokens = 0
+        # total_candidate_tokens = 0
+        # total_tokens = 0
+
         try:
             # Need to add placeholder methods for context assembly and token counting that operate on state
             # For simplicity, add them at the end of the class
@@ -476,6 +480,24 @@ class MyDevopsAgent(LlmAgent):
                 self._count_tokens = self._placeholder_count_tokens # Use a placeholder for now
 
             async for event in super()._run_async_impl(ctx):
+                # if event.content.parts and event.content.parts[0].text:
+                #     print(f'** {event.author}: {event.content.parts[0].text}')
+                # if event.usage_metadata:
+                #     total_prompt_tokens += event.usage_metadata.prompt_token_count or 0
+                #     total_candidate_tokens += (
+                #         event.usage_metadata.candidates_token_count or 0
+                #     )
+                #     total_tokens += event.usage_metadata.total_token_count or 0
+                #     print(
+                #         'Turn tokens:'
+                #         f' {event.usage_metadata.total_token_count} (prompt={event.usage_metadata.prompt_token_count},'
+                #         f' candidates={event.usage_metadata.candidates_token_count})'
+                #     )
+
+                # print(
+                #     f'Session tokens: {total_tokens} (prompt={total_prompt_tokens},'
+                #     f' candidates={total_candidate_tokens})'
+                # )
                 yield event
 
         except Exception as e:

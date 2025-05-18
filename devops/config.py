@@ -28,6 +28,12 @@ DEFAULT_SUB_AGENT_MODEL = GEMINI_FLASH_MODEL_NAME
 MAIN_LLM_GENERATION_CONFIG = genai_types.GenerateContentConfig(
     temperature=0.3,
     max_output_tokens=8000,
+    safety_settings=[
+        genai_types.SafetySetting(
+            category=genai_types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+            threshold=genai_types.HarmBlockThreshold.OFF,
+        )
+    ]
 )
 
 # --- LLM Token Limits (Context Window Sizes) ---

@@ -169,6 +169,67 @@ graph TD
 
 This mechanism significantly enhances the agent's ability to act as a knowledgeable assistant for development-related queries.
 
+## Token Counting and Management
+
+Managing token usage is essential for efficient and cost-effective interactions with Large Language Models. The DevOps Agent implements several strategies to handle this:
+
+1.  **Dynamic Token Limit Determination:** The agent attempts to dynamically fetch the actual token limit for the configured LLM model using the LLM client's capabilities. If this fails, it falls back to predefined limits based on common model types (e.g., Gemini Flash, Gemini Pro).
+2.  **Token Usage Transparency:** For each model response, the agent displays detailed token usage statistics (prompt, candidate, and total tokens) using the `ui_utils.display_model_usage` function, providing users with insight into the cost of interactions.
+3.  **Context Token Counting:** The `context_management/context_manager.py` component is designed to accurately count tokens for the conversation history and injected context. It includes logic to utilize native LLM client counting methods or the `tiktoken` library if available.
+4.  **Context Optimization:** The context management logic aims to optimize the information sent to the LLM to stay within token limits while retaining relevant conversation history and code snippets.
+5.  **Placeholder/Fallback Counters:** Basic placeholder token counting methods are available in `devops_agent.py` (`_count_tokens`, `_count_context_tokens`). These are used as a fallback if the more sophisticated counting mechanisms are not fully functional, ensuring the agent can still operate and provide some level of token estimation, albeit less accurate.
+
+The goal is to ensure token usage is transparent, context is managed effectively to avoid exceeding limits, and the most accurate available counting methods are utilized.
+
+```mermaid
+graph TD
+    A[LLM Response] --> B{has usage_metadata?};
+    B -- Yes --> C[Extract Token Counts (Prompt, Candidate, Total)];
+    C --> D[ui_utils.display_model_usage];
+    D --> E[User Console Display];
+
+    DevOpsAgent --> F[Context Management (context_manager.py)];
+    F --> G{Count Tokens};
+    G -- using LLM Client API --> H[Accurate Count];
+    G -- using tiktoken (if available) --> I[More Accurate Count];
+    G -- using Placeholder Methods --> J[Estimated Count (Fallback)];
+
+    F -- Formatted Context --> K[LLM Request];
+    K --> LLM[LLM];
+
+    DevOpsAgent --> L[Determine Token Limit];
+    L -- using LLM Client API --> M[Dynamic Limit];
+    L -- using Fallback Constants --> N[Fallback Limit];
+    L --> F; % Context management uses the limit
+
+    subgraph Token Handling Flow
+        A --> B;
+        B --> C;
+        C --> D;
+        D --> E;
+        DevOpsAgent --> F;
+        F --> G;
+        G --> H;
+        G --> I;
+        G --> J;
+        F --> K;
+        K --> LLM;
+        DevOpsAgent --> L;
+        L --> M;
+        L --> N;
+    end
+
+    classDef default fill:#f9f,stroke:#333,stroke-width:2px;
+    classDef component fill:#ccf,stroke:#333,stroke-width:2px;
+    classDef data fill:#ffc,stroke:#333,stroke-width:2px;
+
+    class DevOpsAgent,LLM component;
+    class F,G,L component;
+    class A,C data;
+    class E,H,I,J,M,N data;
+    class K data;
+```
+
 ## Agent Interaction Sequence Diagram
 
 ```mermaid
