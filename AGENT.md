@@ -6,19 +6,49 @@ This document provides context about the user's environment and preferences to h
 
 ## Directory Structure
 
-*This section describes the main project directories, their purpose, and common locations for specific file types. It's based on a scan of `/Users/james`.*
+*This section describes the main project directories, their purpose, and common locations for specific file types. It's based on a scan of the current working directory.*
 
-*   `/Users/james/Desktop/`: Standard desktop folder.
-*   `/Users/james/Documents/`: Standard documents folder.
-*   `/Users/james/Downloads/`: Standard downloads folder.
-*   `/Users/james/bin/`: Contains user-specific scripts and binaries (e.g., `datadog-ci`).
-*   `/Users/james/Agents/`: Contain configurations, code and prompts related to the current AI agent runtime.
-    *   *(Consider listing key sub-project folders here if any)*
-*   `/Users/james/Workspace/`: Appears to be a primary development/projects directory.
-    *   *(Consider listing key sub-project folders here if any, e.g., `Workspace/project-alpha/`, `Workspace/my-utils/`)*
-*   `/Users/james/.config/`: Common location for user-specific application configurations.
-*   `/Users/james/.docker/`: Docker client configuration files.
-*   `/Users/james/.kube/`: Kubernetes configuration files (e.g., `config`).
+*   `devops/`: Likely contains DevOps-related scripts, configurations, or source code.
+    *   `docs/`: Documentation files.
+        *   `FEATURE_RAG.md`: Documentation for RAG feature.
+        *   `FEATURE_AGENT_LOOP_OPTIMIZATION.md`: Documentation for agent loop optimization.
+        *   `REFACTOR_CONTEXT_MANAGER_2_CONTEXT_STATE.md`: Documentation for refactoring context manager.
+        *   `FEATURE_AGENT_INTERACTIVE_PLANNING.md`: Documentation for interactive planning feature.
+    *   `components/`: Various components of the agent.
+        *   `__init__.py`: Python package indicator.
+        *   `context_management/`: Components for context management.
+        *   `planning_manager.py`: Manages agent planning.
+    *   `shared_libraries/`: Shared Python libraries.
+        *   `__init__.py`: Python package indicator.
+        *   `ui.py`: UI-related library.
+        *   `types.py`: Custom type definitions.
+    *   `tools/`: Contains various tools used by the agent.
+        *   `__init__.py`: Python package indicator.
+        *   `setup.py`: Python package setup script.
+        *   `shell_command.py`: Likely handles shell command execution.
+        *   `persistent_memory_tool.py`: Tool for managing persistent memory.
+        *   `memory_tools.py`: Tools related to memory management.
+        *   `filesystem.py`: Filesystem interaction tools.
+        *   `rag_tools.py`: Tools for Retrieval Augmented Generation.
+        *   `file_summarizer_tool.py`: Tool for summarizing file content.
+        *   `analysis_state.py`: Manages analysis state.
+        *   `project_context.py`: Manages project context.
+        *   `search.py`: Search-related tools.
+        *   `code_analysis.py`: Tools for code analysis.
+        *   `rag_components/`: Components for RAG.
+        *   `code_search.py`: Tools for code search.
+    *   `__init__.py`: Python package indicator.
+    *   `.indexignore`: Specifies files to ignore during indexing.
+    *   `config.py`: Configuration file for the DevOps agent.
+    *   `prompts.py`: Contains prompts for the agent.
+    *   `devops_agent.py`: Main DevOps agent script.
+    *   `agent.py`: Core agent logic.
+*   `.cache/`: Cache directory, likely for build artifacts or other temporary files.
+*   `.env.example`: Example environment variable file.
+*   `.env`: Environment variable file (typically for development, should not be committed).
+*   `AGENT.md`: This file, containing agent context and instructions.
+*   `README.md`: Project README file.
+*   `pyproject.toml`: Python project configuration file (PEP 518).
 
 **(Please review this refined list. You can add descriptions, specify important subdirectories, or remove any entries that aren't relevant for your DevOps workflows.)**
 
@@ -33,8 +63,8 @@ This document provides context about the user's environment and preferences to h
 *   **Python Env/Pkg Mgmt:** `uv`
 *   **Node.js/Frontend:** `npm`
 *   **CI/CD Platform:** (e.g., GitHub Actions, GitLab CI, Jenkins - *Please specify*)
-*   **Cloud Provider CLI:** (e.g., `gcloud`, `aws`, `az` - *Please specify if used*)
-*   **Task Management:** `jira` (use 'jira me' to get user)
+*   **Cloud Provider CLI:** `gcloud`
+*   **Task Management:** `jira` (**use** 'jira me' to get user)
 *   **Secrets Management:** `bw` (Bitwarden CLI - Confirmed installed)
 *   **Monitoring/Observability:** `datadog-ci` (Confirmed installed at `/Users/$HOME/bin/datadog-ci`)
 

@@ -181,8 +181,17 @@ def load_core_tools_and_toolsets():
                 mcp_playwright_toolset = MCPToolset(
                     connection_params=StdioServerParameters(
                         command="npx",
-                        args=["@playwright/mcp@latest"],
-                        # args=["-y", "@executeautomation/playwright-mcp-server"],
+                        args=[
+                            "@playwright/mcp@latest",
+                            # To use a specific Chrome profile, add:
+                            # "--user-data-dir=/path/to/your/chrome/profile",
+                            # Or for Firefox:
+                            # "--browser=firefox", 
+                            # "--user-data-dir=/path/to/your/firefox/profile",
+                            # Ensure the path is correct and the Playwright server has permissions.
+                            # Persistent profiles are default. For isolated sessions, add "--isolated".
+                            # See https://github.com/microsoft/playwright-mcp for more options.
+                        ],
                     ),
                 )
                 _loaded_mcp_toolsets["playwright"] = mcp_playwright_toolset
