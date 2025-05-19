@@ -44,12 +44,20 @@ except ImportError:
     logger.warning("mcp.types not found, Playwright tool responses might not be fully processed if they are CallToolResult.")
     mcp_types = None
 
+from .components.context_management.context_manager import (
+    ContextManager,
+    ConversationTurn,
+    CodeSnippet,
+    ToolResult
+)
+
 class MyDevopsAgent(LlmAgent):
     _console: Console = PrivateAttr(default_factory=lambda: Console(stderr=True))
     _status_indicator: Optional[Status] = PrivateAttr(default=None)
     _actual_llm_token_limit: int = PrivateAttr(default=agent_config.DEFAULT_TOKEN_LIMIT_FALLBACK)
     _is_new_conversation: bool = PrivateAttr(default=True)
     _planning_manager: Optional[PlanningManager] = PrivateAttr(default=None)
+    _context_manager: Optional[ContextManager] = PrivateAttr(default=None)
     llm_client: Optional[genai.Client] = None
 
     def __init__(self, **data: any):
@@ -101,6 +109,14 @@ class MyDevopsAgent(LlmAgent):
         logger.info(f"Agent {self.name} initialized with token limit: {self._actual_llm_token_limit}")
 
         self._planning_manager = PlanningManager(console_manager=self._console)
+
+        # Initialize ContextManager here
+        self._context_manager = ContextManager(
+            model_name=self.model or agent_config.GEMINI_MODEL_NAME,
+            max_llm_token_limit=self._actual_llm_token_limit,
+            llm_client=self.llm_client # Pass the initialized llm_client
+        )
+        logger.info("ContextManager initialized in model_post_init.")
 
     def _determine_actual_token_limit(self):
         """Determines the actual token limit for the configured model."""
@@ -528,38 +544,124 @@ class MyDevopsAgent(LlmAgent):
             ctx.end_invocation = True
 
     def _assemble_context_from_state(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        """Placeholder: Assembles context dictionary from state for LLM injection."""
-        context_dict = {}
+        """Assembles context dictionary from state for LLM injection, respecting token limits.
 
+        Synchronizes state with ContextManager and delegates assembly.
+        """
+        if not self._context_manager:
+            logger.warning("ContextManager not initialized. Cannot assemble context from state.")
+            return {}
+
+        # Synchronize state from context.state to _context_manager
+        # Note: This is a temporary workaround. Ideally, ContextManager should operate directly on context.state.
+
+        # Synchronize conversation history
         history = state.get('user:conversation_history', [])
-        recent_history = history[-agent_config.CONTEXT_TARGET_RECENT_TURNS:]
+        # Convert the history format from context.state to the ConversationTurn objects expected by ContextManager
+        self._context_manager.conversation_turns = [] # Clear existing turns
+        for i, turn_data in enumerate(history):
+            turn = ConversationTurn(
+                turn_number=i + 1, # Assign turn number based on list index
+                user_message=turn_data.get('user_message'),
+                agent_message=turn_data.get('agent_message'),
+                tool_calls=turn_data.get('tool_calls', []), # Assume tool_calls is a list of dicts
+                # Token counts will be calculated by ContextManager
+            )
+            # Manually count tokens for the synchronized turn data to set initial token counts
+            # This is needed because ContextManager's add methods calculate tokens upon addition.
+            # If we just copy, the token counts might be zero.
+            turn.user_message_tokens = self._context_manager._count_tokens(turn.user_message) if turn.user_message else 0
+            turn.agent_message_tokens = self._context_manager._count_tokens(turn.agent_message) if turn.agent_message else 0
+            turn.tool_calls_tokens = self._context_manager._count_tokens(json.dumps(turn.tool_calls)) if turn.tool_calls else 0
 
-        formatted_history = []
-        for turn in recent_history:
-            if turn.get('user_message'):
-                formatted_history.append({'role': 'user', 'content': turn['user_message']})
-            if turn.get('agent_message'):
-                formatted_history.append({'role': 'agent', 'content': turn['agent_message']})
-            if turn.get('system_message'):
-                 formatted_history.append({'role': 'system', 'content': turn['system_message']})
-            if turn.get('tool_calls'):
-                 formatted_history.append({'role': 'tool_code', 'content': json.dumps(turn['tool_calls'], indent=2)})
-            if turn.get('tool_results'):
-                 formatted_history.append({'role': 'tool_result', 'content': json.dumps(turn['tool_results'], indent=2)})
+            self._context_manager.conversation_turns.append(turn)
+        self._context_manager.current_turn_number = len(self._context_manager.conversation_turns) # Update current turn number
 
-        context_dict['conversation_history'] = formatted_history
+        # Synchronize code snippets
+        code_snippets_data = state.get('app:code_snippets', [])
+        self._context_manager.code_snippets = [] # Clear existing snippets
+        for snippet_data in code_snippets_data:
+             # Assuming snippet_data has keys like 'file_path', 'code', 'start_line', 'end_line', 'last_accessed', 'relevance_score'
+             # Need to ensure these keys exist or handle missing ones.
+            snippet = CodeSnippet(
+                 file_path=snippet_data.get('file_path', ''),
+                 code=snippet_data.get('code', ''),
+                 start_line=snippet_data.get('start_line', 0),
+                 end_line=snippet_data.get('end_line', 0),
+                 last_accessed=snippet_data.get('last_accessed', 0), # Need to store last_accessed in state or derive it
+                 relevance_score=snippet_data.get('relevance_score', 1.0),
+                 # Token count will be calculated by ContextManager's add_code_snippet, but we are manually adding here.
+                 # Calculate token count manually based on the code content
+                 token_count=self._context_manager._count_tokens(snippet_data.get('code', ''))
+            )
+            self._context_manager.code_snippets.append(snippet)
 
-        code_snippets = state.get('app:code_snippets', [])
-        context_dict['code_snippets'] = code_snippets[-agent_config.CONTEXT_TARGET_CODE_SNIPPETS:]
+        # Synchronize tool results (assuming they are also stored with a structure compatible with ToolResult dataclass)
+        # The BEST_PRACTICE.md mentions tool_results are moved from temp to user:conversation_history.
+        # However, ContextManager has a separate tool_results list.
+        # Let's synchronize from the tool_results within the conversation history turns for now.
+        # This might need adjustment based on actual state structure and how tool results are used.
+        self._context_manager.tool_results = [] # Clear existing tool results
+        for turn_data in history:
+            for tool_result_data in turn_data.get('tool_results', []):
+                # Assuming tool_result_data has keys like 'tool_name', 'response', turn_number, is_error
+                # The ContextManager's ToolResult expects 'result_summary' and 'full_result'.
+                # We need to map 'response' to either summary or full_result, or both.
+                # For now, let's map 'response' to full_result and try to create a summary if needed.
+                # This part needs careful review and potential adjustment based on actual data format.
+                summary = tool_result_data.get('summary') # Check if a summary is already provided
+                if summary is None:
+                     # If no summary in state, generate one from the response data
+                     summary = self._context_manager._generate_tool_result_summary(tool_result_data.get('tool_name', 'unknown_tool'), tool_result_data.get('response', {}))
+
+                tool_result = ToolResult(
+                    tool_name=tool_result_data.get('tool_name', ''),
+                    result_summary=summary,
+                    full_result=tool_result_data.get('response', {}), # Map response to full_result
+                    turn_number=turn_data.get('turn_number', i + 1), # Use turn number from history, fallback to synchronized turn index
+                    is_error=tool_result_data.get('is_error', False), # Assume is_error is stored or can be derived
+                    # Token count will be calculated by ContextManager's add_tool_result, but we are manually adding here.
+                    token_count=self._context_manager._count_tokens(summary)
+                )
+                self._context_manager.tool_results.append(tool_result)
+
+        # Synchronize ContextState (core_goal, current_phase, key_decisions, last_modified_files)
+        self._context_manager.state.core_goal = state.get('app:core_goal', self._context_manager.state.core_goal)
+        self._context_manager.state.current_phase = state.get('app:current_phase', self._context_manager.state.current_phase)
+        # Assuming key_decisions are stored as a list in state
+        self._context_manager.state.key_decisions = state.get('app:key_decisions', self._context_manager.state.key_decisions)
+        # Assuming last_modified_files are stored as a list in state
+        self._context_manager.state.last_modified_files = state.get('app:last_modified_files', self._context_manager.state.last_modified_files)
+
+        # Calculate initial token counts for ContextState elements
+        self._context_manager.state.core_goal_tokens = self._context_manager._count_tokens(self._context_manager.state.core_goal)
+        self._context_manager.state.current_phase_tokens = self._context_manager._count_tokens(self._context_manager.state.current_phase)
+        # Token count for key_decisions and last_modified_files is calculated within assemble_context
+
+        # Now, use the ContextManager to assemble the context dictionary respecting the token limit
+        # The base_prompt_tokens would typically be the tokens used by the system instructions that are always present.
+        # For now, let's assume 0 and refine later if needed.
+        base_prompt_tokens = 0 # Placeholder
+        context_dict, total_context_tokens = self._context_manager.assemble_context(base_prompt_tokens)
+
+        logger.info(f"Assembled context using ContextManager with {total_context_tokens} tokens.")
 
         return context_dict
 
     def _count_tokens(self, text: str) -> int:
-        """Placeholder: Counts tokens for a given text using the LLM client."""
-        logger.warning("Using placeholder token counting. Replace with actual LLM client token counter.")
-        return len(text) // 4
+        """Counts tokens for a given text using the ContextManager's strategy."""
+        if self._context_manager:
+            return self._context_manager._count_tokens(text) # Delegate to ContextManager
+        else:
+            logger.warning("ContextManager not initialized. Using fallback token counting.")
+            return len(text) // 4 # Original fallback
 
     def _count_context_tokens(self, context_dict: Dict[str, Any]) -> int:
-        """Placeholder: Counts tokens for the assembled context dictionary."""
-        logger.warning("Using placeholder context token counting. Replace with actual LLM client token counter.")
-        return len(json.dumps(context_dict)) // 4
+        """Counts tokens for the assembled context dictionary using the ContextManager's strategy."""
+        # Convert context_dict to a string representation for counting
+        context_string = json.dumps(context_dict)
+        if self._context_manager:
+            return self._context_manager._count_tokens(context_string) # Delegate to ContextManager
+        else:
+            logger.warning("ContextManager not initialized. Using fallback context token counting.")
+            return len(context_string) // 4 # Original fallback
