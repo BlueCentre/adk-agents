@@ -224,7 +224,7 @@ Placeholder token counting methods:
         return len(json.dumps(context_dict)) // 4 # Rough estimate
 ```
 
-## What is Left to Do
+## What is Left to Do (DONE)
 
 This refactoring provides the foundation for using `context.state`, but the following crucial steps need to be completed:
 
