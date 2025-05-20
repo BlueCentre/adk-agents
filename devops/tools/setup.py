@@ -10,7 +10,6 @@ import asyncio
 
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.tools.agent_tool import AgentTool
-from google.adk.tools import built_in_code_execution
 from google.adk.tools.google_search_tool import google_search
 from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset
 from google.adk.tools.mcp_tool.mcp_toolset import StdioServerParameters
@@ -109,7 +108,7 @@ def load_core_tools_and_toolsets():
         name="code_execution",
         description="An agent specialized in code execution",
         instruction=prompts.CODE_EXECUTION_AGENT_INSTR,
-        tools=[built_in_code_execution],
+        tools=[],
     )
 
     devops_observability_tools = []
