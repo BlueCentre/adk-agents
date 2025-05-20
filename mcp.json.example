@@ -27,6 +27,17 @@
         "SONARQUBE_TOKEN": "{{env.SONAR_TOKEN}}",
         "SONARQUBE_ORGANIZATION": "{{env.SONAR_ORGANIZATION}}"
       }
+    },
+    "datadog": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@winor30/mcp-server-datadog"
+      ],
+      "env": {
+        "DATADOG_API_KEY": "{{env.DATADOG_API_KEY}}",
+        "DATADOG_APP_KEY": "{{env.DATADOG_APP_KEY}}"
+      }
     }
   }
 }

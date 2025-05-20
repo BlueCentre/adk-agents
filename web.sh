@@ -11,4 +11,4 @@ PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python uvx \
   --no-cache \
   --python 3.13 \
   --from git+https://github.com/google/adk-python.git@main \
-  adk web
+  adk web ${1:-'./'}

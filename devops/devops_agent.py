@@ -13,24 +13,29 @@ from typing_extensions import override
 from typing import AsyncGenerator, Optional, Any, Dict, List, Tuple, Callable
 
 from google import genai
-from google.adk.agents.llm_agent import LlmAgent
 from google.genai import types as genai_types
-
+from google.adk.agents.llm_agent import LlmAgent
+from google.adk.agents.callback_context import CallbackContext
+from google.adk.agents.invocation_context import InvocationContext
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
 from google.adk.tools.base_tool import BaseTool
 from google.adk.tools.tool_context import ToolContext
-from google.adk.agents.callback_context import CallbackContext
 from google.adk.events.event import Event, EventActions
-from google.adk.agents.invocation_context import InvocationContext
 
 from .components.planning_manager import PlanningManager
 from .components.context_management import (
     TOOL_PROCESSORS,
     get_last_user_content,
 )
-from .tools.shell_command import ExecuteVettedShellCommandOutput
+from .components.context_management.context_manager import (
+    ContextManager,
+    ConversationTurn,
+    CodeSnippet,
+    ToolResult
+)
 from .shared_libraries import ui as ui_utils
+from .tools.shell_command import ExecuteVettedShellCommandOutput
 
 from . import config as agent_config
 
@@ -42,12 +47,6 @@ except ImportError:
     logger.warning("mcp.types not found, Playwright tool responses might not be fully processed if they are CallToolResult.")
     mcp_types = None
 
-from .components.context_management.context_manager import (
-    ContextManager,
-    ConversationTurn,
-    CodeSnippet,
-    ToolResult
-)
 
 class MyDevopsAgent(LlmAgent):
     _console: Console = PrivateAttr(default_factory=lambda: Console(stderr=True))

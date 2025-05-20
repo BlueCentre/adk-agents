@@ -42,53 +42,11 @@ logger = logging.getLogger(__name__)
 
 # Global registry for loaded MCP toolsets to prevent re-initialization
 _loaded_mcp_toolsets = {
-    "datadog": None,
+    # "datadog": None,
     # "filesystem": None,
-    # "gitmcp-adk": None,
-    # "gitmcp-genai": None,
     "playwright": None,
     # User-defined MCP servers will be added here with their names as keys
 }
-
-# IMPORTANT NOTE ON CLEANUP:
-# The `cleanup_mcp_toolsets` coroutine below is designed to properly close
-# the resources (like subprocesses and network connections) used by MCP toolsets.
-# However, due to potential limitations in how the ADK runner or main application
-# handles task cancellation during shutdown (e.g., on KeyboardInterrupt), 
-# awaiting this cleanup function from a cancellable task (like the agent's main run loop)
-# may itself be interrupted, potentially leading to errors like
-# "RuntimeError: Attempted to exit cancel scope in a different task than it was entered in".
-#
-# For a truly clean exit, the application running this agent should ideally
-# call and await `cleanup_mcp_toolsets()` from a non-cancellable context
-# during its shutdown sequence, or ensure that any cancellation allows
-# sufficient time and context for cleanup tasks to complete.
-# If running with a standard ADK runner that exhibits this issue, a perfectly
-# clean shutdown free of this specific error might not be achievable from
-# within the agent's code itself.
-
-async def cleanup_mcp_toolsets():
-    """Iterates through loaded MCP toolsets and calls their close() method."""
-    logger.info("Starting cleanup of MCP toolsets...")
-    for toolset_name, toolset_instance in list(_loaded_mcp_toolsets.items()): # Iterate on a copy
-        if toolset_instance and hasattr(toolset_instance, 'close') and callable(toolset_instance.close):
-            try:
-                if asyncio.iscoroutinefunction(toolset_instance.close):
-                    logger.info(f"Asynchronously closing MCP Toolset: {toolset_name}")
-                    await toolset_instance.close()
-                else:
-                    logger.info(f"Synchronously closing MCP Toolset: {toolset_name} (if it blocks, this might be an issue)")
-                    toolset_instance.close() # type: ignore
-                logger.info(f"Successfully closed MCP Toolset: {toolset_name}")
-            except Exception as e:
-                logger.error(f"Error closing MCP Toolset {toolset_name}: {e}", exc_info=True)
-            finally:
-                # Optionally remove from dict or mark as closed
-                _loaded_mcp_toolsets[toolset_name] = None # Mark as closed or remove
-        elif toolset_instance:
-            logger.warning(f"MCP Toolset {toolset_name} does not have a callable 'close' method.")
-        # If toolset_instance is None, it was either never loaded or already cleaned up
-    logger.info("Finished cleanup of MCP toolsets.")
 
 def load_core_tools_and_toolsets():
     """Loads and initializes all core tools, sub-agents, and MCP toolsets.
@@ -118,40 +76,40 @@ def load_core_tools_and_toolsets():
             code_executor=[BuiltInCodeExecutor],
         )
 
-    devops_observability_tools = []
-    if not _loaded_mcp_toolsets["datadog"]:
-        try:
-            if agent_config.DATADOG_API_KEY and agent_config.DATADOG_APP_KEY:
-                mcp_datadog_toolset = MCPToolset(
-                    connection_params=StdioServerParameters(
-                        command="npx",
-                        args=["-y", "@winor30/mcp-server-datadog"],
-                        env={
-                            "DATADOG_API_KEY": agent_config.DATADOG_API_KEY,
-                            "DATADOG_APP_KEY": agent_config.DATADOG_APP_KEY,
-                        },
-                    ),
-                )
-                _loaded_mcp_toolsets["datadog"] = mcp_datadog_toolset
-                logger.info("MCP Datadog Toolset initialized successfully by setup.py.")
-            else:
-                logger.warning("DATADOG_API_KEY or DATADOG_APP_KEY not set in config. MCP Datadog Toolset will not be loaded.")
-        except Exception as e:
-            logger.warning(f"Failed to load MCP Datadog Toolset in setup.py: {e}. The Datadog tools will be unavailable.")
+    # devops_observability_tools = []
+    # if not _loaded_mcp_toolsets["datadog"]:
+    #     try:
+    #         if agent_config.DATADOG_API_KEY and agent_config.DATADOG_APP_KEY:
+    #             mcp_datadog_toolset = MCPToolset(
+    #                 connection_params=StdioServerParameters(
+    #                     command="npx",
+    #                     args=["-y", "@winor30/mcp-server-datadog"],
+    #                     env={
+    #                         "DATADOG_API_KEY": agent_config.DATADOG_API_KEY,
+    #                         "DATADOG_APP_KEY": agent_config.DATADOG_APP_KEY,
+    #                     },
+    #                 ),
+    #             )
+    #             _loaded_mcp_toolsets["datadog"] = mcp_datadog_toolset
+    #             logger.info("MCP Datadog Toolset initialized successfully by setup.py.")
+    #         else:
+    #             logger.warning("DATADOG_API_KEY or DATADOG_APP_KEY not set in config. MCP Datadog Toolset will not be loaded.")
+    #     except Exception as e:
+    #         logger.warning(f"Failed to load MCP Datadog Toolset in setup.py: {e}. The Datadog tools will be unavailable.")
     
-    if _loaded_mcp_toolsets["datadog"]:
-        devops_observability_tools.append(_loaded_mcp_toolsets["datadog"])
-    else:
-        logger.info("MCP Datadog Toolset was not loaded or already loaded, not adding to observability tools again unless it's the first load.")
+    # if _loaded_mcp_toolsets["datadog"]:
+    #     devops_observability_tools.append(_loaded_mcp_toolsets["datadog"])
+    # else:
+    #     logger.info("MCP Datadog Toolset was not loaded or already loaded, not adding to observability tools again unless it's the first load.")
 
 
-    _observability_agent = LlmAgent(
-        model=agent_config.DEFAULT_SUB_AGENT_MODEL,
-        name="observability",
-        description="Agent specialized in Observability",
-        instruction=prompts.OBSERVABILITY_AGENT_INSTR,
-        tools=devops_observability_tools, # tools list will be empty if datadog isn't loaded
-    )
+    # _observability_agent = LlmAgent(
+    #     model=agent_config.DEFAULT_SUB_AGENT_MODEL,
+    #     name="observability",
+    #     description="Agent specialized in Observability",
+    #     instruction=prompts.OBSERVABILITY_AGENT_INSTR,
+    #     tools=devops_observability_tools, # tools list will be empty if datadog isn't loaded
+    # )
 
     devops_core_tools_list = [
         index_directory_tool,
@@ -165,7 +123,7 @@ def load_core_tools_and_toolsets():
         check_command_exists_tool,
         execute_vetted_shell_command_tool,
         AgentTool(agent=_search_agent),
-        AgentTool(agent=_observability_agent),
+        # AgentTool(agent=_observability_agent),
     ]
 
     if agent_config.ENABLE_CODE_EXECUTION:
@@ -191,44 +149,6 @@ def load_core_tools_and_toolsets():
     #     devops_core_tools_list.append(_loaded_mcp_toolsets["filesystem"])
     # else:
     #     logger.info("MCP Filesystem Toolset was not loaded or already loaded, not adding to core tools list again unless it's the first load.")
-
-    # if not _loaded_mcp_toolsets["gitmcp-adk"]:
-    #     try:
-    #         mcp_gitmcp_adk_toolset = MCPToolset(
-    #             connection_params=SseServerParams(
-    #                 url="https://gitmcp.io/google/adk-python",
-    #             ),
-    #         )
-    #         _loaded_mcp_toolsets["gitmcp-adk"] = mcp_gitmcp_adk_toolset
-    #         logger.info("MCP GitMCP ADK Toolset initialized successfully by setup.py.")
-    #     except Exception as e:
-    #         logger.warning(
-    #             f"Failed to load MCP GitMCP ADK Toolset in setup.py: {e}. "
-    #         )
-
-    # if _loaded_mcp_toolsets["gitmcp-adk"]:
-    #     devops_core_tools_list.append(_loaded_mcp_toolsets["gitmcp-adk"])
-    # else:
-    #     logger.info("MCP GitMCP ADK Toolset was not loaded or already loaded, not adding to core tools list again unless it's the first load.")
-
-    # if not _loaded_mcp_toolsets["gitmcp-genai"]:
-    #     try:
-    #         mcp_gitmcp_genai_toolset = MCPToolset(
-    #             connection_params=SseServerParams(
-    #                 url="https://gitmcp.io/googleapis/python-genai",
-    #             ),
-    #         )
-    #         _loaded_mcp_toolsets["gitmcp-genai"] = mcp_gitmcp_genai_toolset
-    #         logger.info("MCP GitMCP GenAI Toolset initialized successfully by setup.py.")
-    #     except Exception as e:
-    #         logger.warning(
-    #             f"Failed to load MCP GitMCP GenAI Toolset in setup.py: {e}. "
-    #         )
-    
-    # if _loaded_mcp_toolsets["gitmcp-genai"]:
-    #     devops_core_tools_list.append(_loaded_mcp_toolsets["gitmcp-genai"])
-    # else:
-    #     logger.info("MCP GitMCP GenAI Toolset was not loaded or already loaded, not adding to core tools list again unless it's the first load.")
 
     if agent_config.MCP_PLAYWRIGHT_ENABLED:
         if not _loaded_mcp_toolsets["playwright"]:
@@ -256,16 +176,14 @@ def load_core_tools_and_toolsets():
                     f"Failed to load MCP Playwright Toolset in setup.py: {e}. "
                     "Playwright tools will be unavailable."
                 )
-        
+
         if _loaded_mcp_toolsets["playwright"]:
             devops_core_tools_list.append(_loaded_mcp_toolsets["playwright"])
         else:
             # This case (Playwright enabled but not loaded due to an error, or already loaded)
             logger.info("MCP Playwright Toolset is enabled but was not loaded (possibly due to an error on first attempt or already loaded).")
-
     else:
         logger.info("MCP Playwright Toolset is disabled via config in setup.py.")
-
     return devops_core_tools_list
 
 # Example from:
@@ -314,7 +232,7 @@ def load_user_tools_and_toolsets():
                 if env_value is not None:
                     # Simple substitution for now, assumes the whole string is the placeholder
                     if value == f"{{{{env.{var_name}}}}}":
-                         return env_value
+                        return env_value
                     # More complex substitution (e.g., part of a string)
                     # This requires more sophisticated regex and handling, skipping for simplicity now.
                     # return value.replace(f'{{{{env.{var_name}}}}}', env_value)
@@ -383,16 +301,16 @@ def load_user_tools_and_toolsets():
                 processed_args = []
                 for arg in processed_config["args"]:
                     if not isinstance(arg, str):
-                         logger.warning(f"Failed to load MCP Toolset '{server_name}': Argument '{arg}' in 'args' is not a string after env var substitution. Skipping toolset.")
-                         processed_args = None # Indicate failure for this toolset
-                         break
+                        logger.warning(f"Failed to load MCP Toolset '{server_name}': Argument '{arg}' in 'args' is not a string after env var substitution. Skipping toolset.")
+                        processed_args = None # Indicate failure for this toolset
+                        break
                     processed_args.append(arg)
                 
                 if processed_args is None:
                     continue # Skip this toolset due to invalid args
 
                 processed_env = processed_config.get("env", {})
-                 # Ensure env values are strings after substitution
+                # Ensure env values are strings after substitution
                 for key, value in processed_env.items():
                     if not isinstance(value, str):
                         logger.warning(f"Failed to load MCP Toolset '{server_name}': Environment variable value for '{key}' is not a string after env var substitution. Converting to string.")
@@ -414,7 +332,7 @@ def load_user_tools_and_toolsets():
                     # Add the existing instance to the list if it's not already there by reference
                     # This check might be overly cautious depending on how lists are built
                     if _loaded_mcp_toolsets[server_name] not in user_mcp_tools_list:
-                         user_mcp_tools_list.append(_loaded_mcp_toolsets[server_name])
+                        user_mcp_tools_list.append(_loaded_mcp_toolsets[server_name])
                     continue # Skip re-initialization
 
                 mcp_toolset = MCPToolset(
@@ -436,3 +354,43 @@ def load_all_tools_and_toolsets():
     core_tools = load_core_tools_and_toolsets()
     user_tools = load_user_tools_and_toolsets()
     return core_tools + user_tools
+
+# IMPORTANT NOTE ON CLEANUP:
+# The `cleanup_mcp_toolsets` coroutine below is designed to properly close
+# the resources (like subprocesses and network connections) used by MCP toolsets.
+# However, due to potential limitations in how the ADK runner or main application
+# handles task cancellation during shutdown (e.g., on KeyboardInterrupt), 
+# awaiting this cleanup function from a cancellable task (like the agent's main run loop)
+# may itself be interrupted, potentially leading to errors like
+# "RuntimeError: Attempted to exit cancel scope in a different task than it was entered in".
+#
+# For a truly clean exit, the application running this agent should ideally
+# call and await `cleanup_mcp_toolsets()` from a non-cancellable context
+# during its shutdown sequence, or ensure that any cancellation allows
+# sufficient time and context for cleanup tasks to complete.
+# If running with a standard ADK runner that exhibits this issue, a perfectly
+# clean shutdown free of this specific error might not be achievable from
+# within the agent's code itself.
+
+async def cleanup_mcp_toolsets():
+    """Iterates through loaded MCP toolsets and calls their close() method."""
+    logger.info("Starting cleanup of MCP toolsets...")
+    for toolset_name, toolset_instance in list(_loaded_mcp_toolsets.items()): # Iterate on a copy
+        if toolset_instance and hasattr(toolset_instance, 'close') and callable(toolset_instance.close):
+            try:
+                if asyncio.iscoroutinefunction(toolset_instance.close):
+                    logger.info(f"Asynchronously closing MCP Toolset: {toolset_name}")
+                    await toolset_instance.close()
+                else:
+                    logger.info(f"Synchronously closing MCP Toolset: {toolset_name} (if it blocks, this might be an issue)")
+                    toolset_instance.close() # type: ignore
+                logger.info(f"Successfully closed MCP Toolset: {toolset_name}")
+            except Exception as e:
+                logger.error(f"Error closing MCP Toolset {toolset_name}: {e}", exc_info=True)
+            finally:
+                # Optionally remove from dict or mark as closed
+                _loaded_mcp_toolsets[toolset_name] = None # Mark as closed or remove
+        elif toolset_instance:
+            logger.warning(f"MCP Toolset {toolset_name} does not have a callable 'close' method.")
+        # If toolset_instance is None, it was either never loaded or already cleaned up
+    logger.info("Finished cleanup of MCP toolsets.")
