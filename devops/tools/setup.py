@@ -48,6 +48,23 @@ _loaded_mcp_toolsets = {
     # User-defined MCP servers will be added here with their names as keys
 }
 
+# IMPORTANT NOTE ON CLEANUP:
+# The `cleanup_mcp_toolsets` coroutine below is designed to properly close
+# the resources (like subprocesses and network connections) used by MCP toolsets.
+# However, due to potential limitations in how the ADK runner or main application
+# handles task cancellation during shutdown (e.g., on KeyboardInterrupt), 
+# awaiting this cleanup function from a cancellable task (like the agent's main run loop)
+# may itself be interrupted, potentially leading to errors like
+# "RuntimeError: Attempted to exit cancel scope in a different task than it was entered in".
+#
+# For a truly clean exit, the application running this agent should ideally
+# call and await `cleanup_mcp_toolsets()` from a non-cancellable context
+# during its shutdown sequence, or ensure that any cancellation allows
+# sufficient time and context for cleanup tasks to complete.
+# If running with a standard ADK runner that exhibits this issue, a perfectly
+# clean shutdown free of this specific error might not be achievable from
+# within the agent's code itself.
+
 async def cleanup_mcp_toolsets():
     """Iterates through loaded MCP toolsets and calls their close() method."""
     logger.info("Starting cleanup of MCP toolsets...")
@@ -308,7 +325,7 @@ def load_user_tools_and_toolsets():
             return value
 
     user_mcp_tools_list = []
-    mcp_config_path = os.path.join(os.getcwd(), ".mcp.json") # TODO: Make this configurable or discoverable
+    mcp_config_path = os.path.join(os.getcwd(), "mcp.json") # TODO: Make this configurable or discoverable
 
     # Initialize _loaded_mcp_toolsets if it's None (e.g., first call)
     # This check might be redundant if it's always initialized globally, but good for safety.

@@ -35,7 +35,6 @@ env/
 # Local environment
 .env
 .index_data/
-run.sh
 push.sh
 
 # Chroma index

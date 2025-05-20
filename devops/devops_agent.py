@@ -31,10 +31,7 @@ from .components.context_management import (
 )
 from .tools.shell_command import ExecuteVettedShellCommandOutput
 from .shared_libraries import ui as ui_utils
-from .tools.setup import cleanup_mcp_toolsets
 
-# Assuming these relative imports become sibling imports or need adjustment based on final structure
-# If devops_agent.py is in devops/, then these should be from devops.*
 from . import config as agent_config
 
 logger = logging.getLogger(__name__)
@@ -522,14 +519,6 @@ class MyDevopsAgent(LlmAgent):
             )
             # Gracefully end the invocation
             ctx.end_invocation = True
-        finally:
-            # This block will execute whether the try block succeeded, an exception occurred,
-            # or the task was cancelled.
-            logger.info(f"Agent {self.name}._run_async_impl finished or exited. Cleaning up MCP toolsets.")
-            try:
-                await cleanup_mcp_toolsets()
-            except Exception as cleanup_e:
-                logger.error(f"Agent {self.name}: Error during MCP toolset cleanup in _run_async_impl: {cleanup_e}", exc_info=True)
 
     def _assemble_context_from_state(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """Assembles context dictionary from state for LLM injection, respecting token limits.
