@@ -3,7 +3,7 @@
 import logging
 
 from .devops_agent import MyDevopsAgent
-from .tools.setup import load_core_tools_and_toolsets
+from .tools.setup import load_all_tools_and_toolsets
 
 from . import config as agent_config
 from . import prompts as agent_prompts # Moved this import back
@@ -18,7 +18,7 @@ devops_agent_instance = MyDevopsAgent(
     description="Self-sufficient agent specialized in Platform Engineering, DevOps, and SRE practices.",
     instruction=agent_prompts.DEVOPS_AGENT_INSTR,
     generate_content_config=agent_config.MAIN_LLM_GENERATION_CONFIG,
-    tools=load_core_tools_and_toolsets(),
+    tools=load_all_tools_and_toolsets(),
     output_key="devops",
 )
 

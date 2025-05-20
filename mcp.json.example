@@ -1,0 +1,29 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "rust-mcp-filesystem",
+      "args": [
+        "--allow-write",
+        "{{env.MCP_ALLOWED_DIRECTORIES}}"
+      ]
+    },
+    "gitmcp-adk": {
+      "url": "https://gitmcp.io/google/adk-python"
+    },
+    "gitmcp-genai": {
+      "url": "https://gitmcp.io/googleapis/python-genai"
+    },
+    "sonarqube": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "sonarqube-mcp-server@1.0.0"
+      ],
+      "env": {
+        "SONARQUBE_URL": "https://sonarcloud.io",
+        "SONARQUBE_TOKEN": "{{env.SONAR_TOKEN}}",
+        "SONARQUBE_ORGANIZATION": "{{env.SONAR_ORGANIZATION}}"
+      }
+    }
+  }
+}
