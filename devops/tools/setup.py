@@ -14,14 +14,15 @@ from google.adk.tools.google_search_tool import google_search
 from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset
 from google.adk.tools.mcp_tool.mcp_toolset import StdioServerParameters
 from google.adk.tools.mcp_tool.mcp_toolset import SseServerParams
-# TODO(team): The current model does not support tool use with function calling. Commenting out built-in code execution for now. Revisit and potentially change model or find alternative code execution method later.
-# from google.adk.tools._built_in_code_execution_tool import built_in_code_execution # Import the built-in code execution tool from its internal module
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 from .. import config as agent_config
 from .. import prompts
+
+if agent_config.ENABLE_CODE_EXECUTION:
+    from google.adk.code_executors import BuiltInCodeExecutor
 
 # Import specific tools from the current package (tools/)
 from . import (
@@ -105,14 +106,17 @@ def load_core_tools_and_toolsets():
         tools=[google_search],
     )
 
-    # No longer supported.
-    # _code_execution_agent = LlmAgent(
-    #     model=agent_config.DEFAULT_SUB_AGENT_MODEL,
-    #     name="code_execution",
-    #     description="An agent specialized in code execution",
-    #     instruction=prompts.CODE_EXECUTION_AGENT_INSTR,
-    #     tools=[],
-    # )
+    # A code executor that uses the Model's built-in code executor.
+    # Currently only supports Gemini 2.0+ models, but will be expanded to
+    # other models.
+    if agent_config.ENABLE_CODE_EXECUTION:
+        _code_execution_agent = LlmAgent(
+            model=agent_config.DEFAULT_SUB_AGENT_MODEL,
+            name="code_execution",
+            description="An agent specialized in code execution",
+            instruction=prompts.CODE_EXECUTION_AGENT_INSTR,
+            code_executor=[BuiltInCodeExecutor],
+        )
 
     devops_observability_tools = []
     if not _loaded_mcp_toolsets["datadog"]:
@@ -160,11 +164,12 @@ def load_core_tools_and_toolsets():
         codebase_search_tool,
         check_command_exists_tool,
         execute_vetted_shell_command_tool,
-        # AgentTool(agent=_code_execution_agent), # No longer supported.
         AgentTool(agent=_search_agent),
         AgentTool(agent=_observability_agent),
-#        built_in_code_execution, # Add the built-in code execution tool
     ]
+
+    if agent_config.ENABLE_CODE_EXECUTION:
+        devops_core_tools_list.append(AgentTool(agent=_code_execution_agent))
 
     # if not _loaded_mcp_toolsets["filesystem"]:
     #     try:

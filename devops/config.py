@@ -18,11 +18,12 @@ logger = logging.getLogger(__name__)
 
 # --- LLM Configuration ---
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-GEMINI_FLASH_MODEL_NAME = "gemini-1.5-flash-latest"
-GEMINI_PRO_MODEL_NAME = "gemini-1.5-pro-latest"
+GEMINI_FLASH_MODEL_NAME = "gemini-2.5-flash-latest"
+GEMINI_PRO_MODEL_NAME = "gemini-2.5-pro-latest"
 
 GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL", GEMINI_PRO_MODEL_NAME) # Default to Pro
-DEFAULT_SUB_AGENT_MODEL = GEMINI_FLASH_MODEL_NAME 
+DEFAULT_SUB_AGENT_MODEL = GEMINI_FLASH_MODEL_NAME
+DEFAULT_CODE_EXECUTION_MODEL = GEMINI_PRO_MODEL_NAME
 
 # --- LLM Generation Configuration ---
 MAIN_LLM_GENERATION_CONFIG = genai_types.GenerateContentConfig(
@@ -89,6 +90,9 @@ DATADOG_APP_KEY = os.getenv("DATADOG_APP_KEY")
 ENABLE_INTERACTIVE_PLANNING_STR = os.getenv("ENABLE_INTERACTIVE_PLANNING", "false")
 ENABLE_INTERACTIVE_PLANNING = ENABLE_INTERACTIVE_PLANNING_STR.lower() == "true"
 
+ENABLE_CODE_EXECUTION_STR = os.getenv("ENABLE_CODE_EXECUTION", "false")
+ENABLE_CODE_EXECUTION = ENABLE_CODE_EXECUTION_STR.lower() == "true"
+
 MCP_PLAYWRIGHT_ENABLED_STR = os.getenv("MCP_PLAYWRIGHT_ENABLED", "false")
 MCP_PLAYWRIGHT_ENABLED = MCP_PLAYWRIGHT_ENABLED_STR.lower() == "true"
 
@@ -97,6 +101,7 @@ logger.info(f"Config - GEMINI_MODEL_NAME: {GEMINI_MODEL_NAME}")
 logger.info(f"Config - DEFAULT_SUB_AGENT_MODEL: {DEFAULT_SUB_AGENT_MODEL}")
 logger.info(f"Config - Google API Key Loaded: {'Yes' if GOOGLE_API_KEY else 'No'}")
 logger.info(f"Config - Interactive Planning Enabled: {ENABLE_INTERACTIVE_PLANNING}")
+logger.info(f"Config - Code Execution Enabled: {ENABLE_CODE_EXECUTION}")
 logger.info(f"Config - Context Target Recent Turns: {CONTEXT_TARGET_RECENT_TURNS}")
 logger.info(f"Config - Context Target Code Snippets: {CONTEXT_TARGET_CODE_SNIPPETS}")
 logger.info(f"Config - Context Target Tool Results: {CONTEXT_TARGET_TOOL_RESULTS}")
