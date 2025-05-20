@@ -14,6 +14,8 @@ from google.adk.tools.google_search_tool import google_search
 from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset
 from google.adk.tools.mcp_tool.mcp_toolset import StdioServerParameters
 from google.adk.tools.mcp_tool.mcp_toolset import SseServerParams
+# TODO(team): The current model does not support tool use with function calling. Commenting out built-in code execution for now. Revisit and potentially change model or find alternative code execution method later.
+# from google.adk.tools._built_in_code_execution_tool import built_in_code_execution # Import the built-in code execution tool from its internal module
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
@@ -103,13 +105,14 @@ def load_core_tools_and_toolsets():
         tools=[google_search],
     )
 
-    _code_execution_agent = LlmAgent(
-        model=agent_config.DEFAULT_SUB_AGENT_MODEL,
-        name="code_execution",
-        description="An agent specialized in code execution",
-        instruction=prompts.CODE_EXECUTION_AGENT_INSTR,
-        tools=[],
-    )
+    # No longer supported.
+    # _code_execution_agent = LlmAgent(
+    #     model=agent_config.DEFAULT_SUB_AGENT_MODEL,
+    #     name="code_execution",
+    #     description="An agent specialized in code execution",
+    #     instruction=prompts.CODE_EXECUTION_AGENT_INSTR,
+    #     tools=[],
+    # )
 
     devops_observability_tools = []
     if not _loaded_mcp_toolsets["datadog"]:
@@ -157,9 +160,10 @@ def load_core_tools_and_toolsets():
         codebase_search_tool,
         check_command_exists_tool,
         execute_vetted_shell_command_tool,
-        AgentTool(agent=_code_execution_agent),
+        # AgentTool(agent=_code_execution_agent), # No longer supported.
         AgentTool(agent=_search_agent),
         AgentTool(agent=_observability_agent),
+#        built_in_code_execution, # Add the built-in code execution tool
     ]
 
     # if not _loaded_mcp_toolsets["filesystem"]:
