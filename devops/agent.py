@@ -6,12 +6,12 @@ from .devops_agent import MyDevopsAgent
 from .tools.setup import load_all_tools_and_toolsets
 
 from . import config as agent_config
-from . import prompts as agent_prompts # Moved this import back
+from . import prompts as agent_prompts
 
 logger = logging.getLogger(__name__)
 
 
-# Create agent instance and assign to root_agent
+# Create agent instance using the MyDevopsAgent abstraction
 devops_agent_instance = MyDevopsAgent(
     model=agent_config.GEMINI_MODEL_NAME,
     name="devops_agent",

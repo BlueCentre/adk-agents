@@ -6,7 +6,7 @@ This document provides context about the user's environment and preferences to h
 
 ## Directory Structure
 
-*This section describes the main project directories, their purpose, and common locations for specific file types. It's based on a scan of the current working directory.*
+*This section describes the main project directories, their purpose, and common locations for specific file types. It's based on an agent scan of the current working directory.*
 
 *   `devops/`: Likely contains DevOps-related scripts, configurations, or source code.
     *   `docs/`: Documentation files.
@@ -51,6 +51,8 @@ This document provides context about the user's environment and preferences to h
 *   `pyproject.toml`: Python project configuration file (PEP 518).
 
 **(Please review this refined list. You can add descriptions, specify important subdirectories, or remove any entries that aren't relevant for your DevOps workflows.)**
+
+**IMPORTANT**: When the user mentions `current working directory`, you will use `pwd` to figure out the directory
 
 ## Common Tools Available
 

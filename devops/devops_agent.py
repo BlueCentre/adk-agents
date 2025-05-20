@@ -31,6 +31,7 @@ from .components.context_management import (
 )
 from .tools.shell_command import ExecuteVettedShellCommandOutput
 from .shared_libraries import ui as ui_utils
+from .tools.setup import cleanup_mcp_toolsets
 
 # Assuming these relative imports become sibling imports or need adjustment based on final structure
 # If devops_agent.py is in devops/, then these should be from devops.*
@@ -181,19 +182,19 @@ class MyDevopsAgent(LlmAgent):
             current_turn = callback_context.state.get('temp:current_turn', {})
 
             if user_message_content:
-                 if not conversation_history or conversation_history[-1].get('agent_message') is not None:
-                      logger.debug(f"Starting new turn in context.state with user message: {user_message_content[:100]}")
-                      current_turn = {'user_message': user_message_content}
-                      conversation_history.append(current_turn)
-                 elif conversation_history[-1].get('user_message') is None:
-                      logger.debug(f"Updating current turn in context.state with user message: {user_message_content[:100]}")
-                      conversation_history[-1]['user_message'] = user_message_content
-                      current_turn = conversation_history[-1]
-                 else:
-                       logger.debug(f"Appending to last user message in context.state: {user_message_content[:100]}")
-                       last_user_msg = conversation_history[-1].get('user_message', '')
-                       conversation_history[-1]['user_message'] = last_user_msg + "\n" + user_message_content
-                       current_turn = conversation_history[-1]
+                if not conversation_history or conversation_history[-1].get('agent_message') is not None:
+                    logger.debug(f"Starting new turn in context.state with user message: {user_message_content[:100]}")
+                    current_turn = {'user_message': user_message_content}
+                    conversation_history.append(current_turn)
+                elif conversation_history[-1].get('user_message') is None:
+                    logger.debug(f"Updating current turn in context.state with user message: {user_message_content[:100]}")
+                    conversation_history[-1]['user_message'] = user_message_content
+                    current_turn = conversation_history[-1]
+                else:
+                    logger.debug(f"Appending to last user message in context.state: {user_message_content[:100]}")
+                    last_user_msg = conversation_history[-1].get('user_message', '')
+                    conversation_history[-1]['user_message'] = last_user_msg + "\n" + user_message_content
+                    current_turn = conversation_history[-1]
 
             callback_context.state['user:conversation_history'] = conversation_history
             callback_context.state['temp:current_turn'] = current_turn
@@ -216,11 +217,11 @@ class MyDevopsAgent(LlmAgent):
 
             tool_results_current_turn = callback_context.state.get('temp:tool_results_current_turn', None)
             if tool_results_current_turn is not None:
-                 logger.debug("Clearing temp:tool_results_current_turn state.")
-                 callback_context.state['temp:tool_results_current_turn'] = None
+                logger.debug("Clearing temp:tool_results_current_turn state.")
+                callback_context.state['temp:tool_results_current_turn'] = None
             # Note: 'temp:current_turn' is managed above where user message is added.
         else:
-             logger.warning("callback_context or callback_context.state is not available in handle_before_model. State will not be managed.")
+            logger.warning("callback_context or callback_context.state is not available in handle_before_model. State will not be managed.")
 
         planning_response, approved_plan_text = await self._planning_manager.handle_before_model_planning_logic(
             user_message_content, llm_request
@@ -261,7 +262,7 @@ class MyDevopsAgent(LlmAgent):
                             llm_request.messages.insert(0, system_content)
                             logger.info("Injected structured context into llm_request messages.")
                         except Exception as e:
-                             logger.warning(f"Could not inject structured context into llm_request messages: {e}")
+                            logger.warning(f"Could not inject structured context into llm_request messages: {e}")
 
                     total_context_block_tokens = self._count_tokens(system_context_message)
                     logger.info(f"Total tokens for prompt (base + context_block): {self._count_tokens(get_last_user_content(llm_request)) + total_context_block_tokens}")
@@ -306,8 +307,8 @@ class MyDevopsAgent(LlmAgent):
                         last_turn['agent_message'] = extracted_text
                         callback_context.state['user:conversation_history'] = conversation_history
                     else:
-                         last_turn['agent_message'] += "\n" + extracted_text
-                         callback_context.state['user:conversation_history'] = conversation_history
+                        last_turn['agent_message'] += "\n" + extracted_text
+                        callback_context.state['user:conversation_history'] = conversation_history
                     logger.debug(f"Updated agent response in context.state for last turn: {extracted_text[:100]}")
                 else:
                     logger.warning("Attempting to update agent response in context.state but no conversation history found.")
@@ -325,15 +326,15 @@ class MyDevopsAgent(LlmAgent):
             # Replacing .pop() with .get() and setting to None/empty
             current_turn_tool_calls = callback_context.state.get('temp:tool_calls_current_turn', [])
             if current_turn_tool_calls is None:
-                 current_turn_tool_calls = [] # Ensure it's a list if None
+                current_turn_tool_calls = [] # Ensure it's a list if None
 
             current_turn_tool_results = callback_context.state.get('temp:tool_results_current_turn', [])
             if current_turn_tool_results is None:
-                 current_turn_tool_results = [] # Ensure it's a list if None
+                current_turn_tool_results = [] # Ensure it's a list if None
 
             current_turn_data = callback_context.state.get('temp:current_turn', {})
             if current_turn_data is None:
-                 current_turn_data = {} # Ensure it's a dict if None
+                current_turn_data = {} # Ensure it's a dict if None
             # Clear the temporary current turn data after retrieving
             callback_context.state['temp:current_turn'] = None
 
@@ -369,13 +370,13 @@ class MyDevopsAgent(LlmAgent):
             elif hasattr(llm_response, 'parts') and getattr(llm_response, 'parts'):
                 parts = getattr(llm_response, 'parts')
                 if isinstance(parts, list):
-                     parts_texts = [part.text for part in parts if hasattr(part, 'text') and part.text is not None]
-                     if parts_texts:
+                    parts_texts = [part.text for part in parts if hasattr(part, 'text') and part.text is not None]
+                    if parts_texts:
                         return "".join(parts_texts)
         except Exception as e:
             logger.warning(f"Failed to extract text from LLM response: {e}. "
-                           f"LLM response type: {type(llm_response)}. "
-                           f"LLM response attributes: {dir(llm_response)}")
+                        f"LLM response type: {type(llm_response)}. "
+                        f"LLM response attributes: {dir(llm_response)}")
         return None
 
     def _process_llm_response(self, llm_response: LlmResponse) -> Dict[str, Any]:
@@ -392,20 +393,20 @@ class MyDevopsAgent(LlmAgent):
                     if hasattr(part, 'text') and part.text is not None:
                         extracted_data["text_parts"].append(part.text)
                     elif hasattr(part, 'function_call') and part.function_call is not None:
-                         extracted_data["function_calls"].append(part.function_call)
+                        extracted_data["function_calls"].append(part.function_call)
 
         elif hasattr(llm_response, 'parts') and getattr(llm_response, 'parts'):
             parts = getattr(llm_response, 'parts')
             if isinstance(parts, list):
-                 for part in parts:
+                for part in parts:
                     if hasattr(part, 'text') and part.text is not None:
-                         extracted_data["text_parts"].append(part.text)
+                        extracted_data["text_parts"].append(part.text)
                     elif hasattr(part, 'function_call') and part.function_call is not None:
-                         extracted_data["function_calls"].append(part.function_call)
+                        extracted_data["function_calls"].append(part.function_call)
 
         direct_text = getattr(llm_response, 'text', None)
         if direct_text and not extracted_data["text_parts"] and not extracted_data["function_calls"]:
-             extracted_data["text_parts"].append(direct_text)
+            extracted_data["text_parts"].append(direct_text)
 
         if extracted_data["function_calls"]:
             logger.info(f"Detected function calls in LLM response: {extracted_data["function_calls"]}")
@@ -446,8 +447,8 @@ class MyDevopsAgent(LlmAgent):
                 if tool_context and hasattr(tool_context, 'state') and tool_context.state is not None:
                     TOOL_PROCESSORS[tool.name](tool_context.state, tool, tool_response)
                 else:
-                     logger.warning(f"tool_context or tool_context.state is not available for custom processor {tool.name}. State not passed.")
-                     TOOL_PROCESSORS[tool.name](None, tool, tool_response) # Pass None for state if not available
+                    logger.warning(f"tool_context or tool_context.state is not available for custom processor {tool.name}. State not passed.")
+                    TOOL_PROCESSORS[tool.name](None, tool, tool_response) # Pass None for state if not available
                 custom_processor_used = True
             except Exception as e:
                 logger.error(f"Error in custom processor for {tool.name}: {e}", exc_info=True)
@@ -468,12 +469,12 @@ class MyDevopsAgent(LlmAgent):
         duration = time.time() - start_time
 
         if not (mcp_types and isinstance(tool_response, mcp_types.CallToolResult)) and \
-           not isinstance(tool_response, ExecuteVettedShellCommandOutput):
+            not isinstance(tool_response, ExecuteVettedShellCommandOutput):
             if isinstance(tool_response, dict) and (tool_response.get("status") == "error" or tool_response.get("error")):
                 logger.error(f"Tool {tool.name} reported an error: {tool_response}")
             elif isinstance(tool_response, dict):
-                 ui_utils.display_tool_finished(self._console, tool.name, tool_response, duration)
-                 logger.info(f"Tool {tool.name} executed successfully.")
+                ui_utils.display_tool_finished(self._console, tool.name, tool_response, duration)
+                logger.info(f"Tool {tool.name} executed successfully.")
 
         return None
 
@@ -481,10 +482,6 @@ class MyDevopsAgent(LlmAgent):
     async def _run_async_impl(
         self, ctx: InvocationContext
     ) -> AsyncGenerator[Event, None]:
-        # total_prompt_tokens = 0
-        # total_candidate_tokens = 0
-        # total_tokens = 0
-
         try:
             # Need to add placeholder methods for context assembly and token counting that operate on state
             # For simplicity, add them at the end of the class
@@ -496,24 +493,6 @@ class MyDevopsAgent(LlmAgent):
                 self._count_tokens = self._placeholder_count_tokens # Use a placeholder for now
 
             async for event in super()._run_async_impl(ctx):
-                # if event.content.parts and event.content.parts[0].text:
-                #     print(f'** {event.author}: {event.content.parts[0].text}')
-                # if event.usage_metadata:
-                #     total_prompt_tokens += event.usage_metadata.prompt_token_count or 0
-                #     total_candidate_tokens += (
-                #         event.usage_metadata.candidates_token_count or 0
-                #     )
-                #     total_tokens += event.usage_metadata.total_token_count or 0
-                #     print(
-                #         'Turn tokens:'
-                #         f' {event.usage_metadata.total_token_count} (prompt={event.usage_metadata.prompt_token_count},'
-                #         f' candidates={event.usage_metadata.candidates_token_count})'
-                #     )
-
-                # print(
-                #     f'Session tokens: {total_tokens} (prompt={total_prompt_tokens},'
-                #     f' candidates={total_candidate_tokens})'
-                # )
                 yield event
 
         except Exception as e:
@@ -541,7 +520,16 @@ class MyDevopsAgent(LlmAgent):
                 content=genai_types.Content(parts=[genai_types.Part(text=user_facing_error)]),
                 actions=EventActions()
             )
+            # Gracefully end the invocation
             ctx.end_invocation = True
+        finally:
+            # This block will execute whether the try block succeeded, an exception occurred,
+            # or the task was cancelled.
+            logger.info(f"Agent {self.name}._run_async_impl finished or exited. Cleaning up MCP toolsets.")
+            try:
+                await cleanup_mcp_toolsets()
+            except Exception as cleanup_e:
+                logger.error(f"Agent {self.name}: Error during MCP toolset cleanup in _run_async_impl: {cleanup_e}", exc_info=True)
 
     def _assemble_context_from_state(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """Assembles context dictionary from state for LLM injection, respecting token limits.
@@ -581,18 +569,18 @@ class MyDevopsAgent(LlmAgent):
         code_snippets_data = state.get('app:code_snippets', [])
         self._context_manager.code_snippets = [] # Clear existing snippets
         for snippet_data in code_snippets_data:
-             # Assuming snippet_data has keys like 'file_path', 'code', 'start_line', 'end_line', 'last_accessed', 'relevance_score'
-             # Need to ensure these keys exist or handle missing ones.
+            # Assuming snippet_data has keys like 'file_path', 'code', 'start_line', 'end_line', 'last_accessed', 'relevance_score'
+            # Need to ensure these keys exist or handle missing ones.
             snippet = CodeSnippet(
-                 file_path=snippet_data.get('file_path', ''),
-                 code=snippet_data.get('code', ''),
-                 start_line=snippet_data.get('start_line', 0),
-                 end_line=snippet_data.get('end_line', 0),
-                 last_accessed=snippet_data.get('last_accessed', 0), # Need to store last_accessed in state or derive it
-                 relevance_score=snippet_data.get('relevance_score', 1.0),
-                 # Token count will be calculated by ContextManager's add_code_snippet, but we are manually adding here.
-                 # Calculate token count manually based on the code content
-                 token_count=self._context_manager._count_tokens(snippet_data.get('code', ''))
+                file_path=snippet_data.get('file_path', ''),
+                code=snippet_data.get('code', ''),
+                start_line=snippet_data.get('start_line', 0),
+                end_line=snippet_data.get('end_line', 0),
+                last_accessed=snippet_data.get('last_accessed', 0), # Need to store last_accessed in state or derive it
+                relevance_score=snippet_data.get('relevance_score', 1.0),
+                # Token count will be calculated by ContextManager's add_code_snippet, but we are manually adding here.
+                # Calculate token count manually based on the code content
+                token_count=self._context_manager._count_tokens(snippet_data.get('code', ''))
             )
             self._context_manager.code_snippets.append(snippet)
 
@@ -611,8 +599,8 @@ class MyDevopsAgent(LlmAgent):
                 # This part needs careful review and potential adjustment based on actual data format.
                 summary = tool_result_data.get('summary') # Check if a summary is already provided
                 if summary is None:
-                     # If no summary in state, generate one from the response data
-                     summary = self._context_manager._generate_tool_result_summary(tool_result_data.get('tool_name', 'unknown_tool'), tool_result_data.get('response', {}))
+                    # If no summary in state, generate one from the response data
+                    summary = self._context_manager._generate_tool_result_summary(tool_result_data.get('tool_name', 'unknown_tool'), tool_result_data.get('response', {}))
 
                 tool_result = ToolResult(
                     tool_name=tool_result_data.get('tool_name', ''),

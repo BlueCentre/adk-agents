@@ -13,6 +13,9 @@
     "gitmcp-genai": {
       "url": "https://gitmcp.io/googleapis/python-genai"
     },
+    "mcp-docs": {
+      "url": "https://modelcontextprotocol.io/llms-full.txt"
+    },
     "sonarqube": {
       "command": "npx",
       "args": [
@@ -27,3 +30,16 @@
     }
   }
 }
+
+// NOTE: Comments will not work in mcp.json!
+// https://modelcontextprotocol.io/tutorials/building-mcp-with-llms
+// MCP LLM:
+//    "mcp-docs": {
+//      "url": "https://modelcontextprotocol.io/llms-full.txt"
+//    },
+// Agent Prompt:
+// Build an MCP server that:
+// - Connects to my company's PostgreSQL database
+// - Exposes table schemas as resources
+// - Provides tools for running read-only SQL queries
+//- Includes prompts for common data analysis tasks

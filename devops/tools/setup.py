@@ -6,6 +6,7 @@ It is used in the devops_agent.py file to load the core tools and toolsets.
 import logging
 import json
 import os
+import asyncio
 
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.tools.agent_tool import AgentTool
@@ -44,7 +45,31 @@ _loaded_mcp_toolsets = {
     # "gitmcp-adk": None,
     # "gitmcp-genai": None,
     "playwright": None,
+    # User-defined MCP servers will be added here with their names as keys
 }
+
+async def cleanup_mcp_toolsets():
+    """Iterates through loaded MCP toolsets and calls their close() method."""
+    logger.info("Starting cleanup of MCP toolsets...")
+    for toolset_name, toolset_instance in list(_loaded_mcp_toolsets.items()): # Iterate on a copy
+        if toolset_instance and hasattr(toolset_instance, 'close') and callable(toolset_instance.close):
+            try:
+                if asyncio.iscoroutinefunction(toolset_instance.close):
+                    logger.info(f"Asynchronously closing MCP Toolset: {toolset_name}")
+                    await toolset_instance.close()
+                else:
+                    logger.info(f"Synchronously closing MCP Toolset: {toolset_name} (if it blocks, this might be an issue)")
+                    toolset_instance.close() # type: ignore
+                logger.info(f"Successfully closed MCP Toolset: {toolset_name}")
+            except Exception as e:
+                logger.error(f"Error closing MCP Toolset {toolset_name}: {e}", exc_info=True)
+            finally:
+                # Optionally remove from dict or mark as closed
+                _loaded_mcp_toolsets[toolset_name] = None # Mark as closed or remove
+        elif toolset_instance:
+            logger.warning(f"MCP Toolset {toolset_name} does not have a callable 'close' method.")
+        # If toolset_instance is None, it was either never loaded or already cleaned up
+    logger.info("Finished cleanup of MCP toolsets.")
 
 def load_core_tools_and_toolsets():
     """Loads and initializes all core tools, sub-agents, and MCP toolsets.
@@ -283,17 +308,19 @@ def load_user_tools_and_toolsets():
             return value
 
     user_mcp_tools_list = []
+    mcp_config_path = os.path.join(os.getcwd(), ".mcp.json") # TODO: Make this configurable or discoverable
 
-    # Load MCP toolsets from mcp.json
-    try:
-        with open("mcp.json", "r") as f:
-            mcp_config = json.load(f)
-    except FileNotFoundError:
+    # Initialize _loaded_mcp_toolsets if it's None (e.g., first call)
+    # This check might be redundant if it's always initialized globally, but good for safety.
+    if _loaded_mcp_toolsets is None:
+        _loaded_mcp_toolsets = {}
+
+    if not os.path.exists(mcp_config_path):
         logger.info("mcp.json not found. No user-defined MCP toolsets will be loaded.")
         return user_mcp_tools_list
-    except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse mcp.json: {e}")
-        return user_mcp_tools_list
+
+    with open(mcp_config_path, "r") as f:
+        mcp_config = json.load(f)
 
     servers = mcp_config.get('mcpServers', {})
     if not servers:
@@ -313,13 +340,11 @@ def load_user_tools_and_toolsets():
 
             connection_params = None
             if "url" in processed_config:
-                # Assume SseServerParams
+                # Assume SseServerParams for URL-based servers
                 if not isinstance(processed_config.get("url"), str):
-                    logger.warning(f"Failed to load MCP Toolset '{server_name}': 'url' must be a string after env var substitution.")
+                    logger.warning(f"Failed to load MCP Toolset \'{server_name}\': \'url\' must be a string after env var substitution.")
                     continue
-                connection_params = SseServerParams(
-                    url=processed_config["url"],
-                )
+                connection_params = SseServerParams(url=processed_config["url"])
             elif "command" in processed_config and "args" in processed_config:
                 # Assume StdioServerParameters
                 if not isinstance(processed_config.get("command"), str):
@@ -358,11 +383,23 @@ def load_user_tools_and_toolsets():
                 continue
 
             if connection_params:
+                # Check if this server_name is already in _loaded_mcp_toolsets (e.g. from core tools)
+                if server_name in _loaded_mcp_toolsets and _loaded_mcp_toolsets[server_name] is not None:
+                    logger.info(f"MCP Toolset '{server_name}' already loaded (likely as a core tool). Adding existing instance to user tools list.")
+                    # Add the existing instance to the list if it's not already there by reference
+                    # This check might be overly cautious depending on how lists are built
+                    if _loaded_mcp_toolsets[server_name] not in user_mcp_tools_list:
+                         user_mcp_tools_list.append(_loaded_mcp_toolsets[server_name])
+                    continue # Skip re-initialization
+
                 mcp_toolset = MCPToolset(
                     connection_params=connection_params,
+                    # Optionally, you can pass a name to MCPToolset if its constructor supports it
+                    # name=server_name 
                 )
                 user_mcp_tools_list.append(mcp_toolset)
-                logger.info(f"MCP Toolset '{server_name}' initialized successfully by setup.py.")
+                _loaded_mcp_toolsets[server_name] = mcp_toolset # Store in global registry
+                logger.info(f"MCP Toolset '{server_name}' initialized successfully by setup.py and added to user tools.")
 
         except Exception as e:
             logger.warning(f"Failed to load MCP Toolset '{server_name}' in setup.py: {e}.")
