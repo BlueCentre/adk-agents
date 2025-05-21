@@ -55,6 +55,7 @@
 // - Provides tools for running read-only SQL queries
 // - Includes prompts for common data analysis tasks
 
+// https://modelcontextprotocol.io/docs/tools/inspector#npm-package
 // MCP Inspect:
 // npx -y @modelcontextprotocol/inspector
 // npx -y @modelcontextprotocol/inspector rust-mcp-filesystem --allow-write /tmp
