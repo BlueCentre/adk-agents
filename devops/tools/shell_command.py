@@ -2,8 +2,9 @@
 
 import logging
 import shlex
-import shutil  # <-- Added import
+import shutil
 import subprocess
+from pydantic import BaseModel, Field
 from typing import Literal, Optional, Dict, Any
 
 # Import ToolContext for state management
@@ -11,7 +12,6 @@ from google.adk.tools import (
     FunctionTool,  # Ensure FunctionTool is imported if not already
     ToolContext,
 )
-from pydantic import BaseModel, Field
 
 from .. import config as agent_config
 
