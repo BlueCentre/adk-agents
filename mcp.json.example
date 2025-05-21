@@ -53,4 +53,11 @@
 // - Connects to my company's PostgreSQL database
 // - Exposes table schemas as resources
 // - Provides tools for running read-only SQL queries
-//- Includes prompts for common data analysis tasks
+// - Includes prompts for common data analysis tasks
+
+// MCP Inspect:
+// npx -y @modelcontextprotocol/inspector
+// npx -y @modelcontextprotocol/inspector rust-mcp-filesystem --allow-write /tmp
+// npx -y @modelcontextprotocol/inspector npx @modelcontextprotocol/server-filesystem /tmp
+// npx -y @modelcontextprotocol/inspector npx @winor30/mcp-server-datadog
+// npx -y @modelcontextprotocol/inspector -e DATADOG_API_KEY=$DATADOG_API_KEY -e DATADOG_APP_KEY=$DATADOG_APP_KEY --config mcp.json --server datadog
