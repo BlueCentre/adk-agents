@@ -1,0 +1,72 @@
+.env.example --- 1/2 --- Bash
+15 GOOGLE_GENAI_USE_VERTEXAI=FALSE                                                                                               15 GOOGLE_GENAI_USE_VERTEXAI=FALSE
+16 GOOGLE_API_KEY=YOUR_AI_STUDIO_KEY                                                                                             16 GOOGLE_API_KEY=YOUR_AI_STUDIO_KEY
+..                                                                                                                               17 
+..                                                                                                                               18 # https://ai.google.dev/gemini-api/docs/models
+..                                                                                                                               19 GEMINI_FLASH_MODEL=gemini-2.5-flash-preview-05-20 # https://ai.google.dev/gemini-api/docs/models#gemini-2.5-flash-preview
+17 GEMINI_MODEL=gemini-2.5-pro-preview-05-06                                                                                     20 GEMINI_PRO_MODEL=gemini-2.5-pro-preview-05-06 # https://ai.google.dev/gemini-api/docs/models#gemini-2.5-pro-preview-05-06
+..                                                                                                                               21 
+..                                                                                                                               22 # ADK: root & sub-agents
+..                                                                                                                               23 # AGENT_MODEL=gemini-2.5-pro-preview-05-06 # https://ai.google.dev/gemini-api/docs/models#gemini-2.5-pro-preview-05-06
+..                                                                                                                               24 # SUB_AGENT_MODEL=gemini-2.5-flash-preview-05-20 # https://ai.google.dev/gemini-api/docs/models#gemini-2.5-flash-preview
+..                                                                        
+...\nw-write",
+ 7         "{{env.MCP_ALLOWED_DIRECTORIES}}"
+ 8       ]
+ 9     },
+10     "gitmcp-adk": {
+11       "url": "https://gitmcp.io/google/adk-python"
+12     },
+13     "gitmcp-genai": {
+14       "url": "https://gitmcp.io/googleapis/python-genai"
+15     },
+16     "mcp-docs": {
+17       "url": "https://modelcontextprotocol.io/llms-full.txt"
+18     },
+19     "sonarqube": {
+20       "command": "npx",
+21       "args": [
+22         "-y",
+23         "sonarqube-mcp-server@1.0.0"
+24       ],
+25       "env": {
+26         "SONARQUBE_URL": "https://sonarcloud.io",
+27         "SONARQUBE_TOKEN": "{{env.SONAR_TOKEN}}",
+28         "SONARQUBE_ORGANIZATION": "{{env.SONAR_ORGANIZATION}}"
+29       }
+30     },
+31     "datadog": {
+32       "command": "npx",
+33       "args": [
+34         "-y",
+35         "@winor30/mcp-server-datadog"
+36       ],
+37       "env": {
+38         "DATADOG_API_KEY": "{{env.DATADOG_API_KEY}}",
+39         "DATADOG_APP_KEY": "{{env.DATADOG_APP_KEY}}"
+40       }
+41     }
+42   }
+43 }
+44 
+45 // NOTE: Comments will not work in mcp.json!
+46 // https://modelcontextprotocol.io/tutorials/building-mcp-with-llms
+47 // MCP LLM:
+48 //    "mcp-docs": {
+49 //      "url": "https://modelcontextprotocol.io/llms-full.txt"
+50 //    },
+51 // Agent Prompt:
+52 // Build an MCP server that:
+53 // - Connects to my company's PostgreSQL database
+54 // - Exposes table schemas as resources
+55 // - Provides tools for running read-only SQL queries
+56 // - Includes prompts for common data analysis tasks
+57 
+58 // https://modelcontextprotocol.io/docs/tools/inspector#npm-package
+59 // MCP Inspect:
+60 // npx -y @modelcontextprotocol/inspector
+61 // npx -y @modelcontextprotocol/inspector rust-mcp-filesystem --allow-write /tmp
+62 // npx -y @modelcontextprotocol/inspector npx @modelcontextprotocol/server-filesystem /tmp
+63 // npx -y @modelcontextprotocol/inspector npx @winor30/mcp-server-datadog
+64 // npx -y @modelcontextprotocol/inspector -e DATADOG_API_KEY=$DATADOG_API_KEY -e DATADOG_APP_KEY=$DATADOG_APP_KEY --config mcp.json --server datadog
+65

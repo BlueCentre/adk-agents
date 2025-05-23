@@ -22,8 +22,8 @@ def read_file_content(filepath: str) -> Dict[str, Any]:
 
     Returns:
         A dictionary with:
-        - {'status': 'success', 'content': 'file_content_string'} on success.
-        - {'status': 'error', 'error_type': str, 'message': str} on failure.
+        - {'status': 'success', 'content': 'file_content_string', 'filepath': 'filepath'} on success.
+        - {'status': 'error', 'error_type': str, 'message': str, 'filepath': 'filepath'} on failure.
           Possible error_types: 'FileNotFound', 'PermissionDenied', 'IOError', 'SecurityViolation' (if implemented).
     """
     logger.info(f"Attempting to read file: {filepath}")
@@ -33,24 +33,24 @@ def read_file_content(filepath: str) -> Dict[str, Any]:
     # if not abs_path.startswith(WORKSPACE_ROOT):
     #     message = f"Access denied: Path '{filepath}' is outside the allowed workspace."
     #     logger.error(message)
-    #     return {"status": "error", "error_type": "SecurityViolation", "message": message}
+    #     return {"status": "error", "error_type": "SecurityViolation", "message": message, "filepath": filepath}
     try:
         with open(filepath, "r", encoding="utf-8") as f:
             content = f.read()
         logger.info(f"Successfully read file: {filepath}")
-        return {"status": "success", "content": content}
+        return {"status": "success", "content": content, "filepath": filepath}
     except FileNotFoundError:
         message = f"File not found at path '{filepath}'."
         logger.error(message)
-        return {"status": "error", "error_type": "FileNotFound", "message": message}
+        return {"status": "error", "error_type": "FileNotFound", "message": message, "filepath": filepath}
     except PermissionError:
         message = f"Permission denied when trying to read file '{filepath}'."
         logger.error(message)
-        return {"status": "error", "error_type": "PermissionDenied", "message": message}
+        return {"status": "error", "error_type": "PermissionDenied", "message": message, "filepath": filepath}
     except Exception as e:
         message = f"An unexpected error occurred while reading file '{filepath}': {e}"
         logger.error(message, exc_info=True)
-        return {"status": "error", "error_type": "IOError", "message": message}
+        return {"status": "error", "error_type": "IOError", "message": message, "filepath": filepath}
 
 
 def list_directory_contents(directory_path: str) -> Dict[str, Any]:
@@ -116,9 +116,9 @@ def edit_file_content(filepath: str, content: str, tool_context: ToolContext) ->
 
     Returns:
         A dictionary with:
-        - {'status': 'pending_approval', 'proposed_filepath': str, 'proposed_content': str, 'message': str} if approval is required.
-        - {'status': 'success', 'message': 'Success message'} on successful write (when approval not required).
-        - {'status': 'error', 'error_type': str, 'message': str} on failure during write or validation.
+        - {'status': 'pending_approval', 'proposed_filepath': str, 'proposed_content': str, 'message': str, 'filepath': str} if approval is required.
+        - {'status': 'success', 'message': 'Success message', 'filepath': str} on successful write (when approval not required).
+        - {'status': 'error', 'error_type': str, 'message': str, 'filepath': str} on failure during write or validation.
           Possible error_types: 'PermissionDenied', 'IOError', 'SecurityViolation' (if implemented).
     """
     logger.info(f"Checking approval requirement for writing to file: {filepath}")
@@ -129,7 +129,7 @@ def edit_file_content(filepath: str, content: str, tool_context: ToolContext) ->
     # if not abs_path.startswith(WORKSPACE_ROOT):
     #     message = f"Access denied: Path '{filepath}' is outside the allowed workspace."
     #     logger.error(message)
-    #     return {"status": "error", "error_type": "SecurityViolation", "message": message}
+    #     return {"status": "error", "error_type": "SecurityViolation", "message": message, "filepath": filepath}
 
     # TODO: Remove this once we have a proper approval mechanism
     needs_approval = tool_context.state.get("require_edit_approval", False) # MODIFIED LINE: Default to False  
@@ -141,6 +141,7 @@ def edit_file_content(filepath: str, content: str, tool_context: ToolContext) ->
             "proposed_filepath": filepath,
             "proposed_content": content,
             "message": f"Approval required to write to '{filepath}'. User confirmation needed.",
+            "filepath": filepath,
         }
 
     # Proceed with write only if approval is not required
@@ -156,15 +157,15 @@ def edit_file_content(filepath: str, content: str, tool_context: ToolContext) ->
             f.write(content)
         message = f"Successfully wrote content to '{filepath}'."
         logger.info(message)
-        return {"status": "success", "message": message}
+        return {"status": "success", "message": message, "filepath": filepath}
     except PermissionError:
         message = f"Permission denied when trying to write to file '{filepath}'."
         logger.error(message)
-        return {"status": "error", "error_type": "PermissionDenied", "message": message}
+        return {"status": "error", "error_type": "PermissionDenied", "message": message, "filepath": filepath}
     except Exception as e:
         message = f"An unexpected error occurred while writing to file '{filepath}': {e}"
         logger.error(message, exc_info=True)
-        return {"status": "error", "error_type": "IOError", "message": message}
+        return {"status": "error", "error_type": "IOError", "message": message, "filepath": filepath}
 
 
 def configure_edit_approval(require_approval: bool, tool_context: ToolContext) -> Dict[str, Any]:

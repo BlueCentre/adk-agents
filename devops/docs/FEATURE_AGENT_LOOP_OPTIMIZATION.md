@@ -57,3 +57,31 @@ This implementation follows the plan outlined in the feature document, with each
 4. Manage token growth over time through intelligent context selection
 
 The agent should now be able to maintain longer, more productive conversations without hitting token limits, while preserving the high-quality context needed for accurate code understanding and natural conversation flow.
+
+## New Feature: API Error Handling with Retries and Input Optimization
+
+To enhance the agent's resilience against transient API errors and resource limitations, a retry mechanism with dynamic input optimization has been implemented.
+
+**Problem:** LLM requests can occasionally fail due to API errors such as `429 RESOURCE_EXHAUSTED` (rate limits, quotas) or `500 INTERNAL` errors. These failures interrupt the agent's workflow and can be frustrating for the user.
+
+**Solution:** Implement a retry strategy specifically for these identified API errors. On retry, the agent will attempt to reduce the size and complexity of the input context provided to the LLM, increasing the likelihood of a successful request within resource constraints.
+
+**Implementation Details:**
+
+1.  **Error Interception:** LLM calls within the agent's core execution loop (`_run_async_impl`) are wrapped in a retry mechanism.
+2.  **Target Errors:** The retry is specifically triggered by errors containing "429" and "RESOURCE_EXHAUSTED" or "500" and "INTERNAL"/"ServerError".
+3.  **Retry Attempts:** Up to 2 retry attempts are made for a failing request.
+4.  **Exponential Backoff:** A short exponential backoff (e.g., 1 second initially) is introduced between retries to allow temporary resource issues to resolve.
+5.  **Input Optimization (`_optimize_input_for_retry`):** Before each retry, a dedicated method `_optimize_input_for_retry` is called to modify the `InvocationContext` (`ctx.state`) used for the LLM request:
+    *   **Retry Attempt 1:** Reduces the number of recent conversation history turns included in the context (e.g., to the last 2 turns) and limits the number of code snippets.
+    *   **Retry Attempt 2:** Further reduces history (e.g., to the last 1 turn) and removes code snippets and potentially verbose tool results.
+    *   Additionally, the ContextManager's target limits for history and snippets are temporarily adjusted for that retry attempt.
+6.  **User Feedback:** If all retry attempts fail for an API error, a specific user-facing message is provided indicating the type of error and the actions taken (retries, context reduction).
+
+**Benefits:**
+
+*   **Increased Robustness:** The agent is less likely to fail due to transient API issues.
+*   **Improved User Experience:** Fewer interruptions and the agent attempts to self-recover.
+*   **Efficient Resource Usage:** By reducing context on retry, the agent is more likely to succeed within resource limits without requiring user intervention to shorten the prompt.
+
+This feature complements the existing context management strategies by providing a dynamic response to specific API constraints, ensuring the agent can complete tasks even under challenging conditions.

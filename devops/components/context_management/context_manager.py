@@ -71,11 +71,11 @@ class ContextManager:
                  model_name: str,
                  max_llm_token_limit: int,
                  llm_client: Optional[genai.Client] = None, 
-                 target_recent_turns: int = 5,
-                 target_code_snippets: int = 5,
-                 target_tool_results: int = 5,
-                 max_stored_code_snippets: int = 20,
-                 max_stored_tool_results: int = 30):
+                 target_recent_turns: int = 20,
+                 target_code_snippets: int = 25,
+                 target_tool_results: int = 30,
+                 max_stored_code_snippets: int = 100,
+                 max_stored_tool_results: int = 150):
         self.model_name = model_name
         self.max_token_limit = max_llm_token_limit
         self.target_recent_turns = target_recent_turns
@@ -110,6 +110,25 @@ class ContextManager:
         self.current_turn_number = 0
         self.console = Console(stderr=True)
         self.system_messages: List[Tuple[str, int]] = []
+        
+        # Log detailed configuration information for optimization analysis
+        self._log_configuration()
+
+    def _log_configuration(self):
+        """Log detailed ContextManager configuration for optimization analysis."""
+        logger.info("=" * 60)
+        logger.info("CONTEXTMANAGER CONFIGURATION LOADED")
+        logger.info("=" * 60)
+        logger.info(f"Model Name: {self.model_name}")
+        logger.info(f"Max LLM Token Limit: {self.max_token_limit:,}")
+        logger.info(f"Target Recent Turns: {self.target_recent_turns}")
+        logger.info(f"Target Code Snippets: {self.target_code_snippets}")
+        logger.info(f"Target Tool Results: {self.target_tool_results}")
+        logger.info(f"Max Stored Code Snippets: {self.max_stored_code_snippets}")
+        logger.info(f"Max Stored Tool Results: {self.max_stored_tool_results}")
+        logger.info(f"LLM Client Type: {type(self.llm_client).__name__ if self.llm_client else 'None'}")
+        logger.info(f"Token Counting Strategy: {self._token_counting_fn.__name__ if hasattr(self._token_counting_fn, '__name__') else 'lambda function'}")
+        logger.info("=" * 60)
 
     def _initialize_token_counting_strategy(self) -> Callable[[str], int]:
         # Strategy 1: Native Google GenAI client's count_tokens
@@ -238,12 +257,14 @@ class ContextManager:
         logger.info(f"Added key decision: {decision}") # Tokens for list calculated on assembly
     
     def add_code_snippet(self, file_path: str, code: str, start_line: int, end_line: int) -> None:
+        # Check for existing snippet at same location
         for i, snippet in enumerate(self.code_snippets):
             if (snippet.file_path == file_path and 
                 snippet.start_line == start_line and 
                 snippet.end_line == end_line):
                 self.code_snippets[i].last_accessed = self.current_turn_number
                 self.code_snippets[i].relevance_score += 0.2 
+                logger.info(f"Updated existing code snippet: {file_path}:{start_line}-{end_line}")
                 return
         
         new_snippet = CodeSnippet(
@@ -257,6 +278,26 @@ class ContextManager:
         self.code_snippets.append(new_snippet)
         logger.info(f"Added code snippet from {file_path} ({start_line}-{end_line}), tokens: {new_snippet.token_count}")
     
+    def add_full_file_content(self, file_path: str, content: str) -> None:
+        """Add full file content as context when files are read/modified."""
+        # With 1M+ tokens available, we can afford to include full file contents
+        lines = content.split('\n')
+        
+        # For small files (< 100 lines), add as single snippet
+        if len(lines) <= 100:
+            self.add_code_snippet(file_path, content, 1, len(lines))
+        else:
+            # For larger files, add in chunks to maintain context
+            chunk_size = 50  # lines per chunk
+            for i in range(0, len(lines), chunk_size):
+                end_idx = min(i + chunk_size, len(lines))
+                chunk_content = '\n'.join(lines[i:end_idx])
+                self.add_code_snippet(file_path, chunk_content, i + 1, end_idx)
+        
+        # Also track as modified file
+        self.track_file_modification(file_path)
+        logger.info(f"Added full file content for {file_path}: {len(lines)} lines, {len(content)} chars")
+
     def add_tool_result(self, tool_name: str, result: Any, summary: Optional[str] = None) -> None:
         if summary is None:
             summary = self._generate_tool_result_summary(tool_name, result)
@@ -276,18 +317,34 @@ class ContextManager:
         logger.info(f"Added tool result for {tool_name}, summary tokens: {summary_tokens}")
 
     def _generate_tool_result_summary(self, tool_name: str, result: Any) -> str:
+        """Generate a summary of tool result with transformation logging."""
         summary = ""
-        MAX_SUMMARY_LEN = 500 # Max characters for a summary
+        MAX_SUMMARY_LEN = 2000 # Increased from 500 - we have 1M+ tokens available!
         TRUNC_MSG_TEMPLATE = " (truncated due to length)"
+        
+        # Log the original content before transformation
+        original_content = str(result)
+        logger.info("=" * 50)
+        logger.info("TOOL RESULT TRANSFORMATION")
+        logger.info("=" * 50)
+        logger.info(f"Tool Name: {tool_name}")
+        logger.info(f"Original Result Type: {type(result).__name__}")
+        logger.info(f"Original Content Size: {len(original_content):,} characters")
+        logger.info(f"Original Content Preview: {original_content[:200]}...")
 
         if tool_name == "read_file_content" or tool_name == "read_file":
             if isinstance(result, dict) and result.get("status") == "success" and "content" in result:
                 content = result["content"]
                 if isinstance(content, str):
                     if any(kw in content for kw in ["def ", "class ", "import ", "function("]): 
-                        summary = f"Read code file. Length: {len(content)} chars. Content (truncated): {content[:150]}...{content[-150:] if len(content) > 300 else ''}"
+                        summary = f"Read code file. Length: {len(content)} chars. Content (truncated): {content[:500]}...{content[-500:] if len(content) > 1000 else ''}"
                     else:
-                        summary = f"Read file. Length: {len(content)} chars. Content (truncated): {content[:150]}...{content[-150:] if len(content) > 300 else ''}"
+                        summary = f"Read file. Length: {len(content)} chars. Content (truncated): {content[:500]}...{content[-500:] if len(content) > 1000 else ''}"
+                    
+                    # Log transformation details for file content
+                    logger.info(f"Transformation Type: File content summary")
+                    logger.info(f"Original File Content Size: {len(content):,} characters")
+                    logger.info(f"Content Type: {'Code file' if any(kw in content for kw in ['def ', 'class ', 'import ', 'function(']) else 'Text file'}")
                 else:
                     summary = f"Read file, content type: {type(content).__name__}."
             elif isinstance(result, dict) and result.get("status") == "error":
@@ -304,16 +361,25 @@ class ContextManager:
                 
                 stdout = result.get('stdout')
                 stderr = result.get('stderr')
-
-                if stdout and "[Output truncated" in stdout:
-                    parts.append(f"Stdout was large and truncated. First/last parts: {stdout.split('\\n', 1)[-1]}") # Show after truncation message
-                elif stdout:
-                    parts.append(f"Stdout: {stdout[:MAX_SUMMARY_LEN // 3]}") # Show a bit more of stdout if not truncated already
                 
-                if stderr and "[Output truncated" in stderr:
-                    parts.append(f"Stderr was large and truncated. First/last parts: {stderr.split('\\n', 1)[-1]}")
-                elif stderr:
-                    parts.append(f"Stderr: {stderr[:MAX_SUMMARY_LEN // 3]}")
+                # Log shell command output transformation
+                if stdout:
+                    logger.info(f"Original Stdout Size: {len(stdout):,} characters")
+                    if "[Output truncated" in stdout:
+                        logger.info("Stdout Transformation: Already truncated by tool")
+                        parts.append(f"Stdout was large and truncated. First/last parts: {stdout.split('\\n', 1)[-1]}") # Show after truncation message
+                    else:
+                        logger.info(f"Stdout Transformation: Truncating to {MAX_SUMMARY_LEN // 2} characters")
+                        parts.append(f"Stdout: {stdout[:MAX_SUMMARY_LEN // 2]}") # Show more stdout with increased limits
+                
+                if stderr:
+                    logger.info(f"Original Stderr Size: {len(stderr):,} characters")
+                    if "[Output truncated" in stderr:
+                        logger.info("Stderr Transformation: Already truncated by tool")
+                        parts.append(f"Stderr was large and truncated. First/last parts: {stderr.split('\\n', 1)[-1]}")
+                    else:
+                        logger.info(f"Stderr Transformation: Truncating to {MAX_SUMMARY_LEN // 2} characters")
+                        parts.append(f"Stderr: {stderr[:MAX_SUMMARY_LEN // 2]}")
                 
                 if not stdout and not stderr and result.get('return_code') == 0:
                     parts.append("No output on stdout or stderr.")
@@ -326,71 +392,157 @@ class ContextManager:
             if isinstance(result, dict):
                 if "matches" in result and isinstance(result["matches"], list):
                     summary = f"Search returned {len(result['matches'])} matches."
+                    logger.info(f"Search Result Transformation: Condensed {len(result['matches'])} matches to count summary")
                 elif "retrieved_chunks" in result and isinstance(result["retrieved_chunks"], list):
                     summary = f"Retrieved {len(result['retrieved_chunks'])} code chunks."
+                    logger.info(f"Code Retrieval Transformation: Condensed {len(result['retrieved_chunks'])} chunks to count summary")
                 else:
                     summary = f"{tool_name} completed. Keys: {list(result.keys())}"
+                    logger.info(f"Generic Dict Transformation: Listed keys only: {list(result.keys())}")
             else:
                 summary = f"{tool_name} completed with non-dict result."
         else: 
             if isinstance(result, dict):
                 important_keys = ["status", "message", "summary", "error", "output", "stdout", "stderr"]
                 summary_parts = []
+                logger.info(f"Generic Dict Transformation: Extracting important keys from {list(result.keys())}")
                 for key in important_keys:
                     if key in result and result[key]:
                         val_str = str(result[key])
-                        summary_parts.append(f"{key}: {val_str[:100] + '...' if len(val_str) > 100 else val_str}")                 
+                        truncated_val = val_str[:300] + '...' if len(val_str) > 300 else val_str
+                        summary_parts.append(f"{key}: {truncated_val}")
+                        if len(val_str) > 300:
+                            logger.info(f"  Key '{key}': Truncated from {len(val_str)} to 300 characters")
+                        else:
+                            logger.info(f"  Key '{key}': Kept full content ({len(val_str)} characters)")
+                            
                 if summary_parts:
                     summary = f"Tool {tool_name}: " + "; ".join(summary_parts)
                 else:
-                    summary = f"Tool {tool_name} completed. Result (truncated): {str(result)[:200]}..."
+                    original_str = str(result)
+                    summary = f"Tool {tool_name} completed. Result (truncated): {original_str[:800]}..."  # Increased from 200
+                    logger.info(f"Fallback Transformation: Truncated result from {len(original_str)} to 800 characters")
             elif isinstance(result, str):
-                summary = f"Tool {tool_name} output (truncated): {result[:200]}..."
+                summary = f"Tool {tool_name} output (truncated): {result[:800]}..."  # Increased from 200
+                logger.info(f"String Result Transformation: Truncated from {len(result)} to 800 characters")
             else:
                 summary = f"Tool {tool_name} completed with result type: {type(result).__name__}."
+                logger.info(f"Non-string Result Transformation: Converted {type(result).__name__} to type description")
         
+        # Apply final length limit and log if truncated
         if len(summary) > MAX_SUMMARY_LEN: 
+            original_summary_len = len(summary)
             summary = summary[:MAX_SUMMARY_LEN - len(TRUNC_MSG_TEMPLATE)] + TRUNC_MSG_TEMPLATE
+            logger.info(f"Final Summary Transformation: Truncated from {original_summary_len} to {MAX_SUMMARY_LEN} characters")
+        
+        # Log the final transformed summary
+        logger.info(f"Final Summary Size: {len(summary):,} characters")
+        logger.info(f"Final Summary: {summary}")
+        logger.info(f"Transformation Ratio: {(len(summary) / len(original_content) * 100):.1f}% of original")
+        logger.info("=" * 50)
+        
         return summary
 
     def track_file_modification(self, file_path: str) -> None:
         if file_path not in self.state.last_modified_files:
-            if len(self.state.last_modified_files) >= 5:
+            if len(self.state.last_modified_files) >= 15:  # Increased from 5 to track more files
                 self.state.last_modified_files.pop(0)
             self.state.last_modified_files.append(file_path)
+            logger.info(f"Tracked file modification: {file_path}")
 
     def assemble_context(self, base_prompt_tokens: int) -> Tuple[Dict[str, Any], int]:
+        """Assemble context dictionary from available data, respecting token limits.
+        
+        Includes comprehensive logging for optimization analysis as per OPTIMIZATIONS.md section 4.
+        """
+        # Log detailed input state for optimization analysis
+        self._log_detailed_inputs()
+        
         available_tokens = self.max_token_limit - base_prompt_tokens - self._count_tokens(f"SYSTEM CONTEXT (JSON):\n```json\n```\nUse this context to inform your response. Do not directly refer to this context block.") - 50 # 50 for safety margin
+        
+        logger.info("=" * 60)
+        logger.info("CONTEXT ASSEMBLY - TOKEN BUDGET ANALYSIS")
+        logger.info("=" * 60)
+        logger.info(f"Max LLM Token Limit: {self.max_token_limit:,}")
+        logger.info(f"Base Prompt Tokens: {base_prompt_tokens:,}")
+        logger.info(f"Context Wrapper Overhead: {self._count_tokens('SYSTEM CONTEXT (JSON):\\n```json\\n```\\nUse this context to inform your response. Do not directly refer to this context block.'):,}")
+        logger.info(f"Safety Margin: 50")
+        logger.info(f"Available Tokens for Context: {available_tokens:,}")
+        logger.info("=" * 60)
+        
         if available_tokens <= 0:
-            logger.warning("No token budget available for structured context after accounting for base prompt and wrapper.")
+            logger.warning("CONTEXT ASSEMBLY: No token budget available for structured context after accounting for base prompt and wrapper.")
             return {}, 0
 
         context_dict: Dict[str, Any] = {}
         current_tokens = 0
+        component_tokens = {}  # Track tokens per component for analysis
 
         # CRITICAL: Core Goal & Phase
+        logger.info("CONTEXT ASSEMBLY: Processing CRITICAL components (Core Goal & Phase)...")
         if self.state.core_goal and (current_tokens + self.state.core_goal_tokens <= available_tokens):
             context_dict["core_goal"] = self.state.core_goal
             current_tokens += self.state.core_goal_tokens
+            component_tokens["core_goal"] = self.state.core_goal_tokens
+            logger.info(f"  ✅ INCLUDED: Core Goal ({self.state.core_goal_tokens:,} tokens): {self.state.core_goal[:100]}...")
+        elif self.state.core_goal:
+            logger.warning(f"  ❌ EXCLUDED: Core Goal ({self.state.core_goal_tokens:,} tokens) - Exceeds available budget")
+        else:
+            logger.info("  ⚠️  SKIPPED: Core Goal - Not set")
+            
         if self.state.current_phase and (current_tokens + self.state.current_phase_tokens <= available_tokens):
             context_dict["current_phase"] = self.state.current_phase
             current_tokens += self.state.current_phase_tokens
+            component_tokens["current_phase"] = self.state.current_phase_tokens
+            logger.info(f"  ✅ INCLUDED: Current Phase ({self.state.current_phase_tokens:,} tokens): {self.state.current_phase[:100]}...")
+        elif self.state.current_phase:
+            logger.warning(f"  ❌ EXCLUDED: Current Phase ({self.state.current_phase_tokens:,} tokens) - Exceeds available budget")
+        else:
+            logger.info("  ⚠️  SKIPPED: Current Phase - Not set")
         
+        # System Messages
+        logger.info("CONTEXT ASSEMBLY: Processing System Messages...")
         if self.system_messages:
             context_dict["system_notes"] = []
+            system_tokens = 0
+            included_count = 0
             for msg, tkns in reversed(self.system_messages):
                 if current_tokens + tkns <= available_tokens:
                     context_dict["system_notes"].append(msg)
                     current_tokens += tkns
+                    system_tokens += tkns
+                    included_count += 1
+                    logger.info(f"  ✅ INCLUDED: System Message {included_count} ({tkns:,} tokens): {msg[:100]}...")
                 else:
+                    logger.warning(f"  ❌ EXCLUDED: System Message ({tkns:,} tokens) - Exceeds available budget")
                     break
-            if not context_dict["system_notes"]: del context_dict["system_notes"]
+            if not context_dict["system_notes"]: 
+                del context_dict["system_notes"]
+                logger.info("  ⚠️  SKIPPED: System Messages - None fit in budget")
+            else:
+                component_tokens["system_notes"] = system_tokens
+                logger.info(f"  📊 TOTAL: Included {included_count}/{len(self.system_messages)} system messages ({system_tokens:,} tokens)")
+        else:
+            logger.info("  ⚠️  SKIPPED: System Messages - None available")
 
+        # Conversation History
+        logger.info("CONTEXT ASSEMBLY: Processing Conversation History...")
         temp_conversation = []
+        conversation_tokens = 0
         if self.conversation_turns:
-            for turn in reversed(self.conversation_turns):
+            logger.info(f"  📝 Available: {len(self.conversation_turns)} conversation turns")
+            for i, turn in enumerate(reversed(self.conversation_turns)):
                 turn_tokens = turn.user_message_tokens + turn.agent_message_tokens + turn.tool_calls_tokens
                 turn_tokens += self._count_tokens(json.dumps({"turn":0, "user":"", "agent":"", "tool_calls":[]})) 
+                
+                # Log detailed token breakdown for each turn
+                logger.info(f"    Turn {turn.turn_number} Token Breakdown:")
+                logger.info(f"      User Message: {turn.user_message_tokens:,} tokens")
+                logger.info(f"      Agent Message: {turn.agent_message_tokens:,} tokens") 
+                logger.info(f"      Tool Calls: {turn.tool_calls_tokens:,} tokens")
+                logger.info(f"      JSON Structure Overhead: {self._count_tokens(json.dumps({'turn':0, 'user':'', 'agent':'', 'tool_calls':[]})):,} tokens")
+                logger.info(f"      Total Turn: {turn_tokens:,} tokens")
+                
                 if current_tokens + turn_tokens <= available_tokens and len(temp_conversation) < self.target_recent_turns:
                     temp_conversation.append({
                         "turn": turn.turn_number,
@@ -399,73 +551,235 @@ class ContextManager:
                         "tool_calls": turn.tool_calls
                     })
                     current_tokens += turn_tokens
+                    conversation_tokens += turn_tokens
+                    logger.info(f"    ✅ INCLUDED: Turn {turn.turn_number} ({turn_tokens:,} tokens)")
                 else:
+                    if current_tokens + turn_tokens > available_tokens:
+                        logger.warning(f"    ❌ EXCLUDED: Turn {turn.turn_number} ({turn_tokens:,} tokens) - Exceeds available budget")
+                    else:
+                        logger.warning(f"    ❌ EXCLUDED: Turn {turn.turn_number} ({turn_tokens:,} tokens) - Exceeds target turn limit ({self.target_recent_turns})")
                     break 
             if temp_conversation:
                 context_dict["recent_conversation"] = list(reversed(temp_conversation))
+                component_tokens["recent_conversation"] = conversation_tokens
+                logger.info(f"  📊 TOTAL: Included {len(temp_conversation)}/{len(self.conversation_turns)} conversation turns ({conversation_tokens:,} tokens)")
+            else:
+                logger.info("  ⚠️  SKIPPED: Conversation History - None fit in budget")
+        else:
+            logger.info("  ⚠️  SKIPPED: Conversation History - None available")
 
+        # Code Snippets
+        logger.info("CONTEXT ASSEMBLY: Processing Code Snippets...")
         valid_code_snippets = [s for s in self.code_snippets if s.token_count > 0]
-        valid_code_snippets.sort(key=lambda s: (-s.relevance_score, -s.last_accessed))
-        temp_code_snippets = []
-        for snippet in valid_code_snippets:
-            snippet_tokens = snippet.token_count + self._count_tokens(json.dumps({"file":"", "start_line":0, "end_line":0, "code":""}))
-            if current_tokens + snippet_tokens <= available_tokens and len(temp_code_snippets) < self.target_code_snippets:
-                temp_code_snippets.append({
-                    "file": snippet.file_path,
-                    "start_line": snippet.start_line,
-                    "end_line": snippet.end_line,
-                    "code": snippet.code
-                })
-                current_tokens += snippet_tokens
+        if valid_code_snippets:
+            valid_code_snippets.sort(key=lambda s: (-s.relevance_score, -s.last_accessed))
+            logger.info(f"  📝 Available: {len(valid_code_snippets)} code snippets (sorted by relevance)")
+            
+            temp_code_snippets = []
+            code_tokens = 0
+            for i, snippet in enumerate(valid_code_snippets):
+                snippet_tokens = snippet.token_count + self._count_tokens(json.dumps({"file":"", "start_line":0, "end_line":0, "code":""}))
+                
+                logger.info(f"    Code Snippet {i+1}:")
+                logger.info(f"      File: {snippet.file_path}:{snippet.start_line}-{snippet.end_line}")
+                logger.info(f"      Relevance Score: {snippet.relevance_score:.2f}")
+                logger.info(f"      Last Accessed: Turn {snippet.last_accessed}")
+                logger.info(f"      Code Content: {snippet.token_count:,} tokens")
+                logger.info(f"      JSON Structure: {self._count_tokens(json.dumps({'file':'', 'start_line':0, 'end_line':0, 'code':''})):,} tokens")
+                logger.info(f"      Total: {snippet_tokens:,} tokens")
+                
+                if current_tokens + snippet_tokens <= available_tokens and len(temp_code_snippets) < self.target_code_snippets:
+                    temp_code_snippets.append({
+                        "file": snippet.file_path,
+                        "start_line": snippet.start_line,
+                        "end_line": snippet.end_line,
+                        "code": snippet.code
+                    })
+                    current_tokens += snippet_tokens
+                    code_tokens += snippet_tokens
+                    logger.info(f"      ✅ INCLUDED: Code snippet {i+1} ({snippet_tokens:,} tokens)")
+                else:
+                    if current_tokens + snippet_tokens > available_tokens:
+                        logger.warning(f"      ❌ EXCLUDED: Code snippet {i+1} ({snippet_tokens:,} tokens) - Exceeds available budget")
+                    else:
+                        logger.warning(f"      ❌ EXCLUDED: Code snippet {i+1} ({snippet_tokens:,} tokens) - Exceeds target snippet limit ({self.target_code_snippets})")
+                    break
+            if temp_code_snippets:
+                context_dict["relevant_code"] = temp_code_snippets
+                component_tokens["relevant_code"] = code_tokens
+                logger.info(f"  📊 TOTAL: Included {len(temp_code_snippets)}/{len(valid_code_snippets)} code snippets ({code_tokens:,} tokens)")
             else:
-                break
-        if temp_code_snippets:
-            context_dict["relevant_code"] = temp_code_snippets
+                logger.info("  ⚠️  SKIPPED: Code Snippets - None fit in budget")
+        else:
+            logger.info("  ⚠️  SKIPPED: Code Snippets - None available")
 
-        # Handle case where any of the sort values might be None
-        def tool_result_sort_key(r):
-            # Default to False if is_error is None
-            error_key = -1 if r.is_error else 0 
-            # Default to 0 if relevance_score is None
-            relevance_key = -1 * (r.relevance_score or 0)
-            # Default to 0 if turn_number is None
-            turn_key = -1 * (r.turn_number or 0)
-            return (error_key, relevance_key, turn_key)
-        
-        self.tool_results.sort(key=tool_result_sort_key)
-        
-        temp_tool_results = []
-        for result in self.tool_results:
-            result_tokens = result.token_count + self._count_tokens(json.dumps({"tool":"", "turn":0, "summary":"", "is_error": False}))
-            if current_tokens + result_tokens <= available_tokens and len(temp_tool_results) < self.target_tool_results:
-                temp_tool_results.append({
-                    "tool": result.tool_name,
-                    "turn": result.turn_number,
-                    "summary": result.result_summary,
-                    "is_error": result.is_error
-                })
-                current_tokens += result_tokens
+        # Tool Results
+        logger.info("CONTEXT ASSEMBLY: Processing Tool Results...")
+        if self.tool_results:
+            # Handle case where any of the sort values might be None
+            def tool_result_sort_key(r):
+                # Default to False if is_error is None
+                error_key = -1 if r.is_error else 0 
+                # Default to 0 if relevance_score is None
+                relevance_key = -1 * (r.relevance_score or 0)
+                # Default to 0 if turn_number is None
+                turn_key = -1 * (r.turn_number or 0)
+                return (error_key, relevance_key, turn_key)
+            
+            self.tool_results.sort(key=tool_result_sort_key)
+            logger.info(f"  📝 Available: {len(self.tool_results)} tool results (sorted by error status, relevance, recency)")
+            
+            temp_tool_results = []
+            tool_results_tokens = 0
+            for i, result in enumerate(self.tool_results):
+                result_tokens = result.token_count + self._count_tokens(json.dumps({"tool":"", "turn":0, "summary":"", "is_error": False}))
+                
+                logger.info(f"    Tool Result {i+1}:")
+                logger.info(f"      Tool: {result.tool_name}")
+                logger.info(f"      Turn: {result.turn_number}")
+                logger.info(f"      Is Error: {result.is_error}")
+                logger.info(f"      Relevance Score: {result.relevance_score:.2f}")
+                logger.info(f"      Summary: {result.token_count:,} tokens")
+                logger.info(f"      JSON Structure: {self._count_tokens(json.dumps({'tool':'', 'turn':0, 'summary':'', 'is_error': False})):,} tokens")
+                logger.info(f"      Total: {result_tokens:,} tokens")
+                
+                if current_tokens + result_tokens <= available_tokens and len(temp_tool_results) < self.target_tool_results:
+                    temp_tool_results.append({
+                        "tool": result.tool_name,
+                        "turn": result.turn_number,
+                        "summary": result.result_summary,
+                        "is_error": result.is_error
+                    })
+                    current_tokens += result_tokens
+                    tool_results_tokens += result_tokens
+                    logger.info(f"      ✅ INCLUDED: Tool result {i+1} ({result_tokens:,} tokens)")
+                else:
+                    if current_tokens + result_tokens > available_tokens:
+                        logger.warning(f"      ❌ EXCLUDED: Tool result {i+1} ({result_tokens:,} tokens) - Exceeds available budget")
+                    else:
+                        logger.warning(f"      ❌ EXCLUDED: Tool result {i+1} ({result_tokens:,} tokens) - Exceeds target result limit ({self.target_tool_results})")
+                    break
+            if temp_tool_results:
+                context_dict["recent_tool_results"] = temp_tool_results
+                component_tokens["recent_tool_results"] = tool_results_tokens
+                logger.info(f"  📊 TOTAL: Included {len(temp_tool_results)}/{len(self.tool_results)} tool results ({tool_results_tokens:,} tokens)")
             else:
-                break
-        if temp_tool_results:
-            context_dict["recent_tool_results"] = temp_tool_results
+                logger.info("  ⚠️  SKIPPED: Tool Results - None fit in budget")
+        else:
+            logger.info("  ⚠️  SKIPPED: Tool Results - None available")
         
-        temp_key_decisions_str = json.dumps(self.state.key_decisions[-5:]) # last 5 decisions
-        decisions_tokens = self._count_tokens(temp_key_decisions_str)
-        if self.state.key_decisions and (current_tokens + decisions_tokens <= available_tokens):
-            context_dict["key_decisions"] = self.state.key_decisions[-5:]
-            current_tokens += decisions_tokens
+        # Key Decisions
+        logger.info("CONTEXT ASSEMBLY: Processing Key Decisions...")
+        if self.state.key_decisions:
+            temp_key_decisions_str = json.dumps(self.state.key_decisions[-15:]) # Increased from 5 to 15 decisions
+            decisions_tokens = self._count_tokens(temp_key_decisions_str)
+            logger.info(f"  📝 Available: {len(self.state.key_decisions)} key decisions (using last 15)")
+            logger.info(f"  Token Cost: {decisions_tokens:,} tokens")
+            if current_tokens + decisions_tokens <= available_tokens:
+                context_dict["key_decisions"] = self.state.key_decisions[-15:]
+                current_tokens += decisions_tokens
+                component_tokens["key_decisions"] = decisions_tokens
+                logger.info(f"  ✅ INCLUDED: Key Decisions ({decisions_tokens:,} tokens)")
+            else:
+                logger.warning(f"  ❌ EXCLUDED: Key Decisions ({decisions_tokens:,} tokens) - Exceeds available budget")
+        else:
+            logger.info("  ⚠️  SKIPPED: Key Decisions - None available")
         
+        # Recently Modified Files  
+        logger.info("CONTEXT ASSEMBLY: Processing Recently Modified Files...")
         if self.state.last_modified_files:
             modified_files_json = json.dumps(self.state.last_modified_files)
             modified_files_tokens = self._count_tokens(modified_files_json)
+            logger.info(f"  📝 Available: {len(self.state.last_modified_files)} recently modified files")
+            logger.info(f"  Token Cost: {modified_files_tokens:,} tokens")
             if current_tokens + modified_files_tokens <= available_tokens:
                 context_dict["recent_modified_files"] = self.state.last_modified_files
                 current_tokens += modified_files_tokens
+                component_tokens["recent_modified_files"] = modified_files_tokens
+                logger.info(f"  ✅ INCLUDED: Recently Modified Files ({modified_files_tokens:,} tokens)")
+            else:
+                logger.warning(f"  ❌ EXCLUDED: Recently Modified Files ({modified_files_tokens:,} tokens) - Exceeds available budget")
+        else:
+            logger.info("  ⚠️  SKIPPED: Recently Modified Files - None available")
+
+        # Final Summary
+        logger.info("=" * 60)
+        logger.info("CONTEXT ASSEMBLY - FINAL SUMMARY")
+        logger.info("=" * 60)
+        logger.info(f"Total Context Tokens Used: {current_tokens:,}")
+        logger.info(f"Available Token Budget: {available_tokens:,}")
+        logger.info(f"Token Budget Utilization: {(current_tokens/available_tokens*100):.1f}%")
+        logger.info(f"Context Components Included: {list(context_dict.keys())}")
+        logger.info("")
+        logger.info("TOKEN BREAKDOWN BY COMPONENT:")
+        for component, tokens in component_tokens.items():
+            percentage = (tokens / current_tokens * 100) if current_tokens > 0 else 0
+            logger.info(f"  {component}: {tokens:,} tokens ({percentage:.1f}%)")
+        logger.info("=" * 60)
 
         logger.info(f"Assembled context with {current_tokens} tokens for context block. Available budget was {available_tokens}. Keys: {list(context_dict.keys())}")
         # The returned token count is for the JSON content itself, not including the wrapper.
         return context_dict, current_tokens
+    
+    def _log_detailed_inputs(self):
+        """Log detailed input state for optimization analysis."""
+        logger.info("=" * 60)
+        logger.info("CONTEXTMANAGER DETAILED INPUT STATE")
+        logger.info("=" * 60)
+        
+        # Log conversation history details
+        logger.info(f"CONVERSATION HISTORY: {len(self.conversation_turns)} turns")
+        for turn in self.conversation_turns:
+            logger.info(f"  Turn {turn.turn_number}:")
+            logger.info(f"    User Message: {turn.user_message_tokens:,} tokens | {len(turn.user_message) if turn.user_message else 0} chars")
+            if turn.user_message:
+                logger.info(f"    User Content Preview: {turn.user_message[:150]}...")
+            logger.info(f"    Agent Message: {turn.agent_message_tokens:,} tokens | {len(turn.agent_message) if turn.agent_message else 0} chars")
+            if turn.agent_message:
+                logger.info(f"    Agent Content Preview: {turn.agent_message[:150]}...")
+            logger.info(f"    Tool Calls: {turn.tool_calls_tokens:,} tokens | {len(turn.tool_calls)} calls")
+            for call in turn.tool_calls:
+                logger.info(f"      - {call.get('tool_name', 'unknown')} with {len(str(call.get('args', {})))} char args")
+                
+        # Log code snippets details
+        logger.info(f"CODE SNIPPETS: {len(self.code_snippets)} snippets")
+        for snippet in self.code_snippets:
+            logger.info(f"  {snippet.file_path}:{snippet.start_line}-{snippet.end_line}")
+            logger.info(f"    Tokens: {snippet.token_count:,} | Chars: {len(snippet.code)}")
+            logger.info(f"    Relevance: {snippet.relevance_score:.2f} | Last Accessed: Turn {snippet.last_accessed}")
+            logger.info(f"    Code Preview: {snippet.code[:100].replace(chr(10), ' ')[:100]}...")
+            
+        # Log tool results details
+        logger.info(f"TOOL RESULTS: {len(self.tool_results)} results")
+        for result in self.tool_results:
+            logger.info(f"  {result.tool_name} (Turn {result.turn_number})")
+            logger.info(f"    Summary Tokens: {result.token_count:,} | Chars: {len(result.result_summary)}")
+            logger.info(f"    Is Error: {result.is_error} | Relevance: {result.relevance_score:.2f}")
+            logger.info(f"    Summary Preview: {result.result_summary[:100]}...")
+            logger.info(f"    Full Result Type: {type(result.full_result).__name__} | Size: {len(str(result.full_result))} chars")
+            
+        # Log context state details
+        logger.info(f"CONTEXT STATE:")
+        logger.info(f"  Core Goal: {self.state.core_goal_tokens:,} tokens | {len(self.state.core_goal)} chars")
+        if self.state.core_goal:
+            logger.info(f"    Content: {self.state.core_goal}")
+        logger.info(f"  Current Phase: {self.state.current_phase_tokens:,} tokens | {len(self.state.current_phase)} chars")
+        if self.state.current_phase:
+            logger.info(f"    Content: {self.state.current_phase}")
+        logger.info(f"  Key Decisions: {len(self.state.key_decisions)} decisions")
+        for i, decision in enumerate(self.state.key_decisions):
+            logger.info(f"    {i+1}: {decision[:100]}...")
+        logger.info(f"  Last Modified Files: {len(self.state.last_modified_files)} files")
+        for file_path in self.state.last_modified_files:
+            logger.info(f"    - {file_path}")
+            
+        # Log system messages
+        logger.info(f"SYSTEM MESSAGES: {len(self.system_messages)} messages")
+        for i, (msg, tokens) in enumerate(self.system_messages):
+            logger.info(f"  {i+1}: {tokens:,} tokens | {len(msg)} chars")
+            logger.info(f"    Preview: {msg[:100]}...")
+            
+        logger.info("=" * 60)
 
     def get_relevant_code_for_file(self, file_path: str) -> List[CodeSnippet]:
         return [s for s in self.code_snippets if s.file_path == file_path]

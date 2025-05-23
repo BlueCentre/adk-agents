@@ -66,6 +66,11 @@ class MyDevopsAgent(LlmAgent):
         self.after_model_callback = self.handle_after_model
         self.before_tool_callback = self.handle_before_tool
         self.after_tool_callback = self.handle_after_tool
+        # Register the after_agent callback for cleanup
+        # NOTE: Temporarily disabled due to noisy cancellation scope errors during shutdown
+        # These errors don't prevent proper shutdown but create poor UX. The cleanup function
+        # is still available for manual/runner-level cleanup if needed.
+        # self.after_agent_callback = self.handle_after_agent
 
     def model_post_init(self, __context: Any) -> None:
         super().model_post_init(__context)
@@ -109,7 +114,7 @@ class MyDevopsAgent(LlmAgent):
 
         # Initialize ContextManager here
         self._context_manager = ContextManager(
-            model_name=self.model or agent_config.GEMINI_MODEL_NAME,
+            model_name=self.model or agent_config.DEFAULT_AGENT_MODEL,
             max_llm_token_limit=self._actual_llm_token_limit,
             llm_client=self.llm_client # Pass the initialized llm_client
         )
@@ -117,7 +122,7 @@ class MyDevopsAgent(LlmAgent):
 
     def _determine_actual_token_limit(self):
         """Determines the actual token limit for the configured model."""
-        model_to_check = self.model or agent_config.GEMINI_MODEL_NAME
+        model_to_check = self.model or agent_config.DEFAULT_AGENT_MODEL
         try:
             if not hasattr(self, 'llm_client') or self.llm_client is None:
                 logger.warning("Cannot determine token limit dynamically: llm_client is None. Using fallbacks.")
@@ -237,6 +242,39 @@ class MyDevopsAgent(LlmAgent):
             conversation_history.append({'system_message': system_message})
             callback_context.state['user:conversation_history'] = conversation_history
 
+            # Modify the user message to be a clear execution instruction instead of just "approve"
+            execution_instruction = f"""Please execute the following approved plan step by step. Start with Phase 1 and work through each step systematically, using the specified tools and following the dependencies outlined in the plan.
+
+APPROVED PLAN:
+{approved_plan_text}
+
+Begin execution now, starting with the first step."""
+            
+            # Update the LLM request with the execution instruction
+            if hasattr(llm_request, 'contents') and isinstance(llm_request.contents, list):
+                # Find and replace ALL user messages with the execution instruction
+                from google.genai import types as genai_types
+                execution_content = genai_types.Content(
+                    role="user",
+                    parts=[genai_types.Part(text=execution_instruction)]
+                )
+                
+                # Replace all user messages with the single execution instruction
+                new_contents = []
+                user_message_replaced = False
+                for content in llm_request.contents:
+                    if content.role == "user" and not user_message_replaced:
+                        # Replace the first user message with execution instruction
+                        new_contents.append(execution_content)
+                        user_message_replaced = True
+                        logger.info("MyDevopsAgent: Replaced user message with plan execution instruction.")
+                    elif content.role != "user":
+                        # Keep non-user messages (system, assistant, etc.)
+                        new_contents.append(content)
+                    # Skip any additional user messages to avoid confusion
+                
+                llm_request.contents = new_contents
+
             self._start_status("[bold yellow](Agent is implementing the plan...)")
 
         is_currently_a_plan_generation_turn = self._planning_manager.is_plan_generation_turn
@@ -257,6 +295,10 @@ class MyDevopsAgent(LlmAgent):
                             system_content = genai_types.Content(role='system', parts=[system_message_part])
                             llm_request.messages.insert(0, system_content)
                             logger.info("Injected structured context into llm_request messages.")
+                            
+                            # Log final assembled prompt details for optimization analysis
+                            self._log_final_prompt_analysis(llm_request, context_dict, system_context_message)
+                            
                         except Exception as e:
                             logger.warning(f"Could not inject structured context into llm_request messages: {e}")
 
@@ -310,7 +352,7 @@ class MyDevopsAgent(LlmAgent):
                     logger.warning("Attempting to update agent response in context.state but no conversation history found.")
 
         if processed_response["function_calls"]:
-            logger.info(f"Handle function calls here: {processed_response["function_calls"]}")
+            logger.info(f"Handle function calls here: {processed_response['function_calls']}")
             current_turn = callback_context.state.get('temp:current_turn', {})
             current_turn['function_calls'] = processed_response["function_calls"]
             callback_context.state['temp:current_turn'] = current_turn
@@ -405,7 +447,7 @@ class MyDevopsAgent(LlmAgent):
             extracted_data["text_parts"].append(direct_text)
 
         if extracted_data["function_calls"]:
-            logger.info(f"Detected function calls in LLM response: {extracted_data["function_calls"]}")
+            logger.info(f"Detected function calls in LLM response: {extracted_data['function_calls']}")
 
         return extracted_data
 
@@ -441,7 +483,25 @@ class MyDevopsAgent(LlmAgent):
             try:
                 # Pass state to custom processors only if available
                 if tool_context and hasattr(tool_context, 'state') and tool_context.state is not None:
-                    TOOL_PROCESSORS[tool.name](tool_context.state, tool, tool_response)
+                    # Create a mock tool object with args if available
+                    if args:
+                        # Create a mock tool object that includes the args
+                        class MockTool:
+                            def __init__(self, original_tool, args):
+                                self.name = original_tool.name
+                                self.args = args
+                                # Copy other attributes from original tool
+                                for attr_name in dir(original_tool):
+                                    if not attr_name.startswith('_') and attr_name not in ['name', 'args']:
+                                        try:
+                                            setattr(self, attr_name, getattr(original_tool, attr_name))
+                                        except:
+                                            pass  # Skip attributes that can't be copied
+                        
+                        mock_tool = MockTool(tool, args)
+                        TOOL_PROCESSORS[tool.name](tool_context.state, mock_tool, tool_response)
+                    else:
+                        TOOL_PROCESSORS[tool.name](tool_context.state, tool, tool_response)
                 else:
                     logger.warning(f"tool_context or tool_context.state is not available for custom processor {tool.name}. State not passed.")
                     TOOL_PROCESSORS[tool.name](None, tool, tool_response) # Pass None for state if not available
@@ -488,29 +548,77 @@ class MyDevopsAgent(LlmAgent):
             if not hasattr(self, '_count_tokens'):
                 self._count_tokens = self._placeholder_count_tokens # Use a placeholder for now
 
-            async for event in super()._run_async_impl(ctx):
-                yield event
+            # Wrap the super call with retry logic for API errors
+            max_retries = 2
+            retry_count = 0
+            
+            while retry_count <= max_retries:
+                try:
+                    async for event in super()._run_async_impl(ctx):
+                        yield event
+                    break  # Success, exit retry loop
+                    
+                except Exception as e:
+                    error_message = str(e)
+                    should_retry = False
+                    
+                    # Check for specific API errors that warrant retry with optimization
+                    if "429" in error_message and "RESOURCE_EXHAUSTED" in error_message:
+                        logger.warning(f"Agent {self.name}: Encountered 429 RESOURCE_EXHAUSTED error (attempt {retry_count + 1}/{max_retries + 1})")
+                        should_retry = True
+                    elif "500" in error_message and ("INTERNAL" in error_message or "ServerError" in error_message):
+                        logger.warning(f"Agent {self.name}: Encountered 500 INTERNAL error (attempt {retry_count + 1}/{max_retries + 1})")
+                        should_retry = True
+                    
+                    if should_retry and retry_count < max_retries:
+                        retry_count += 1
+                        logger.info(f"Agent {self.name}: Attempting input optimization and retry ({retry_count}/{max_retries})")
+                        
+                        # Optimize input by reducing context aggressively
+                        await self._optimize_input_for_retry(ctx, retry_count)
+                        
+                        # Add exponential backoff delay
+                        import asyncio
+                        delay = 2 ** retry_count  # 2, 4, 8 seconds
+                        logger.info(f"Agent {self.name}: Waiting {delay} seconds before retry...")
+                        await asyncio.sleep(delay)
+                        continue
+                    else:
+                        # Either not a retryable error or max retries exceeded
+                        raise e
 
         except Exception as e:
             self._stop_status()
             error_type = type(e).__name__
             error_message = str(e)
             tb_str = traceback.format_exc()
-            logger.error(
-                f"Agent {self.name}: Unhandled exception in _run_async_impl: "
-                f"{error_type}: {error_message}\n{tb_str}"
-            )
-            mcp_related_hint = ""
-            if isinstance(e, (BrokenPipeError, EOFError)):
-                logger.error(f"This error ({error_type}) often indicates an MCP server communication failure.")
-                mcp_related_hint = " (possibly due to an issue with an external MCP tool process)."
+            
+            # Check if this is one of our target API errors
+            if ("429" in error_message and "RESOURCE_EXHAUSTED" in error_message) or \
+               ("500" in error_message and ("INTERNAL" in error_message or "ServerError" in error_message)):
+                logger.error(f"Agent {self.name}: API error after all retry attempts: {error_type}: {error_message}")
+                user_facing_error = (
+                    f"I encountered API rate limits or server issues. "
+                    f"I tried optimizing the request and retrying, but the issue persists. "
+                    f"Please try again in a few moments or with a simpler request."
+                )
+            else:
+                logger.error(
+                    f"Agent {self.name}: Unhandled exception in _run_async_impl: "
+                    f"{error_type}: {error_message}\n{tb_str}"
+                )
+                mcp_related_hint = ""
+                if isinstance(e, (BrokenPipeError, EOFError)):
+                    logger.error(f"This error ({error_type}) often indicates an MCP server communication failure.")
+                    mcp_related_hint = " (possibly due to an issue with an external MCP tool process)."
 
-            ui_utils.display_unhandled_error(self._console, error_type, error_message, mcp_related_hint)
+                ui_utils.display_unhandled_error(self._console, error_type, error_message, mcp_related_hint)
 
-            user_facing_error = (
-                f"I encountered an unexpected internal issue{mcp_related_hint}. "
-                f"I cannot proceed with this request. Details: {error_type}."
-            )
+                user_facing_error = (
+                    f"I encountered an unexpected internal issue{mcp_related_hint}. "
+                    f"I cannot proceed with this request. Details: {error_type}."
+                )
+            
             yield Event(
                 author=self.name,
                 content=genai_types.Content(parts=[genai_types.Part(text=user_facing_error)]),
@@ -518,6 +626,78 @@ class MyDevopsAgent(LlmAgent):
             )
             # Gracefully end the invocation
             ctx.end_invocation = True
+
+    async def _optimize_input_for_retry(self, ctx: InvocationContext, retry_attempt: int):
+        """Optimize input for retry by reducing context size and complexity."""
+        try:
+            logger.info(f"Agent {self.name}: Optimizing input for retry attempt {retry_attempt}")
+            
+            if hasattr(ctx, 'state') and ctx.state and self._context_manager:
+                # Get current state
+                state = ctx.state
+                
+                # Progressive optimization based on retry attempt
+                if retry_attempt == 1:
+                    # First retry: Reduce context moderately
+                    logger.info("Agent optimization level 1: Reducing conversation history and code snippets")
+                    
+                    # Keep only last 2 conversation turns instead of 5
+                    history = state.get('user:conversation_history', [])
+                    if len(history) > 2:
+                        state['user:conversation_history'] = history[-2:]
+                        logger.info(f"Reduced conversation history from {len(history)} to 2 turns")
+                    
+                    # Keep only top 3 code snippets instead of 7
+                    code_snippets = state.get('app:code_snippets', [])
+                    if len(code_snippets) > 3:
+                        state['app:code_snippets'] = code_snippets[:3]
+                        logger.info(f"Reduced code snippets from {len(code_snippets)} to 3")
+                        
+                elif retry_attempt == 2:
+                    # Second retry: Aggressive reduction
+                    logger.info("Agent optimization level 2: Aggressive context reduction")
+                    
+                    # Keep only the last conversation turn
+                    history = state.get('user:conversation_history', [])
+                    if len(history) > 1:
+                        state['user:conversation_history'] = history[-1:]
+                        logger.info(f"Reduced conversation history from {len(history)} to 1 turn")
+                    
+                    # Remove all code snippets
+                    if state.get('app:code_snippets'):
+                        state['app:code_snippets'] = []
+                        logger.info("Removed all code snippets")
+                    
+                    # Remove tool results from history
+                    for turn in state.get('user:conversation_history', []):
+                        if 'tool_results' in turn:
+                            turn['tool_results'] = []
+                            logger.info("Removed tool results from conversation history")
+                
+                # Also reduce the context manager's target limits
+                if self._context_manager:
+                    original_turns = self._context_manager.target_recent_turns
+                    original_snippets = self._context_manager.target_code_snippets
+                    original_results = self._context_manager.target_tool_results
+                    
+                    if retry_attempt == 1:
+                        self._context_manager.target_recent_turns = min(2, original_turns)
+                        self._context_manager.target_code_snippets = min(3, original_snippets)
+                        self._context_manager.target_tool_results = min(3, original_results)
+                    elif retry_attempt == 2:
+                        self._context_manager.target_recent_turns = 1
+                        self._context_manager.target_code_snippets = 0
+                        self._context_manager.target_tool_results = 1
+                    
+                    logger.info(f"Adjusted context manager limits: turns={self._context_manager.target_recent_turns}, "
+                              f"snippets={self._context_manager.target_code_snippets}, results={self._context_manager.target_tool_results}")
+                
+                logger.info(f"Agent {self.name}: Input optimization for retry attempt {retry_attempt} completed")
+            else:
+                logger.warning(f"Agent {self.name}: Cannot optimize input - context state not available")
+                
+        except Exception as e:
+            logger.error(f"Agent {self.name}: Error during input optimization: {e}", exc_info=True)
 
     def _assemble_context_from_state(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """Assembles context dictionary from state for LLM injection, respecting token limits.
@@ -528,8 +708,18 @@ class MyDevopsAgent(LlmAgent):
             logger.warning("ContextManager not initialized. Cannot assemble context from state.")
             return {}
 
-        # Synchronize state from context.state to _context_manager
-        # Note: This is a temporary workaround. Ideally, ContextManager should operate directly on context.state.
+        logger.info("CONTEXT ASSEMBLY: Starting enhanced context synchronization...")
+        
+        # Log current state contents for diagnostics (State object doesn't have .keys())
+        try:
+            history_count = len(state.get('user:conversation_history', []))
+            snippets_count = len(state.get('app:code_snippets', []))
+            decisions_count = len(state.get('app:key_decisions', []))
+            logger.info(f"State contains: {history_count} conversation turns, {snippets_count} code snippets, {decisions_count} decisions")
+        except Exception as e:
+            logger.warning(f"Could not access state contents for diagnostics: {e}")
+            # Continue with default empty state
+            history_count = snippets_count = decisions_count = 0
 
         # Synchronize conversation history
         history = state.get('user:conversation_history', [])
@@ -552,75 +742,76 @@ class MyDevopsAgent(LlmAgent):
 
             self._context_manager.conversation_turns.append(turn)
         self._context_manager.current_turn_number = len(self._context_manager.conversation_turns) # Update current turn number
+        logger.info(f"Synchronized {len(self._context_manager.conversation_turns)} conversation turns")
 
-        # Synchronize code snippets
+        # Synchronize code snippets with enhanced tracking
         code_snippets_data = state.get('app:code_snippets', [])
         self._context_manager.code_snippets = [] # Clear existing snippets
+        total_snippet_chars = 0
         for snippet_data in code_snippets_data:
-            # Assuming snippet_data has keys like 'file_path', 'code', 'start_line', 'end_line', 'last_accessed', 'relevance_score'
-            # Need to ensure these keys exist or handle missing ones.
             snippet = CodeSnippet(
                 file_path=snippet_data.get('file_path', ''),
                 code=snippet_data.get('code', ''),
                 start_line=snippet_data.get('start_line', 0),
                 end_line=snippet_data.get('end_line', 0),
-                last_accessed=snippet_data.get('last_accessed', 0), # Need to store last_accessed in state or derive it
+                last_accessed=snippet_data.get('last_accessed', self._context_manager.current_turn_number), # Default to current turn
                 relevance_score=snippet_data.get('relevance_score', 1.0),
-                # Token count will be calculated by ContextManager's add_code_snippet, but we are manually adding here.
-                # Calculate token count manually based on the code content
                 token_count=self._context_manager._count_tokens(snippet_data.get('code', ''))
             )
             self._context_manager.code_snippets.append(snippet)
+            total_snippet_chars += len(snippet_data.get('code', ''))
+        logger.info(f"Synchronized {len(self._context_manager.code_snippets)} code snippets, {total_snippet_chars:,} total chars")
 
-        # Synchronize tool results (assuming they are also stored with a structure compatible with ToolResult dataclass)
-        # The BEST_PRACTICE.md mentions tool_results are moved from temp to user:conversation_history.
-        # However, ContextManager has a separate tool_results list.
-        # Let's synchronize from the tool_results within the conversation history turns for now.
-        # This might need adjustment based on actual state structure and how tool results are used.
-        self._context_manager.tool_results = [] # Clear existing tool results
-        for turn_data in history:
-            for tool_result_data in turn_data.get('tool_results', []):
-                # Assuming tool_result_data has keys like 'tool_name', 'response', turn_number, is_error
-                # The ContextManager's ToolResult expects 'result_summary' and 'full_result'.
-                # We need to map 'response' to either summary or full_result, or both.
-                # For now, let's map 'response' to full_result and try to create a summary if needed.
-                # This part needs careful review and potential adjustment based on actual data format.
-                summary = tool_result_data.get('summary') # Check if a summary is already provided
-                if summary is None:
-                    # If no summary in state, generate one from the response data
-                    summary = self._context_manager._generate_tool_result_summary(tool_result_data.get('tool_name', 'unknown_tool'), tool_result_data.get('response', {}))
-
+        # Synchronize tool results from temp storage
+        temp_tool_results = state.get('temp:tool_results_current_turn', [])
+        if temp_tool_results:
+            # Add these to the context manager's tool results storage
+            for tool_result_data in temp_tool_results:
                 tool_result = ToolResult(
-                    tool_name=tool_result_data.get('tool_name', ''),
-                    result_summary=summary,
-                    full_result=tool_result_data.get('response', {}), # Map response to full_result
-                    turn_number=turn_data.get('turn_number', i + 1), # Use turn number from history, fallback to synchronized turn index
-                    is_error=tool_result_data.get('is_error', False), # Assume is_error is stored or can be derived
-                    # Token count will be calculated by ContextManager's add_tool_result, but we are manually adding here.
-                    token_count=self._context_manager._count_tokens(summary)
+                    tool_name=tool_result_data['tool_name'],
+                    response=tool_result_data['response'],
+                    summary=tool_result_data.get('summary', ''),
+                    is_error=tool_result_data.get('is_error', False),
+                    turn_number=self._context_manager.current_turn_number
                 )
-                self._context_manager.tool_results.append(tool_result)
+                self._context_manager.add_tool_result(tool_result)
+            logger.info(f"Transferred {len(temp_tool_results)} tool results from temp storage to context manager")
+            
+            # Clear temp storage after transfer
+            state['temp:tool_results_current_turn'] = []
 
-        # Synchronize ContextState (core_goal, current_phase, key_decisions, last_modified_files)
+        # Synchronize ContextState with enhanced logging
         self._context_manager.state.core_goal = state.get('app:core_goal', self._context_manager.state.core_goal)
         self._context_manager.state.current_phase = state.get('app:current_phase', self._context_manager.state.current_phase)
-        # Assuming key_decisions are stored as a list in state
         self._context_manager.state.key_decisions = state.get('app:key_decisions', self._context_manager.state.key_decisions)
-        # Assuming last_modified_files are stored as a list in state
         self._context_manager.state.last_modified_files = state.get('app:last_modified_files', self._context_manager.state.last_modified_files)
 
         # Calculate initial token counts for ContextState elements
         self._context_manager.state.core_goal_tokens = self._context_manager._count_tokens(self._context_manager.state.core_goal)
         self._context_manager.state.current_phase_tokens = self._context_manager._count_tokens(self._context_manager.state.current_phase)
-        # Token count for key_decisions and last_modified_files is calculated within assemble_context
+
+        logger.info(f"Context state: goal={bool(self._context_manager.state.core_goal)}, phase={bool(self._context_manager.state.current_phase)}, decisions={len(self._context_manager.state.key_decisions)}, files={len(self._context_manager.state.last_modified_files)}")
 
         # Now, use the ContextManager to assemble the context dictionary respecting the token limit
-        # The base_prompt_tokens would typically be the tokens used by the system instructions that are always present.
-        # For now, let's assume 0 and refine later if needed.
-        base_prompt_tokens = 0 # Placeholder
+        # Calculate more accurate base prompt tokens (system instructions, tools, etc.)
+        base_prompt_tokens = 1000  # Conservative estimate for system instructions and tools
+        
         context_dict, total_context_tokens = self._context_manager.assemble_context(base_prompt_tokens)
 
-        logger.info(f"Assembled context using ContextManager with {total_context_tokens} tokens.")
+        # Enhanced utilization logging
+        available_capacity = self._context_manager.max_token_limit - total_context_tokens - base_prompt_tokens
+        utilization_pct = ((total_context_tokens + base_prompt_tokens) / self._context_manager.max_token_limit) * 100
+        
+        logger.info(f"CONTEXT ASSEMBLY COMPLETE:")
+        logger.info(f"  📊 Total Context Tokens: {total_context_tokens:,}")
+        logger.info(f"  📊 Base Prompt Tokens: {base_prompt_tokens:,}")
+        logger.info(f"  📊 Total Used: {total_context_tokens + base_prompt_tokens:,} / {self._context_manager.max_token_limit:,}")
+        logger.info(f"  📊 Utilization: {utilization_pct:.2f}%")
+        logger.info(f"  📊 Available Capacity: {available_capacity:,} tokens")
+        
+        if utilization_pct < 20:
+            logger.warning(f"⚠️  LOW UTILIZATION: Only using {utilization_pct:.1f}% of available capacity!")
+            logger.info("Consider adding more context: recent file changes, project structure, additional conversation history")
 
         return context_dict
 
@@ -641,3 +832,227 @@ class MyDevopsAgent(LlmAgent):
         else:
             logger.warning("ContextManager not initialized. Using fallback context token counting.")
             return len(context_string) // 4 # Original fallback
+
+    async def handle_after_agent(self, callback_context: CallbackContext | None = None) -> None:
+        """
+        Handle cleanup operations after the agent session ends.
+        
+        This method provides a safe place for cleanup logic during agent shutdown,
+        specifically for cleaning up MCP toolsets that require proper resource closure.
+        
+        NOTE: Due to ADK runner behavior during shutdown, this cleanup may encounter
+        cancellation scope errors. We handle these gracefully and ensure the agent
+        can still shut down properly even if cleanup is incomplete.
+        """
+        logger.info(f"Agent {self.name}: Starting after-agent cleanup...")
+        cleanup_successful = False
+        
+        try:
+            # Import the cleanup function from setup.py
+            from .tools.setup import cleanup_mcp_toolsets
+            
+            # Attempt to cleanup MCP toolsets with timeout protection
+            import asyncio
+            try:
+                # Set a reasonable timeout for cleanup to prevent hanging
+                await asyncio.wait_for(cleanup_mcp_toolsets(), timeout=10.0)
+                cleanup_successful = True
+                logger.info(f"Agent {self.name}: Successfully completed MCP toolset cleanup.")
+            except asyncio.TimeoutError:
+                logger.warning(f"Agent {self.name}: MCP toolset cleanup timed out after 10 seconds. This may be due to cancellation scope issues during shutdown.")
+            except RuntimeError as e:
+                if "cancel scope" in str(e).lower():
+                    logger.warning(f"Agent {self.name}: MCP toolset cleanup encountered cancellation scope error (expected during shutdown): {e}")
+                else:
+                    logger.error(f"Agent {self.name}: MCP toolset cleanup encountered unexpected RuntimeError: {e}", exc_info=True)
+            except Exception as e:
+                logger.error(f"Agent {self.name}: Error during MCP toolset cleanup: {e}", exc_info=True)
+            
+        except ImportError as e:
+            logger.warning(f"Agent {self.name}: Could not import cleanup function: {e}")
+        except Exception as e:
+            logger.error(f"Agent {self.name}: Unexpected error during cleanup setup: {e}", exc_info=True)
+        
+        # Additional cleanup operations that should always run
+        try:
+            # Stop any remaining status indicators
+            self._stop_status()
+            logger.info(f"Agent {self.name}: Stopped status indicators.")
+            
+        except Exception as e:
+            logger.error(f"Agent {self.name}: Error stopping status indicators: {e}", exc_info=True)
+        
+        # Final status report
+        if cleanup_successful:
+            logger.info(f"Agent {self.name}: Completed after-agent cleanup successfully.")
+        else:
+            logger.warning(f"Agent {self.name}: Completed after-agent cleanup with some issues. This is expected due to ADK runner shutdown behavior.")
+            logger.info(f"Agent {self.name}: For cleaner shutdown, consider implementing runner-level cleanup as described in the setup.py comments.")
+
+    def _log_final_prompt_analysis(self, llm_request: LlmRequest, context_dict: Dict[str, Any], system_context_message: str):
+        """Log comprehensive final prompt analysis for optimization as per OPTIMIZATIONS.md section 4."""
+        logger.info("=" * 80)
+        logger.info("FINAL ASSEMBLED PROMPT ANALYSIS")
+        logger.info("=" * 80)
+        
+        total_prompt_tokens = 0
+        component_tokens = {}
+        
+        # Analyze each message in the final prompt
+        if hasattr(llm_request, 'messages') and isinstance(llm_request.messages, list):
+            logger.info(f"FINAL PROMPT STRUCTURE: {len(llm_request.messages)} messages")
+            
+            for i, message in enumerate(llm_request.messages):
+                logger.info(f"\n--- MESSAGE {i+1} ---")
+                logger.info(f"Role: {getattr(message, 'role', 'unknown')}")
+                
+                # Calculate tokens for this message
+                message_text = ""
+                if hasattr(message, 'parts') and message.parts:
+                    text_parts = []
+                    function_calls = []
+                    for part in message.parts:
+                        if hasattr(part, 'text') and part.text:
+                            text_parts.append(part.text)
+                        elif hasattr(part, 'function_call') and part.function_call:
+                            function_calls.append(part.function_call)
+                    
+                    if text_parts:
+                        message_text = "".join(text_parts)
+                        message_tokens = self._count_tokens(message_text)
+                        total_prompt_tokens += message_tokens
+                        
+                        # Identify component type
+                        component_name = f"message_{i+1}_{getattr(message, 'role', 'unknown')}"
+                        if message_text.startswith("SYSTEM CONTEXT (JSON):"):
+                            component_name = "system_context_block"
+                            logger.info(f"Content Type: System Context Block")
+                            logger.info(f"Tokens: {message_tokens:,}")
+                            
+                            # Log context block details
+                            logger.info("CONTEXT BLOCK COMPONENTS:")
+                            for key, value in context_dict.items():
+                                component_json = json.dumps({key: value}, indent=2)
+                                component_token_count = self._count_tokens(component_json)
+                                logger.info(f"  {key}: {component_token_count:,} tokens")
+                                
+                        else:
+                            logger.info(f"Content Type: Text Message")
+                            logger.info(f"Tokens: {message_tokens:,}")
+                            logger.info(f"Character Count: {len(message_text):,}")
+                            logger.info(f"Content Preview: {message_text[:200]}...")
+                            
+                        component_tokens[component_name] = message_tokens
+                        
+                    if function_calls:
+                        for j, func_call in enumerate(function_calls):
+                            func_call_text = str(func_call)
+                            func_tokens = self._count_tokens(func_call_text)
+                            total_prompt_tokens += func_tokens
+                            
+                            component_name = f"function_call_{i+1}_{j+1}"
+                            component_tokens[component_name] = func_tokens
+                            
+                            logger.info(f"Function Call {j+1}:")
+                            logger.info(f"  Tokens: {func_tokens:,}")
+                            logger.info(f"  Call: {func_call_text[:200]}...")
+                
+                elif hasattr(message, 'text'):
+                    message_text = message.text
+                    message_tokens = self._count_tokens(message_text)
+                    total_prompt_tokens += message_tokens
+                    component_tokens[f"message_{i+1}_{getattr(message, 'role', 'unknown')}"] = message_tokens
+                    
+                    logger.info(f"Content Type: Direct Text")
+                    logger.info(f"Tokens: {message_tokens:,}")
+                    logger.info(f"Character Count: {len(message_text):,}")
+                    logger.info(f"Content Preview: {message_text[:200]}...")
+        
+        # Log tools definition if available
+        if hasattr(llm_request, 'tools') and llm_request.tools:
+            tools_text = str(llm_request.tools)
+            tools_tokens = self._count_tokens(tools_text)
+            total_prompt_tokens += tools_tokens
+            component_tokens["tools_definition"] = tools_tokens
+            
+            logger.info(f"\n--- TOOLS DEFINITION ---")
+            logger.info(f"Tool Count: {len(llm_request.tools)}")
+            logger.info(f"Tokens: {tools_tokens:,}")
+            logger.info(f"Character Count: {len(tools_text):,}")
+            
+            # Log individual tool definitions
+            for i, tool in enumerate(llm_request.tools):
+                tool_text = str(tool)
+                tool_tokens = self._count_tokens(tool_text)
+                tool_name = getattr(tool, 'name', f'tool_{i+1}')
+                logger.info(f"  Tool {i+1} ({tool_name}): {tool_tokens:,} tokens")
+        
+        # Log system instructions if available
+        if hasattr(llm_request, 'system_instruction') and llm_request.system_instruction:
+            system_text = str(llm_request.system_instruction)
+            system_tokens = self._count_tokens(system_text)
+            total_prompt_tokens += system_tokens
+            component_tokens["system_instruction"] = system_tokens
+            
+            logger.info(f"\n--- SYSTEM INSTRUCTION ---")
+            logger.info(f"Tokens: {system_tokens:,}")
+            logger.info(f"Character Count: {len(system_text):,}")
+            logger.info(f"Content Preview: {system_text[:200]}...")
+        
+        # Final summary
+        logger.info("\n" + "=" * 60)
+        logger.info("FINAL PROMPT TOKEN SUMMARY")
+        logger.info("=" * 60)
+        logger.info(f"Total Prompt Tokens: {total_prompt_tokens:,}")
+        logger.info(f"Model Token Limit: {self._actual_llm_token_limit:,}")
+        logger.info(f"Token Utilization: {(total_prompt_tokens/self._actual_llm_token_limit*100):.1f}%")
+        logger.info(f"Remaining Capacity: {self._actual_llm_token_limit - total_prompt_tokens:,} tokens")
+        logger.info("")
+        logger.info("TOKEN BREAKDOWN BY COMPONENT:")
+        
+        # Sort components by token count for analysis
+        sorted_components = sorted(component_tokens.items(), key=lambda x: x[1], reverse=True)
+        for component, tokens in sorted_components:
+            percentage = (tokens / total_prompt_tokens * 100) if total_prompt_tokens > 0 else 0
+            logger.info(f"  {component}: {tokens:,} tokens ({percentage:.1f}%)")
+        
+        logger.info("=" * 80)
+        
+        # Log the raw final prompt for exact inspection (if enabled via config)
+        if os.getenv('LOG_FULL_PROMPTS', 'false').lower() == 'true':
+            logger.info("\n" + "=" * 80)
+            logger.info("RAW FINAL PROMPT STRING (Set LOG_FULL_PROMPTS=false to disable)")
+            logger.info("=" * 80)
+            
+            try:
+                # Reconstruct the full prompt string that would be sent to the LLM
+                full_prompt_parts = []
+                
+                if hasattr(llm_request, 'system_instruction') and llm_request.system_instruction:
+                    full_prompt_parts.append(f"SYSTEM INSTRUCTION:\n{llm_request.system_instruction}\n")
+                
+                if hasattr(llm_request, 'messages') and llm_request.messages:
+                    for i, message in enumerate(llm_request.messages):
+                        role = getattr(message, 'role', 'unknown')
+                        full_prompt_parts.append(f"\n[{role.upper()}]:")
+                        
+                        if hasattr(message, 'parts') and message.parts:
+                            for part in message.parts:
+                                if hasattr(part, 'text') and part.text:
+                                    full_prompt_parts.append(part.text)
+                                elif hasattr(part, 'function_call') and part.function_call:
+                                    full_prompt_parts.append(f"FUNCTION_CALL: {part.function_call}")
+                        elif hasattr(message, 'text'):
+                            full_prompt_parts.append(message.text)
+                
+                if hasattr(llm_request, 'tools') and llm_request.tools:
+                    full_prompt_parts.append(f"\n\nTOOLS AVAILABLE:\n{llm_request.tools}")
+                
+                full_prompt = "\n".join(full_prompt_parts)
+                logger.info(full_prompt)
+                logger.info("=" * 80)
+                
+            except Exception as e:
+                logger.warning(f"Could not reconstruct full prompt string: {e}")
+        else:
+            logger.info("ℹ️  Set LOG_FULL_PROMPTS=true to enable raw prompt logging")

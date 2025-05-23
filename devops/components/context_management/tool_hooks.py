@@ -13,47 +13,18 @@ from .file_tracker import file_change_tracker
 # Set up logging
 logger = logging.getLogger(__name__)
 
-def process_read_file_results(
-    state: Dict[str, Any], # Accept state dictionary
-    tool: BaseTool, 
-    result: Dict[str, Any]
-) -> None:
-    """Process read_file tool results and extract code snippets.
-    
-    Args:
-        state: The context state dictionary
-        tool: The tool that was executed
-        result: The result from the tool
-    """
-    if not state or not result.get("content"):
-        logger.warning("State or result content not available for process_read_file_results.")
-        return
-        
-    if "target_file" not in result:
-        logger.warning("read_file result missing target_file field")
-        return
-        
-    file_path = result["target_file"]
-    content = result["content"]
-    
-    # Register this file with the file change tracker (assuming file_tracker can operate without ContextManager instance)
-    file_change_tracker.register_file_read(file_path, content)
-    
-    # Extract line numbers if available
-    start_line = result.get("start_line", 1)
-    end_line = result.get("end_line", start_line + content.count('\n'))
-    
-    # Add the entire content as a code snippet to state
-    code_snippets = state.get('app:code_snippets', [])
+def _add_snippet_to_state(code_snippets: List[Dict], file_path: str, content: str, 
+                         start_line: int, end_line: int, relevance_score: float) -> None:
+    """Helper function to add or update a code snippet in the state."""
     # Check if snippet already exists to update last_accessed/relevance
     found = False
     for snippet in code_snippets:
         if snippet.get('file_path') == file_path and \
            snippet.get('start_line') == start_line and \
            snippet.get('end_line') == end_line:
-            # Assuming current turn number is available in state or context
-            # For now, just update relevance score - last_accessed needs context
-            snippet['relevance_score'] = snippet.get('relevance_score', 1.0) + 0.2
+            # Update existing snippet
+            snippet['relevance_score'] = snippet.get('relevance_score', 1.0) + 0.3
+            snippet['code'] = content  # Update with latest content
             found = True
             break
 
@@ -64,77 +35,225 @@ def process_read_file_results(
             'start_line': start_line,
             'end_line': end_line,
             'last_accessed': 0, # Placeholder, needs current turn info from context
-            'relevance_score': 1.0,
-             # Token count should ideally be calculated here, but we need a token counter instance.
-             # For now, just store the data. Token counting will happen during context assembly.
+            'relevance_score': relevance_score,
+            # Token count will happen during context assembly
         }
         code_snippets.append(new_snippet)
 
-    state['app:code_snippets'] = code_snippets
-    logger.debug(f"Added code snippet to state from read_file: {file_path}")
+def process_read_file_results(
+    state: Dict[str, Any], # Accept state dictionary
+    tool: BaseTool, 
+    result: Any  # Changed from Dict to Any to handle CallToolResult
+) -> None:
+    """Process read_file tool results and extract code snippets.
+    
+    Args:
+        state: The context state dictionary
+        tool: The tool that was executed
+        result: The result from the tool (could be CallToolResult or dict)
+    """
+    if not state:
+        logger.warning("State not available for process_read_file_results.")
+        return
+        
+    # Debug logging to understand MCP structure
+    logger.info(f"DEBUG: Tool hook received result type: {type(result)}")
+    logger.info(f"DEBUG: Tool object type: {type(tool)}, tool.name: {getattr(tool, 'name', 'NO_NAME')}")
+    if hasattr(tool, 'args'):
+        logger.info(f"DEBUG: Tool args type: {type(tool.args)}, value: {tool.args}")
+        if hasattr(tool.args, '__dict__'):
+            logger.info(f"DEBUG: Tool args attributes: {tool.args.__dict__}")
+    if hasattr(result, '__dict__'):
+        logger.info(f"DEBUG: Result attributes: {list(result.__dict__.keys())}")
+        logger.info(f"DEBUG: Result content preview: {getattr(result, 'content', 'NO_CONTENT')[:200] if hasattr(result, 'content') else 'NO_CONTENT'}")
+        
+    # Handle both MCP CallToolResult and dictionary formats
+    content = None
+    file_path = None
+    
+    # Try the most direct approach first
+    if hasattr(result, 'content'):
+        # Direct content attribute
+        content_obj = result.content
+        logger.info(f"DEBUG: Found direct content attribute, type: {type(content_obj)}")
+        if isinstance(content_obj, list) and len(content_obj) > 0:
+            # Extract text from the first content item
+            content_item = content_obj[0]
+            if hasattr(content_item, 'text'):
+                content = content_item.text
+            else:
+                content = str(content_item)
+        else:
+            content = str(content_obj)
+    elif hasattr(result, 'result') and hasattr(result.result, 'content'):
+        # MCP CallToolResult format
+        content_obj = result.result.content
+        logger.info(f"DEBUG: Found result.result.content, type: {type(content_obj)}")
+        if isinstance(content_obj, list) and len(content_obj) > 0:
+            content = content_obj[0].text if hasattr(content_obj[0], 'text') else str(content_obj[0])
+        else:
+            content = str(content_obj)
+    elif isinstance(result, dict):
+        # Dictionary format (legacy)
+        content = result.get("content")
+        logger.info(f"DEBUG: Using dictionary format, content found: {bool(content)}")
+    else:
+        logger.warning(f"Unknown result format for process_read_file_results: {type(result)}")
+        # Try to extract any string content as fallback
+        if hasattr(result, '__str__'):
+            content = str(result)
+            logger.info(f"DEBUG: Fallback to string representation")
+        else:
+            return
+    
+    # Extract file path from tool arguments (most reliable)
+    if hasattr(tool, 'args') and tool.args:
+        # Try multiple ways to access tool args
+        if isinstance(tool.args, dict):
+            file_path = tool.args.get("path") or tool.args.get("filepath") or tool.args.get("target_file")
+        else:
+            # Try accessing as attributes
+            file_path = getattr(tool.args, 'path', None) or getattr(tool.args, 'filepath', None) or getattr(tool.args, 'target_file', None)
+    
+    # Fallback: try to get from result
+    if not file_path and isinstance(result, dict):
+        file_path = result.get("filepath") or result.get("target_file") or result.get("path") or result.get("file")
+        
+    logger.info(f"DEBUG: Extracted - Content length: {len(content) if content else 0}, File path: {file_path}")
+        
+    if not content or not file_path:
+        logger.warning(f"Missing content or file path for process_read_file_results. Content: {bool(content)}, Path: {bool(file_path)}")
+        return
+        
+    try:
+        # Register this file with the file change tracker (assuming file_tracker can operate without ContextManager instance)
+        file_change_tracker.register_file_read(file_path, content)
+        
+        # Extract line numbers if available
+        start_line = 1  # Default for MCP tools
+        end_line = start_line + content.count('\n')
+        
+        # Add the entire content as a code snippet to state - be more inclusive with our massive token budget!
+        code_snippets = state.get('app:code_snippets', [])
+        if code_snippets is None:
+            code_snippets = []
+        
+        # For full file reads, add the complete content as chunks to provide better context
+        lines = content.split('\n')
+        if end_line >= len(lines) - 5:  # Full or near-full file read
+            # Split large files into overlapping chunks for better context
+            if len(lines) > 100:
+                chunk_size = 75  # Larger chunks with our token abundance
+                overlap = 25   # Overlap for continuity
+                for i in range(0, len(lines), chunk_size - overlap):
+                    end_idx = min(i + chunk_size, len(lines))
+                    chunk_content = '\n'.join(lines[i:end_idx])
+                    _add_snippet_to_state(code_snippets, file_path, chunk_content, i + 1, end_idx, 1.2)
+            else:
+                # Small files - add as single snippet
+                _add_snippet_to_state(code_snippets, file_path, content, start_line, end_line, 1.0)
+        else:
+            # Partial file read - add the specific section
+            _add_snippet_to_state(code_snippets, file_path, content, start_line, end_line, 1.1)
+
+        state['app:code_snippets'] = code_snippets
+        logger.info(f"Enhanced code snippet capture from read_file: {file_path} ({len(lines)} lines)")
+        
+    except Exception as e:
+        logger.error(f"Error processing read_file results for {file_path}: {e}", exc_info=True)
 
 def process_edit_file_results(
     state: Dict[str, Any], # Accept state dictionary
     tool: BaseTool, 
-    result: Dict[str, Any]
+    result: Any  # Changed from Dict to Any to handle CallToolResult
 ) -> None:
     """Process edit_file tool results.
     
     Args:
         state: The context state dictionary
         tool: The tool that was executed
-        result: The result from the tool
+        result: The result from the tool (could be CallToolResult or dict)
     """
-    if not state or "target_file" not in result:
-        logger.warning("State or target_file not available for process_edit_file_results.")
+    if not state:
+        logger.warning("State not available for process_edit_file_results.")
         return
         
-    file_path = result["target_file"]
-    
-    # Track the file modification in state
-    last_modified_files = state.get('app:last_modified_files', [])
-    if file_path not in last_modified_files:
-        last_modified_files.append(file_path)
-        state['app:last_modified_files'] = last_modified_files
-    logger.debug(f"Tracked file modification in state: {file_path}")
-    
-    # If we have the content after edit, add it as a snippet and track changes
-    if "content_after" in result:
-        # Get the previous content if available
-        old_content = result.get("content_before", "")
-        new_content = result["content_after"]
+    # Debug logging to understand MCP structure
+    logger.info(f"DEBUG EDIT: Tool hook received result type: {type(result)}")
+    logger.info(f"DEBUG EDIT: Tool object type: {type(tool)}, tool.name: {getattr(tool, 'name', 'NO_NAME')}")
+    if hasattr(tool, 'args'):
+        logger.info(f"DEBUG EDIT: Tool args: {tool.args}")
+    if hasattr(result, '__dict__'):
+        logger.info(f"DEBUG EDIT: Result attributes: {list(result.__dict__.keys())}")
+        
+    # Extract file path from tool arguments (most reliable for edits)
+    file_path = None
+    if hasattr(tool, 'args'):
+        file_path = tool.args.get("path") or tool.args.get("filepath") or tool.args.get("target_file")
+        
+    # Fallback: try to get from result if it's a dictionary
+    if not file_path and isinstance(result, dict):
+        file_path = result.get("filepath") or result.get("target_file") or result.get("path") or result.get("file")
+        
+    logger.info(f"DEBUG EDIT: Extracted file path: {file_path}")
+        
+    if not file_path:
+        logger.warning(f"Missing file path for process_edit_file_results.")
+        return
+        
+    try:
+        # Track the file modification in state - be more generous with tracking
+        last_modified_files = state.get('app:last_modified_files', [])
+        if last_modified_files is None:
+            last_modified_files = []
+        if file_path not in last_modified_files:
+            # With increased capacity, track up to 20 recently modified files
+            if len(last_modified_files) >= 20:
+                last_modified_files.pop(0)
+            last_modified_files.append(file_path)
+            state['app:last_modified_files'] = last_modified_files
+        logger.info(f"Tracked file modification in state: {file_path}")
+        
+        # For write operations, we need to read the current content to track changes
+        # Since MCP write_file doesn't provide before/after content, we'll read it
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                new_content = f.read()
+                logger.info(f"DEBUG EDIT: Read current file content, length: {len(new_content)}")
+        except Exception as e:
+            logger.warning(f"Could not read file content after write: {e}")
+            return
         
         # Register the edit with the file change tracker
         changed = file_change_tracker.register_file_edit(file_path, new_content)
         
-        # If content changed, try to identify modified functions
-        if changed and old_content:
-            try:
-                # file_change_tracker needs to be updated to work without ContextManager instance if it relies on it
-                modified_functions = file_change_tracker.extract_modified_functions(old_content, new_content)
-                if modified_functions:
-                    logger.info(f"Identified modified functions in {file_path}: {', '.join(modified_functions)}")
-                    # We could use this information to add more specific code snippets or decision context to state
-            except Exception as e:
-                logger.warning(f"Error extracting modified functions: {e}")
-        
-        # Add the updated content as a code snippet to state
+        # Add the new content as code snippets for context
         code_snippets = state.get('app:code_snippets', [])
-        # Remove old snippet for this file if it exists
-        code_snippets = [s for s in code_snippets if not (s.get('file_path') == file_path and s.get('start_line') == 1)] # Assuming edit replaces full file
+        if code_snippets is None:
+            code_snippets = []
         
-        new_snippet = {
-            'file_path': file_path,
-            'code': new_content,
-            'start_line': 1,
-            'end_line': new_content.count('\n') + 1,
-            'last_accessed': 0, # Placeholder
-            'relevance_score': 1.0,
-             # Token count will happen during context assembly
-        }
-        code_snippets.append(new_snippet)
+        # Remove old snippets for this file to avoid duplication
+        code_snippets = [s for s in code_snippets if s.get('file_path') != file_path]
+        
+        # Add new content as primary snippet
+        lines = new_content.split('\n')
+        if len(lines) > 100:
+            # Split large files into chunks
+            chunk_size = 75
+            overlap = 25
+            for i in range(0, len(lines), chunk_size - overlap):
+                end_idx = min(i + chunk_size, len(lines))
+                chunk_content = '\n'.join(lines[i:end_idx])
+                _add_snippet_to_state(code_snippets, file_path, chunk_content, i + 1, end_idx, 1.5)
+        else:
+            # Small files - add as single snippet with high relevance
+            _add_snippet_to_state(code_snippets, file_path, new_content, 1, len(lines), 1.5)
+            
         state['app:code_snippets'] = code_snippets
-        logger.debug(f"Updated code snippet in state from edit_file: {file_path}")
+        logger.info(f"Enhanced code snippet capture from edit_file: {file_path} ({len(lines)} lines)")
+        
+    except Exception as e:
+        logger.error(f"Error processing edit_file results for {file_path}: {e}", exc_info=True)
 
 def process_codebase_search_results(
     state: Dict[str, Any], # Accept state dictionary
@@ -201,13 +320,10 @@ def process_execute_shell_command_results(
         state: The context state dictionary
         tool: The tool that was executed
         result: The result from the tool
-    
-    Returns:
-        True if the summary was handled, False otherwise.
     """
     if not state:
         logger.warning("State not available for process_execute_shell_command_results.")
-        return False
+        return
 
     # For shell commands, we're mainly interested in summarizing the output
     if "stdout" in result or "stderr" in result:
@@ -240,15 +356,22 @@ def process_execute_shell_command_results(
         })
         state['temp:tool_results_current_turn'] = tool_results
 
-        logger.debug(f"Added shell command result summary to state: {command[:50]}...")
-        return True  # Signal that we've handled the summary
+        logger.info(f"Enhanced shell command result capture: {command[:50]}...")
     
-    return False  # Let default handling occur if no stdout/stderr
+    # Always return None for consistency with other processors
 
 # Map of tool names to processing functions
 TOOL_PROCESSORS = {
+    # Disabled custom tools (keeping for backward compatibility if re-enabled)
+    "read_file_content": process_read_file_results,
+    "edit_file_content": process_edit_file_results,
+    
+    # Standard MCP filesystem tool names
     "read_file": process_read_file_results,
     "edit_file": process_edit_file_results,
+    "write_file": process_edit_file_results,  # Alternative MCP name
+    
+    # Other tools
     "codebase_search": process_codebase_search_results,
     "execute_vetted_shell_command": process_execute_shell_command_results,
 }

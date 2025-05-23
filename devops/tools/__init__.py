@@ -21,13 +21,13 @@ from .code_analysis import (
 # Export the code search tool for easier imports
 from .code_search import codebase_search_tool
 
-# Export filesystem tools
-from .filesystem import (
-    read_file_tool,
-    list_dir_tool,
-    edit_file_tool,
-    configure_approval_tool,
-)
+# Export filesystem tools - DISABLED to avoid confusion with MCP filesystem tools
+# from .filesystem import (
+#     read_file_tool,
+#     list_dir_tool,
+#     edit_file_tool,
+#     configure_approval_tool,
+# )
 
 # Export shell command tools
 from .shell_command import (
@@ -58,11 +58,11 @@ from .rag_tools import (
 
 
 __all__ = [
-    # Filesystem Tools
-    "read_file_tool",
-    "list_dir_tool",
-    "edit_file_tool",
-    "configure_approval_tool",
+    # Filesystem Tools - DISABLED to avoid confusion with MCP filesystem tools
+    # "read_file_tool",
+    # "list_dir_tool", 
+    # "edit_file_tool",
+    # "configure_approval_tool",
     # Shell Command Tools
     "check_command_exists_tool",
     "check_shell_command_safety_tool",

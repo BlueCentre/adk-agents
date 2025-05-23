@@ -29,12 +29,42 @@ from . import (
     index_directory_tool,
     retrieve_code_context_tool,
     purge_rag_index_tool,
-    read_file_tool,
-    list_dir_tool,
-    edit_file_tool,
+    # Disabled filesystem tools - imported from MCP instead
+    # read_file_tool,
+    # list_dir_tool,
+    # edit_file_tool,
     codebase_search_tool,
     execute_vetted_shell_command_tool,
     check_command_exists_tool,
+)
+from .file_summarizer_tool import FileSummarizerTool
+
+# Disable custom filesystem tools to avoid confusion with MCP filesystem tools
+# from .filesystem import (
+#     read_file_tool,
+#     list_dir_tool,
+#     edit_file_tool,
+#     configure_approval_tool,
+# )
+
+from .code_analysis import (
+    analyze_code_tool,
+    get_analysis_issues_by_severity_tool,
+    suggest_code_fixes_tool,
+)
+from .shell_command import (
+    check_command_exists_tool,
+    execute_vetted_shell_command_tool,
+)
+from .search import google_search_grounding
+from .rag_tools import (
+    index_directory_tool,
+    retrieve_code_context_tool,
+    purge_rag_index_tool,
+)
+from .persistent_memory_tool import (
+    save_current_session_to_file_tool,
+    load_memory_from_file_tool,
 )
 from .file_summarizer_tool import FileSummarizerTool
 
@@ -42,8 +72,6 @@ logger = logging.getLogger(__name__)
 
 # Global registry for loaded MCP toolsets to prevent re-initialization
 _loaded_mcp_toolsets = {
-    # "datadog": None,
-    # "filesystem": None,
     "playwright": None,
     # User-defined MCP servers will be added here with their names as keys
 }
@@ -54,8 +82,23 @@ def load_core_tools_and_toolsets():
     """
     global _loaded_mcp_toolsets
 
-    file_summarizer_tool_instance = FileSummarizerTool()
+    devops_core_tools_list = [
+        index_directory_tool,
+        retrieve_code_context_tool,
+        purge_rag_index_tool,
+        # Disable custom filesystem tools to avoid confusion with MCP filesystem tools
+        # list_dir_tool,  # Fallback to built-in file system tools if MCP Filesystem Toolset is not loaded
+        # read_file_tool, # Fallback to built-in file system tools if MCP Filesystem Toolset is not loaded
+        # edit_file_tool, # Fallback to built-in file system tools if MCP Filesystem Toolset is not loaded
+        codebase_search_tool,
+        check_command_exists_tool,
+        execute_vetted_shell_command_tool,
+    ]
 
+    file_summarizer_tool_instance = FileSummarizerTool()
+    devops_core_tools_list.append(file_summarizer_tool_instance)
+
+    # https://google.github.io/adk-docs/tools/built-in-tools/#limitations
     _search_agent = LlmAgent(
         model=agent_config.DEFAULT_SUB_AGENT_MODEL,
         name="google_search_grounding",
@@ -63,10 +106,12 @@ def load_core_tools_and_toolsets():
         instruction=prompts.SEARCH_AGENT_INSTR,
         tools=[google_search],
     )
+    devops_core_tools_list.append(AgentTool(agent=_search_agent))
 
     # A code executor that uses the Model's built-in code executor.
     # Currently only supports Gemini 2.0+ models, but will be expanded to
     # other models.
+    # TODO: Currently this is not working.
     if agent_config.ENABLE_CODE_EXECUTION:
         _code_execution_agent = LlmAgent(
             model=agent_config.DEFAULT_SUB_AGENT_MODEL,
@@ -75,80 +120,8 @@ def load_core_tools_and_toolsets():
             instruction=prompts.CODE_EXECUTION_AGENT_INSTR,
             code_executor=[BuiltInCodeExecutor],
         )
-
-    # devops_observability_tools = []
-    # if not _loaded_mcp_toolsets["datadog"]:
-    #     try:
-    #         if agent_config.DATADOG_API_KEY and agent_config.DATADOG_APP_KEY:
-    #             mcp_datadog_toolset = MCPToolset(
-    #                 connection_params=StdioServerParameters(
-    #                     command="npx",
-    #                     args=["-y", "@winor30/mcp-server-datadog"],
-    #                     env={
-    #                         "DATADOG_API_KEY": agent_config.DATADOG_API_KEY,
-    #                         "DATADOG_APP_KEY": agent_config.DATADOG_APP_KEY,
-    #                     },
-    #                 ),
-    #             )
-    #             _loaded_mcp_toolsets["datadog"] = mcp_datadog_toolset
-    #             logger.info("MCP Datadog Toolset initialized successfully by setup.py.")
-    #         else:
-    #             logger.warning("DATADOG_API_KEY or DATADOG_APP_KEY not set in config. MCP Datadog Toolset will not be loaded.")
-    #     except Exception as e:
-    #         logger.warning(f"Failed to load MCP Datadog Toolset in setup.py: {e}. The Datadog tools will be unavailable.")
-    
-    # if _loaded_mcp_toolsets["datadog"]:
-    #     devops_observability_tools.append(_loaded_mcp_toolsets["datadog"])
-    # else:
-    #     logger.info("MCP Datadog Toolset was not loaded or already loaded, not adding to observability tools again unless it's the first load.")
-
-
-    # _observability_agent = LlmAgent(
-    #     model=agent_config.DEFAULT_SUB_AGENT_MODEL,
-    #     name="observability",
-    #     description="Agent specialized in Observability",
-    #     instruction=prompts.OBSERVABILITY_AGENT_INSTR,
-    #     tools=devops_observability_tools, # tools list will be empty if datadog isn't loaded
-    # )
-
-    devops_core_tools_list = [
-        index_directory_tool,
-        retrieve_code_context_tool,
-        purge_rag_index_tool,
-        list_dir_tool,
-        read_file_tool,
-        edit_file_tool,
-        file_summarizer_tool_instance,
-        codebase_search_tool,
-        check_command_exists_tool,
-        execute_vetted_shell_command_tool,
-        AgentTool(agent=_search_agent),
-        # AgentTool(agent=_observability_agent),
-    ]
-
     if agent_config.ENABLE_CODE_EXECUTION:
         devops_core_tools_list.append(AgentTool(agent=_code_execution_agent))
-
-    # if not _loaded_mcp_toolsets["filesystem"]:
-    #     try:
-    #         mcp_filesystem_toolset = MCPToolset(
-    #             connection_params=StdioServerParameters(
-    #                 command="rust-mcp-filesystem",
-    #                 args=["--allow-write", *agent_config.MCP_ALLOWED_DIRECTORIES],
-    #             ),
-    #         )
-    #         _loaded_mcp_toolsets["filesystem"] = mcp_filesystem_toolset
-    #         logger.info("MCP Filesystem Toolset initialized successfully by setup.py.")
-    #     except Exception as e:
-    #         logger.warning(
-    #             f"Failed to load MCP Filesystem Toolset in setup.py: {e}. "
-    #             "DevOps agent will fallback to using the built-in file system tools."
-    #         )
-    
-    # if _loaded_mcp_toolsets["filesystem"]:
-    #     devops_core_tools_list.append(_loaded_mcp_toolsets["filesystem"])
-    # else:
-    #     logger.info("MCP Filesystem Toolset was not loaded or already loaded, not adding to core tools list again unless it's the first load.")
 
     if agent_config.MCP_PLAYWRIGHT_ENABLED:
         if not _loaded_mcp_toolsets["playwright"]:
@@ -251,7 +224,7 @@ def load_user_tools_and_toolsets():
             return value
 
     user_mcp_tools_list = []
-    mcp_config_path = os.path.join(os.getcwd(), "mcp.json") # TODO: Make this configurable or discoverable
+    mcp_config_path = os.path.join(os.getcwd(), ".agent/mcp.json") # TODO: Make this configurable or discoverable
 
     # Initialize _loaded_mcp_toolsets if it's None (e.g., first call)
     # This check might be redundant if it's always initialized globally, but good for safety.
@@ -373,24 +346,52 @@ def load_all_tools_and_toolsets():
 # within the agent's code itself.
 
 async def cleanup_mcp_toolsets():
-    """Iterates through loaded MCP toolsets and calls their close() method."""
+    """Iterates through loaded MCP toolsets and calls their close() method.
+    
+    This function is designed to handle cancellation scope errors that may occur
+    during shutdown when the ADK runner cancels tasks aggressively.
+    """
     logger.info("Starting cleanup of MCP toolsets...")
+    cleanup_errors = []
+    
     for toolset_name, toolset_instance in list(_loaded_mcp_toolsets.items()): # Iterate on a copy
         if toolset_instance and hasattr(toolset_instance, 'close') and callable(toolset_instance.close):
             try:
                 if asyncio.iscoroutinefunction(toolset_instance.close):
                     logger.info(f"Asynchronously closing MCP Toolset: {toolset_name}")
-                    await toolset_instance.close()
+                    # Add timeout to prevent hanging during shutdown
+                    await asyncio.wait_for(toolset_instance.close(), timeout=5.0)
                 else:
-                    logger.info(f"Synchronously closing MCP Toolset: {toolset_name} (if it blocks, this might be an issue)")
+                    logger.info(f"Synchronously closing MCP Toolset: {toolset_name}")
                     toolset_instance.close() # type: ignore
                 logger.info(f"Successfully closed MCP Toolset: {toolset_name}")
+            except asyncio.TimeoutError:
+                error_msg = f"Timeout while closing MCP Toolset {toolset_name} (this may be normal during shutdown)"
+                logger.warning(error_msg)
+                cleanup_errors.append(error_msg)
+            except RuntimeError as e:
+                if "cancel scope" in str(e).lower() or "different task" in str(e).lower():
+                    error_msg = f"Cancellation scope error closing MCP Toolset {toolset_name} (expected during shutdown): {e}"
+                    logger.warning(error_msg)
+                    cleanup_errors.append(error_msg)
+                else:
+                    error_msg = f"Unexpected RuntimeError closing MCP Toolset {toolset_name}: {e}"
+                    logger.error(error_msg, exc_info=True)
+                    cleanup_errors.append(error_msg)
             except Exception as e:
-                logger.error(f"Error closing MCP Toolset {toolset_name}: {e}", exc_info=True)
+                error_msg = f"Error closing MCP Toolset {toolset_name}: {e}"
+                logger.error(error_msg, exc_info=True)
+                cleanup_errors.append(error_msg)
             finally:
-                # Optionally remove from dict or mark as closed
-                _loaded_mcp_toolsets[toolset_name] = None # Mark as closed or remove
+                # Always mark as closed to prevent duplicate cleanup attempts
+                _loaded_mcp_toolsets[toolset_name] = None
         elif toolset_instance:
             logger.warning(f"MCP Toolset {toolset_name} does not have a callable 'close' method.")
         # If toolset_instance is None, it was either never loaded or already cleaned up
-    logger.info("Finished cleanup of MCP toolsets.")
+    
+    # Summary logging
+    if cleanup_errors:
+        logger.warning(f"Finished cleanup of MCP toolsets with {len(cleanup_errors)} errors/warnings. This may be normal during shutdown.")
+        logger.debug(f"Cleanup issues encountered: {cleanup_errors}")
+    else:
+        logger.info("Finished cleanup of MCP toolsets successfully.")

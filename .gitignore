@@ -35,6 +35,7 @@ env/
 # Local environment
 .env
 .index_data/
+.server-memory.json
 push.sh
 
 # Chroma index

@@ -8,11 +8,12 @@
         "{{env.MCP_ALLOWED_DIRECTORIES}}"
       ]
     },
-    "gitmcp-adk": {
-      "url": "https://gitmcp.io/google/adk-python"
-    },
-    "gitmcp-genai": {
-      "url": "https://gitmcp.io/googleapis/python-genai"
+    "memory": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"],
+      "env": {
+        "MEMORY_FILE_PATH": "/tmp/.server-memory.json"
+      }
     },
     "sonarqube": {
       "command": "npx",

@@ -62,3 +62,12 @@
 // npx -y @modelcontextprotocol/inspector npx @modelcontextprotocol/server-filesystem /tmp
 // npx -y @modelcontextprotocol/inspector npx @winor30/mcp-server-datadog
 // npx -y @modelcontextprotocol/inspector -e DATADOG_API_KEY=$DATADOG_API_KEY -e DATADOG_APP_KEY=$DATADOG_APP_KEY --config mcp.json --server datadog
+
+// https://github.com/f/mcptools
+// MCP CLI:
+// brew tap f/mcptools
+// brew install mcp
+// go install github.com/f/mcptools/cmd/mcptools@latest
+// mcp tools npx -y @modelcontextprotocol/server-filesystem ~
+// mcp call read_file --params '{"path":"README.md"}' npx -y @modelcontextprotocol/server-filesystem ~
+// mcp shell npx -y @modelcontextprotocol/server-filesystem ~

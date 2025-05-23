@@ -32,6 +32,8 @@ The DevOps Agent is a sophisticated AI assistant engineered to empower developer
 *   **Interactive CLI:** Allows users to interact with the agent through a command-line interface.
 *   **Cloud Deployment:** Can be deployed as a service on Google Cloud Run.
 *   **Extensible:** Built on the Google ADK, allowing for customization and extension with new tools and capabilities.
+*   **API Error Handling with Retries:** Automatically retries LLM requests encountering `429 RESOURCE_EXHAUSTED` or `500 INTERNAL` errors, optimizing input context on subsequent attempts to improve success rate.
+*   **Agent and Runner Cleanup:** Includes logic for cleaning up resources after agent execution. Agent-level cleanup is currently temporarily disabled due to ongoing work on handling cancellation scope issues during shutdown, with runner-level cleanup as a fallback.
 
 ## Quickstart
 
