@@ -10,6 +10,8 @@ from rich.console import Console
 from google import genai
 from google.genai.types import Content, Part, CountTokensResponse # For native token counting
 from .proactive_context import ProactiveContextGatherer
+from .smart_prioritization import SmartPrioritizer
+from .cross_turn_correlation import CrossTurnCorrelator
 
 # Attempt to import tiktoken for accurate token counting
 try:
@@ -112,10 +114,14 @@ class ContextManager:
         self.console = Console(stderr=True)
         self.system_messages: List[Tuple[str, int]] = []
         
-        # Initialize proactive context gatherer
+        # Initialize proactive context gatherer and smart prioritizer
         self.proactive_gatherer = ProactiveContextGatherer()
         self._proactive_context_cache: Optional[Dict[str, Any]] = None
         self._proactive_context_tokens: int = 0
+        
+        # Initialize smart prioritizer and cross-turn correlator for Phase 2 enhancements
+        self.smart_prioritizer = SmartPrioritizer()
+        self.cross_turn_correlator = CrossTurnCorrelator()
         
         # Log detailed configuration information for optimization analysis
         self._log_configuration()
@@ -598,32 +604,96 @@ class ContextManager:
         else:
             logger.info("  ⚠️  SKIPPED: Conversation History - None available")
 
-        # Code Snippets
+        # Code Snippets with Smart Prioritization
         logger.info("CONTEXT ASSEMBLY: Processing Code Snippets...")
         valid_code_snippets = [s for s in self.code_snippets if s.token_count > 0]
         if valid_code_snippets:
-            valid_code_snippets.sort(key=lambda s: (-s.relevance_score, -s.last_accessed))
-            logger.info(f"  📝 Available: {len(valid_code_snippets)} code snippets (sorted by relevance)")
+            # Apply smart prioritization for relevance-based ranking
+            logger.info(f"  📝 Available: {len(valid_code_snippets)} code snippets - applying smart prioritization...")
+            
+            # Convert CodeSnippet objects to dictionaries for prioritization
+            snippet_dicts = []
+            for snippet in valid_code_snippets:
+                snippet_dict = {
+                    'file': snippet.file_path,
+                    'file_path': snippet.file_path,
+                    'code': snippet.code,
+                    'start_line': snippet.start_line,
+                    'end_line': snippet.end_line,
+                    'last_accessed': snippet.last_accessed,
+                    'relevance_score': snippet.relevance_score,
+                    'token_count': snippet.token_count
+                }
+                snippet_dicts.append(snippet_dict)
+            
+            # Get current context for prioritization (use recent conversation if available)
+            current_context = ""
+            if self.conversation_turns:
+                recent_turn = self.conversation_turns[-1]
+                current_context = (recent_turn.user_message or "") + " " + (recent_turn.agent_message or "")
+            
+            # Apply smart prioritization
+            prioritized_snippets = self.smart_prioritizer.prioritize_code_snippets(
+                snippet_dicts, current_context, self.current_turn_number
+            )
+            
+            # Apply cross-turn correlation after prioritization
+            logger.info("  🔗 Applying cross-turn correlation analysis...")
+            
+            # Get tool results for correlation (convert current tool results to dicts)
+            tool_result_dicts = []
+            for result in self.tool_results:
+                tool_dict = {
+                    'tool': result.tool_name,
+                    'summary': result.result_summary,
+                    'turn': result.turn_number,
+                    'is_error': result.is_error,
+                    'relevance_score': result.relevance_score,
+                    'token_count': result.token_count
+                }
+                tool_result_dicts.append(tool_dict)
+            
+            # Build conversation context for correlation
+            conversation_context = []
+            for turn in self.conversation_turns:
+                turn_dict = {
+                    'turn': turn.turn_number,
+                    'user_message': turn.user_message,
+                    'agent_message': turn.agent_message,
+                    'tool_calls': turn.tool_calls
+                }
+                conversation_context.append(turn_dict)
+            
+            # Apply cross-turn correlation
+            prioritized_snippets, correlated_tools = self.cross_turn_correlator.correlate_context_items(
+                prioritized_snippets, tool_result_dicts, conversation_context
+            )
             
             temp_code_snippets = []
             code_tokens = 0
-            for i, snippet in enumerate(valid_code_snippets):
-                snippet_tokens = snippet.token_count + self._count_tokens(json.dumps({"file":"", "start_line":0, "end_line":0, "code":""}))
+            for i, snippet_dict in enumerate(prioritized_snippets):
+                snippet_tokens = snippet_dict['token_count'] + self._count_tokens(json.dumps({"file":"", "start_line":0, "end_line":0, "code":""}))
                 
                 logger.info(f"    Code Snippet {i+1}:")
-                logger.info(f"      File: {snippet.file_path}:{snippet.start_line}-{snippet.end_line}")
-                logger.info(f"      Relevance Score: {snippet.relevance_score:.2f}")
-                logger.info(f"      Last Accessed: Turn {snippet.last_accessed}")
-                logger.info(f"      Code Content: {snippet.token_count:,} tokens")
+                logger.info(f"      File: {snippet_dict['file_path']}:{snippet_dict['start_line']}-{snippet_dict['end_line']}")
+                logger.info(f"      Relevance Score: {snippet_dict['relevance_score']:.2f}")
+                logger.info(f"      Last Accessed: Turn {snippet_dict['last_accessed']}")
+                logger.info(f"      Code Content: {snippet_dict['token_count']:,} tokens")
                 logger.info(f"      JSON Structure: {self._count_tokens(json.dumps({'file':'', 'start_line':0, 'end_line':0, 'code':''})):,} tokens")
                 logger.info(f"      Total: {snippet_tokens:,} tokens")
                 
+                # Check for smart prioritization score if available
+                if '_relevance_score' in snippet_dict:
+                    rel_score = snippet_dict['_relevance_score']
+                    logger.info(f"      🧠 Smart Priority Score: {rel_score.final_score:.3f}")
+                    logger.info(f"        (Content: {rel_score.content_relevance:.2f}, Recency: {rel_score.recency_score:.2f}, Error: {rel_score.error_priority:.2f})")
+                
                 if current_tokens + snippet_tokens <= available_tokens and len(temp_code_snippets) < self.target_code_snippets:
                     temp_code_snippets.append({
-                        "file": snippet.file_path,
-                        "start_line": snippet.start_line,
-                        "end_line": snippet.end_line,
-                        "code": snippet.code
+                        "file": snippet_dict['file_path'],
+                        "start_line": snippet_dict['start_line'],
+                        "end_line": snippet_dict['end_line'],
+                        "code": snippet_dict['code']
                     })
                     current_tokens += snippet_tokens
                     code_tokens += snippet_tokens
@@ -643,42 +713,67 @@ class ContextManager:
         else:
             logger.info("  ⚠️  SKIPPED: Code Snippets - None available")
 
-        # Tool Results
+        # Tool Results with Smart Prioritization
         logger.info("CONTEXT ASSEMBLY: Processing Tool Results...")
         if self.tool_results:
-            # Handle case where any of the sort values might be None
-            def tool_result_sort_key(r):
-                # Default to False if is_error is None
-                error_key = -1 if r.is_error else 0 
-                # Default to 0 if relevance_score is None
-                relevance_key = -1 * (r.relevance_score or 0)
-                # Default to 0 if turn_number is None
-                turn_key = -1 * (r.turn_number or 0)
-                return (error_key, relevance_key, turn_key)
+            logger.info(f"  📝 Available: {len(self.tool_results)} tool results - applying smart prioritization...")
             
-            self.tool_results.sort(key=tool_result_sort_key)
-            logger.info(f"  📝 Available: {len(self.tool_results)} tool results (sorted by error status, relevance, recency)")
+            # Convert ToolResult objects to dictionaries for prioritization
+            result_dicts = []
+            for result in self.tool_results:
+                result_dict = {
+                    'tool': result.tool_name,
+                    'summary': result.result_summary,
+                    'turn': result.turn_number,
+                    'is_error': result.is_error,
+                    'relevance_score': result.relevance_score,
+                    'token_count': result.token_count
+                }
+                result_dicts.append(result_dict)
+            
+            # Get current context for prioritization
+            current_context = ""
+            if self.conversation_turns:
+                recent_turn = self.conversation_turns[-1]
+                current_context = (recent_turn.user_message or "") + " " + (recent_turn.agent_message or "")
+            
+            # Apply smart prioritization
+            prioritized_results = self.smart_prioritizer.prioritize_tool_results(
+                result_dicts, current_context, self.current_turn_number
+            )
+            
+            # Note: Cross-turn correlation for tools was already applied during code snippets processing
+            # Use the correlated tools from there if they exist, otherwise use prioritized results
+            if 'correlated_tools' in locals():
+                prioritized_results = correlated_tools
+                logger.info("  🔗 Using cross-turn correlated tool results")
             
             temp_tool_results = []
             tool_results_tokens = 0
-            for i, result in enumerate(self.tool_results):
-                result_tokens = result.token_count + self._count_tokens(json.dumps({"tool":"", "turn":0, "summary":"", "is_error": False}))
+            for i, result_dict in enumerate(prioritized_results):
+                result_tokens = result_dict['token_count'] + self._count_tokens(json.dumps({"tool":"", "turn":0, "summary":"", "is_error": False}))
                 
                 logger.info(f"    Tool Result {i+1}:")
-                logger.info(f"      Tool: {result.tool_name}")
-                logger.info(f"      Turn: {result.turn_number}")
-                logger.info(f"      Is Error: {result.is_error}")
-                logger.info(f"      Relevance Score: {result.relevance_score:.2f}")
-                logger.info(f"      Summary: {result.token_count:,} tokens")
+                logger.info(f"      Tool: {result_dict['tool']}")
+                logger.info(f"      Turn: {result_dict['turn']}")
+                logger.info(f"      Is Error: {result_dict['is_error']}")
+                logger.info(f"      Relevance Score: {result_dict['relevance_score']:.2f}")
+                logger.info(f"      Summary: {result_dict['token_count']:,} tokens")
                 logger.info(f"      JSON Structure: {self._count_tokens(json.dumps({'tool':'', 'turn':0, 'summary':'', 'is_error': False})):,} tokens")
                 logger.info(f"      Total: {result_tokens:,} tokens")
                 
+                # Check for smart prioritization score if available
+                if '_relevance_score' in result_dict:
+                    rel_score = result_dict['_relevance_score']
+                    logger.info(f"      🧠 Smart Priority Score: {rel_score.final_score:.3f}")
+                    logger.info(f"        (Content: {rel_score.content_relevance:.2f}, Recency: {rel_score.recency_score:.2f}, Error: {rel_score.error_priority:.2f})")
+                
                 if current_tokens + result_tokens <= available_tokens and len(temp_tool_results) < self.target_tool_results:
                     temp_tool_results.append({
-                        "tool": result.tool_name,
-                        "turn": result.turn_number,
-                        "summary": result.result_summary,
-                        "is_error": result.is_error
+                        "tool": result_dict['tool'],
+                        "turn": result_dict['turn'],
+                        "summary": result_dict['summary'],
+                        "is_error": result_dict['is_error']
                     })
                     current_tokens += result_tokens
                     tool_results_tokens += result_tokens
