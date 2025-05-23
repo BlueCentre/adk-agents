@@ -9,6 +9,7 @@ from rich.console import Console
 
 from google import genai
 from google.genai.types import Content, Part, CountTokensResponse # For native token counting
+from .proactive_context import ProactiveContextGatherer
 
 # Attempt to import tiktoken for accurate token counting
 try:
@@ -110,6 +111,11 @@ class ContextManager:
         self.current_turn_number = 0
         self.console = Console(stderr=True)
         self.system_messages: List[Tuple[str, int]] = []
+        
+        # Initialize proactive context gatherer
+        self.proactive_gatherer = ProactiveContextGatherer()
+        self._proactive_context_cache: Optional[Dict[str, Any]] = None
+        self._proactive_context_tokens: int = 0
         
         # Log detailed configuration information for optimization analysis
         self._log_configuration()
@@ -449,6 +455,30 @@ class ContextManager:
                 self.state.last_modified_files.pop(0)
             self.state.last_modified_files.append(file_path)
             logger.info(f"Tracked file modification: {file_path}")
+    
+    def _gather_proactive_context(self) -> Dict[str, Any]:
+        """Gather proactive context and cache it for token counting."""
+        if self._proactive_context_cache is None:
+            logger.info("PROACTIVE CONTEXT: Gathering project files, Git history, and documentation...")
+            self._proactive_context_cache = self.proactive_gatherer.gather_all_context()
+            
+            # Calculate total tokens for proactive context
+            if self._proactive_context_cache:
+                context_str = json.dumps(self._proactive_context_cache)
+                self._proactive_context_tokens = self._count_tokens(context_str)
+                logger.info(f"PROACTIVE CONTEXT: Gathered context with {self._proactive_context_tokens:,} tokens")
+                
+                # Log summary of what was gathered
+                for key, value in self._proactive_context_cache.items():
+                    if isinstance(value, list):
+                        logger.info(f"  {key}: {len(value)} items")
+                    else:
+                        logger.info(f"  {key}: {type(value).__name__}")
+            else:
+                self._proactive_context_tokens = 0
+                logger.info("PROACTIVE CONTEXT: No proactive context gathered")
+                
+        return self._proactive_context_cache or {}
 
     def assemble_context(self, base_prompt_tokens: int) -> Tuple[Dict[str, Any], int]:
         """Assemble context dictionary from available data, respecting token limits.
@@ -701,6 +731,61 @@ class ContextManager:
                 logger.warning(f"  ❌ EXCLUDED: Recently Modified Files ({modified_files_tokens:,} tokens) - Exceeds available budget")
         else:
             logger.info("  ⚠️  SKIPPED: Recently Modified Files - None available")
+
+        # Proactive Context (NEW: Phase 2 Implementation)
+        logger.info("CONTEXT ASSEMBLY: Processing Proactive Context...")
+        proactive_context = self._gather_proactive_context()
+        if proactive_context and self._proactive_context_tokens > 0:
+            logger.info(f"  📝 Available: {len(proactive_context)} proactive context categories")
+            logger.info(f"  Token Cost: {self._proactive_context_tokens:,} tokens")
+            
+            # Try to include proactive context if there's budget remaining
+            remaining_budget = available_tokens - current_tokens
+            logger.info(f"  Remaining Budget: {remaining_budget:,} tokens")
+            
+            if remaining_budget >= self._proactive_context_tokens:
+                # Include full proactive context
+                context_dict["proactive_context"] = proactive_context
+                current_tokens += self._proactive_context_tokens
+                component_tokens["proactive_context"] = self._proactive_context_tokens
+                logger.info(f"  ✅ INCLUDED: Full Proactive Context ({self._proactive_context_tokens:,} tokens)")
+                
+                # Log what was included
+                for key, value in proactive_context.items():
+                    if isinstance(value, list):
+                        logger.info(f"    {key}: {len(value)} items")
+            elif remaining_budget > 1000:  # If we have at least 1000 tokens, try partial inclusion
+                # Try to include subset of proactive context
+                logger.info(f"  🔄 PARTIAL: Attempting to include subset of proactive context...")
+                partial_context = {}
+                partial_tokens = 0
+                
+                # Prioritize project files first, then git history, then documentation
+                priority_order = ["project_files", "git_history", "documentation"]
+                
+                for category in priority_order:
+                    if category in proactive_context:
+                        category_str = json.dumps(proactive_context[category])
+                        category_tokens = self._count_tokens(category_str)
+                        
+                        if partial_tokens + category_tokens <= remaining_budget:
+                            partial_context[category] = proactive_context[category]
+                            partial_tokens += category_tokens
+                            logger.info(f"    ✅ INCLUDED: {category} ({category_tokens:,} tokens)")
+                        else:
+                            logger.info(f"    ❌ EXCLUDED: {category} ({category_tokens:,} tokens) - Would exceed budget")
+                
+                if partial_context:
+                    context_dict["proactive_context"] = partial_context
+                    current_tokens += partial_tokens
+                    component_tokens["proactive_context"] = partial_tokens
+                    logger.info(f"  📊 TOTAL: Included partial proactive context ({partial_tokens:,} tokens)")
+                else:
+                    logger.info("  ⚠️  SKIPPED: Proactive Context - No categories fit in remaining budget")
+            else:
+                logger.warning(f"  ❌ EXCLUDED: Proactive Context ({self._proactive_context_tokens:,} tokens) - Exceeds remaining budget ({remaining_budget:,} tokens)")
+        else:
+            logger.info("  ⚠️  SKIPPED: Proactive Context - None available or gathering failed")
 
         # Final Summary
         logger.info("=" * 60)
