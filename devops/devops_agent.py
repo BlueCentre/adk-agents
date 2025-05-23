@@ -479,6 +479,49 @@ Begin execution now, starting with the first step."""
         start_time = time.time()
         logger.debug(f"Agent {self.name}: Handling tool response from {tool.name}")
         custom_processor_used = False
+        
+        # Enhanced error handling for shell commands
+        if tool.name == "execute_vetted_shell_command" and isinstance(tool_response, dict):
+            if tool_response.get("status") == "error":
+                error_message = tool_response.get("message", "")
+                
+                # Check for specific error patterns that can be retried
+                if any(pattern in error_message.lower() for pattern in ["quotation", "parsing", "shlex"]):
+                    logger.warning(f"Shell command failed with parsing error: {error_message}")
+                    
+                    # Add helpful guidance to the tool response
+                    enhanced_message = (
+                        f"{error_message}\n\n"
+                        f"💡 This appears to be a command parsing issue. Consider:\n"
+                        f"1. Using the 'execute_vetted_shell_command_with_retry' tool for automatic retry with alternative formats\n"
+                        f"2. Simplifying complex commit messages by breaking them into multiple commands\n"
+                        f"3. Using 'git commit' without -m to open an editor for complex messages"
+                    )
+                    tool_response["message"] = enhanced_message
+                    tool_response["retry_suggested"] = True
+                
+                elif "command not found" in error_message.lower():
+                    logger.warning(f"Shell command failed - command not found: {error_message}")
+                    enhanced_message = (
+                        f"{error_message}\n\n"
+                        f"💡 Command not found. Consider:\n"
+                        f"1. Checking if the command is installed using 'check_command_exists'\n"
+                        f"2. Verifying the correct spelling and path\n"
+                        f"3. Installing the required package if missing"
+                    )
+                    tool_response["message"] = enhanced_message
+                
+                elif "timeout" in error_message.lower():
+                    logger.warning(f"Shell command timed out: {error_message}")
+                    enhanced_message = (
+                        f"{error_message}\n\n"
+                        f"💡 Command timed out. Consider:\n"
+                        f"1. Increasing the timeout parameter\n"
+                        f"2. Breaking the operation into smaller steps\n"
+                        f"3. Running the command in the background if appropriate"
+                    )
+                    tool_response["message"] = enhanced_message
+        
         if tool.name in TOOL_PROCESSORS:
             try:
                 # Pass state to custom processors only if available
@@ -528,6 +571,12 @@ Begin execution now, starting with the first step."""
             not isinstance(tool_response, ExecuteVettedShellCommandOutput):
             if isinstance(tool_response, dict) and (tool_response.get("status") == "error" or tool_response.get("error")):
                 logger.error(f"Tool {tool.name} reported an error: {tool_response}")
+                
+                # Display enhanced error information to user
+                if tool_response.get("retry_suggested"):
+                    ui_utils.display_tool_error_with_suggestions(self._console, tool.name, tool_response, duration)
+                else:
+                    ui_utils.display_tool_error(self._console, tool.name, tool_response, duration)
             elif isinstance(tool_response, dict):
                 ui_utils.display_tool_finished(self._console, tool.name, tool_response, duration)
                 logger.info(f"Tool {tool.name} executed successfully.")

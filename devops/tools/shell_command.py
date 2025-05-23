@@ -5,7 +5,7 @@ import shlex
 import shutil
 import subprocess
 from pydantic import BaseModel, Field
-from typing import Literal, Optional, Dict, Any
+from typing import Literal, Optional, Dict, Any, List
 
 # Import ToolContext for state management
 from google.adk.tools import (
@@ -369,61 +369,302 @@ def execute_vetted_shell_command(args: dict, tool_context: ToolContext) -> Execu
             status="error", command_executed=command, message=f"Error: Invalid timeout value '{timeout}'. Must be an integer."
         )
 
-    command_parts = shlex.split(command)
     logger.info(f"Executing vetted shell command: '{command}' in directory '{working_directory or '.'}'")
 
-    try:
-        process = subprocess.run(
-            command_parts,
-            capture_output=True,
-            text=True,
-            cwd=working_directory,
-            timeout=timeout_sec,
-            check=False,  # Don't raise exception on non-zero exit
+    # Try multiple command parsing strategies if the first one fails
+    parsing_strategies = [
+        ("shlex_split", lambda cmd: shlex.split(cmd)),
+        ("shell_true", lambda cmd: cmd),  # Execute as shell string
+        ("simple_split", lambda cmd: cmd.split()),  # Simple whitespace split as fallback
+    ]
+    
+    last_error = None
+    
+    for strategy_name, parser in parsing_strategies:
+        try:
+            if strategy_name == "shlex_split":
+                command_parts = parser(command)
+                shell_mode = False
+            elif strategy_name == "shell_true":
+                command_parts = command
+                shell_mode = True
+            else:  # simple_split
+                command_parts = parser(command)
+                shell_mode = False
+            
+            logger.info(f"Trying command execution with strategy '{strategy_name}'")
+            
+            process = subprocess.run(
+                command_parts,
+                capture_output=True,
+                text=True,
+                cwd=working_directory,
+                timeout=timeout_sec,
+                check=False,  # Don't raise exception on non-zero exit
+                shell=shell_mode,  # Use shell mode for complex commands
+            )
+            
+            logger.info(f"Vetted command '{command}' finished with return code {process.returncode} using strategy '{strategy_name}'")
+            
+            stdout_processed = _truncate_output(process.stdout.strip(), MAX_OUTPUT_CAPTURE_LENGTH, TRUNCATE_HEAD_TAIL_LENGTH)
+            stderr_processed = _truncate_output(process.stderr.strip(), MAX_OUTPUT_CAPTURE_LENGTH, TRUNCATE_HEAD_TAIL_LENGTH)
+            
+            # Add strategy info to success message for debugging
+            success_msg = "Command executed successfully." if process.returncode == 0 else "Command executed with non-zero exit code."
+            if strategy_name != "shlex_split":
+                success_msg += f" (Used fallback strategy: {strategy_name})"
+            
+            return ExecuteVettedShellCommandOutput(
+                stdout=stdout_processed,
+                stderr=stderr_processed,
+                return_code=process.returncode,
+                command_executed=command,
+                status="executed",
+                message=success_msg,
+            )
+            
+        except ValueError as ve:
+            # This is likely a shlex parsing error (like "No closing quotation")
+            logger.warning(f"Command parsing failed with strategy '{strategy_name}': {ve}")
+            last_error = ve
+            if strategy_name == "shlex_split":
+                # Continue to try other strategies
+                continue
+            else:
+                # If even simple strategies fail, this is a more serious error
+                break
+                
+        except FileNotFoundError:
+            logger.error(f"Command not found during execution: {command}")
+            return ExecuteVettedShellCommandOutput(
+                stdout=None,
+                stderr=_truncate_output(f"Error: Command not found: {command}", MAX_OUTPUT_CAPTURE_LENGTH, TRUNCATE_HEAD_TAIL_LENGTH),
+                return_code=-1,
+                command_executed=command,
+                status="error",
+                message=f"Command not found: {command}",
+            )
+        except subprocess.TimeoutExpired:
+            logger.error(f"Vetted command '{command}' timed out after {timeout_sec} seconds.")
+            return ExecuteVettedShellCommandOutput(
+                stdout=None,
+                stderr=_truncate_output(f"Error: Command timed out after {timeout_sec} seconds.", MAX_OUTPUT_CAPTURE_LENGTH, TRUNCATE_HEAD_TAIL_LENGTH),
+                return_code=-2,
+                command_executed=command,
+                status="error",
+                message=f"Command timed out after {timeout_sec} seconds.",
+            )
+        except Exception as e:
+            logger.warning(f"Command execution failed with strategy '{strategy_name}': {e}")
+            last_error = e
+            continue
+    
+    # If we get here, all strategies failed
+    error_msg = f"All command execution strategies failed. Last error: {last_error}"
+    logger.error(f"An error occurred while running vetted command '{command}': {error_msg}")
+    return ExecuteVettedShellCommandOutput(
+        stdout=None,
+        stderr=_truncate_output(error_msg, MAX_OUTPUT_CAPTURE_LENGTH, TRUNCATE_HEAD_TAIL_LENGTH),
+        return_code=-3,
+        command_executed=command,
+        status="error",
+        message=error_msg
+    )
+
+
+# --- Command Reconstruction Utilities --- #
+
+def suggest_command_alternatives(original_command: str) -> List[str]:
+    """Suggests alternative command formulations for commands that failed due to parsing issues.
+    
+    This is particularly useful for git commit commands with complex messages.
+    
+    Args:
+        original_command (str): The original command that failed
+        
+    Returns:
+        List[str]: List of alternative command formulations
+    """
+    alternatives = []
+    
+    # Handle git commit commands specifically
+    if original_command.startswith('git commit'):
+        try:
+            # Extract the commit message from various patterns
+            import re
+            
+            # Pattern 1: git commit -m "message" -m "description"
+            if '-m ' in original_command:
+                # Try to extract and properly escape commit messages
+                msg_pattern = r'-m\s+["\']([^"\']*)["\']'
+                messages = re.findall(msg_pattern, original_command)
+                
+                if messages:
+                    # Suggest using a simpler approach with escaped quotes
+                    if len(messages) == 1:
+                        # Single message
+                        escaped_msg = messages[0].replace('"', '\\"').replace("'", "\\'")
+                        alternatives.append(f'git commit -m "{escaped_msg}"')
+                    else:
+                        # Multiple messages - suggest combining them
+                        combined_msg = "\\n\\n".join(messages)
+                        escaped_msg = combined_msg.replace('"', '\\"').replace("'", "\\'")
+                        alternatives.append(f'git commit -m "{escaped_msg}"')
+                
+                # Suggest using heredoc approach for complex messages
+                alternatives.append("git commit -F -")  # Read from stdin
+                alternatives.append("git commit")  # Open editor
+            
+            # Always suggest the basic commit without message as fallback
+            if 'git commit -m' in original_command:
+                alternatives.append("git commit")  # Let git open the editor
+                
+        except Exception as e:
+            logger.warning(f"Failed to parse git commit command for alternatives: {e}")
+    
+    # For any command with quotes, suggest shell-escaped version
+    if '"' in original_command or "'" in original_command:
+        # Simple escape strategy - replace quotes with escaped versions
+        escaped_cmd = original_command.replace('"', '\\"').replace("'", "\\'")
+        if escaped_cmd != original_command:
+            alternatives.append(escaped_cmd)
+    
+    # Add a generic suggestion for complex commands
+    if len(original_command) > 100 or original_command.count('"') > 2:
+        alternatives.append("# Consider breaking this into multiple simpler commands")
+        alternatives.append("# Or use a shell script file for complex operations")
+    
+    return alternatives
+
+
+class ExecuteVettedShellCommandWithRetryInput(BaseModel):
+    """Input model for the enhanced shell command execution with built-in retry logic."""
+
+    command: str = Field(..., description="The shell command to execute.")
+    working_directory: Optional[str] = Field(None, description="Optional working directory to run the command in.")
+    timeout: int = Field(60, description="Timeout in seconds for the command execution.")
+    auto_retry: bool = Field(True, description="Whether to automatically try alternative command formats on parsing failures.")
+
+
+class ExecuteVettedShellCommandWithRetryOutput(BaseModel):
+    """Output model for the enhanced shell command execution."""
+
+    stdout: str | None = Field(None, description="The standard output of the command.")
+    stderr: str | None = Field(None, description="The standard error of the command.")
+    return_code: int | None = Field(None, description="The return code of the command.")
+    command_executed: str | None = Field(None, description="The actual command that was executed.")
+    strategy_used: str | None = Field(None, description="The execution strategy that succeeded.")
+    alternatives_tried: List[str] = Field(default_factory=list, description="Alternative commands that were attempted.")
+    suggestions: List[str] = Field(default_factory=list, description="Suggested alternative commands for manual retry.")
+    status: str = Field(description="Status: 'executed', 'error', or 'failed_with_suggestions'.")
+    message: str = Field(description="Additional information about the status.")
+
+
+def execute_vetted_shell_command_with_retry(args: dict, tool_context: ToolContext) -> ExecuteVettedShellCommandWithRetryOutput:
+    """Enhanced shell command execution with automatic retry and alternative suggestions.
+    
+    This function provides better error handling for complex commands, especially git commits
+    with multi-line messages that may have quote parsing issues.
+    
+    Args:
+        args (dict): A dictionary containing:
+            command (str): The shell command to execute.
+            working_directory (Optional[str]): Optional working directory.
+            timeout (Optional[int]): Optional timeout in seconds (default: 60).
+            auto_retry (Optional[bool]): Whether to auto-retry with alternatives (default: True).
+        tool_context (ToolContext): The context for state management.
+
+    Returns:
+        ExecuteVettedShellCommandWithRetryOutput: Enhanced result with retry information.
+    """
+    command = args.get("command")
+    working_directory = args.get("working_directory")
+    timeout = args.get("timeout", 60)
+    auto_retry = args.get("auto_retry", True)
+
+    if not command:
+        return ExecuteVettedShellCommandWithRetryOutput(
+            status="error", 
+            command_executed=command, 
+            message="Error: 'command' argument is missing."
         )
-        logger.info(f"Vetted command '{command}' finished with return code {process.returncode}")
-        
-        stdout_processed = _truncate_output(process.stdout.strip(), MAX_OUTPUT_CAPTURE_LENGTH, TRUNCATE_HEAD_TAIL_LENGTH)
-        stderr_processed = _truncate_output(process.stderr.strip(), MAX_OUTPUT_CAPTURE_LENGTH, TRUNCATE_HEAD_TAIL_LENGTH)
-        
-        return ExecuteVettedShellCommandOutput(
-            stdout=stdout_processed,
-            stderr=stderr_processed,
-            return_code=process.returncode,
-            command_executed=command,
+
+    # First, try the standard execution
+    standard_result = execute_vetted_shell_command(args, tool_context)
+    
+    # If it succeeded, return the result with additional metadata
+    if standard_result.status == "executed":
+        return ExecuteVettedShellCommandWithRetryOutput(
+            stdout=standard_result.stdout,
+            stderr=standard_result.stderr,
+            return_code=standard_result.return_code,
+            command_executed=standard_result.command_executed,
+            strategy_used="standard",
             status="executed",
-            message="Command executed successfully." if process.returncode == 0 else "Command executed with non-zero exit code.",
+            message=standard_result.message,
         )
-    except FileNotFoundError:
-        logger.error(f"Command not found during execution: {command_parts[0]}")
-        return ExecuteVettedShellCommandOutput(
-            stdout=None,
-            stderr=_truncate_output(f"Error: Command not found: {command_parts[0]}", MAX_OUTPUT_CAPTURE_LENGTH, TRUNCATE_HEAD_TAIL_LENGTH),
-            return_code=-1,  # Using distinct negative codes for different errors
+    
+    # If it failed and auto_retry is disabled, return with suggestions
+    if not auto_retry:
+        suggestions = suggest_command_alternatives(command)
+        return ExecuteVettedShellCommandWithRetryOutput(
+            status="failed_with_suggestions",
             command_executed=command,
-            status="error",
-            message=f"Command not found: {command_parts[0]}",
+            suggestions=suggestions,
+            message=f"Command failed: {standard_result.message}. Auto-retry disabled. See suggestions for alternatives.",
         )
-    except subprocess.TimeoutExpired:
-        logger.error(f"Vetted command '{command}' timed out after {timeout_sec} seconds.")
-        return ExecuteVettedShellCommandOutput(
-            stdout=None,
-            stderr=_truncate_output(f"Error: Command timed out after {timeout_sec} seconds.", MAX_OUTPUT_CAPTURE_LENGTH, TRUNCATE_HEAD_TAIL_LENGTH),
-            return_code=-2,
+    
+    # If it failed due to parsing issues, try alternatives
+    if "parsing" in standard_result.message.lower() or "quotation" in standard_result.message.lower():
+        logger.info(f"Command failed with parsing error, trying alternative approaches: {command}")
+        
+        alternatives = suggest_command_alternatives(command)
+        alternatives_tried = []
+        
+        for alternative in alternatives:
+            if alternative.startswith("#"):  # Skip comment suggestions
+                continue
+                
+            logger.info(f"Trying alternative command: {alternative}")
+            alternatives_tried.append(alternative)
+            
+            alt_args = args.copy()
+            alt_args["command"] = alternative
+            
+            alt_result = execute_vetted_shell_command(alt_args, tool_context)
+            
+            if alt_result.status == "executed":
+                return ExecuteVettedShellCommandWithRetryOutput(
+                    stdout=alt_result.stdout,
+                    stderr=alt_result.stderr,
+                    return_code=alt_result.return_code,
+                    command_executed=alt_result.command_executed,
+                    strategy_used="alternative",
+                    alternatives_tried=alternatives_tried,
+                    status="executed",
+                    message=f"Original command failed, but alternative succeeded: {alt_result.message}",
+                )
+        
+        # All alternatives failed
+        return ExecuteVettedShellCommandWithRetryOutput(
+            status="failed_with_suggestions",
             command_executed=command,
-            status="error",
-            message=f"Command timed out after {timeout_sec} seconds.",
+            alternatives_tried=alternatives_tried,
+            suggestions=[alt for alt in alternatives if alt.startswith("#") or alt not in alternatives_tried],
+            message=f"Original command and {len(alternatives_tried)} alternatives failed. Original error: {standard_result.message}",
         )
-    except Exception as e:
-        logger.exception(f"An unexpected error occurred while running vetted command '{command}': {e}")
-        return ExecuteVettedShellCommandOutput(
-            stdout=None,
-            stderr=_truncate_output(f"An unexpected error occurred: {e}", MAX_OUTPUT_CAPTURE_LENGTH, TRUNCATE_HEAD_TAIL_LENGTH),
-            return_code=-3,
-            command_executed=command,
-            status="error",
-            message=f"An unexpected error occurred: {e}"
-        )
+    
+    # For non-parsing errors, return the original error with suggestions
+    suggestions = suggest_command_alternatives(command)
+    return ExecuteVettedShellCommandWithRetryOutput(
+        status="error",
+        stdout=standard_result.stdout,
+        stderr=standard_result.stderr,
+        return_code=standard_result.return_code,
+        command_executed=standard_result.command_executed,
+        suggestions=suggestions,
+        message=standard_result.message,
+    )
 
 
 # --- Tool Registrations --- # <-- Added section (optional but good practice)
@@ -436,3 +677,4 @@ configure_shell_whitelist_tool = FunctionTool(configure_shell_whitelist)
 check_command_exists_tool = FunctionTool(check_command_exists)
 check_shell_command_safety_tool = FunctionTool(check_shell_command_safety)
 execute_vetted_shell_command_tool = FunctionTool(execute_vetted_shell_command)
+execute_vetted_shell_command_with_retry_tool = FunctionTool(execute_vetted_shell_command_with_retry)

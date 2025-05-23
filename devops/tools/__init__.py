@@ -36,6 +36,7 @@ from .shell_command import (
     configure_shell_approval_tool,
     configure_shell_whitelist_tool,
     execute_vetted_shell_command_tool,
+    execute_vetted_shell_command_with_retry_tool,
 )
 
 # Export search tools
@@ -69,6 +70,7 @@ __all__ = [
     "configure_shell_approval_tool",
     "configure_shell_whitelist_tool",
     "execute_vetted_shell_command_tool",
+    "execute_vetted_shell_command_with_retry_tool",
     # Code Analysis Tools (add if needed by root agent, or keep in sub-agent)
     # "analyze_code_tool",
     # "get_analysis_issues_by_severity_tool",

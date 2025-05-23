@@ -90,6 +90,97 @@ def display_unhandled_error(console: Console, error_type: str, error_message: st
     except Exception as e:
         logger.error(f"Error displaying unhandled error panel: {e}")
 
+def display_tool_error(console: Console, tool_name: str, error_response: dict, duration: float):
+    """Displays a tool error in a Rich panel."""
+    try:
+        error_message = error_response.get("message", "Unknown error")
+        error_summary = escape(error_message[:500])
+        content = Text.from_markup(
+            f"[dim][b]Tool:[/b] {escape(tool_name)}\n"
+            f"[b]Error:[/b] {error_summary}{'...' if len(error_message) > 500 else ''}\n"
+            f"[b]Duration:[/b] {duration:.4f} seconds[/dim]"
+        )
+        panel = Panel(
+            content,
+            title="[red]❌ Tool Error[/red]",
+            border_style="red",
+            expand=False
+        )
+        console.print(panel)
+    except Exception as e:
+        logger.error(f"Error displaying tool error: {e}")
+
+def display_tool_error_with_suggestions(console: Console, tool_name: str, error_response: dict, duration: float):
+    """Displays a tool error with suggestions in a Rich panel."""
+    try:
+        error_message = error_response.get("message", "Unknown error")
+        suggestions = error_response.get("suggestions", [])
+        alternatives_tried = error_response.get("alternatives_tried", [])
+        
+        # Split message at the suggestion marker if present
+        if "💡" in error_message:
+            base_error, suggestion_text = error_message.split("💡", 1)
+            base_error = base_error.strip()
+            suggestion_text = "💡" + suggestion_text
+        else:
+            base_error = error_message
+            suggestion_text = ""
+        
+        content_parts = [
+            f"[dim][b]Tool:[/b] {escape(tool_name)}[/dim]",
+            f"[red][b]Error:[/b] {escape(base_error[:300])}{'...' if len(base_error) > 300 else ''}[/red]"
+        ]
+        
+        if suggestion_text:
+            content_parts.append(f"[yellow]{escape(suggestion_text)}[/yellow]")
+        
+        if alternatives_tried:
+            content_parts.append(f"[dim][b]Alternatives Tried:[/b] {len(alternatives_tried)}[/dim]")
+        
+        if suggestions:
+            content_parts.append(f"[blue][b]Additional Suggestions:[/b] {len(suggestions)} available[/blue]")
+        
+        content_parts.append(f"[dim][b]Duration:[/b] {duration:.4f} seconds[/dim]")
+        
+        content = Text.from_markup("\n".join(content_parts))
+        panel = Panel(
+            content,
+            title="[red]❌ Tool Error with Recovery Options[/red]",
+            border_style="red",
+            expand=False
+        )
+        console.print(panel)
+    except Exception as e:
+        logger.error(f"Error displaying tool error with suggestions: {e}")
+
+def display_retry_suggestions(console: Console, command: str, suggestions: list):
+    """Displays command retry suggestions in a Rich panel."""
+    try:
+        content_parts = [
+            f"[b]Original Command:[/b] {escape(command[:100])}{'...' if len(command) > 100 else ''}",
+            "[b]Suggested Alternatives:[/b]"
+        ]
+        
+        for i, suggestion in enumerate(suggestions[:5], 1):  # Show max 5 suggestions
+            if suggestion.startswith("#"):
+                content_parts.append(f"  [dim]{escape(suggestion)}[/dim]")
+            else:
+                content_parts.append(f"  {i}. [cyan]{escape(suggestion)}[/cyan]")
+        
+        if len(suggestions) > 5:
+            content_parts.append(f"  [dim]... and {len(suggestions) - 5} more suggestions[/dim]")
+        
+        content = Text.from_markup("\n".join(content_parts))
+        panel = Panel(
+            content,
+            title="[yellow]💡 Command Retry Suggestions[/yellow]",
+            border_style="yellow",
+            expand=False
+        )
+        console.print(panel)
+    except Exception as e:
+        logger.error(f"Error displaying retry suggestions: {e}")
+
 # --- Simple Text Messages (can be expanded) ---
 def print_message(console: Console, message: str, style: str = ""):
     """Prints a simple message to the console, optionally styled."""

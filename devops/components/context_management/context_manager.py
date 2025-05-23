@@ -12,6 +12,8 @@ from google.genai.types import Content, Part, CountTokensResponse # For native t
 from .proactive_context import ProactiveContextGatherer
 from .smart_prioritization import SmartPrioritizer
 from .cross_turn_correlation import CrossTurnCorrelator
+from .intelligent_summarization import IntelligentSummarizer, SummarizationContext, ContentType
+from .dynamic_context_expansion import DynamicContextExpander, ExpansionContext, DiscoveredContent
 
 # Attempt to import tiktoken for accurate token counting
 try:
@@ -122,6 +124,10 @@ class ContextManager:
         # Initialize smart prioritizer and cross-turn correlator for Phase 2 enhancements
         self.smart_prioritizer = SmartPrioritizer()
         self.cross_turn_correlator = CrossTurnCorrelator()
+        
+        # Initialize intelligent summarizer and dynamic context expander
+        self.intelligent_summarizer = IntelligentSummarizer()
+        self.dynamic_expander = DynamicContextExpander(workspace_root=".")
         
         # Log detailed configuration information for optimization analysis
         self._log_configuration()
@@ -379,7 +385,8 @@ class ContextManager:
                     logger.info(f"Original Stdout Size: {len(stdout):,} characters")
                     if "[Output truncated" in stdout:
                         logger.info("Stdout Transformation: Already truncated by tool")
-                        parts.append(f"Stdout was large and truncated. First/last parts: {stdout.split('\\n', 1)[-1]}") # Show after truncation message
+                        newline = '\n'
+                        parts.append(f"Stdout was large and truncated. First/last parts: {stdout.split(newline, 1)[-1]}") # Show after truncation message
                     else:
                         logger.info(f"Stdout Transformation: Truncating to {MAX_SUMMARY_LEN // 2} characters")
                         parts.append(f"Stdout: {stdout[:MAX_SUMMARY_LEN // 2]}") # Show more stdout with increased limits
@@ -388,7 +395,8 @@ class ContextManager:
                     logger.info(f"Original Stderr Size: {len(stderr):,} characters")
                     if "[Output truncated" in stderr:
                         logger.info("Stderr Transformation: Already truncated by tool")
-                        parts.append(f"Stderr was large and truncated. First/last parts: {stderr.split('\\n', 1)[-1]}")
+                        newline = '\n'
+                        parts.append(f"Stderr was large and truncated. First/last parts: {stderr.split(newline, 1)[-1]}")
                     else:
                         logger.info(f"Stderr Transformation: Truncating to {MAX_SUMMARY_LEN // 2} characters")
                         parts.append(f"Stderr: {stderr[:MAX_SUMMARY_LEN // 2]}")
@@ -501,7 +509,8 @@ class ContextManager:
         logger.info("=" * 60)
         logger.info(f"Max LLM Token Limit: {self.max_token_limit:,}")
         logger.info(f"Base Prompt Tokens: {base_prompt_tokens:,}")
-        logger.info(f"Context Wrapper Overhead: {self._count_tokens('SYSTEM CONTEXT (JSON):\\n```json\\n```\\nUse this context to inform your response. Do not directly refer to this context block.'):,}")
+        wrapper_text = 'SYSTEM CONTEXT (JSON):\n```json\n```\nUse this context to inform your response. Do not directly refer to this context block.'
+        logger.info(f"Context Wrapper Overhead: {self._count_tokens(wrapper_text):,}")
         logger.info(f"Safety Margin: 50")
         logger.info(f"Available Tokens for Context: {available_tokens:,}")
         logger.info("=" * 60)
@@ -963,3 +972,110 @@ class ContextManager:
 
     def get_relevant_code_for_file(self, file_path: str) -> List[CodeSnippet]:
         return [s for s in self.code_snippets if s.file_path == file_path]
+
+    def expand_context_dynamically(
+        self,
+        current_errors: List[str] = None,
+        max_expansion_files: int = 10
+    ) -> List[DiscoveredContent]:
+        """Perform dynamic context expansion to discover relevant files."""
+        
+        if current_errors is None:
+            current_errors = []
+        
+        # Extract current files in context
+        current_files = set()
+        for snippet in self.code_snippets:
+            current_files.add(snippet.file_path)
+        for file_path in self.state.last_modified_files:
+            current_files.add(file_path)
+        
+        # Extract keywords from current goal and phase
+        keywords = []
+        if self.state.core_goal:
+            keywords.extend([word for word in self.state.core_goal.split() if len(word) > 3])
+        if self.state.current_phase:
+            keywords.extend([word for word in self.state.current_phase.split() if len(word) > 3])
+        
+        # Create expansion context
+        expansion_context = ExpansionContext(
+            current_task=self.state.core_goal,
+            error_context=len(current_errors) > 0,
+            file_context=current_files,
+            keywords=keywords,
+            max_files_to_explore=max_expansion_files,
+            max_depth=3,
+            current_working_directory="."
+        )
+        
+        # Perform expansion
+        discovered_content = self.dynamic_expander.expand_context(
+            expansion_context, current_files, current_errors
+        )
+        
+        return discovered_content
+    
+    def auto_add_discovered_content(
+        self,
+        discovered_content: List[DiscoveredContent],
+        max_files_to_add: int = 5
+    ) -> int:
+        """Automatically add discovered content to context."""
+        
+        added_count = 0
+        
+        for content in discovered_content[:max_files_to_add]:
+            try:
+                if content.content_type in ['python_code', 'js_code'] and content.size_bytes < 50000:
+                    # Add code files as code snippets
+                    with open(content.full_path, 'r', encoding='utf-8') as f:
+                        file_content = f.read()
+                    
+                    # Add as full file content
+                    self.add_full_file_content(content.file_path, file_content)
+                    added_count += 1
+                    logger.info(f"AUTO-ADDED: Code file {content.file_path} ({content.relevance_score:.2f})")
+                
+                elif content.content_type in ['config', 'dependency'] and content.size_bytes < 20000:
+                    # Add config files to context
+                    with open(content.full_path, 'r', encoding='utf-8') as f:
+                        file_content = f.read()
+                    
+                    # Create a summarized version for config files
+                    context = SummarizationContext(
+                        current_task=self.state.core_goal,
+                        relevant_keywords=[word for word in self.state.core_goal.split() if len(word) > 3] if self.state.core_goal else [],
+                        target_length=1000
+                    )
+                    
+                    summary = self.intelligent_summarizer.summarize_content(
+                        file_content, context, ContentType.CONFIGURATION
+                    )
+                    
+                    self.add_code_snippet(content.file_path, summary, 1, len(file_content.split('\n')))
+                    added_count += 1
+                    logger.info(f"AUTO-ADDED: Config file {content.file_path} (summarized, {content.relevance_score:.2f})")
+                
+                elif content.content_type == 'documentation' and content.size_bytes < 30000:
+                    # Add documentation with summarization
+                    with open(content.full_path, 'r', encoding='utf-8') as f:
+                        file_content = f.read()
+                    
+                    context = SummarizationContext(
+                        current_task=self.state.core_goal,
+                        relevant_keywords=[word for word in self.state.core_goal.split() if len(word) > 3] if self.state.core_goal else [],
+                        target_length=800
+                    )
+                    
+                    summary = self.intelligent_summarizer.summarize_content(
+                        file_content, context, ContentType.DOCUMENTATION
+                    )
+                    
+                    self.add_code_snippet(content.file_path, summary, 1, len(file_content.split('\n')))
+                    added_count += 1
+                    logger.info(f"AUTO-ADDED: Documentation {content.file_path} (summarized, {content.relevance_score:.2f})")
+                    
+            except Exception as e:
+                logger.warning(f"Could not auto-add discovered content {content.file_path}: {e}")
+        
+        return added_count
