@@ -622,6 +622,9 @@ Begin execution now, starting with the first step."""
                     elif "500" in error_message and ("INTERNAL" in error_message or "ServerError" in error_message):
                         logger.warning(f"Agent {self.name}: Encountered 500 INTERNAL error (attempt {retry_count + 1}/{max_retries + 1})")
                         should_retry = True
+                    elif "JSONDecodeError" in str(type(e).__name__) or "JSON" in error_message:
+                        logger.warning(f"Agent {self.name}: Encountered JSON parsing error (attempt {retry_count + 1}/{max_retries + 1}): {error_message}")
+                        should_retry = True
                     
                     if should_retry and retry_count < max_retries:
                         retry_count += 1
@@ -654,6 +657,12 @@ Begin execution now, starting with the first step."""
                     f"I encountered API rate limits or server issues. "
                     f"I tried optimizing the request and retrying, but the issue persists. "
                     f"Please try again in a few moments or with a simpler request."
+                )
+            elif "JSONDecodeError" in error_type or "JSON" in error_message:
+                logger.error(f"Agent {self.name}: JSON parsing error after all retry attempts: {error_type}: {error_message}")
+                user_facing_error = (
+                    f"I encountered a communication issue with the AI service. "
+                    f"This appears to be a temporary issue. Please try your request again."
                 )
             else:
                 logger.error(
