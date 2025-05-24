@@ -12,4 +12,4 @@ echo -e "${1:-'Tell the user to run prompt.sh script with a prompt'}\napprove\ne
     --with tiktoken \
     --python 3.13 \
     --from git+https://github.com/BlueCentre/adk-python.git@feat/rich-click \
-    adk run devops
+    adk run devops 2>&1 | grep -v "Warning: Error during MCP session cleanup: Attempted to exit a cancel scope that isn't the current tasks's current cancel scope"
