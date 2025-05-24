@@ -509,7 +509,7 @@ Begin execution now, starting with the first step."""
                     enhanced_message = (
                         f"{error_message}\n\n"
                         f"💡 Command not found. Consider:\n"
-                        f"1. Checking if the command is installed using 'check_command_exists'\n"
+                        f"1. Trying to find the command using common paths\n"
                         f"2. Verifying the correct spelling and path\n"
                         f"3. Installing the required package if missing"
                     )

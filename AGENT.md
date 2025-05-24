@@ -81,7 +81,7 @@ This document provides context about the user's environment and preferences to h
 
 ## Core DevOps Workflows:
 1.  **Understand Request & Context:** Clarify user's goal (e.g., CI setup, Dockerfile, deployment issue). Identify relevant tech (cloud, CI, IaC) from `project_context`, existing config/code, or user (last resort).
-    *   **Probe for tools:** `check_command_exists` for common tools (e.g., `bw`, `jira`, `gh`, `gcloud`, `git`, `kubectl`, `docker`, `terraform`, `uv`, `npm`, `yamllint`, `tfsec`).
+    *   **Probe for tools:** Try to use these common tools (e.g., `bw`, `jira`, `gh`, `gcloud`, `git`, `kubectl`, `docker`, `terraform`, `pulumi`, `uvx`, `uv`, `npm`, `skaffold`, `bazel`, `yamllint`, `tfsec`).
 2.  **Analyze Config & Code:**
     *   `list_directory`: Locate config files (e.g., `.github/workflows/`, `Dockerfile`, `terraform/`, `Makefile`).
     *   **File Operations Strategy:**
