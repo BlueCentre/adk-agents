@@ -235,6 +235,8 @@ class MyDevopsAgent(LlmAgent):
         if approved_plan_text:
             logger.info("MyDevopsAgent: Plan approved. Adding to context.state as system message.")
             current_turn = callback_context.state.get('temp:current_turn', {})
+            if current_turn is None:
+                current_turn = {}
             system_message = f"SYSTEM: The user has approved the following plan. Proceed with implementation:\n{approved_plan_text}"
             current_turn['system_message_plan'] = system_message
             callback_context.state['temp:current_turn'] = current_turn
@@ -354,6 +356,8 @@ Begin execution now, starting with the first step."""
         if processed_response["function_calls"]:
             logger.info(f"Handle function calls here: {processed_response['function_calls']}")
             current_turn = callback_context.state.get('temp:current_turn', {})
+            if current_turn is None:
+                current_turn = {}
             current_turn['function_calls'] = processed_response["function_calls"]
             callback_context.state['temp:current_turn'] = current_turn
 
