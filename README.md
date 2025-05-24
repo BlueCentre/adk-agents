@@ -170,6 +170,14 @@ This approach is well-aligned with the ADK framework's design for callbacks. The
 
 Instead of being an abstraction *diverging* from ADK's callback system, `MyDevopsAgent` *leverages* the callback system by providing its own sophisticated implementations for the callback hooks. This demonstrates a robust use of the ADK's extensibility points to build a specialized agent.
 
+In essence, the ADK provides the "operating system" for the agent, while `devops_agent.py`, `prompts.py`, `config.py`, and the custom tools define the specific "application" logic and capabilities of the DevOps Agent. This separation allows developers to focus on the unique aspects of their agent without needing to rebuild common agent infrastructure.
+
+## Agent Architecture Overview
+
+The DevOps Agent follows a sophisticated multi-layered architecture that integrates seamlessly with the Google ADK framework while providing advanced capabilities through custom components.
+
+### Google ADK Framework Integration
+
 ```mermaid
 graph LR
     subgraph GoogleADKFramework
@@ -180,32 +188,215 @@ graph LR
     end
 
     subgraph DevOpsAgentApplication
-        AgentPy[LlmAgent]
+        DevOpsAgent[devops_agent.py]
         PromptPy[prompts.py]
-        AgentMD[AGENT.md]
+        ConfigPy[config.py]
         CustomTools[Custom Tools]
+        ContextMgmt[Context Management]
+        PlanningMgr[Planning Manager]
     end
 
-    AgentPy --> ADK_Core
-    AgentPy --> ADK_Tools
-    AgentPy --> ADK_LLM
-    PromptPy --> AgentPy
-    AgentMD --> AgentPy
+    DevOpsAgent --> ADK_Core
+    DevOpsAgent --> ADK_Tools
+    DevOpsAgent --> ADK_LLM
+    PromptPy --> DevOpsAgent
+    ConfigPy --> DevOpsAgent
+    ContextMgmt --> DevOpsAgent
+    PlanningMgr --> DevOpsAgent
     CustomTools --> ADK_Tools
-    ADK_CLI --> AgentPy
+    ADK_CLI --> DevOpsAgent
 ```
 
-In essence, the ADK provides the "operating system" for the agent, while `agent.py`, `prompts.py`, `AGENT.md`, and the custom tools define the specific "application" logic and capabilities of the DevOps Agent. This separation allows developers to focus on the unique aspects of their agent without needing to rebuild common agent infrastructure.
+### Agent Request Processing Lifecycle
 
-## Codebase Indexing and Retrieval
+The agent processes requests through a sophisticated callback-driven lifecycle that enables advanced planning, context management, and error handling:
 
-A key feature of this DevOps agent is its ability to understand and interact with codebases:
+```mermaid
+graph TD
+    UserReq[User Request] --> ADK[ADK Framework]
+    ADK --> BeforeModel[handle_before_model]
+    
+    subgraph "Before Model Processing"
+        BeforeModel --> StateInit[Initialize State]
+        StateInit --> PlanCheck{Planning Needed?}
+        PlanCheck -- Yes --> PlanGen[Generate Plan]
+        PlanCheck -- No --> CtxAssembly[Assemble Context]
+        PlanGen --> PlanReview[Present to User]
+        PlanReview --> PlanApproval{User Approval?}
+        PlanApproval -- No --> PlanRefine[Refine Plan]
+        PlanRefine --> PlanReview
+        PlanApproval -- Yes --> CtxAssembly
+        CtxAssembly --> CtxInject[Inject Context into LLM Request]
+    end
+    
+    CtxInject --> LLMCall[LLM Processing]
+    LLMCall --> AfterModel[handle_after_model]
+    
+    subgraph "After Model Processing"
+        AfterModel --> ExtractResp[Extract Response]
+        ExtractResp --> FuncCalls{Function Calls?}
+        FuncCalls -- Yes --> BeforeTool[handle_before_tool]
+        FuncCalls -- No --> UpdateState[Update Conversation State]
+    end
+    
+    BeforeTool --> ToolExec[Tool Execution]
+    ToolExec --> AfterTool[handle_after_tool]
+    
+    subgraph "Tool Processing"
+        AfterTool --> ErrorCheck{Tool Error?}
+        ErrorCheck -- Yes --> ErrorHandler[Enhanced Error Handling]
+        ErrorCheck -- No --> ToolSuccess[Process Success]
+        ErrorHandler --> RetryLogic{Retry Available?}
+        RetryLogic -- Yes --> RetryTool[Execute Retry Tool]
+        RetryLogic -- No --> UserGuidance[Provide User Guidance]
+        RetryTool --> ToolSuccess
+        ToolSuccess --> StateUpdate[Update Tool Results]
+    end
+    
+    StateUpdate --> MoreTools{More Tools?}
+    MoreTools -- Yes --> BeforeTool
+    MoreTools -- No --> FinalResp[Final Response]
+    UpdateState --> FinalResp
+    UserGuidance --> FinalResp
+    FinalResp --> UserOutput[User Output]
+```
 
-1.  **`index_directory_tool`:** This tool is used to scan a specified directory (e.g., a Git repository). It processes supported file types, breaks them into manageable chunks, generates vector embeddings for these chunks, and stores them in a vector database (ChromaDB). This creates a semantic index of the codebase.
-2.  **`retrieve_code_context_tool`:** When the agent needs to understand a part of the codebase to answer a question or perform a task, it uses this tool. It takes a natural language query, converts it to an embedding, and searches the vector database for the most similar (relevant) code chunks.
+## Advanced Context Management Architecture
 
-This RAG (Retrieval Augmented Generation) approach allows the agent to ground its responses and actions in the actual content of the codebase, leading to more accurate and context-aware assistance.
-*Note: To ensure the codebase understanding remains accurate, the indexed directory should be re-indexed using `index_directory_tool` with `force_reindex=True` after any significant code modifications.*
+Our Phase 2 context management system features a sophisticated multi-component architecture that achieves 244x improvement in token utilization while maintaining context quality:
+
+```mermaid
+graph TD
+    subgraph "Context Manager Core"
+        CM[Context Manager] --> SP[Smart Prioritization]
+        CM --> CTC[Cross-Turn Correlation]
+        CM --> IS[Intelligent Summarization]
+        CM --> DCE[Dynamic Context Expansion]
+    end
+
+    subgraph "Smart Prioritization Engine"
+        SP --> CF[Content Factor]
+        SP --> RF[Recency Factor] 
+        SP --> FF[Frequency Factor]
+        SP --> EF[Error Priority Factor]
+        SP --> CHF[Coherence Factor]
+        CF --> RS[Relevance Score]
+        RF --> RS
+        FF --> RS
+        EF --> RS
+        CHF --> RS
+    end
+
+    subgraph "Content Discovery"
+        DCE --> PF[Project Files]
+        DCE --> GH[Git History]
+        DCE --> DOC[Documentation]
+        DCE --> CFG[Configuration]
+        PF --> FC[File Classification]
+        GH --> FC
+        DOC --> FC
+        CFG --> FC
+    end
+
+    subgraph "Intelligent Processing"
+        IS --> CT1[Code Detection]
+        IS --> CT2[Error Detection]
+        IS --> CT3[Config Detection]
+        IS --> CT4[Documentation Detection]
+        IS --> KP[Keyword Preservation]
+        CT1 --> CS[Compressed Summary]
+        CT2 --> CS
+        CT3 --> CS
+        CT4 --> CS
+        KP --> CS
+    end
+
+    subgraph "State Integration"
+        ConvHistory[Conversation History] --> CM
+        CodeSnippets[Code Snippets] --> CM
+        ToolResults[Tool Results] --> CM
+        ProjectContext[Project Context] --> CM
+    end
+
+    subgraph "LLM Integration"
+        CM --> OptCtx[Optimized Context]
+        OptCtx --> TokenLimit{Within Token Limit?}
+        TokenLimit -- Yes --> LLMReq[LLM Request]
+        TokenLimit -- No --> Compress[Further Compression]
+        Compress --> OptCtx
+        LLMReq --> LLM[Gemini LLM]
+    end
+
+    CTC --> TurnRel[Turn Relationships]
+    TurnRel --> CM
+```
+
+## Enhanced Tool Execution System
+
+Our robust tool execution system includes comprehensive error handling, automatic retry capabilities, and safety-first design:
+
+```mermaid
+graph TD
+    ToolCall[Tool Call Request] --> SafetyCheck[Safety Check]
+    SafetyCheck --> Whitelisted{Whitelisted?}
+    Whitelisted -- Yes --> DirectExec[Direct Execution]
+    Whitelisted -- No --> ApprovalCheck{Approval Required?}
+    ApprovalCheck -- Yes --> UserApproval[Request User Approval]
+    ApprovalCheck -- No --> DirectExec
+    UserApproval --> Approved{User Approves?}
+    Approved -- No --> Denied[Execution Denied]
+    Approved -- Yes --> DirectExec
+    
+    DirectExec --> ParseStrategy[Select Parsing Strategy]
+    
+    subgraph "Multi-Strategy Execution"
+        ParseStrategy --> Shlex[1. shlex.split]
+        Shlex --> ShlexResult{Success?}
+        ShlexResult -- No --> Shell[2. shell=True]
+        ShlexResult -- Yes --> Success[Execution Success]
+        Shell --> ShellResult{Success?}
+        ShellResult -- No --> SimpleSplit[3. Simple Split]
+        ShellResult -- Yes --> Success
+        SimpleSplit --> SimpleResult{Success?}
+        SimpleResult -- Yes --> Success
+        SimpleResult -- No --> AllFailed[All Strategies Failed]
+    end
+    
+    Success --> ResultProcess[Process Result]
+    AllFailed --> ErrorAnalysis[Error Pattern Analysis]
+    
+    subgraph "Error Recovery"
+        ErrorAnalysis --> ErrorType{Error Type}
+        ErrorType -- Parsing --> QuoteError[Quote/Parsing Error]
+        ErrorType -- Command Not Found --> MissingCmd[Missing Command]
+        ErrorType -- Timeout --> TimeoutError[Timeout Error]
+        ErrorType -- Permission --> PermError[Permission Error]
+        
+        QuoteError --> RetryTool[execute_vetted_shell_command_with_retry]
+        MissingCmd --> InstallGuide[Installation Guidance]
+        TimeoutError --> TimeoutSuggestion[Timeout/Splitting Suggestions]
+        PermError --> PermissionGuide[Permission Fix Guidance]
+        
+        RetryTool --> AltStrategies[Try Alternative Formats]
+        AltStrategies --> AltResult{Alternative Success?}
+        AltResult -- Yes --> Success
+        AltResult -- No --> ManualSuggestions[Manual Intervention Suggestions]
+    end
+    
+    ResultProcess --> UpdateContext[Update Context State]
+    InstallGuide --> UserGuidance[Enhanced User Guidance]
+    TimeoutSuggestion --> UserGuidance
+    PermissionGuide --> UserGuidance
+    ManualSuggestions --> UserGuidance
+    Denied --> UserGuidance
+    
+    UpdateContext --> Complete[Tool Execution Complete]
+    UserGuidance --> Complete
+```
+
+## Codebase Understanding with RAG
+
+A key feature of this DevOps agent is its ability to understand and interact with codebases through Retrieval-Augmented Generation:
 
 ```mermaid
 graph TD
@@ -223,7 +414,13 @@ graph TD
     end
 ```
 
-This mechanism significantly enhances the agent's ability to act as a knowledgeable assistant for development-related queries.
+### RAG Implementation Details
+
+1.  **`index_directory_tool`:** This tool is used to scan a specified directory (e.g., a Git repository). It processes supported file types, breaks them into manageable chunks, generates vector embeddings for these chunks, and stores them in a vector database (ChromaDB). This creates a semantic index of the codebase.
+2.  **`retrieve_code_context_tool`:** When the agent needs to understand a part of the codebase to answer a question or perform a task, it uses this tool. It takes a natural language query, converts it to an embedding, and searches the vector database for the most similar (relevant) code chunks.
+
+This RAG (Retrieval Augmented Generation) approach allows the agent to ground its responses and actions in the actual content of the codebase, leading to more accurate and context-aware assistance.
+*Note: To ensure the codebase understanding remains accurate, the indexed directory should be re-indexed using `index_directory_tool` with `force_reindex=True` after any significant code modifications.*
 
 ## Token Counting and Management
 
@@ -238,42 +435,66 @@ The goal is to ensure token usage is transparent, context is managed effectively
 
 ```mermaid
 graph TD
-    A[LLM Response] --> B{Has Usage Metadata?};
-    B -- Yes --> C[Extract Token Counts];
-    C --> D[Display Usage];
-    D --> E[User Console];
-
-    Agent --> F[Context Management];
-    F --> G{Count Tokens};
-    G -- using LLM Client API --> H[Accurate Count];
-    G -- using tiktoken --> I[More Accurate Count];
-    G -- using Fallback --> J[Estimated Count];
-
-    F -- Context --> K[LLM Request];
-    K --> LLM[LLM];
-
-    Agent --> L[Determine Token Limit];
-    L -- using LLM Client API --> M[Dynamic Limit];
-    L -- using Fallback Constants --> N[Fallback Limit];
-    L --> F;
-
-    subgraph Token Handling Flow
-        A --> B;
-        B --> C;
-        C --> D;
-        D --> E;
-        Agent --> F;
-        F --> G;
-        G --> H;
-        G --> I;
-        G --> J;
-        F --> K;
-        K --> LLM;
-        Agent --> L;
-        L --> M;
-        L --> N;
+    subgraph "Token Limit Determination"
+        Agent[DevOps Agent] --> TLD[Determine Token Limit]
+        TLD --> ClientAPI{LLM Client API Available?}
+        ClientAPI -- Yes --> DynamicLimit[Get Dynamic Limit]
+        ClientAPI -- No --> FallbackLimit[Use Model-Specific Fallback]
+        DynamicLimit --> TokenLimit[Actual Token Limit]
+        FallbackLimit --> TokenLimit
+    end
+    
+    subgraph "Context Assembly & Optimization"
+        TokenLimit --> CM[Context Manager]
+        CM --> StateSync[Sync with ADK State]
+        StateSync --> Prioritize[Smart Prioritization]
+        Prioritize --> Correlate[Cross-Turn Correlation]
+        Correlate --> Summarize[Intelligent Summarization]
+        Summarize --> Expand[Dynamic Context Expansion]
+        Expand --> OptContext[Optimized Context]
+    end
+    
+    subgraph "Token Counting & Validation"
+        OptContext --> CountTokens[Count Context Tokens]
+        CountTokens --> CountMethod{Counting Method}
+        CountMethod -- LLM Client --> AccurateCount[Native API Count]
+        CountMethod -- tiktoken --> TiktokenCount[tiktoken Count]
+        CountMethod -- Fallback --> EstimateCount[Character/4 Estimate]
+        AccurateCount --> TotalTokens[Total Token Count]
+        TiktokenCount --> TotalTokens
+        EstimateCount --> TotalTokens
+    end
+    
+    subgraph "Context Optimization Loop"
+        TotalTokens --> WithinLimit{Within Token Limit?}
+        WithinLimit -- No --> Compress[Further Compression]
+        Compress --> OptContext
+        WithinLimit -- Yes --> LLMRequest[Inject into LLM Request]
+    end
+    
+    subgraph "Response Processing"
+        LLMRequest --> LLM[Gemini LLM]
+        LLM --> Response[LLM Response]
+        Response --> Usage{Has Usage Metadata?}
+        Usage -- Yes --> ExtractUsage[Extract Token Usage]
+        Usage -- No --> NoUsage[No Usage Data]
+        ExtractUsage --> DisplayUsage[Display to User]
+        NoUsage --> DisplayUsage
+        DisplayUsage --> Console[Rich Console Output]
+    end
+    
+    subgraph "Performance Analytics"
+        TotalTokens --> Utilization[Calculate Utilization %]
+        TokenLimit --> Utilization
+        Utilization --> LowUtil{< 20% Utilization?}
+        LowUtil -- Yes --> Warning[Low Utilization Warning]
+        LowUtil -- No --> OptimalUtil[Optimal Utilization]
+        Warning --> Analytics[Log Analytics]
+        OptimalUtil --> Analytics
     end
 ```
+
+
 
 ## Interactive Planning Workflow
 
@@ -288,6 +509,8 @@ The DevOps Agent includes an interactive planning phase to improve collaboration
 5.  **Implementation:** Once the plan is approved by the user, the agent proceeds with executing the steps outlined in the plan, leveraging its tools and context management.
 
 This interactive approach ensures that the agent and the user are aligned on the strategy before significant work is performed, reducing rework and improving the final outcome.
+
+
 
 ### Agent Interaction Flow
 

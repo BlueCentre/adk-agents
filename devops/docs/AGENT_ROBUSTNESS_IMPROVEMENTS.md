@@ -66,7 +66,7 @@ This document outlines the comprehensive improvements made to the DevOps Agent t
 ### 4. Repository Management Enhancements
 
 #### **Robust Grooming Script**
-- **Location**: `groom_robust.sh`
+- **Location**: `groom.sh`
 - **Features**:
   - **Error Resilience Guidelines**: Instructions for handling various failure scenarios
   - **Recovery Strategies**: Specific approaches for git, parsing, and permission errors
