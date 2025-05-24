@@ -167,6 +167,14 @@ class MyDevopsAgent(LlmAgent):
         logger.info(f"Using fallback token limit for {model_to_check}: {self._actual_llm_token_limit}")
 
     def _start_status(self, message: str):
+        """
+        Starts the status spinner.
+
+        We call ui_utils.stop_status_spinner to stop the status spinner if it is already running.
+        This is to avoid the status spinner from being displayed twice.
+        We then call ui_utils.start_status_spinner to start the status spinner with the new message.
+        We then set the _status_indicator to the new status indicator.
+        """
         ui_utils.stop_status_spinner(self._status_indicator)
         self._status_indicator = ui_utils.start_status_spinner(self._console, message)
 
@@ -277,11 +285,13 @@ Begin execution now, starting with the first step."""
                 
                 llm_request.contents = new_contents
 
-            self._start_status("[bold yellow](Agent is implementing the plan...)")
+            self._start_status("[bold yellow](Agent is implementing the plan...)[/bold yellow]")
 
         is_currently_a_plan_generation_turn = self._planning_manager.is_plan_generation_turn
 
         if not is_currently_a_plan_generation_turn:
+            # Add status indicator for regular turns
+            self._start_status("[bold blue](Agent is thinking...)[/bold blue]")
             logger.info("Assembling context from context.state (user:conversation_history, temp:tool_results, etc.)")
             context_dict = self._assemble_context_from_state(callback_context.state)
             context_tokens = self._count_context_tokens(context_dict)
