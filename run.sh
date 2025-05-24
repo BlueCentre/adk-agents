@@ -11,4 +11,4 @@ PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python uvx \
   --no-cache \
   --python 3.13 \
   --from git+https://github.com/BlueCentre/adk-python.git@feat/rich-click \
-  adk run "${1:-devops}" 2>&1 | grep -v "Warning: Error during MCP session cleanup: Attempted to exit a cancel scope that isn't the current tasks's current cancel scope"
+  adk run "${1:-devops}" || echo "🙈 Ignore the error above. It's caused by Google ADK."
