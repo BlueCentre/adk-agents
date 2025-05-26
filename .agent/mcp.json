@@ -15,6 +15,9 @@
         "MEMORY_FILE_PATH": "/tmp/.server-memory.json"
       }
     },
+    "gitmcp-adk": {
+      "url": "https://gitmcp.io/google/adk-python"
+    },
     "sonarqube": {
       "command": "npx",
       "args": [

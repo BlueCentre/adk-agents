@@ -30,8 +30,8 @@ DEFAULT_SUMMARIZER_MODEL = os.getenv("SUMMARIZER_MODEL", GEMINI_FLASH_MODEL_NAME
 
 # --- LLM Generation Configuration ---
 MAIN_LLM_GENERATION_CONFIG = genai_types.GenerateContentConfig(
-    temperature=0.2,
-    max_output_tokens=8000,
+    temperature=0.3,
+    max_output_tokens=10000,
     safety_settings=[
         genai_types.SafetySetting(
             category=genai_types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
@@ -53,10 +53,10 @@ DEFAULT_TOKEN_LIMIT_FALLBACK = 1000000
 
 # --- Context Management Configuration ---
 # Parameters for tuning the context manager's behavior
-CONTEXT_TARGET_RECENT_TURNS = 5
+CONTEXT_TARGET_RECENT_TURNS = 3
 CONTEXT_TARGET_CODE_SNIPPETS = 5
 CONTEXT_TARGET_TOOL_RESULTS = 3
-CONTEXT_MAX_STORED_CODE_SNIPPETS = 10
+CONTEXT_MAX_STORED_CODE_SNIPPETS = 5
 CONTEXT_MAX_STORED_TOOL_RESULTS = 5
 
 # --- Tool Configuration ---
@@ -87,7 +87,7 @@ if not MCP_ALLOWED_DIRECTORIES:
     logger.info(f"MCP_ALLOWED_DIRECTORIES not set in .env, defaulting to agent directory: {MCP_ALLOWED_DIRECTORIES[0]}")
 
 # --- Feature Flags ---
-ENABLE_INTERACTIVE_PLANNING_STR = os.getenv("ENABLE_INTERACTIVE_PLANNING", "true")
+ENABLE_INTERACTIVE_PLANNING_STR = os.getenv("ENABLE_INTERACTIVE_PLANNING", "false")
 ENABLE_INTERACTIVE_PLANNING = ENABLE_INTERACTIVE_PLANNING_STR.lower() == "true"
 
 ENABLE_CODE_EXECUTION_STR = os.getenv("ENABLE_CODE_EXECUTION", "false")

@@ -23,6 +23,30 @@ from google.adk.tools.base_tool import BaseTool
 from google.adk.tools.tool_context import ToolContext
 from google.adk.events.event import Event, EventActions
 
+# Telemetry and observability imports
+from .telemetry import (
+    telemetry, 
+    track_llm_request, 
+    track_context_operation, 
+    OperationType
+)
+from .tracing import (
+    trace_agent_lifecycle,
+    trace_llm_request,
+    trace_tool_execution,
+    trace_context_operation,
+    trace_tool_operation,
+    agent_tracer
+)
+# from .logging_config import (
+#     agent_logger, 
+#     set_user_context, 
+#     log_operation, 
+#     log_performance_metrics,
+#     log_business_event
+# )
+# from .tools.disabled.analytics import tool_analytics
+
 from .components.planning_manager import PlanningManager
 from .components.context_management import (
     TOOL_PROCESSORS,
@@ -123,48 +147,16 @@ class MyDevopsAgent(LlmAgent):
     def _determine_actual_token_limit(self):
         """Determines the actual token limit for the configured model."""
         model_to_check = self.model or agent_config.DEFAULT_AGENT_MODEL
-        try:
-            if not hasattr(self, 'llm_client') or self.llm_client is None:
-                logger.warning("Cannot determine token limit dynamically: llm_client is None. Using fallbacks.")
-                raise AttributeError("llm_client is None")
-
-            if self.llm_client and isinstance(self.llm_client, genai.Client) and hasattr(self.llm_client, 'get_model'):
-                model_name_for_sdk = self.model
-                if not model_name_for_sdk.startswith("models/"):
-                    model_name_for_sdk = f"models/{model_name_for_sdk}"
-
-                model_info = self.llm_client.get_model(model_name_for_sdk)
-                if model_info and hasattr(model_info, 'input_token_limit'):
-                    self._actual_llm_token_limit = model_info.input_token_limit
-                    logger.info(f"Dynamically fetched token limit for {model_name_for_sdk}: {self._actual_llm_token_limit}")
-                    return
-                else:
-                    logger.warning(f"Could not find input_token_limit in model_info for {model_name_for_sdk}.")
-            else:
-                logger.warning("Llm_client is not an instance of google.genai.Client or models.get is unavailable. Attempting legacy genai.get_model if possible.")
-                if hasattr(genai, 'get_model'):
-                    cleaned_model_name = model_to_check.split('/')[-1]
-                    legacy_model_name = f"models/{cleaned_model_name}"
-                    model_info_legacy = genai.get_model(model_name=legacy_model_name)
-                    if model_info_legacy and hasattr(model_info_legacy, 'input_token_limit'):
-                        self._actual_llm_token_limit = model_info_legacy.input_token_limit
-                        logger.info(f"Dynamically fetched token limit for {legacy_model_name} via legacy genai.get_model: {self._actual_llm_token_limit}")
-                        return
-                    else:
-                        logger.warning(f"Could not find input_token_limit via legacy genai.get_model for {legacy_model_name}.")
-                else:
-                    logger.warning("Legacy genai.get_model is not available. Cannot dynamically fetch token limit.")
-
-        except Exception as e:
-            logger.warning(f"Failed to dynamically fetch token limit for {model_to_check}: {e}. Using fallbacks.")
-
+        
+        # Use fallback values directly to avoid API issues
         if model_to_check == agent_config.GEMINI_FLASH_MODEL_NAME:
             self._actual_llm_token_limit = agent_config.GEMINI_FLASH_TOKEN_LIMIT_FALLBACK
         elif model_to_check == agent_config.GEMINI_PRO_MODEL_NAME:
             self._actual_llm_token_limit = agent_config.GEMINI_PRO_TOKEN_LIMIT_FALLBACK
         else:
             self._actual_llm_token_limit = agent_config.DEFAULT_TOKEN_LIMIT_FALLBACK
-        logger.info(f"Using fallback token limit for {model_to_check}: {self._actual_llm_token_limit}")
+        
+        logger.info(f"Using token limit for {model_to_check}: {self._actual_llm_token_limit}")
 
     def _start_status(self, message: str):
         """
@@ -182,10 +174,18 @@ class MyDevopsAgent(LlmAgent):
         ui_utils.stop_status_spinner(self._status_indicator)
         self._status_indicator = None
 
+    @telemetry.track_operation(OperationType.LLM_REQUEST, "before_model")
     async def handle_before_model(
         self, callback_context: CallbackContext, llm_request: LlmRequest
     ) -> LlmResponse | None:
+        
         user_message_content = get_last_user_content(llm_request)
+        
+        # Track context size for telemetry
+        if llm_request and hasattr(llm_request, 'messages'):
+            context_tokens = self._count_tokens(str(llm_request.messages))
+            telemetry.track_context_usage(context_tokens, "llm_request")
+        
         if callback_context and hasattr(callback_context, 'state') and callback_context.state is not None:
             conversation_history = callback_context.state.get('user:conversation_history', [])
             current_turn = callback_context.state.get('temp:current_turn', {})
@@ -326,9 +326,31 @@ Begin execution now, starting with the first step."""
 
         return None
 
+    # BUG: trace_agent_lifecycle causes 'RecursionError: maximum recursion depth exceeded'
+    # @trace_agent_lifecycle("llm_response_processing")
+    @telemetry.track_operation(OperationType.LLM_REQUEST, "after_model")
     async def handle_after_model(
         self, callback_context: CallbackContext, llm_response: LlmResponse
     ) -> LlmResponse | None:
+        # Track LLM response metrics
+        if hasattr(llm_response, 'usage_metadata') and llm_response.usage_metadata:
+            usage = llm_response.usage_metadata
+            prompt_tokens = getattr(usage, 'prompt_token_count', 0)
+            completion_tokens = getattr(usage, 'candidates_token_count', 0)
+            total_tokens = getattr(usage, 'total_token_count', 0)
+            
+            # Track LLM usage in telemetry
+            telemetry.track_llm_request(
+                model=self.model or agent_config.DEFAULT_AGENT_MODEL,
+                tokens_used=total_tokens,
+                response_time=0,  # We don't have timing here, will be tracked by decorator
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens
+            )
+            
+            # LLM usage tracking is handled by the telemetry decorator
+            pass
+        
         self._stop_status()
 
         planning_intercept_response = await self._planning_manager.handle_after_model_planning_logic(
@@ -465,28 +487,32 @@ Begin execution now, starting with the first step."""
 
         return extracted_data
 
+    @telemetry.track_operation(OperationType.TOOL_EXECUTION, "before_tool")
     async def handle_before_tool(
         self, tool: BaseTool, args: dict, tool_context: ToolContext, callback_context: CallbackContext | None = None
     ) -> dict | None:
-        try:
-            if tool_context and hasattr(tool_context, 'state') and tool_context.state is not None:
-                # Initialize or get the list of tool calls for the current turn
-                tool_calls = tool_context.state.get('temp:tool_calls_current_turn', [])
-                if tool_calls is None: # Ensure tool_calls is a list even if state had None
-                    tool_calls = []
-                tool_calls.append({'tool_name': tool.name, 'args': args})
-                tool_context.state['temp:tool_calls_current_turn'] = tool_calls
-                logger.info(f"Added tool call to context.state: {tool.name} with args: {args}")
-            else:
-                logger.warning("tool_context or tool_context.state is not available in handle_before_tool. Tool call not logged to state.")
+        # Use context manager for tracing instead of decorator
+        with trace_tool_execution(tool.name, operation="preprocessing", args=args):
+            try:
+                if tool_context and hasattr(tool_context, 'state') and tool_context.state is not None:
+                    # Initialize or get the list of tool calls for the current turn
+                    tool_calls = tool_context.state.get('temp:tool_calls_current_turn', [])
+                    if tool_calls is None: # Ensure tool_calls is a list even if state had None
+                        tool_calls = []
+                    tool_calls.append({'tool_name': tool.name, 'args': args})
+                    tool_context.state['temp:tool_calls_current_turn'] = tool_calls
+                    logger.info(f"Added tool call to context.state: {tool.name} with args: {args}")
+                else:
+                    logger.warning("tool_context or tool_context.state is not available in handle_before_tool. Tool call not logged to state.")
 
-            logger.info(f"Agent {self.name}: Executing tool {tool.name} with args: {args}")
-            ui_utils.display_tool_execution_start(self._console, tool.name, args)
-            return None
-        except Exception as e:
-            logger.error(f"Agent {self.name}: Error in handle_before_tool: {e}", exc_info=True)
-            return None
+                logger.info(f"Agent {self.name}: Executing tool {tool.name} with args: {args}")
+                ui_utils.display_tool_execution_start(self._console, tool.name, args)
+                return None
+            except Exception as e:
+                logger.error(f"Agent {self.name}: Error in handle_before_tool: {e}", exc_info=True)
+                return None
 
+    @telemetry.track_operation(OperationType.TOOL_EXECUTION, "after_tool")
     async def handle_after_tool(
         self, tool: BaseTool, tool_response: dict | str, callback_context: CallbackContext | None = None, args: dict | None = None, tool_context: ToolContext | None = None
     ) -> dict | None:
@@ -611,13 +637,26 @@ Begin execution now, starting with the first step."""
             if not hasattr(self, '_count_tokens'):
                 self._count_tokens = self._placeholder_count_tokens # Use a placeholder for now
 
-            # Wrap the super call with retry logic for API errors
+            # Add circuit breaker to prevent infinite recursion
+            max_events = 20  # Prevent infinite event generation
+            event_count = 0
             max_retries = 2
             retry_count = 0
             
             while retry_count <= max_retries:
                 try:
+                    # Add event counting to prevent infinite loops
                     async for event in super()._run_async_impl(ctx):
+                        event_count += 1
+                        if event_count > max_events:
+                            logger.error(f"Agent {self.name}: Circuit breaker triggered - too many events ({event_count})")
+                            yield Event(
+                                author=self.name,
+                                content=genai_types.Content(parts=[genai_types.Part(text="I encountered an internal issue with response generation. Please try a simpler request.")]),
+                                actions=EventActions()
+                            )
+                            ctx.end_invocation = True
+                            return
                         yield event
                     break  # Success, exit retry loop
                     
@@ -638,6 +677,7 @@ Begin execution now, starting with the first step."""
                     
                     if should_retry and retry_count < max_retries:
                         retry_count += 1
+                        event_count = 0  # Reset event counter for retry
                         logger.info(f"Agent {self.name}: Attempting input optimization and retry ({retry_count}/{max_retries})")
                         
                         # Optimize input by reducing context aggressively
