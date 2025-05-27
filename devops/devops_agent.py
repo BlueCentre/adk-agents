@@ -5,6 +5,9 @@ import traceback
 import time
 import json
 import os
+from dataclasses import dataclass, field
+from typing import Dict, List, Any, Optional
+from enum import Enum
 
 from pydantic import PrivateAttr
 from rich.console import Console
@@ -72,11 +75,259 @@ except ImportError:
     mcp_types = None
 
 
+class StateValidationError(Exception):
+    """Raised when state validation fails."""
+    pass
+
+
+class TurnPhase(Enum):
+    """Represents the current phase of a conversation turn."""
+    INITIALIZING = "initializing"
+    PROCESSING_USER_INPUT = "processing_user_input"
+    CALLING_LLM = "calling_llm"
+    PROCESSING_LLM_RESPONSE = "processing_llm_response"
+    EXECUTING_TOOLS = "executing_tools"
+    FINALIZING = "finalizing"
+    COMPLETED = "completed"
+
+
+@dataclass
+class TurnState:
+    """Represents the state of a single conversation turn."""
+    turn_number: int
+    phase: TurnPhase = TurnPhase.INITIALIZING
+    user_message: Optional[str] = None
+    agent_message: Optional[str] = None
+    tool_calls: List[Dict[str, Any]] = field(default_factory=list)
+    tool_results: List[Dict[str, Any]] = field(default_factory=list)
+    system_messages: List[str] = field(default_factory=list)
+    errors: List[str] = field(default_factory=list)
+    created_at: float = field(default_factory=time.time)
+    completed_at: Optional[float] = None
+
+    def mark_completed(self):
+        """Mark the turn as completed."""
+        self.phase = TurnPhase.COMPLETED
+        self.completed_at = time.time()
+
+    def add_error(self, error: str):
+        """Add an error to this turn."""
+        self.errors.append(error)
+        logger.warning(f"Turn {self.turn_number} error: {error}")
+
+    def validate(self) -> bool:
+        """Validate the turn state for consistency."""
+        if self.turn_number < 1:
+            raise StateValidationError(f"Invalid turn number: {self.turn_number}")
+        
+        if self.phase == TurnPhase.COMPLETED and self.completed_at is None:
+            raise StateValidationError(f"Turn {self.turn_number} marked completed but no completion time")
+        
+        return True
+
+
+class StateManager:
+    """Manages conversation state with robust error handling and validation."""
+    
+    def __init__(self):
+        self.conversation_history: List[TurnState] = []
+        self.current_turn: Optional[TurnState] = None
+        self.is_new_conversation: bool = True
+        self.app_state: Dict[str, Any] = {
+            'code_snippets': [],
+            'core_goal': '',
+            'current_phase': '',
+            'key_decisions': [],
+            'last_modified_files': []
+        }
+        self._lock = False  # Simple lock to prevent concurrent modifications
+        
+    def _acquire_lock(self):
+        """Acquire a simple lock for state modifications."""
+        if self._lock:
+            raise StateValidationError("State is currently locked for modification")
+        self._lock = True
+        
+    def _release_lock(self):
+        """Release the state lock."""
+        self._lock = False
+        
+    def start_new_turn(self, user_message: Optional[str] = None) -> TurnState:
+        """Start a new conversation turn with proper state management."""
+        self._acquire_lock()
+        try:
+            # Complete the previous turn if it exists and isn't completed
+            if self.current_turn and self.current_turn.phase != TurnPhase.COMPLETED:
+                logger.warning(f"Previous turn {self.current_turn.turn_number} was not properly completed. Completing now.")
+                self.current_turn.mark_completed()
+                self.conversation_history.append(self.current_turn)
+            
+            # Create new turn
+            turn_number = len(self.conversation_history) + 1
+            self.current_turn = TurnState(
+                turn_number=turn_number,
+                user_message=user_message,
+                phase=TurnPhase.PROCESSING_USER_INPUT
+            )
+            
+            self.is_new_conversation = False
+            logger.info(f"Started new turn {turn_number}")
+            return self.current_turn
+            
+        finally:
+            self._release_lock()
+    
+    def update_current_turn(self, **kwargs) -> None:
+        """Update the current turn with new data."""
+        if not self.current_turn:
+            raise StateValidationError("No current turn to update")
+            
+        self._acquire_lock()
+        try:
+            for key, value in kwargs.items():
+                if hasattr(self.current_turn, key):
+                    setattr(self.current_turn, key, value)
+                else:
+                    logger.warning(f"Attempted to set unknown attribute '{key}' on turn state")
+        finally:
+            self._release_lock()
+    
+    def add_tool_call(self, tool_name: str, args: Dict[str, Any]) -> None:
+        """Add a tool call to the current turn."""
+        if not self.current_turn:
+            raise StateValidationError("No current turn to add tool call to")
+            
+        tool_call = {
+            'tool_name': tool_name,
+            'args': args,
+            'timestamp': time.time()
+        }
+        self.current_turn.tool_calls.append(tool_call)
+        logger.debug(f"Added tool call {tool_name} to turn {self.current_turn.turn_number}")
+    
+    def add_tool_result(self, tool_name: str, result: Any) -> None:
+        """Add a tool result to the current turn."""
+        if not self.current_turn:
+            raise StateValidationError("No current turn to add tool result to")
+            
+        tool_result = {
+            'tool_name': tool_name,
+            'result': result,
+            'timestamp': time.time()
+        }
+        self.current_turn.tool_results.append(tool_result)
+        logger.debug(f"Added tool result for {tool_name} to turn {self.current_turn.turn_number}")
+    
+    def complete_current_turn(self) -> None:
+        """Complete the current turn and add it to history."""
+        if not self.current_turn:
+            logger.warning("No current turn to complete")
+            return
+            
+        self._acquire_lock()
+        try:
+            self.current_turn.mark_completed()
+            self.current_turn.validate()
+            self.conversation_history.append(self.current_turn)
+            logger.info(f"Completed turn {self.current_turn.turn_number}")
+            self.current_turn = None
+        finally:
+            self._release_lock()
+    
+    def get_state_for_context(self) -> Dict[str, Any]:
+        """Get state in format expected by legacy context management."""
+        # Convert to legacy format for compatibility
+        legacy_history = []
+        for turn in self.conversation_history:
+            legacy_turn = {
+                'user_message': turn.user_message,
+                'agent_message': turn.agent_message,
+                'tool_calls': turn.tool_calls,
+                'tool_results': turn.tool_results
+            }
+            # Add system messages if any
+            if turn.system_messages:
+                legacy_turn['system_messages'] = turn.system_messages
+            legacy_history.append(legacy_turn)
+        
+        # Add current turn if it exists
+        if self.current_turn:
+            current_legacy = {
+                'user_message': self.current_turn.user_message,
+                'agent_message': self.current_turn.agent_message,
+                'tool_calls': self.current_turn.tool_calls,
+                'tool_results': self.current_turn.tool_results
+            }
+            if self.current_turn.system_messages:
+                current_legacy['system_messages'] = self.current_turn.system_messages
+            legacy_history.append(current_legacy)
+        
+        return {
+            'user:conversation_history': legacy_history,
+            'temp:is_new_conversation': self.is_new_conversation,
+            'temp:current_turn': self.current_turn.__dict__ if self.current_turn else {},
+            'temp:tool_calls_current_turn': self.current_turn.tool_calls if self.current_turn else [],
+            'temp:tool_results_current_turn': self.current_turn.tool_results if self.current_turn else [],
+            **{f'app:{k}': v for k, v in self.app_state.items()}
+        }
+    
+    def sync_from_legacy_state(self, state: Dict[str, Any]) -> None:
+        """Sync state from legacy callback_context.state format."""
+        try:
+            # Extract conversation history
+            history = state.get('user:conversation_history', [])
+            
+            # Clear current state
+            self.conversation_history = []
+            self.current_turn = None
+            
+            # Rebuild from legacy format
+            for i, turn_data in enumerate(history):
+                turn = TurnState(
+                    turn_number=i + 1,
+                    user_message=turn_data.get('user_message'),
+                    agent_message=turn_data.get('agent_message'),
+                    tool_calls=turn_data.get('tool_calls', []),
+                    tool_results=turn_data.get('tool_results', []),
+                    system_messages=turn_data.get('system_messages', []),
+                    phase=TurnPhase.COMPLETED
+                )
+                turn.completed_at = time.time()  # Mark as completed since it's in history
+                self.conversation_history.append(turn)
+            
+            # Handle current turn data
+            current_turn_data = state.get('temp:current_turn', {})
+            if current_turn_data and isinstance(current_turn_data, dict):
+                self.current_turn = TurnState(
+                    turn_number=len(self.conversation_history) + 1,
+                    user_message=current_turn_data.get('user_message'),
+                    agent_message=current_turn_data.get('agent_message'),
+                    tool_calls=current_turn_data.get('tool_calls', []),
+                    tool_results=current_turn_data.get('tool_results', []),
+                    system_messages=current_turn_data.get('system_messages', []),
+                    phase=TurnPhase.PROCESSING_USER_INPUT
+                )
+            
+            # Sync app state
+            for key in self.app_state.keys():
+                app_key = f'app:{key}'
+                if app_key in state:
+                    self.app_state[key] = state[app_key]
+            
+            self.is_new_conversation = state.get('temp:is_new_conversation', True)
+            
+            logger.debug(f"Synced state: {len(self.conversation_history)} turns in history, current_turn: {self.current_turn is not None}")
+            
+        except Exception as e:
+            logger.error(f"Error syncing from legacy state: {e}", exc_info=True)
+            raise StateValidationError(f"Failed to sync from legacy state: {e}")
+
+
 class MyDevopsAgent(LlmAgent):
     _console: Console = PrivateAttr(default_factory=lambda: Console(stderr=True))
     _status_indicator: Optional[Status] = PrivateAttr(default=None)
     _actual_llm_token_limit: int = PrivateAttr(default=agent_config.DEFAULT_TOKEN_LIMIT_FALLBACK)
-    _is_new_conversation: bool = PrivateAttr(default=True)
+    _state_manager: StateManager = PrivateAttr(default_factory=StateManager)
     _planning_manager: Optional[PlanningManager] = PrivateAttr(default=None)
     _context_manager: Optional[ContextManager] = PrivateAttr(default=None)
     llm_client: Optional[genai.Client] = None
@@ -186,51 +437,51 @@ class MyDevopsAgent(LlmAgent):
             context_tokens = self._count_tokens(str(llm_request.messages))
             telemetry.track_context_usage(context_tokens, "llm_request")
         
-        if callback_context and hasattr(callback_context, 'state') and callback_context.state is not None:
-            conversation_history = callback_context.state.get('user:conversation_history', [])
-            current_turn = callback_context.state.get('temp:current_turn', {})
-
+        # Use robust state management
+        try:
+            if callback_context and hasattr(callback_context, 'state') and callback_context.state is not None:
+                # Sync state manager with callback context state
+                self._state_manager.sync_from_legacy_state(callback_context.state)
+                
+                # Handle new user message
+                if user_message_content:
+                    if not self._state_manager.current_turn:
+                        # Start a new turn
+                        self._state_manager.start_new_turn(user_message_content)
+                    else:
+                        # Update existing turn with user message
+                        if self._state_manager.current_turn.user_message:
+                            # Append to existing message
+                            combined_message = self._state_manager.current_turn.user_message + "\n" + user_message_content
+                            self._state_manager.update_current_turn(user_message=combined_message)
+                        else:
+                            # Set the user message
+                            self._state_manager.update_current_turn(user_message=user_message_content)
+                
+                # Update callback context state with managed state
+                callback_context.state.update(self._state_manager.get_state_for_context())
+                
+                logger.debug(f"State management: Turn {self._state_manager.current_turn.turn_number if self._state_manager.current_turn else 'None'}, "
+                           f"History: {len(self._state_manager.conversation_history)} turns")
+                
+            else:
+                logger.warning("callback_context or callback_context.state is not available in handle_before_model. Using internal state management only.")
+                # Use internal state management only
+                if user_message_content:
+                    if not self._state_manager.current_turn:
+                        self._state_manager.start_new_turn(user_message_content)
+                    else:
+                        self._state_manager.update_current_turn(user_message=user_message_content)
+                        
+        except StateValidationError as e:
+            logger.error(f"State validation error in handle_before_model: {e}")
+            # Reset state manager and start fresh
+            self._state_manager = StateManager()
             if user_message_content:
-                if not conversation_history or conversation_history[-1].get('agent_message') is not None:
-                    logger.debug(f"Starting new turn in context.state with user message: {user_message_content[:100]}")
-                    current_turn = {'user_message': user_message_content}
-                    conversation_history.append(current_turn)
-                elif conversation_history[-1].get('user_message') is None:
-                    logger.debug(f"Updating current turn in context.state with user message: {user_message_content[:100]}")
-                    conversation_history[-1]['user_message'] = user_message_content
-                    current_turn = conversation_history[-1]
-                else:
-                    logger.debug(f"Appending to last user message in context.state: {user_message_content[:100]}")
-                    last_user_msg = conversation_history[-1].get('user_message', '')
-                    conversation_history[-1]['user_message'] = last_user_msg + "\n" + user_message_content
-                    current_turn = conversation_history[-1]
-
-            callback_context.state['user:conversation_history'] = conversation_history
-            callback_context.state['temp:current_turn'] = current_turn
-
-            # New logic using context.state to determine if it's a new conversation and initialize state
-            is_new_conversation = callback_context.state.get('temp:is_new_conversation', True)
-            if is_new_conversation:
-                logger.info(f"Agent {self.name}: New conversation detected (based on context.state), initializing state.")
-                callback_context.state['user:conversation_history'] = [] # Initialize conversation history
-                callback_context.state['app:code_snippets'] = [] # Initialize code snippets history if needed
-                callback_context.state['temp:is_new_conversation'] = False # Mark as not a new conversation for subsequent calls
-
-            # Ensure current turn temporary state is cleared at the start of a new turn processing
-            # This assumes each call to handle_before_model corresponds to processing a new turn input.
-            # Replacing .pop() with .get() and setting to None/empty
-            tool_calls_current_turn = callback_context.state.get('temp:tool_calls_current_turn', None)
-            if tool_calls_current_turn is not None:
-                logger.debug("Clearing temp:tool_calls_current_turn state.")
-                callback_context.state['temp:tool_calls_current_turn'] = None
-
-            tool_results_current_turn = callback_context.state.get('temp:tool_results_current_turn', None)
-            if tool_results_current_turn is not None:
-                logger.debug("Clearing temp:tool_results_current_turn state.")
-                callback_context.state['temp:tool_results_current_turn'] = None
-            # Note: 'temp:current_turn' is managed above where user message is added.
-        else:
-            logger.warning("callback_context or callback_context.state is not available in handle_before_model. State will not be managed.")
+                self._state_manager.start_new_turn(user_message_content)
+        except Exception as e:
+            logger.error(f"Unexpected error in state management: {e}", exc_info=True)
+            # Continue with degraded functionality
 
         planning_response, approved_plan_text = await self._planning_manager.handle_before_model_planning_logic(
             user_message_content, llm_request
@@ -369,64 +620,52 @@ Begin execution now, starting with the first step."""
 
         processed_response = self._process_llm_response(llm_response)
 
-        if processed_response["text_parts"]:
-            extracted_text = "".join(processed_response["text_parts"])
-            if extracted_text:
-                conversation_history = callback_context.state.get('user:conversation_history', [])
-                if conversation_history:
-                    last_turn = conversation_history[-1]
-                    if last_turn.get('agent_message') is None:
-                        last_turn['agent_message'] = extracted_text
-                        callback_context.state['user:conversation_history'] = conversation_history
+        # Use robust state management for response processing
+        try:
+            if processed_response["text_parts"]:
+                extracted_text = "".join(processed_response["text_parts"])
+                if extracted_text and self._state_manager.current_turn:
+                    # Update agent message in current turn
+                    if self._state_manager.current_turn.agent_message:
+                        # Append to existing agent message
+                        combined_message = self._state_manager.current_turn.agent_message + "\n" + extracted_text
+                        self._state_manager.update_current_turn(agent_message=combined_message)
                     else:
-                        last_turn['agent_message'] += "\n" + extracted_text
-                        callback_context.state['user:conversation_history'] = conversation_history
-                    logger.debug(f"Updated agent response in context.state for last turn: {extracted_text[:100]}")
-                else:
-                    logger.warning("Attempting to update agent response in context.state but no conversation history found.")
+                        # Set the agent message
+                        self._state_manager.update_current_turn(agent_message=extracted_text)
+                    
+                    logger.debug(f"Updated agent response in turn {self._state_manager.current_turn.turn_number}: {extracted_text[:100]}")
 
-        if processed_response["function_calls"]:
-            logger.info(f"Handle function calls here: {processed_response['function_calls']}")
-            current_turn = callback_context.state.get('temp:current_turn', {})
-            if current_turn is None:
-                current_turn = {}
-            current_turn['function_calls'] = processed_response["function_calls"]
-            callback_context.state['temp:current_turn'] = current_turn
+            if processed_response["function_calls"]:
+                logger.info(f"Handle function calls here: {processed_response['function_calls']}")
+                if self._state_manager.current_turn:
+                    # Add function calls to current turn
+                    for func_call in processed_response["function_calls"]:
+                        self._state_manager.current_turn.tool_calls.append({
+                            'function_call': func_call,
+                            'timestamp': time.time()
+                        })
 
-        callback_context.state['temp:is_new_conversation'] = False # Use state instead of attribute
+            # Update callback context state if available
+            if callback_context and hasattr(callback_context, 'state') and callback_context.state is not None:
+                callback_context.state.update(self._state_manager.get_state_for_context())
+                logger.debug("Updated callback context state with managed state")
+            
+        except StateValidationError as e:
+            logger.error(f"State validation error in handle_after_model: {e}")
+            # Continue with degraded functionality
+        except Exception as e:
+            logger.error(f"Unexpected error in response state management: {e}", exc_info=True)
+            # Continue with degraded functionality
 
-        # After processing the model response, integrate tool calls and results from temp state into history
-        if callback_context and hasattr(callback_context, 'state') and callback_context.state is not None:
-            # Replacing .pop() with .get() and setting to None/empty
-            current_turn_tool_calls = callback_context.state.get('temp:tool_calls_current_turn', [])
-            if current_turn_tool_calls is None:
-                current_turn_tool_calls = [] # Ensure it's a list if None
-
-            current_turn_tool_results = callback_context.state.get('temp:tool_results_current_turn', [])
-            if current_turn_tool_results is None:
-                current_turn_tool_results = [] # Ensure it's a list if None
-
-            current_turn_data = callback_context.state.get('temp:current_turn', {})
-            if current_turn_data is None:
-                current_turn_data = {} # Ensure it's a dict if None
-            # Clear the temporary current turn data after retrieving
-            callback_context.state['temp:current_turn'] = None
-
-            # Integrate tool calls and results into the last turn in conversation history
-            conversation_history = callback_context.state.get('user:conversation_history', [])
-            if conversation_history:
-                last_turn = conversation_history[-1]
-                # Add tool calls and results to the last turn
-                if current_turn_tool_calls:
-                    last_turn['tool_calls'] = last_turn.get('tool_calls', []) + current_turn_tool_calls
-                if current_turn_tool_results:
-                    last_turn['tool_results'] = last_turn.get('tool_results', []) + current_turn_tool_results
-                # Potentially add other current_turn_data if needed, e.g., system_message_plan
-                last_turn.update({k: v for k, v in current_turn_data.items() if k not in ['user_message', 'agent_message', 'tool_calls', 'tool_results']})
-                callback_context.state['user:conversation_history'] = conversation_history # Ensure state is updated
-                logger.debug("Integrated tool calls and results into conversation history.")
-        else:
-            logger.warning("callback_context or callback_context.state is not available in handle_after_model. Tool data not integrated into history.")
+        # Complete the current turn if we have one
+        try:
+            if self._state_manager.current_turn and self._state_manager.current_turn.phase != TurnPhase.COMPLETED:
+                self._state_manager.complete_current_turn()
+        except StateValidationError as e:
+            logger.error(f"Error completing turn in handle_after_model: {e}")
+        except Exception as e:
+            logger.error(f"Unexpected error completing turn: {e}", exc_info=True)
 
         return None
 
@@ -494,16 +733,21 @@ Begin execution now, starting with the first step."""
         # Use context manager for tracing instead of decorator
         with trace_tool_execution(tool.name, operation="preprocessing", args=args):
             try:
-                if tool_context and hasattr(tool_context, 'state') and tool_context.state is not None:
-                    # Initialize or get the list of tool calls for the current turn
-                    tool_calls = tool_context.state.get('temp:tool_calls_current_turn', [])
-                    if tool_calls is None: # Ensure tool_calls is a list even if state had None
-                        tool_calls = []
-                    tool_calls.append({'tool_name': tool.name, 'args': args})
-                    tool_context.state['temp:tool_calls_current_turn'] = tool_calls
-                    logger.info(f"Added tool call to context.state: {tool.name} with args: {args}")
-                else:
-                    logger.warning("tool_context or tool_context.state is not available in handle_before_tool. Tool call not logged to state.")
+                # Use robust state management for tool calls
+                try:
+                    self._state_manager.add_tool_call(tool.name, args)
+                    
+                    # Update tool context state if available
+                    if tool_context and hasattr(tool_context, 'state') and tool_context.state is not None:
+                        tool_context.state.update(self._state_manager.get_state_for_context())
+                        logger.debug(f"Updated tool context state with tool call: {tool.name}")
+                    
+                except StateValidationError as e:
+                    logger.error(f"State validation error in handle_before_tool: {e}")
+                    # Continue with tool execution even if state management fails
+                except Exception as e:
+                    logger.error(f"Error in tool call state management: {e}", exc_info=True)
+                    # Continue with tool execution
 
                 logger.info(f"Agent {self.name}: Executing tool {tool.name} with args: {args}")
                 ui_utils.display_tool_execution_start(self._console, tool.name, args)
@@ -593,17 +837,21 @@ Begin execution now, starting with the first step."""
                 logger.error(f"Error in custom processor for {tool.name}: {e}", exc_info=True)
 
         if not custom_processor_used:
-            # New logic using context.state
-            if tool_context and hasattr(tool_context, 'state') and tool_context.state is not None:
-                # Initialize or get the list of tool results for the current turn
-                tool_results = tool_context.state.get('temp:tool_results_current_turn', [])
-                if tool_results is None: # Ensure tool_results is a list even if state had None
-                    tool_results = []
-                tool_results.append({'tool_name': tool.name, 'response': tool_response})
-                tool_context.state['temp:tool_results_current_turn'] = tool_results
-                logger.info(f"Added tool result to context.state for tool {tool.name}.")
-            else:
-                logger.warning(f"tool_context or tool_context.state is not available in handle_after_tool. Tool result not logged to state.")
+            # Use robust state management for tool results
+            try:
+                self._state_manager.add_tool_result(tool.name, tool_response)
+                
+                # Update tool context state if available
+                if tool_context and hasattr(tool_context, 'state') and tool_context.state is not None:
+                    tool_context.state.update(self._state_manager.get_state_for_context())
+                    logger.debug(f"Updated tool context state with tool result: {tool.name}")
+                
+            except StateValidationError as e:
+                logger.error(f"State validation error in handle_after_tool: {e}")
+                # Continue with tool processing even if state management fails
+            except Exception as e:
+                logger.error(f"Error in tool result state management: {e}", exc_info=True)
+                # Continue with tool processing
 
         duration = time.time() - start_time
 
@@ -627,70 +875,101 @@ Begin execution now, starting with the first step."""
     async def _run_async_impl(
         self, ctx: InvocationContext
     ) -> AsyncGenerator[Event, None]:
+        """
+        Robust implementation of the agent loop with proper error handling,
+        circuit breakers, and retry mechanisms.
+        """
+        # Initialize circuit breaker parameters
+        max_events_per_attempt = 50  # Increased from 20 to allow for complex operations
+        max_retries = 3  # Increased from 2 for better resilience
+        max_consecutive_errors = 5  # New: prevent error loops
+        
+        retry_count = 0
+        consecutive_errors = 0
+        
         try:
-            # Need to add placeholder methods for context assembly and token counting that operate on state
-            # For simplicity, add them at the end of the class
-            if not hasattr(self, '_assemble_context_from_state'):
-                self._assemble_context_from_state = self._placeholder_assemble_context
-            if not hasattr(self, '_count_context_tokens'):
-                self._count_context_tokens = self._placeholder_count_tokens_for_context
-            if not hasattr(self, '_count_tokens'):
-                self._count_tokens = self._placeholder_count_tokens # Use a placeholder for now
-
-            # Add circuit breaker to prevent infinite recursion
-            max_events = 20  # Prevent infinite event generation
-            event_count = 0
-            max_retries = 2
-            retry_count = 0
-            
             while retry_count <= max_retries:
+                event_count = 0
+                attempt_start_time = time.time()
+                
                 try:
-                    # Add event counting to prevent infinite loops
+                    logger.info(f"Agent {self.name}: Starting attempt {retry_count + 1}/{max_retries + 1}")
+                    
+                    # Reset consecutive error counter on successful attempt start
+                    consecutive_errors = 0
+                    
+                    # Process events with circuit breaker
                     async for event in super()._run_async_impl(ctx):
                         event_count += 1
-                        if event_count > max_events:
+                        
+                        # Circuit breaker: prevent infinite event generation
+                        if event_count > max_events_per_attempt:
                             logger.error(f"Agent {self.name}: Circuit breaker triggered - too many events ({event_count})")
                             yield Event(
                                 author=self.name,
-                                content=genai_types.Content(parts=[genai_types.Part(text="I encountered an internal issue with response generation. Please try a simpler request.")]),
+                                content=genai_types.Content(parts=[genai_types.Part(
+                                    text="I encountered an internal issue with response generation. The request may be too complex. Please try breaking it into smaller parts."
+                                )]),
                                 actions=EventActions()
                             )
                             ctx.end_invocation = True
                             return
+                        
+                        # Check for timeout (prevent hanging)
+                        elapsed_time = time.time() - attempt_start_time
+                        if elapsed_time > 300:  # 5 minutes timeout per attempt
+                            logger.error(f"Agent {self.name}: Attempt timeout after {elapsed_time:.1f} seconds")
+                            yield Event(
+                                author=self.name,
+                                content=genai_types.Content(parts=[genai_types.Part(
+                                    text="The request is taking too long to process. Please try a simpler request or break it into smaller parts."
+                                )]),
+                                actions=EventActions()
+                            )
+                            ctx.end_invocation = True
+                            return
+                        
                         yield event
-                    break  # Success, exit retry loop
+                    
+                    # Success - exit retry loop
+                    logger.info(f"Agent {self.name}: Successfully completed after {retry_count + 1} attempts")
+                    break
                     
                 except Exception as e:
+                    consecutive_errors += 1
                     error_message = str(e)
-                    should_retry = False
+                    error_type = type(e).__name__
                     
-                    # Check for specific API errors that warrant retry with optimization
-                    if "429" in error_message and "RESOURCE_EXHAUSTED" in error_message:
-                        logger.warning(f"Agent {self.name}: Encountered 429 RESOURCE_EXHAUSTED error (attempt {retry_count + 1}/{max_retries + 1})")
-                        should_retry = True
-                    elif "500" in error_message and ("INTERNAL" in error_message or "ServerError" in error_message):
-                        logger.warning(f"Agent {self.name}: Encountered 500 INTERNAL error (attempt {retry_count + 1}/{max_retries + 1})")
-                        should_retry = True
-                    elif "JSONDecodeError" in str(type(e).__name__) or "JSON" in error_message:
-                        logger.warning(f"Agent {self.name}: Encountered JSON parsing error (attempt {retry_count + 1}/{max_retries + 1}): {error_message}")
-                        should_retry = True
+                    # Check if we've hit too many consecutive errors
+                    if consecutive_errors >= max_consecutive_errors:
+                        logger.error(f"Agent {self.name}: Too many consecutive errors ({consecutive_errors}), aborting")
+                        raise e
+                    
+                    # Determine if this error is retryable
+                    should_retry = self._is_retryable_error(error_message, error_type)
                     
                     if should_retry and retry_count < max_retries:
                         retry_count += 1
-                        event_count = 0  # Reset event counter for retry
-                        logger.info(f"Agent {self.name}: Attempting input optimization and retry ({retry_count}/{max_retries})")
+                        logger.warning(f"Agent {self.name}: Retryable error on attempt {retry_count}/{max_retries + 1}: {error_type}: {error_message}")
                         
-                        # Optimize input by reducing context aggressively
-                        await self._optimize_input_for_retry(ctx, retry_count)
+                        # Optimize input for retry
+                        optimization_success = await self._optimize_input_for_retry(ctx, retry_count)
+                        if not optimization_success:
+                            logger.warning(f"Agent {self.name}: Input optimization failed, continuing with retry anyway")
                         
-                        # Add exponential backoff delay
+                        # Exponential backoff with jitter
                         import asyncio
-                        delay = 2 ** retry_count  # 2, 4, 8 seconds
-                        logger.info(f"Agent {self.name}: Waiting {delay} seconds before retry...")
+                        import random
+                        base_delay = min(2 ** retry_count, 30)  # Cap at 30 seconds
+                        jitter = random.uniform(0.1, 0.5)  # Add randomness to prevent thundering herd
+                        delay = base_delay + jitter
+                        
+                        logger.info(f"Agent {self.name}: Waiting {delay:.1f} seconds before retry...")
                         await asyncio.sleep(delay)
                         continue
                     else:
-                        # Either not a retryable error or max retries exceeded
+                        # Either not retryable or max retries exceeded
+                        logger.error(f"Agent {self.name}: Non-retryable error or max retries exceeded: {error_type}: {error_message}")
                         raise e
 
         except Exception as e:
@@ -739,77 +1018,186 @@ Begin execution now, starting with the first step."""
             # Gracefully end the invocation
             ctx.end_invocation = True
 
-    async def _optimize_input_for_retry(self, ctx: InvocationContext, retry_attempt: int):
-        """Optimize input for retry by reducing context size and complexity."""
+    def _is_retryable_error(self, error_message: str, error_type: str) -> bool:
+        """
+        Determine if an error is retryable based on error message and type.
+        
+        Args:
+            error_message: The error message string
+            error_type: The error type name
+            
+        Returns:
+            True if the error should be retried, False otherwise
+        """
+        error_message_lower = error_message.lower()
+        
+        # API rate limiting and quota errors
+        if any(pattern in error_message for pattern in ["429", "RESOURCE_EXHAUSTED", "quota", "rate limit"]):
+            return True
+            
+        # Temporary server errors
+        if any(pattern in error_message for pattern in ["500", "502", "503", "504", "INTERNAL", "ServerError", "timeout"]):
+            return True
+            
+        # Network and connection errors
+        if any(pattern in error_message_lower for pattern in ["connection", "network", "timeout", "unreachable"]):
+            return True
+            
+        # JSON parsing errors (often due to malformed responses)
+        if "json" in error_type.lower() or "json" in error_message_lower:
+            return True
+            
+        # Token limit errors (can be resolved with context optimization)
+        if any(pattern in error_message_lower for pattern in ["token", "context length", "too long", "maximum context"]):
+            return True
+            
+        # Specific Google API errors that are retryable
+        if any(pattern in error_message for pattern in ["DEADLINE_EXCEEDED", "UNAVAILABLE", "ABORTED"]):
+            return True
+            
+        # Non-retryable errors
+        non_retryable_patterns = [
+            "PERMISSION_DENIED", "UNAUTHENTICATED", "INVALID_ARGUMENT", 
+            "NOT_FOUND", "ALREADY_EXISTS", "FAILED_PRECONDITION",
+            "authentication", "authorization", "invalid api key",
+            "model not found", "unsupported"
+        ]
+        
+        if any(pattern in error_message_lower for pattern in non_retryable_patterns):
+            return False
+            
+        # Default to non-retryable for unknown errors to prevent infinite loops
+        logger.warning(f"Unknown error type '{error_type}' with message '{error_message}' - treating as non-retryable")
+        return False
+
+    async def _optimize_input_for_retry(self, ctx: InvocationContext, retry_attempt: int) -> bool:
+        """
+        Optimize input for retry by reducing context size and complexity.
+        
+        Args:
+            ctx: The invocation context
+            retry_attempt: The current retry attempt number (1-based)
+            
+        Returns:
+            True if optimization was successful, False otherwise
+        """
         try:
             logger.info(f"Agent {self.name}: Optimizing input for retry attempt {retry_attempt}")
             
-            if hasattr(ctx, 'state') and ctx.state and self._context_manager:
-                # Get current state
-                state = ctx.state
+            # Use state manager for optimization
+            if not self._state_manager:
+                logger.warning("State manager not available for optimization")
+                return False
+            
+            # Get current state for optimization
+            if hasattr(ctx, 'state') and ctx.state:
+                # Sync state manager with context
+                self._state_manager.sync_from_legacy_state(ctx.state)
+            
+            # Progressive optimization based on retry attempt
+            optimization_applied = False
+            
+            if retry_attempt == 1:
+                # First retry: Reduce context moderately
+                logger.info("Agent optimization level 1: Reducing conversation history and code snippets")
                 
-                # Progressive optimization based on retry attempt
-                if retry_attempt == 1:
-                    # First retry: Reduce context moderately
-                    logger.info("Agent optimization level 1: Reducing conversation history and code snippets")
-                    
-                    # Keep only last 2 conversation turns instead of 5
-                    history = state.get('user:conversation_history', [])
-                    if len(history) > 2:
-                        state['user:conversation_history'] = history[-2:]
-                        logger.info(f"Reduced conversation history from {len(history)} to 2 turns")
-                    
-                    # Keep only top 3 code snippets instead of 7
-                    code_snippets = state.get('app:code_snippets', [])
-                    if len(code_snippets) > 3:
-                        state['app:code_snippets'] = code_snippets[:3]
-                        logger.info(f"Reduced code snippets from {len(code_snippets)} to 3")
+                # Reduce conversation history using state manager
+                if len(self._state_manager.conversation_history) > 2:
+                    original_count = len(self._state_manager.conversation_history)
+                    self._state_manager.conversation_history = self._state_manager.conversation_history[-2:]
+                    logger.info(f"Reduced conversation history from {original_count} to 2 turns")
+                    optimization_applied = True
+                
+                # Reduce code snippets
+                if len(self._state_manager.app_state['code_snippets']) > 3:
+                    original_count = len(self._state_manager.app_state['code_snippets'])
+                    self._state_manager.app_state['code_snippets'] = self._state_manager.app_state['code_snippets'][:3]
+                    logger.info(f"Reduced code snippets from {original_count} to 3")
+                    optimization_applied = True
                         
+            elif retry_attempt == 2:
+                # Second retry: Aggressive reduction
+                logger.info("Agent optimization level 2: Aggressive context reduction")
+                
+                # Keep only the last conversation turn
+                if len(self._state_manager.conversation_history) > 1:
+                    original_count = len(self._state_manager.conversation_history)
+                    self._state_manager.conversation_history = self._state_manager.conversation_history[-1:]
+                    logger.info(f"Reduced conversation history from {original_count} to 1 turn")
+                    optimization_applied = True
+                
+                # Remove all code snippets
+                if self._state_manager.app_state['code_snippets']:
+                    self._state_manager.app_state['code_snippets'] = []
+                    logger.info("Removed all code snippets")
+                    optimization_applied = True
+                
+                # Remove tool results from current turn
+                if self._state_manager.current_turn and self._state_manager.current_turn.tool_results:
+                    self._state_manager.current_turn.tool_results = []
+                    logger.info("Removed tool results from current turn")
+                    optimization_applied = True
+                    
+            elif retry_attempt >= 3:
+                # Third+ retry: Minimal context
+                logger.info("Agent optimization level 3+: Minimal context")
+                
+                # Keep only current turn
+                self._state_manager.conversation_history = []
+                if self._state_manager.current_turn:
+                    # Keep only user message, remove everything else
+                    user_msg = self._state_manager.current_turn.user_message
+                    self._state_manager.current_turn = TurnState(
+                        turn_number=1,
+                        user_message=user_msg,
+                        phase=TurnPhase.PROCESSING_USER_INPUT
+                    )
+                
+                # Clear all app state
+                self._state_manager.app_state = {
+                    'code_snippets': [],
+                    'core_goal': '',
+                    'current_phase': '',
+                    'key_decisions': [],
+                    'last_modified_files': []
+                }
+                logger.info("Applied minimal context optimization")
+                optimization_applied = True
+            
+            # Also reduce the context manager's target limits if available
+            if self._context_manager:
+                original_turns = self._context_manager.target_recent_turns
+                original_snippets = self._context_manager.target_code_snippets
+                original_results = self._context_manager.target_tool_results
+                
+                if retry_attempt == 1:
+                    self._context_manager.target_recent_turns = min(2, original_turns)
+                    self._context_manager.target_code_snippets = min(3, original_snippets)
+                    self._context_manager.target_tool_results = min(3, original_results)
                 elif retry_attempt == 2:
-                    # Second retry: Aggressive reduction
-                    logger.info("Agent optimization level 2: Aggressive context reduction")
-                    
-                    # Keep only the last conversation turn
-                    history = state.get('user:conversation_history', [])
-                    if len(history) > 1:
-                        state['user:conversation_history'] = history[-1:]
-                        logger.info(f"Reduced conversation history from {len(history)} to 1 turn")
-                    
-                    # Remove all code snippets
-                    if state.get('app:code_snippets'):
-                        state['app:code_snippets'] = []
-                        logger.info("Removed all code snippets")
-                    
-                    # Remove tool results from history
-                    for turn in state.get('user:conversation_history', []):
-                        if 'tool_results' in turn:
-                            turn['tool_results'] = []
-                            logger.info("Removed tool results from conversation history")
+                    self._context_manager.target_recent_turns = 1
+                    self._context_manager.target_code_snippets = 0
+                    self._context_manager.target_tool_results = 1
+                elif retry_attempt >= 3:
+                    self._context_manager.target_recent_turns = 1
+                    self._context_manager.target_code_snippets = 0
+                    self._context_manager.target_tool_results = 0
                 
-                # Also reduce the context manager's target limits
-                if self._context_manager:
-                    original_turns = self._context_manager.target_recent_turns
-                    original_snippets = self._context_manager.target_code_snippets
-                    original_results = self._context_manager.target_tool_results
-                    
-                    if retry_attempt == 1:
-                        self._context_manager.target_recent_turns = min(2, original_turns)
-                        self._context_manager.target_code_snippets = min(3, original_snippets)
-                        self._context_manager.target_tool_results = min(3, original_results)
-                    elif retry_attempt == 2:
-                        self._context_manager.target_recent_turns = 1
-                        self._context_manager.target_code_snippets = 0
-                        self._context_manager.target_tool_results = 1
-                    
-                    logger.info(f"Adjusted context manager limits: turns={self._context_manager.target_recent_turns}, "
-                              f"snippets={self._context_manager.target_code_snippets}, results={self._context_manager.target_tool_results}")
-                
-                logger.info(f"Agent {self.name}: Input optimization for retry attempt {retry_attempt} completed")
-            else:
-                logger.warning(f"Agent {self.name}: Cannot optimize input - context state not available")
+                logger.info(f"Adjusted context manager limits: turns={self._context_manager.target_recent_turns}, "
+                          f"snippets={self._context_manager.target_code_snippets}, results={self._context_manager.target_tool_results}")
+                optimization_applied = True
+            
+            # Update context state if available
+            if hasattr(ctx, 'state') and ctx.state:
+                ctx.state.update(self._state_manager.get_state_for_context())
+                logger.debug("Updated context state after optimization")
+            
+            logger.info(f"Agent {self.name}: Input optimization for retry attempt {retry_attempt} completed, applied: {optimization_applied}")
+            return optimization_applied
                 
         except Exception as e:
             logger.error(f"Agent {self.name}: Error during input optimization: {e}", exc_info=True)
+            return False
 
     def _assemble_context_from_state(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """Assembles context dictionary from state for LLM injection, respecting token limits.

@@ -25,3 +25,9 @@ build-backend = "setuptools.build_meta"
 where = ["."]
 include = ["devops*"]
 exclude = ["example_prompts*", "scripts*", ".cache*", ".agent*"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.5",
+    "pytest-asyncio>=1.0.0",
+]

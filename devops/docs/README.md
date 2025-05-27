@@ -7,6 +7,7 @@ This directory contains comprehensive documentation for the DevOps Agent project
 ### Core Documentation
 - **[Implementation Status](IMPLEMENTATION_STATUS.md)** - Current implementation status, Phase 2 completion summary, and production readiness details
 - **[Context Management Strategy](CONTEXT_MANAGEMENT_STRATEGY.md)** - Detailed context management evolution, optimization strategy, and performance analysis
+- **[Testing Guide](TESTING.md)** - Comprehensive testing infrastructure, practices, and guidelines (tests located at project root)
 
 ### Feature Documentation (`features/`)
 - **[Interactive Planning](features/FEATURE_AGENT_INTERACTIVE_PLANNING.md)** - Interactive planning workflow implementation and validation
@@ -25,9 +26,10 @@ This directory contains comprehensive documentation for the DevOps Agent project
 
 ### For Developers
 1. Review [Context Management Strategy](CONTEXT_MANAGEMENT_STRATEGY.md) for architecture insights
-2. Check [Phase 2 Implementation Details](features/PHASE2_IMPLEMENTATION_DETAILS.md) for technical specifications
-3. Explore [Agent Loop Optimization](features/FEATURE_AGENT_LOOP_OPTIMIZATION.md) for performance considerations
-4. Reference [Agent Ideas](features/AGENT_IDEAS.md) for future development directions
+2. Check [Testing Guide](TESTING.md) for testing infrastructure and practices (tests at project root)
+3. Check [Phase 2 Implementation Details](features/PHASE2_IMPLEMENTATION_DETAILS.md) for technical specifications
+4. Explore [Agent Loop Optimization](features/FEATURE_AGENT_LOOP_OPTIMIZATION.md) for performance considerations
+5. Reference [Agent Ideas](features/AGENT_IDEAS.md) for future development directions
 
 ### For Contributors
 1. Review [Implementation Status](IMPLEMENTATION_STATUS.md) to understand completed work
