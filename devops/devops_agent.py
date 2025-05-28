@@ -544,7 +544,69 @@ Begin execution now, starting with the first step."""
             # Add status indicator for regular turns
             self._start_status("[bold blue](Agent is thinking...)[/bold blue]")
             logger.info("Assembling context from context.state (user:conversation_history, temp:tool_results, etc.)")
-            context_dict = self._assemble_context_from_state(callback_context.state)
+            
+            # Calculate accurate base prompt tokens BEFORE assembling context
+            # This is critical to prevent token limit exceeded errors
+            base_prompt_tokens = 0
+            
+            # Count user message tokens
+            if user_message_content:
+                user_tokens = self._count_tokens(user_message_content)
+                base_prompt_tokens += user_tokens
+                logger.info(f"User message tokens: {user_tokens:,}")
+            
+            # Count system instruction tokens
+            if hasattr(llm_request, 'system_instruction') and llm_request.system_instruction:
+                system_tokens = self._count_tokens(str(llm_request.system_instruction))
+                base_prompt_tokens += system_tokens
+                logger.info(f"System instruction tokens: {system_tokens:,}")
+            
+            # Count tool definition tokens (this is often the largest component)
+            if hasattr(llm_request, 'tools') and llm_request.tools:
+                tools_tokens = self._count_tokens(str(llm_request.tools))
+                base_prompt_tokens += tools_tokens
+                logger.info(f"Tools definition tokens: {tools_tokens:,}")
+            
+            # Count existing message tokens (excluding the context we're about to add)
+            if hasattr(llm_request, 'messages') and isinstance(llm_request.messages, list):
+                for message in llm_request.messages:
+                    if hasattr(message, 'parts') and message.parts:
+                        for part in message.parts:
+                            if hasattr(part, 'text') and part.text:
+                                # Skip the context block we're about to add
+                                if not part.text.startswith("SYSTEM CONTEXT (JSON):"):
+                                    message_tokens = self._count_tokens(part.text)
+                                    base_prompt_tokens += message_tokens
+                                    logger.info(f"Existing message part tokens: {message_tokens:,}")
+            
+            # Add safety margin for JSON structure overhead and response generation
+            safety_margin = 2000
+            base_prompt_tokens += safety_margin
+            
+            logger.info(f"ACCURATE BASE PROMPT CALCULATION:")
+            logger.info(f"  Total Base Prompt Tokens: {base_prompt_tokens:,}")
+            logger.info(f"  Safety Margin: {safety_margin:,}")
+            logger.info(f"  Available for Context: {self._context_manager.max_token_limit - base_prompt_tokens:,}")
+            
+            # Ensure we don't exceed the token limit even before adding context
+            if base_prompt_tokens >= self._context_manager.max_token_limit:
+                logger.error(f"Base prompt ({base_prompt_tokens:,} tokens) already exceeds token limit ({self._context_manager.max_token_limit:,})!")
+                logger.error("This indicates the tools definition or system instructions are too large.")
+                # Use minimal context in this case
+                context_dict = {}
+            else:
+                # Temporarily store the accurate base prompt tokens for context assembly
+                original_base_tokens = getattr(self, '_temp_base_prompt_tokens', None)
+                self._temp_base_prompt_tokens = base_prompt_tokens
+                
+                context_dict = self._assemble_context_from_state(callback_context.state)
+                
+                # Restore original value
+                if original_base_tokens is not None:
+                    self._temp_base_prompt_tokens = original_base_tokens
+                else:
+                    delattr(self, '_temp_base_prompt_tokens')
+            
             context_tokens = self._count_context_tokens(context_dict)
 
             try:
@@ -566,7 +628,17 @@ Begin execution now, starting with the first step."""
                             logger.warning(f"Could not inject structured context into llm_request messages: {e}")
 
                     total_context_block_tokens = self._count_tokens(system_context_message)
-                    logger.info(f"Total tokens for prompt (base + context_block): {self._count_tokens(get_last_user_content(llm_request)) + total_context_block_tokens}")
+                    logger.info(f"Total tokens for prompt (base + context_block): {base_prompt_tokens + total_context_block_tokens}")
+                    
+                    # Final validation: ensure we don't exceed token limit
+                    final_prompt_tokens = base_prompt_tokens + total_context_block_tokens
+                    if final_prompt_tokens > self._context_manager.max_token_limit:
+                        logger.error(f"CRITICAL: Final prompt ({final_prompt_tokens:,} tokens) exceeds token limit ({self._context_manager.max_token_limit:,})!")
+                        logger.error("This should not happen if context manager is working correctly.")
+                        logger.error("The request will likely fail with a token limit error.")
+                    else:
+                        utilization_pct = (final_prompt_tokens / self._context_manager.max_token_limit) * 100
+                        logger.info(f"Final prompt validation: {final_prompt_tokens:,}/{self._context_manager.max_token_limit:,} tokens ({utilization_pct:.1f}%)")
 
                 else:
                     logger.warning("Skipping structured context injection as LlmRequest seems incomplete.")
@@ -1358,8 +1430,13 @@ Begin execution now, starting with the first step."""
         logger.info(f"Context state: goal={bool(self._context_manager.state.core_goal)}, phase={bool(self._context_manager.state.current_phase)}, decisions={len(self._context_manager.state.key_decisions)}, files={len(self._context_manager.state.last_modified_files)}")
 
         # Now, use the ContextManager to assemble the context dictionary respecting the token limit
-        # Calculate more accurate base prompt tokens (system instructions, tools, etc.)
-        base_prompt_tokens = 1000  # Conservative estimate for system instructions and tools
+        # Use accurate base prompt tokens if available, otherwise fall back to conservative estimate
+        if hasattr(self, '_temp_base_prompt_tokens'):
+            base_prompt_tokens = self._temp_base_prompt_tokens
+            logger.info(f"Using accurate base prompt tokens: {base_prompt_tokens:,}")
+        else:
+            base_prompt_tokens = 1000  # Conservative estimate for system instructions and tools
+            logger.warning(f"Using conservative base prompt token estimate: {base_prompt_tokens:,}")
         
         context_dict, total_context_tokens = self._context_manager.assemble_context(base_prompt_tokens)
 
