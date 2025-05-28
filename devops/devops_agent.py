@@ -639,10 +639,10 @@ Begin execution now, starting with the first step."""
             if processed_response["function_calls"]:
                 logger.info(f"Handle function calls here: {processed_response['function_calls']}")
                 if self._state_manager.current_turn:
-                    # Add function calls to current turn
+                    # Add function calls to current turn (they are already serialized from _process_llm_response)
                     for func_call in processed_response["function_calls"]:
                         self._state_manager.current_turn.tool_calls.append({
-                            'function_call': func_call,
+                            'function_call': func_call,  # func_call is now a serializable dict
                             'timestamp': time.time()
                         })
 
@@ -706,7 +706,9 @@ Begin execution now, starting with the first step."""
                     if hasattr(part, 'text') and part.text is not None:
                         extracted_data["text_parts"].append(part.text)
                     elif hasattr(part, 'function_call') and part.function_call is not None:
-                        extracted_data["function_calls"].append(part.function_call)
+                        # Convert function_call to serializable dictionary
+                        func_call_dict = self._serialize_function_call(part.function_call)
+                        extracted_data["function_calls"].append(func_call_dict)
 
         elif hasattr(llm_response, 'parts') and getattr(llm_response, 'parts'):
             parts = getattr(llm_response, 'parts')
@@ -715,7 +717,9 @@ Begin execution now, starting with the first step."""
                     if hasattr(part, 'text') and part.text is not None:
                         extracted_data["text_parts"].append(part.text)
                     elif hasattr(part, 'function_call') and part.function_call is not None:
-                        extracted_data["function_calls"].append(part.function_call)
+                        # Convert function_call to serializable dictionary
+                        func_call_dict = self._serialize_function_call(part.function_call)
+                        extracted_data["function_calls"].append(func_call_dict)
 
         direct_text = getattr(llm_response, 'text', None)
         if direct_text and not extracted_data["text_parts"] and not extracted_data["function_calls"]:
@@ -725,6 +729,52 @@ Begin execution now, starting with the first step."""
             logger.info(f"Detected function calls in LLM response: {extracted_data['function_calls']}")
 
         return extracted_data
+
+    def _serialize_function_call(self, function_call) -> Dict[str, Any]:
+        """Convert a function_call object to a JSON-serializable dictionary."""
+        try:
+            # Try to extract common attributes from function_call objects
+            func_call_dict = {}
+            
+            # Common attributes that function calls typically have
+            if hasattr(function_call, 'name'):
+                func_call_dict['name'] = function_call.name
+            if hasattr(function_call, 'args'):
+                func_call_dict['args'] = function_call.args
+            if hasattr(function_call, 'id'):
+                func_call_dict['id'] = function_call.id
+                
+            # If the object has a dict representation, use it
+            if hasattr(function_call, '__dict__'):
+                for key, value in function_call.__dict__.items():
+                    if not key.startswith('_'):  # Skip private attributes
+                        try:
+                            # Test if the value is JSON serializable
+                            json.dumps(value)
+                            func_call_dict[key] = value
+                        except (TypeError, ValueError):
+                            # If not serializable, convert to string
+                            func_call_dict[key] = str(value)
+            
+            # If we couldn't extract anything meaningful, convert the whole object to string
+            if not func_call_dict:
+                func_call_dict = {
+                    'name': getattr(function_call, 'name', 'unknown'),
+                    'args': getattr(function_call, 'args', {}),
+                    'raw_str': str(function_call)
+                }
+                
+            return func_call_dict
+            
+        except Exception as e:
+            logger.warning(f"Failed to serialize function_call object: {e}")
+            # Fallback: return a basic dictionary with string representation
+            return {
+                'name': 'unknown',
+                'args': {},
+                'error': f"Serialization failed: {e}",
+                'raw_str': str(function_call)
+            }
 
     @telemetry.track_operation(OperationType.TOOL_EXECUTION, "before_tool")
     async def handle_before_tool(
@@ -1238,7 +1288,22 @@ Begin execution now, starting with the first step."""
             # If we just copy, the token counts might be zero.
             turn.user_message_tokens = self._context_manager._count_tokens(turn.user_message) if turn.user_message else 0
             turn.agent_message_tokens = self._context_manager._count_tokens(turn.agent_message) if turn.agent_message else 0
-            turn.tool_calls_tokens = self._context_manager._count_tokens(json.dumps(turn.tool_calls)) if turn.tool_calls else 0
+            
+            # Safe JSON serialization for tool_calls
+            if turn.tool_calls:
+                try:
+                    tool_calls_json = json.dumps(turn.tool_calls)
+                    turn.tool_calls_tokens = self._context_manager._count_tokens(tool_calls_json)
+                except (TypeError, ValueError) as e:
+                    logger.warning(f"Failed to JSON serialize tool_calls for token counting: {e}")
+                    try:
+                        tool_calls_json = json.dumps(turn.tool_calls, default=str)
+                        turn.tool_calls_tokens = self._context_manager._count_tokens(tool_calls_json)
+                    except Exception as e2:
+                        logger.error(f"Failed to serialize tool_calls even with default=str: {e2}")
+                        turn.tool_calls_tokens = self._context_manager._count_tokens(str(turn.tool_calls))
+            else:
+                turn.tool_calls_tokens = 0
 
             self._context_manager.conversation_turns.append(turn)
         self._context_manager.current_turn_number = len(self._context_manager.conversation_turns) # Update current turn number
@@ -1326,7 +1391,18 @@ Begin execution now, starting with the first step."""
     def _count_context_tokens(self, context_dict: Dict[str, Any]) -> int:
         """Counts tokens for the assembled context dictionary using the ContextManager's strategy."""
         # Convert context_dict to a string representation for counting
-        context_string = json.dumps(context_dict)
+        try:
+            context_string = json.dumps(context_dict)
+        except (TypeError, ValueError) as e:
+            logger.warning(f"Failed to JSON serialize context_dict for token counting: {e}")
+            # Fallback: try to serialize with a custom encoder that handles non-serializable objects
+            try:
+                context_string = json.dumps(context_dict, default=str)
+            except Exception as e2:
+                logger.error(f"Failed to serialize context_dict even with default=str: {e2}")
+                # Ultimate fallback: convert the whole dict to string
+                context_string = str(context_dict)
+        
         if self._context_manager:
             return self._context_manager._count_tokens(context_string) # Delegate to ContextManager
         else:
