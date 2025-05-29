@@ -14,29 +14,6 @@
       "env": {
         "MEMORY_FILE_PATH": "/tmp/.server-memory.json"
       }
-    },
-    "sonarqube": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "sonarqube-mcp-server@1.0.0"
-      ],
-      "env": {
-        "SONARQUBE_URL": "https://sonarcloud.io",
-        "SONARQUBE_TOKEN": "{{env.SONAR_TOKEN}}",
-        "SONARQUBE_ORGANIZATION": "{{env.SONAR_ORGANIZATION}}"
-      }
-    },
-    "datadog": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@winor30/mcp-server-datadog"
-      ],
-      "env": {
-        "DATADOG_API_KEY": "{{env.DATADOG_API_KEY}}",
-        "DATADOG_APP_KEY": "{{env.DATADOG_APP_KEY}}"
-      }
     }
   }
 }
