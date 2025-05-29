@@ -93,12 +93,6 @@ ENABLE_INTERACTIVE_PLANNING = ENABLE_INTERACTIVE_PLANNING_STR.lower() == "true"
 ENABLE_CODE_EXECUTION_STR = os.getenv("ENABLE_CODE_EXECUTION", "false")
 ENABLE_CODE_EXECUTION = ENABLE_CODE_EXECUTION_STR.lower() == "true"
 
-# Temporarily disable MCP Playwright to avoid cancellation scope errors
-# This is a workaround for ADK MCP session management issues
-MCP_PLAYWRIGHT_ENABLED_STR = os.getenv("MCP_PLAYWRIGHT_ENABLED", "false")
-MCP_PLAYWRIGHT_ENABLED = False  # Force disable until ADK fixes the issue
-# MCP_PLAYWRIGHT_ENABLED = MCP_PLAYWRIGHT_ENABLED_STR.lower() == "true"
-
 # --- Logging of configurations ---
 logger.info(f"Config - Google API Key Loaded: {'Yes' if GOOGLE_API_KEY else 'No'}")
 logger.info(f"Config - Default Agent Model: {DEFAULT_AGENT_MODEL}")
@@ -113,4 +107,3 @@ logger.info(f"Config - Context Target Code Snippets: {CONTEXT_TARGET_CODE_SNIPPE
 logger.info(f"Config - Context Target Tool Results: {CONTEXT_TARGET_TOOL_RESULTS}")
 logger.info(f"Config - Shell Command Default Timeout: {DEFAULT_SHELL_COMMAND_TIMEOUT}s")
 logger.info(f"Config - MCP Allowed Directories: {MCP_ALLOWED_DIRECTORIES}")
-logger.info(f"Config - MCP Playwright Enabled: {MCP_PLAYWRIGHT_ENABLED}")

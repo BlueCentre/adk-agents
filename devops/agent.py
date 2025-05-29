@@ -3,11 +3,12 @@
 import logging
 import openlit
 import os
+import asyncio
 
 from google import genai
 
 from .devops_agent import MyDevopsAgent
-from .tools.setup import load_all_tools_and_toolsets
+from .tools.setup import load_all_tools_and_toolsets_async
 # from .logging_config import set_interactive_mode
 
 from . import config as agent_config
@@ -83,17 +84,57 @@ except Exception as e:
     llm_client = None
     logger.error(f"Failed to create genai client: {e}")
 
-# Create agent instance using the MyDevopsAgent abstraction
-devops_agent_instance = MyDevopsAgent(
-    model=agent_config.GEMINI_MODEL_NAME,
-    name="devops_agent",
-    description="Self-sufficient agent specialized in Platform Engineering, DevOps, and SRE practices.",
-    instruction=agent_prompts.DEVOPS_AGENT_INSTR,
-    generate_content_config=agent_config.MAIN_LLM_GENERATION_CONFIG,
-    tools=load_all_tools_and_toolsets(),
-    output_key="devops",
-    llm_client=llm_client,
-)
 
-# Comment out if this will be used as a sub-agent
-root_agent = devops_agent_instance
+async def create_agent():
+    """Create the agent instance."""
+    tools, exit_stack = await load_all_tools_and_toolsets_async()
+
+    # Create agent instance using the MyDevopsAgent abstraction
+    devops_agent_instance = MyDevopsAgent(
+        model=agent_config.GEMINI_MODEL_NAME,
+        name="devops_agent",
+        description="Self-sufficient agent specialized in Platform Engineering, DevOps, and SRE practices.",
+        instruction=agent_prompts.DEVOPS_AGENT_INSTR,
+        generate_content_config=agent_config.MAIN_LLM_GENERATION_CONFIG,
+        tools=tools,
+        output_key="devops",
+        llm_client=llm_client,
+    )
+    return devops_agent_instance, exit_stack
+
+# For the custom ADK fork, create the agent instance directly
+# MCP tools will be loaded asynchronously when the agent first runs
+try:
+    # Import the synchronous loading function that handles async context detection
+    from .tools.setup import load_all_tools_and_toolsets
+    
+    # Load tools synchronously (MCP tools will be loaded later if in async context)
+    tools = load_all_tools_and_toolsets()
+    
+    # Create agent instance directly for the custom ADK fork
+    root_agent = MyDevopsAgent(
+        model=agent_config.GEMINI_MODEL_NAME,
+        name="devops_agent",
+        description="Self-sufficient agent specialized in Platform Engineering, DevOps, and SRE practices.",
+        instruction=agent_prompts.DEVOPS_AGENT_INSTR,
+        generate_content_config=agent_config.MAIN_LLM_GENERATION_CONFIG,
+        tools=tools,
+        output_key="devops",
+        llm_client=llm_client,
+    )
+    
+    logger.info(f"Created agent instance directly for custom ADK fork: {root_agent.name}")
+    
+except Exception as e:
+    logger.error(f"Failed to create agent instance: {e}")
+    # Fallback to a basic agent without tools
+    root_agent = MyDevopsAgent(
+        model=agent_config.GEMINI_MODEL_NAME,
+        name="devops_agent",
+        description="Self-sufficient agent specialized in Platform Engineering, DevOps, and SRE practices.",
+        instruction=agent_prompts.DEVOPS_AGENT_INSTR,
+        generate_content_config=agent_config.MAIN_LLM_GENERATION_CONFIG,
+        tools=[],
+        output_key="devops",
+        llm_client=llm_client,
+    )
