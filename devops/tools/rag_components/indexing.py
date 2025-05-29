@@ -4,10 +4,12 @@ import logging
 import chromadb
 import tempfile
 import shutil
+import time
 from pathlib import Path
 from google import genai as google_genai_sdk # Renamed to avoid conflict with a potential genai client instance
 from google.api_core import exceptions as google_exceptions
 from dotenv import load_dotenv # Added import
+from typing import List, Dict, Any, Optional
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -133,7 +135,7 @@ def get_chroma_collection():
         logger.error(f"Failed to get or create ChromaDB collection '{CHROMA_COLLECTION_NAME}': {e}")
         return None
 
-def embed_chunks_batch(chunks_content: list[str], task_type="RETRIEVAL_DOCUMENT") -> list[list[float]] | None:
+def embed_chunks_batch(chunks_content: list[str], task_type="RETRIEVAL_DOCUMENT", max_retries=3) -> list[list[float]] | None:
     if not chunks_content:
         logger.warning("No content provided to embed_chunks_batch.")
         return []
@@ -144,27 +146,54 @@ def embed_chunks_batch(chunks_content: list[str], task_type="RETRIEVAL_DOCUMENT"
         return None
 
     embeddings_list = []
-    try:
-        logger.info(f"Requesting embeddings for {len(chunks_content)} chunks using {EMBEDDING_MODEL_NAME}...")
-        # Use the client instance to call embed_content
-        result = genai_client.models.embed_content(
-            model=EMBEDDING_MODEL_NAME, 
-            contents=chunks_content, 
-            config=google_genai_sdk.types.EmbedContentConfig(task_type=task_type)
-        )
-        raw_embeddings = result.embeddings
-        if raw_embeddings:
-            embeddings_list = [embedding.values for embedding in raw_embeddings]
-        else:
-            embeddings_list = []
-        logger.info(f"Successfully generated {len(embeddings_list)} embeddings.")
-        return embeddings_list
-    except google_exceptions.GoogleAPIError as e:
-        logger.error(f"Google API error during embedding: {e}")
-    except AttributeError as ae:
-        logger.error(f"Attribute error during embedding (check SDK setup or API changes for embed_content): {ae}")
-    except Exception as e:
-        logger.error(f"An unexpected error occurred during embedding: {e}")
+    
+    for attempt in range(max_retries + 1):
+        try:
+            logger.info(f"Requesting embeddings for {len(chunks_content)} chunks using {EMBEDDING_MODEL_NAME}...")
+            # Use the client instance to call embed_content
+            result = genai_client.models.embed_content(
+                model=EMBEDDING_MODEL_NAME, 
+                contents=chunks_content, 
+                config=google_genai_sdk.types.EmbedContentConfig(task_type=task_type)
+            )
+            raw_embeddings = result.embeddings
+            if raw_embeddings:
+                embeddings_list = [embedding.values for embedding in raw_embeddings]
+            else:
+                embeddings_list = []
+            logger.info(f"Successfully generated {len(embeddings_list)} embeddings.")
+            return embeddings_list
+            
+        except google_exceptions.GoogleAPIError as e:
+            error_str = str(e)
+            
+            # Check if this is a rate limit error
+            if ("429" in error_str and "RESOURCE_EXHAUSTED" in error_str) or \
+               ("quota" in error_str.lower()) or \
+               ("rate limit" in error_str.lower()):
+                
+                if attempt < max_retries:
+                    # Calculate exponential backoff delay (60s, 120s, 240s)
+                    delay = 60 * (2 ** attempt)
+                    logger.warning(f"Rate limit hit during embedding (attempt {attempt + 1}/{max_retries + 1}). "
+                                 f"Waiting {delay} seconds before retry...")
+                    time.sleep(delay)
+                    continue
+                else:
+                    logger.error(f"Rate limit exceeded after {max_retries + 1} attempts during embedding. "
+                               f"Skipping this batch of {len(chunks_content)} chunks.")
+                    return None
+            else:
+                logger.error(f"Google API error during embedding: {e}")
+                return None
+                
+        except AttributeError as ae:
+            logger.error(f"Attribute error during embedding (check SDK setup or API changes for embed_content): {ae}")
+            return None
+        except Exception as e:
+            logger.error(f"An unexpected error occurred during embedding: {e}")
+            return None
+    
     return None
 
 def index_file_chunks(collection, file_chunks_data: list[dict]):

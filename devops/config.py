@@ -18,8 +18,8 @@ logger = logging.getLogger(__name__)
 
 # --- LLM Configuration ---
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-GEMINI_FLASH_MODEL_NAME = os.getenv("GEMINI_FLASH_MODEL", "gemini-2.5-flash-latest")
-GEMINI_PRO_MODEL_NAME = os.getenv("GEMINI_PRO_MODEL", "gemini-2.5-pro-latest")
+GEMINI_FLASH_MODEL_NAME = os.getenv("GEMINI_FLASH_MODEL", "gemini-1.5-flash")
+GEMINI_PRO_MODEL_NAME = os.getenv("GEMINI_PRO_MODEL", "gemini-1.5-pro")
 GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL", GEMINI_PRO_MODEL_NAME) # Default to Pro
 
 DEFAULT_AGENT_MODEL = os.getenv("AGENT_MODEL", GEMINI_PRO_MODEL_NAME)
@@ -93,8 +93,11 @@ ENABLE_INTERACTIVE_PLANNING = ENABLE_INTERACTIVE_PLANNING_STR.lower() == "true"
 ENABLE_CODE_EXECUTION_STR = os.getenv("ENABLE_CODE_EXECUTION", "false")
 ENABLE_CODE_EXECUTION = ENABLE_CODE_EXECUTION_STR.lower() == "true"
 
+# Temporarily disable MCP Playwright to avoid cancellation scope errors
+# This is a workaround for ADK MCP session management issues
 MCP_PLAYWRIGHT_ENABLED_STR = os.getenv("MCP_PLAYWRIGHT_ENABLED", "false")
-MCP_PLAYWRIGHT_ENABLED = MCP_PLAYWRIGHT_ENABLED_STR.lower() == "true"
+MCP_PLAYWRIGHT_ENABLED = False  # Force disable until ADK fixes the issue
+# MCP_PLAYWRIGHT_ENABLED = MCP_PLAYWRIGHT_ENABLED_STR.lower() == "true"
 
 # --- Logging of configurations ---
 logger.info(f"Config - Google API Key Loaded: {'Yes' if GOOGLE_API_KEY else 'No'}")

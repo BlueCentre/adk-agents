@@ -1,0 +1,233 @@
+# .indexignore - Files and directories to exclude from RAG indexing
+# This file works similar to .gitignore but for the RAG indexing system
+
+# ============================================================================
+# VIRTUAL ENVIRONMENTS & PACKAGE MANAGERS
+# ============================================================================
+.venv/
+venv/
+env/
+.env/
+virtualenv/
+.virtualenv/
+__pycache__/
+.conda/
+conda-meta/
+node_modules/
+vendor/
+bower_components/
+jspm_packages/
+.pnpm-store/
+.yarn/
+.npm/
+
+# ============================================================================
+# BUILD ARTIFACTS & COMPILED FILES
+# ============================================================================
+build/
+dist/
+target/
+out/
+bin/
+obj/
+*.pyc
+*.pyo
+*.pyd
+*.so
+*.dll
+*.dylib
+*.exe
+*.o
+*.a
+*.lib
+*.class
+*.jar
+*.war
+*.ear
+*.wasm
+*.bin
+
+# ============================================================================
+# VERSION CONTROL
+# ============================================================================
+.git/
+.svn/
+.hg/
+.bzr/
+.darcs/
+
+# ============================================================================
+# IDE & EDITOR FILES
+# ============================================================================
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+nbproject/
+.project
+.classpath
+.settings/
+
+# ============================================================================
+# LOGS & TEMPORARY FILES
+# ============================================================================
+*.log
+logs/
+Log/
+*.tmp
+*.temp
+*.bak
+*.backup
+*.cache
+.cache/
+.temp/
+.tmp/
+
+# ============================================================================
+# LARGE DATA FILES & ARCHIVES
+# ============================================================================
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+*.iso
+*.img
+*.dmg
+*.pkg
+*.deb
+*.rpm
+*.msi
+*.parquet
+*.hdf5
+*.h5
+*.db
+*.sqlite
+*.sqlite3
+
+# ============================================================================
+# MEDIA FILES (usually not useful for code indexing)
+# ============================================================================
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.tiff
+*.svg
+*.ico
+*.mp3
+*.mp4
+*.avi
+*.mov
+*.wmv
+*.flv
+*.webm
+*.pdf
+*.doc
+*.docx
+*.xls
+*.xlsx
+*.ppt
+*.pptx
+
+# ============================================================================
+# CONFIGURATION & SECRETS
+# ============================================================================
+.env
+.env.local
+.env.production
+.env.staging
+*.key
+*.pem
+*.p12
+*.pfx
+secrets/
+.secrets/
+
+# ============================================================================
+# TESTING & COVERAGE
+# ============================================================================
+.coverage
+.pytest_cache/
+.tox/
+coverage/
+htmlcov/
+.nyc_output/
+coverage.xml
+*.cover
+.hypothesis/
+
+# ============================================================================
+# DOCUMENTATION BUILD
+# ============================================================================
+_build/
+.doctrees/
+site/
+docs/_build/
+docs/build/
+
+# ============================================================================
+# LANGUAGE-SPECIFIC
+# ============================================================================
+
+# Python
+*.egg-info/
+.eggs/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# JavaScript/Node
+.next/
+.nuxt/
+.vercel/
+.netlify/
+
+# Java
+*.class
+target/
+.gradle/
+gradle/
+
+# C/C++
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Rust
+target/
+Cargo.lock
+
+# Go
+vendor/
+*.exe
+*.exe~
+
+# ============================================================================
+# CLOUD & DEPLOYMENT
+# ============================================================================
+.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
+
+# ============================================================================
+# PROJECT-SPECIFIC EXCLUSIONS
+# ============================================================================
+# Add any project-specific files or directories here
+my_new_project/
+.agent/.server-memory.json
+.index_data/
+chroma_data/ 

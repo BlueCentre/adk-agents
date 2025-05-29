@@ -341,11 +341,12 @@ class MyDevopsAgent(LlmAgent):
         self.after_model_callback = self.handle_after_model
         self.before_tool_callback = self.handle_before_tool
         self.after_tool_callback = self.handle_after_tool
-        # Register the after_agent callback for cleanup
-        # NOTE: Temporarily disabled due to noisy cancellation scope errors during shutdown
-        # These errors don't prevent proper shutdown but create poor UX. The cleanup function
-        # is still available for manual/runner-level cleanup if needed.
+        # Remove after_agent callback since ADK handles MCP cleanup automatically
         # self.after_agent_callback = self.handle_after_agent
+        
+        # Track whether MCP tools have been loaded asynchronously
+        self._mcp_tools_loaded = False
+        self._mcp_loading_lock = False
 
     def model_post_init(self, __context: Any) -> None:
         super().model_post_init(__context)
@@ -395,6 +396,9 @@ class MyDevopsAgent(LlmAgent):
         )
         logger.info("ContextManager initialized in model_post_init.")
 
+        # Note: MCP toolsets are now loaded asynchronously in the tools property
+        # This follows the ADK documentation pattern for proper async lifecycle management
+
     def _determine_actual_token_limit(self):
         """Determines the actual token limit for the configured model."""
         model_to_check = self.model or agent_config.DEFAULT_AGENT_MODEL
@@ -425,10 +429,62 @@ class MyDevopsAgent(LlmAgent):
         ui_utils.stop_status_spinner(self._status_indicator)
         self._status_indicator = None
 
+    async def _ensure_mcp_tools_loaded(self):
+        """Ensure MCP tools are loaded asynchronously if not already loaded.
+        
+        This method handles the case where the agent was initialized in an async context
+        and MCP tools need to be loaded when the agent actually runs.
+        """
+        if self._mcp_tools_loaded or self._mcp_loading_lock:
+            return
+            
+        self._mcp_loading_lock = True
+        try:
+            logger.info("Loading MCP tools asynchronously...")
+            
+            # Import the async loading function
+            from .tools.setup import load_user_tools_and_toolsets_async
+            
+            # Load MCP tools asynchronously using the best available pattern
+            mcp_tools, exit_stack = await load_user_tools_and_toolsets_async()
+            
+            if mcp_tools:
+                # Add MCP tools to the agent's tools list
+                if hasattr(self, 'tools') and self.tools is not None:
+                    # Convert to list if it's not already
+                    if not isinstance(self.tools, list):
+                        self.tools = list(self.tools)
+                    self.tools.extend(mcp_tools)
+                else:
+                    self.tools = mcp_tools
+                
+                logger.info(f"Successfully loaded {len(mcp_tools)} MCP tools asynchronously.")
+                
+                # Log which pattern was used
+                if exit_stack is not None:
+                    logger.info("MCP tools loaded using async pattern with exit stack management.")
+                else:
+                    logger.info("MCP tools loaded using simple pattern.")
+                    
+                self._mcp_tools_loaded = True
+            else:
+                logger.info("No MCP tools to load.")
+                self._mcp_tools_loaded = True
+                
+        except Exception as e:
+            logger.error(f"Failed to load MCP tools asynchronously: {e}", exc_info=True)
+            # Mark as loaded to prevent repeated attempts
+            self._mcp_tools_loaded = True
+        finally:
+            self._mcp_loading_lock = False
+
     @telemetry.track_operation(OperationType.LLM_REQUEST, "before_model")
     async def handle_before_model(
         self, callback_context: CallbackContext, llm_request: LlmRequest
     ) -> LlmResponse | None:
+        
+        # Ensure MCP tools are loaded before processing the request
+        await self._ensure_mcp_tools_loaded()
         
         user_message_content = get_last_user_content(llm_request)
         
@@ -1485,62 +1541,6 @@ Begin execution now, starting with the first step."""
         else:
             logger.warning("ContextManager not initialized. Using fallback context token counting.")
             return len(context_string) // 4 # Original fallback
-
-    async def handle_after_agent(self, callback_context: CallbackContext | None = None) -> None:
-        """
-        Handle cleanup operations after the agent session ends.
-        
-        This method provides a safe place for cleanup logic during agent shutdown,
-        specifically for cleaning up MCP toolsets that require proper resource closure.
-        
-        NOTE: Due to ADK runner behavior during shutdown, this cleanup may encounter
-        cancellation scope errors. We handle these gracefully and ensure the agent
-        can still shut down properly even if cleanup is incomplete.
-        """
-        logger.info(f"Agent {self.name}: Starting after-agent cleanup...")
-        cleanup_successful = False
-        
-        try:
-            # Import the cleanup function from setup.py
-            from .tools.setup import cleanup_mcp_toolsets
-            
-            # Attempt to cleanup MCP toolsets with timeout protection
-            import asyncio
-            try:
-                # Set a reasonable timeout for cleanup to prevent hanging
-                await asyncio.wait_for(cleanup_mcp_toolsets(), timeout=10.0)
-                cleanup_successful = True
-                logger.info(f"Agent {self.name}: Successfully completed MCP toolset cleanup.")
-            except asyncio.TimeoutError:
-                logger.warning(f"Agent {self.name}: MCP toolset cleanup timed out after 10 seconds. This may be due to cancellation scope issues during shutdown.")
-            except RuntimeError as e:
-                if "cancel scope" in str(e).lower():
-                    logger.warning(f"Agent {self.name}: MCP toolset cleanup encountered cancellation scope error (expected during shutdown): {e}")
-                else:
-                    logger.error(f"Agent {self.name}: MCP toolset cleanup encountered unexpected RuntimeError: {e}", exc_info=True)
-            except Exception as e:
-                logger.error(f"Agent {self.name}: Error during MCP toolset cleanup: {e}", exc_info=True)
-            
-        except ImportError as e:
-            logger.warning(f"Agent {self.name}: Could not import cleanup function: {e}")
-        except Exception as e:
-            logger.error(f"Agent {self.name}: Unexpected error during cleanup setup: {e}", exc_info=True)
-        
-        # Additional cleanup operations that should always run
-        try:
-            # Stop any remaining status indicators
-            self._stop_status()
-            logger.info(f"Agent {self.name}: Stopped status indicators.")
-            
-        except Exception as e:
-            logger.error(f"Agent {self.name}: Error stopping status indicators: {e}", exc_info=True)
-        
-        # Final status report
-        if cleanup_successful:
-            logger.info(f"Agent {self.name}: Completed after-agent cleanup successfully.")
-        else:
-            logger.warning(f"Agent {self.name}: Completed after-agent cleanup with some issues. This is expected due to ADK runner shutdown behavior.")
-            logger.info(f"Agent {self.name}: For cleaner shutdown, consider implementing runner-level cleanup as described in the setup.py comments.")
 
     def _log_final_prompt_analysis(self, llm_request: LlmRequest, context_dict: Dict[str, Any], system_context_message: str):
         """Log comprehensive final prompt analysis for optimization as per OPTIMIZATIONS.md section 4."""

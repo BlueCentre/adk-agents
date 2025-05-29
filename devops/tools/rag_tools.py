@@ -2,6 +2,7 @@
 import os
 import logging
 import fnmatch # Added for .indexignore
+import time
 from pathlib import Path # Added for .indexignore and path manipulation
 from typing import Optional # Added import
 
@@ -190,6 +191,10 @@ def index_directory_tool(directory_path: str, file_extensions: Optional[list[str
                     processed_files += 1
                     total_chunks_indexed += len(file_chunks_data)
                     logger.info(f"Successfully indexed {len(file_chunks_data)} chunks from {file_abs_path}.")
+                    
+                    # Add a small delay between file processing to avoid hitting rate limits
+                    # Only delay if we successfully processed a file and there are more files to process
+                    time.sleep(0.5)  # 500ms delay between files
                 else:
                     logger.error(f"Failed to index chunks from {file_abs_path}.")
                     errors.append(str(file_abs_path))
