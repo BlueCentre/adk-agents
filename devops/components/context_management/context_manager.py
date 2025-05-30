@@ -6,6 +6,7 @@ from enum import Enum, auto
 from typing import Dict, List, Optional, Any, Tuple, Callable
 import json
 from rich.console import Console
+import os
 
 from google import genai
 from google.genai.types import Content, Part, CountTokensResponse # For native token counting
@@ -474,7 +475,33 @@ class ContextManager:
         """Gather proactive context and cache it for token counting."""
         if self._proactive_context_cache is None:
             logger.info("PROACTIVE CONTEXT: Gathering project files, Git history, and documentation...")
-            self._proactive_context_cache = self.proactive_gatherer.gather_all_context()
+            
+            # Enhanced diagnostic logging
+            logger.info("DIAGNOSTIC: Starting proactive context gathering...")
+            logger.info(f"DIAGNOSTIC: Current working directory: {os.getcwd()}")
+            logger.info(f"DIAGNOSTIC: Workspace root: {getattr(self, 'workspace_root', 'Not set')}")
+            
+            try:
+                self._proactive_context_cache = self.proactive_gatherer.gather_all_context()
+                
+                # Detailed diagnostic logging
+                if self._proactive_context_cache:
+                    logger.info(f"DIAGNOSTIC: Proactive context keys: {list(self._proactive_context_cache.keys())}")
+                    for key, value in self._proactive_context_cache.items():
+                        if isinstance(value, list):
+                            logger.info(f"DIAGNOSTIC: {key}: {len(value)} items")
+                            if len(value) > 0:
+                                logger.info(f"DIAGNOSTIC: {key} sample: {str(value[0])[:100]}...")
+                        elif isinstance(value, dict):
+                            logger.info(f"DIAGNOSTIC: {key}: dict with {len(value)} keys: {list(value.keys())[:5]}")
+                        else:
+                            logger.info(f"DIAGNOSTIC: {key}: {type(value).__name__} - {str(value)[:100]}...")
+                else:
+                    logger.warning("DIAGNOSTIC: Proactive context gathering returned None/empty!")
+                    
+            except Exception as e:
+                logger.error(f"DIAGNOSTIC: Exception during proactive context gathering: {e}", exc_info=True)
+                self._proactive_context_cache = {}
             
             # Calculate total tokens for proactive context
             if self._proactive_context_cache:
@@ -490,7 +517,12 @@ class ContextManager:
                         logger.info(f"  {key}: {type(value).__name__}")
             else:
                 self._proactive_context_tokens = 0
-                logger.info("PROACTIVE CONTEXT: No proactive context gathered")
+                logger.warning("PROACTIVE CONTEXT: No proactive context gathered - investigating...")
+                
+                # Additional diagnostics when gathering fails
+                logger.info("DIAGNOSTIC: Checking proactive gatherer state...")
+                logger.info(f"DIAGNOSTIC: Gatherer type: {type(self.proactive_gatherer)}")
+                logger.info(f"DIAGNOSTIC: Gatherer workspace: {getattr(self.proactive_gatherer, 'workspace_root', 'Not found')}")
                 
         return self._proactive_context_cache or {}
 

@@ -29,57 +29,92 @@ class PlanningManager:
     def _should_trigger_heuristic(self, user_message_content: str) -> bool:
         lower_user_message = user_message_content.lower()
         
-        # Explicit planning requests
+        # Explicit planning requests - these always trigger
         explicit_keywords = [
             "plan this", "create a plan", "show me the plan", 
             "draft a plan", "plan for me", "let's plan", "make a plan"
         ]
         
-        # Complex multi-step task indicators
-        complex_task_keywords = [
-            "implement", "create new", "design a", "develop a", 
-            "refactor module", "add feature", "build a new",
-            "analyze and", "create a", "generate a", "build and",
-            "start by", "then", "first", "second", "third", "step",
-            "comprehensive", "optimization", "enhancement", "improvement",
-            "analyze.*create", "create.*analyze", "read.*then", "identify.*implement"
+        # Check for explicit planning requests first
+        if any(keyword in lower_user_message for keyword in explicit_keywords):
+            logger.info("PlanningManager: Explicit planning request detected.")
+            return True
+        
+        # Simple exploration tasks that should NOT trigger planning
+        simple_exploration_patterns = [
+            r"read\s+.*file",
+            r"show\s+.*file", 
+            r"list\s+.*",
+            r"find\s+.*",
+            r"search\s+.*",
+            r"explain\s+.*",
+            r"what\s+is.*",
+            r"how\s+does.*work",
+            r"check\s+.*status",
+            r"view\s+.*log"
         ]
         
-        # Multi-step indicators (words that suggest a sequence of actions)
+        # If it's a simple exploration, don't trigger planning
+        import re
+        for pattern in simple_exploration_patterns:
+            if re.search(pattern, lower_user_message):
+                logger.info(f"PlanningManager: Simple exploration detected ({pattern}), skipping planning.")
+                return False
+        
+        # Complex implementation task indicators - these should trigger planning
+        complex_implementation_keywords = [
+            "implement and", "create and deploy", "build and test", "design and implement",
+            "refactor entire", "migrate from", "upgrade from", "convert to",
+            "generate comprehensive", "create full", "build complete"
+        ]
+        
+        # Multi-step modification indicators
+        modification_sequences = [
+            r"(add|create|implement).*then.*(test|deploy|document)",
+            r"(refactor|modify).*and.*(update|change|add)",
+            r"(analyze|review).*then.*(implement|create|modify)",
+            r"(setup|configure).*and.*(deploy|test|monitor)"
+        ]
+        
+        # Check for complex implementation tasks
+        if any(keyword in lower_user_message for keyword in complex_implementation_keywords):
+            logger.info("PlanningManager: Complex implementation task detected, triggering planning.")
+            return True
+            
+        # Check for modification sequences that suggest multi-step work
+        for pattern in modification_sequences:
+            if re.search(pattern, lower_user_message):
+                logger.info(f"PlanningManager: Multi-step modification sequence detected ({pattern}), triggering planning.")
+                return True
+        
+        # Refined multi-step indicators - only if combined with action verbs
         multi_step_indicators = [
             "start by", "then", "after that", "next", "finally", "first", "second", "third",
             "step 1", "step 2", "step 3", "and then", "followed by", "subsequently"
         ]
         
-        # Check for explicit planning requests
-        if any(keyword in lower_user_message for keyword in explicit_keywords):
-            logger.info("PlanningManager: Explicit planning request detected.")
+        action_verbs = ["implement", "create", "build", "develop", "design", "refactor", 
+                       "generate", "deploy", "configure", "setup", "migrate", "convert"]
+        
+        # Only trigger on multi-step if we have both indicators AND action verbs
+        has_multi_step = any(indicator in lower_user_message for indicator in multi_step_indicators)
+        has_action_verbs = any(verb in lower_user_message for verb in action_verbs)
+        
+        if has_multi_step and has_action_verbs:
+            found_indicators = [ind for ind in multi_step_indicators if ind in lower_user_message]
+            found_verbs = [verb for verb in action_verbs if verb in lower_user_message]
+            logger.info(f"PlanningManager: Multi-step implementation task detected (indicators: {found_indicators}, verbs: {found_verbs}), triggering planning.")
             return True
             
-        # Check for complex task keywords
-        if any(keyword in lower_user_message for keyword in complex_task_keywords):
-            logger.info("PlanningManager: Complex task keywords detected, suggesting planning.")
+        # Check for multiple deliverables (suggests complex project)
+        deliverable_keywords = ["report", "analysis", "implementation", "documentation", "enhancement", "system", "application", "service"]
+        found_deliverables = [word for word in deliverable_keywords if word in lower_user_message]
+        if len(found_deliverables) >= 2:
+            logger.info(f"PlanningManager: Multiple deliverables detected ({found_deliverables}), triggering planning.")
             return True
-            
-        # Check for multi-step indicators
-        if any(indicator in lower_user_message for indicator in multi_step_indicators):
-            logger.info("PlanningManager: Multi-step task indicators detected, suggesting planning.")
-            return True
-            
-        # Additional heuristic: Check for multiple action verbs (suggests complex task)
-        action_verbs = ["analyze", "create", "implement", "develop", "build", "design", "refactor", 
-                       "generate", "optimize", "enhance", "identify", "document", "read", "write"]
-        found_verbs = [verb for verb in action_verbs if verb in lower_user_message]
-        if len(found_verbs) >= 2:
-            logger.info(f"PlanningManager: Multiple action verbs detected ({found_verbs}), suggesting complex multi-step task.")
-            return True
-            
-        # Check for requests that mention multiple deliverables
-        if len([word for word in ["report", "analysis", "implementation", "documentation", "enhancement"] 
-               if word in lower_user_message]) >= 2:
-            logger.info("PlanningManager: Multiple deliverables detected, suggesting planning.")
-            return True
-            
+        
+        # Don't trigger for simple combinations anymore
+        logger.info("PlanningManager: No complex task patterns detected, proceeding without planning.")
         return False
 
     def _is_plan_related_feedback(self, user_message: str) -> bool:

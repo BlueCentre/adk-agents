@@ -36,7 +36,7 @@ openlit_config = {
     "capture_message_content": os.getenv('OPENLIT_CAPTURE_CONTENT', 'true').lower() in ('true', '1', 'yes'),
     "disable_batch": os.getenv('OPENLIT_DISABLE_BATCH', 'false').lower() in ('true', '1', 'yes'),
     # Disable specific instrumentations if needed (disable some that might cause attribute issues)
-    "disabled_instrumentors": os.getenv('OPENLIT_DISABLED_INSTRUMENTORS', 'google_generativeai').split(',') if os.getenv('OPENLIT_DISABLED_INSTRUMENTORS') else ['google_generativeai'],
+    # "disabled_instrumentors": os.getenv('OPENLIT_DISABLED_INSTRUMENTORS', 'google_generativeai').split(',') if os.getenv('OPENLIT_DISABLED_INSTRUMENTORS') else ['google_generativeai'],
 }
 
 # Set custom resource attributes for better trace context

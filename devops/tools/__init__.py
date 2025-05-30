@@ -57,6 +57,10 @@ from .rag_tools import (
     purge_rag_index_tool,
 )
 
+# This file contains the tool registry for the devops agent
+
+from .setup import load_all_tools_and_toolsets
+from .dynamic_discovery import tool_discovery, DynamicToolDiscovery
 
 __all__ = [
     # Filesystem Tools - DISABLED to avoid confusion with MCP filesystem tools
@@ -85,4 +89,16 @@ __all__ = [
     "index_directory_tool",
     "retrieve_code_context_tool",
     "purge_rag_index_tool",
+    'load_all_tools_and_toolsets',
+    'tool_discovery', 
+    'DynamicToolDiscovery'
 ]
+
+# Initialize tool discovery on module import
+def get_environment_capabilities():
+    """Get cached environment capabilities."""
+    return tool_discovery.discover_environment_capabilities()
+
+def get_tool_suggestions(task_description: str):
+    """Get tool suggestions for a task."""
+    return tool_discovery.suggest_tools_for_task(task_description)
