@@ -3,18 +3,19 @@ name = "devops_agent_v2"
 version = "0.1.0"
 description = "DevOps Agent v2 with RAG capabilities."
 dependencies = [
-    "chromadb~=1.0.8",  # Using ~= for compatible releases with 1.0.x
+    "chromadb~=1.0.8", # Using ~= for compatible releases with 1.0.x
     "google-genai~=1.14.0", # Migrated from google-generativeai
-    "google-api-core>=2.19.0",  # Updated for protobuf 5.x compatibility
-    "protobuf>=5.0,<6.0",  # Updated for OpenTelemetry compatibility
+    "google-api-core>=2.19.0", # Updated for protobuf 5.x compatibility
+    "protobuf>=5.0,<6.0", # Updated for OpenTelemetry compatibility
     "openai~=1.10.0",
-    "tiktoken>=0.7.0,<0.8.0",  # Compatible with openlit 1.33.x
-    "openlit>=1.33.20",  # LLM observability - using newer version
-    "opentelemetry-api>=1.30.0,<2.0.0",  # OpenTelemetry core - compatible with openlit
-    "opentelemetry-sdk>=1.30.0,<2.0.0",  # OpenTelemetry SDK - compatible with openlit
-    "opentelemetry-exporter-otlp>=1.30.0,<2.0.0",  # OTLP exporter for Grafana Cloud
-    "psutil~=5.9.0",  # System monitoring
-    "rich~=13.0.0",  # Console output (for local dashboard if needed)
+    "tiktoken>=0.7.0,<0.8.0", # Compatible with openlit 1.33.x
+    "openlit>=1.33.20", # LLM observability - using newer version
+    "opentelemetry-api>=1.30.0,<2.0.0", # OpenTelemetry core - compatible with openlit
+    "opentelemetry-sdk>=1.30.0,<2.0.0", # OpenTelemetry SDK - compatible with openlit
+    "opentelemetry-exporter-otlp>=1.30.0,<2.0.0", # OTLP exporter for Grafana Cloud
+    "psutil~=5.9.0", # System monitoring
+    "rich~=13.0.0", # Console output (for local dashboard if needed)
+    "pexpect>=4.9.0",
 ]
 
 [build-system]

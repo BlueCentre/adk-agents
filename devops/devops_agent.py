@@ -1997,7 +1997,9 @@ Begin execution now, starting with the first step."""
         logger.info(f"🔧 SMART FILTERING COMPLETE:")
         logger.info(f"  📊 Original contents: {original_count}")
         logger.info(f"  📊 Filtered contents: {new_count}")
-        logger.info(f"  📊 Reduction: {original_count - new_count} messages ({((original_count - new_count) / original_count * 100):.1f}%)")
+        reduction_count = original_count - new_count
+        reduction_pct = (reduction_count / original_count * 100) if original_count > 0 else 0.0
+        logger.info(f"  📊 Reduction: {reduction_count} messages ({reduction_pct:.1f}%)")
         logger.info(f"  ✅ Tool flows preserved: Active chains maintained")
         logger.info(f"  ✅ Recent context preserved: {kept_conversations} conversation segments")
         

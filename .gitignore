@@ -68,6 +68,7 @@ env/
 .env.production.local
 .index_data/
 .server-memory.json
+.adk/
 push.sh
 
 # IDE and editor files

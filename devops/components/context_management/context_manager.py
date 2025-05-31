@@ -7,6 +7,7 @@ from typing import Dict, List, Optional, Any, Tuple, Callable
 import json
 from rich.console import Console
 import os
+import time
 
 from google import genai
 from google.genai.types import Content, Part, CountTokensResponse # For native token counting
@@ -32,6 +33,7 @@ class ContextPriority(Enum):
     HIGH = auto()
     MEDIUM = auto()
     LOW = auto()
+    MINIMAL = auto()
 
 @dataclass
 class CodeSnippet:
@@ -42,6 +44,7 @@ class CodeSnippet:
     last_accessed: int
     relevance_score: float = 1.0
     token_count: int = 0
+    priority: ContextPriority = ContextPriority.LOW
 
 @dataclass
 class ToolResult:
@@ -52,6 +55,7 @@ class ToolResult:
     is_error: bool = False
     relevance_score: float = 1.0
     token_count: int = 0
+    priority: ContextPriority = ContextPriority.HIGH
 
 @dataclass
 class ConversationTurn:
@@ -62,6 +66,18 @@ class ConversationTurn:
     user_message_tokens: int = 0
     agent_message_tokens: int = 0
     tool_calls_tokens: int = 0
+    timestamp: float = field(default_factory=time.time)
+    priority: ContextPriority = ContextPriority.MEDIUM
+    
+    @property
+    def total_tokens(self) -> int:
+        """Calculate total tokens for this turn."""
+        return self.user_message_tokens + self.agent_message_tokens + self.tool_calls_tokens
+    
+    @property
+    def has_tool_activity(self) -> bool:
+        """Check if this turn contains tool activity."""
+        return bool(self.tool_calls)
 
 @dataclass
 class ContextState:
@@ -71,6 +87,14 @@ class ContextState:
     last_modified_files: List[str] = field(default_factory=list)
     core_goal_tokens: int = 0
     current_phase_tokens: int = 0
+    decisions_tokens: int = 0
+    files_tokens: int = 0
+    
+    @property
+    def total_tokens(self) -> int:
+        """Calculate total tokens for context state."""
+        return (self.core_goal_tokens + self.current_phase_tokens + 
+                self.decisions_tokens + self.files_tokens)
 
 class ContextManager:
     def __init__(self, 
@@ -129,6 +153,13 @@ class ContextManager:
         # Initialize intelligent summarizer and dynamic context expander
         self.intelligent_summarizer = IntelligentSummarizer()
         self.dynamic_expander = DynamicContextExpander(workspace_root=".")
+        
+        # Dynamic targeting based on conversation length
+        self._adaptive_limits = self._calculate_adaptive_limits()
+        
+        # Performance tracking
+        self._last_context_tokens = 0
+        self._token_growth_history: List[Tuple[int, int]] = []  # (turn, tokens)
         
         # Log detailed configuration information for optimization analysis
         self._log_configuration()
@@ -527,498 +558,314 @@ class ContextManager:
         return self._proactive_context_cache or {}
 
     def assemble_context(self, base_prompt_tokens: int) -> Tuple[Dict[str, Any], int]:
-        """Assemble context dictionary from available data, respecting token limits.
-        
-        Includes comprehensive logging for optimization analysis as per OPTIMIZATIONS.md section 4.
         """
-        # Log detailed input state for optimization analysis
-        self._log_detailed_inputs()
+        Assemble context dictionary with intelligent token management.
         
-        available_tokens = self.max_token_limit - base_prompt_tokens - self._count_tokens(f"SYSTEM CONTEXT (JSON):\n```json\n```\nUse this context to inform your response. Do not directly refer to this context block.") - 50 # 50 for safety margin
+        Returns:
+            Tuple of (context_dict, total_context_tokens)
+        """
+        logger.info(f"🧠 ASSEMBLING CONTEXT: Base prompt={base_prompt_tokens:,}, Limit={self.max_token_limit:,}")
         
-        # Get adaptive targets for this conversation length and token pressure
-        adaptive_targets = self._get_adaptive_targets()
-        token_pressure = self._calculate_token_pressure(available_tokens)
-        
-        logger.info("=" * 60)
-        logger.info("CONTEXT ASSEMBLY - TOKEN BUDGET ANALYSIS")
-        logger.info("=" * 60)
-        logger.info(f"Max LLM Token Limit: {self.max_token_limit:,}")
-        logger.info(f"Base Prompt Tokens: {base_prompt_tokens:,}")
-        wrapper_text = 'SYSTEM CONTEXT (JSON):\n```json\n```\nUse this context to inform your response. Do not directly refer to this context block.'
-        logger.info(f"Context Wrapper Overhead: {self._count_tokens(wrapper_text):,}")
-        logger.info(f"Safety Margin: 50")
-        logger.info(f"Available Tokens for Context: {available_tokens:,}")
-        logger.info("=" * 60)
-        logger.info("🔧 ADAPTIVE OPTIMIZATION ANALYSIS")
-        logger.info("=" * 60)
-        logger.info(f"Conversation Length: {len(self.conversation_turns)} turns")
-        logger.info(f"Token Pressure: {token_pressure:.2f} (0.0=low, 1.0=critical)")
-        logger.info(f"Adaptive Targets Applied:")
-        logger.info(f"  📚 Recent Turns: {adaptive_targets['recent_turns']} (vs base {self.target_recent_turns})")
-        logger.info(f"  📝 Code Snippets: {adaptive_targets['code_snippets']} (vs base {self.target_code_snippets})")
-        logger.info(f"  🛠️  Tool Results: {adaptive_targets['tool_results']} (vs base {self.target_tool_results})")
-        if token_pressure > 0.8:
-            logger.warning("🚨 HIGH TOKEN PRESSURE - Aggressive optimization in effect!")
-        logger.info("=" * 60)
+        # Calculate available token budget
+        safety_margin = 2000  # Reserve for response generation
+        available_tokens = self.max_token_limit - base_prompt_tokens - safety_margin
         
         if available_tokens <= 0:
-            logger.warning("CONTEXT ASSEMBLY: No token budget available for structured context after accounting for base prompt and wrapper.")
+            logger.error(f"No tokens available for context! Base prompt too large: {base_prompt_tokens:,}")
             return {}, 0
-
-        context_dict: Dict[str, Any] = {}
-        current_tokens = 0
-        component_tokens = {}  # Track tokens per component for analysis
-
-        # CRITICAL: Core Goal & Phase
-        logger.info("CONTEXT ASSEMBLY: Processing CRITICAL components (Core Goal & Phase)...")
-        if self.state.core_goal and (current_tokens + self.state.core_goal_tokens <= available_tokens):
-            context_dict["core_goal"] = self.state.core_goal
-            current_tokens += self.state.core_goal_tokens
-            component_tokens["core_goal"] = self.state.core_goal_tokens
-            logger.info(f"  ✅ INCLUDED: Core Goal ({self.state.core_goal_tokens:,} tokens): {self.state.core_goal[:100]}...")
-        elif self.state.core_goal:
-            logger.warning(f"  ❌ EXCLUDED: Core Goal ({self.state.core_goal_tokens:,} tokens) - Exceeds available budget")
-        else:
-            logger.info("  ⚠️  SKIPPED: Core Goal - Not set")
-            
-        if self.state.current_phase and (current_tokens + self.state.current_phase_tokens <= available_tokens):
-            context_dict["current_phase"] = self.state.current_phase
-            current_tokens += self.state.current_phase_tokens
-            component_tokens["current_phase"] = self.state.current_phase_tokens
-            logger.info(f"  ✅ INCLUDED: Current Phase ({self.state.current_phase_tokens:,} tokens): {self.state.current_phase[:100]}...")
-        elif self.state.current_phase:
-            logger.warning(f"  ❌ EXCLUDED: Current Phase ({self.state.current_phase_tokens:,} tokens) - Exceeds available budget")
-        else:
-            logger.info("  ⚠️  SKIPPED: Current Phase - Not set")
         
-        # System Messages
-        logger.info("CONTEXT ASSEMBLY: Processing System Messages...")
-        if self.system_messages:
-            context_dict["system_notes"] = []
-            system_tokens = 0
-            included_count = 0
-            for msg, tkns in reversed(self.system_messages):
-                if current_tokens + tkns <= available_tokens:
-                    context_dict["system_notes"].append(msg)
-                    current_tokens += tkns
-                    system_tokens += tkns
-                    included_count += 1
-                    logger.info(f"  ✅ INCLUDED: System Message {included_count} ({tkns:,} tokens): {msg[:100]}...")
-                else:
-                    logger.warning(f"  ❌ EXCLUDED: System Message ({tkns:,} tokens) - Exceeds available budget")
-                    break
-            if not context_dict["system_notes"]: 
-                del context_dict["system_notes"]
-                logger.info("  ⚠️  SKIPPED: System Messages - None fit in budget")
-            else:
-                component_tokens["system_notes"] = system_tokens
-                logger.info(f"  📊 TOTAL: Included {included_count}/{len(self.system_messages)} system messages ({system_tokens:,} tokens)")
-        else:
-            logger.info("  ⚠️  SKIPPED: System Messages - None available")
-
-        # Conversation History
-        logger.info("CONTEXT ASSEMBLY: Processing Conversation History...")
-        temp_conversation = []
-        conversation_tokens = 0
+        logger.info(f"🧠 Available context budget: {available_tokens:,} tokens")
+        
+        # Try multiple optimization strategies
+        context_dict, total_tokens = self._assemble_with_priority_optimization(available_tokens)
+        
+        if total_tokens > available_tokens:
+            logger.warning(f"Priority optimization exceeded budget: {total_tokens:,} > {available_tokens:,}")
+            context_dict, total_tokens = self._assemble_with_emergency_optimization(available_tokens)
+        
+        # Track token growth
+        self._token_growth_history.append((self.current_turn_number, total_tokens))
+        self._last_context_tokens = total_tokens
+        
+        # Log optimization results
+        utilization = (total_tokens / available_tokens) * 100 if available_tokens > 0 else 0
+        logger.info(f"🧠 CONTEXT ASSEMBLY COMPLETE:")
+        logger.info(f"   📊 Context tokens: {total_tokens:,} / {available_tokens:,} ({utilization:.1f}%)")
+        logger.info(f"   📊 Turns included: {len(context_dict.get('conversation_history', []))}")
+        logger.info(f"   📊 Code snippets: {len(context_dict.get('code_snippets', []))}")
+        logger.info(f"   📊 Tool results: {len(context_dict.get('tool_results', []))}")
+        
+        return context_dict, total_tokens
+    
+    def _assemble_with_priority_optimization(self, available_tokens: int) -> Tuple[Dict[str, Any], int]:
+        """Assemble context using priority-based optimization."""
+        context_dict = {}
+        used_tokens = 0
+        
+        # 1. CRITICAL: Core state (always include)
+        self._update_state_token_counts()
+        state_tokens = self.state.total_tokens
+        if state_tokens <= available_tokens:
+            context_dict.update({
+                'core_goal': self.state.core_goal,
+                'current_phase': self.state.current_phase,
+                'key_decisions': self.state.key_decisions,
+                'last_modified_files': self.state.last_modified_files
+            })
+            used_tokens += state_tokens
+            logger.debug(f"🧠 Added core state: {state_tokens:,} tokens")
+        
+        # 2. HIGH PRIORITY: Recent conversation with tool activity
+        conversation_budget = min(available_tokens - used_tokens, available_tokens // 2)
+        selected_turns, turn_tokens = self._select_prioritized_turns(conversation_budget)
+        if selected_turns:
+            context_dict['conversation_history'] = selected_turns
+            used_tokens += turn_tokens
+            logger.debug(f"🧠 Added conversation history: {turn_tokens:,} tokens ({len(selected_turns)} turns)")
+        
+        # 3. HIGH PRIORITY: Recent tool results
+        results_budget = min(available_tokens - used_tokens, available_tokens // 4)
+        selected_results, results_tokens = self._select_prioritized_tool_results(results_budget)
+        if selected_results:
+            context_dict['tool_results'] = selected_results
+            used_tokens += results_tokens
+            logger.debug(f"🧠 Added tool results: {results_tokens:,} tokens ({len(selected_results)} results)")
+        
+        # 4. MEDIUM PRIORITY: Code snippets (remaining budget)
+        snippets_budget = available_tokens - used_tokens
+        selected_snippets, snippets_tokens = self._select_prioritized_code_snippets(snippets_budget)
+        if selected_snippets:
+            context_dict['code_snippets'] = selected_snippets
+            used_tokens += snippets_tokens
+            logger.debug(f"🧠 Added code snippets: {snippets_tokens:,} tokens ({len(selected_snippets)} snippets)")
+        
+        return context_dict, used_tokens
+    
+    def _assemble_with_emergency_optimization(self, available_tokens: int) -> Tuple[Dict[str, Any], int]:
+        """Emergency context assembly with minimal elements."""
+        logger.warning("🚨 EMERGENCY OPTIMIZATION: Using minimal context")
+        
+        context_dict = {}
+        used_tokens = 0
+        
+        # Only core goal and current phase
+        if self.state.core_goal:
+            goal_tokens = self._count_tokens(self.state.core_goal)
+            if used_tokens + goal_tokens <= available_tokens:
+                context_dict['core_goal'] = self.state.core_goal
+                used_tokens += goal_tokens
+        
+        if self.state.current_phase:
+            phase_tokens = self._count_tokens(self.state.current_phase)
+            if used_tokens + phase_tokens <= available_tokens:
+                context_dict['current_phase'] = self.state.current_phase
+                used_tokens += phase_tokens
+        
+        # Most recent conversation turn only
         if self.conversation_turns:
-            logger.info(f"  📝 Available: {len(self.conversation_turns)} conversation turns")
-            for i, turn in enumerate(reversed(self.conversation_turns)):
-                turn_tokens = turn.user_message_tokens + turn.agent_message_tokens + turn.tool_calls_tokens
-                turn_tokens += self._count_tokens(json.dumps({"turn":0, "user":"", "agent":"", "tool_calls":[]})) 
-                
-                # Log detailed token breakdown for each turn
-                logger.info(f"    Turn {turn.turn_number} Token Breakdown:")
-                logger.info(f"      User Message: {turn.user_message_tokens:,} tokens")
-                logger.info(f"      Agent Message: {turn.agent_message_tokens:,} tokens") 
-                logger.info(f"      Tool Calls: {turn.tool_calls_tokens:,} tokens")
-                logger.info(f"      JSON Structure Overhead: {self._count_tokens(json.dumps({'turn':0, 'user':'', 'agent':'', 'tool_calls':[]})):,} tokens")
-                logger.info(f"      Total Turn: {turn_tokens:,} tokens")
-                
-                if current_tokens + turn_tokens <= available_tokens and len(temp_conversation) < adaptive_targets['recent_turns']:
-                    temp_conversation.append({
-                        "turn": turn.turn_number,
-                        "user": turn.user_message,
-                        "agent": turn.agent_message,
-                        "tool_calls": turn.tool_calls
-                    })
-                    current_tokens += turn_tokens
-                    conversation_tokens += turn_tokens
-                    logger.info(f"    ✅ INCLUDED: Turn {turn.turn_number} ({turn_tokens:,} tokens)")
-                else:
-                    if current_tokens + turn_tokens > available_tokens:
-                        logger.warning(f"    ❌ EXCLUDED: Turn {turn.turn_number} ({turn_tokens:,} tokens) - Exceeds available budget")
-                    else:
-                        logger.warning(f"    ❌ EXCLUDED: Turn {turn.turn_number} ({turn_tokens:,} tokens) - Exceeds adaptive turn limit ({adaptive_targets['recent_turns']})")
-                    break 
-            if temp_conversation:
-                context_dict["recent_conversation"] = list(reversed(temp_conversation))
-                component_tokens["recent_conversation"] = conversation_tokens
-                logger.info(f"  📊 TOTAL: Included {len(temp_conversation)}/{len(self.conversation_turns)} conversation turns ({conversation_tokens:,} tokens)")
-            else:
-                logger.info("  ⚠️  SKIPPED: Conversation History - None fit in budget")
-        else:
-            logger.info("  ⚠️  SKIPPED: Conversation History - None available")
-
-        # Code Snippets with Smart Prioritization
-        logger.info("CONTEXT ASSEMBLY: Processing Code Snippets...")
-        valid_code_snippets = [s for s in self.code_snippets if s.token_count > 0]
-        if valid_code_snippets:
-            # Apply smart prioritization for relevance-based ranking
-            logger.info(f"  📝 Available: {len(valid_code_snippets)} code snippets - applying smart prioritization...")
-            
-            # Convert CodeSnippet objects to dictionaries for prioritization
-            snippet_dicts = []
-            for snippet in valid_code_snippets:
+            recent_turn = self.conversation_turns[-1]
+            turn_dict = {
+                'turn_number': recent_turn.turn_number,
+                'user_message': recent_turn.user_message,
+                'agent_message': recent_turn.agent_message,
+                'tool_calls': recent_turn.tool_calls
+            }
+            turn_tokens = recent_turn.total_tokens
+            if used_tokens + turn_tokens <= available_tokens:
+                context_dict['conversation_history'] = [turn_dict]
+                used_tokens += turn_tokens
+        
+        # Most recent critical tool result
+        critical_results = [r for r in self.tool_results if r.priority == ContextPriority.CRITICAL]
+        if critical_results:
+            result = critical_results[-1]
+            result_dict = {
+                'tool_name': result.tool_name,
+                'response': result.full_result,
+                'summary': result.result_summary,
+                'is_error': result.is_error
+            }
+            if used_tokens + result.token_count <= available_tokens:
+                context_dict['tool_results'] = [result_dict]
+                used_tokens += result.token_count
+        
+        logger.warning(f"🚨 Emergency context: {used_tokens:,} tokens, {len(context_dict)} components")
+        return context_dict, used_tokens
+    
+    def _select_prioritized_turns(self, budget: int) -> Tuple[List[Dict[str, Any]], int]:
+        """Select conversation turns based on priority and token budget."""
+        if not self.conversation_turns:
+            return [], 0
+        
+        # Sort by priority then recency
+        sorted_turns = sorted(
+            self.conversation_turns,
+            key=lambda t: (t.priority.value, -t.turn_number)
+        )
+        
+        selected = []
+        used_tokens = 0
+        
+        for turn in sorted_turns:
+            if used_tokens + turn.total_tokens <= budget and len(selected) < self.target_recent_turns:
+                turn_dict = {
+                    'turn_number': turn.turn_number,
+                    'user_message': turn.user_message,
+                    'agent_message': turn.agent_message,
+                    'tool_calls': turn.tool_calls,
+                    'timestamp': turn.timestamp,
+                    'has_tool_activity': turn.has_tool_activity
+                }
+                selected.append(turn_dict)
+                used_tokens += turn.total_tokens
+            elif used_tokens + turn.total_tokens > budget:
+                break
+        
+        # Sort selected turns by turn number for chronological order
+        selected.sort(key=lambda t: t['turn_number'])
+        return selected, used_tokens
+    
+    def _select_prioritized_tool_results(self, budget: int) -> Tuple[List[Dict[str, Any]], int]:
+        """Select tool results based on priority and token budget."""
+        if not self.tool_results:
+            return [], 0
+        
+        # Sort by priority then recency
+        sorted_results = sorted(
+            self.tool_results,
+            key=lambda r: (r.priority.value, -r.turn_number)
+        )
+        
+        selected = []
+        used_tokens = 0
+        
+        for result in sorted_results:
+            if used_tokens + result.token_count <= budget and len(selected) < self.target_tool_results:
+                result_dict = {
+                    'tool_name': result.tool_name,
+                    'response': result.full_result,
+                    'summary': result.result_summary,
+                    'is_error': result.is_error,
+                    'turn_number': result.turn_number
+                }
+                selected.append(result_dict)
+                used_tokens += result.token_count
+            elif used_tokens + result.token_count > budget:
+                break
+        
+        return selected, used_tokens
+    
+    def _select_prioritized_code_snippets(self, budget: int) -> Tuple[List[Dict[str, Any]], int]:
+        """Select code snippets based on relevance and token budget."""
+        if not self.code_snippets:
+            return [], 0
+        
+        # Sort by relevance score and recency
+        sorted_snippets = sorted(
+            self.code_snippets,
+            key=lambda s: (-s.relevance_score, -s.last_accessed)
+        )
+        
+        selected = []
+        used_tokens = 0
+        
+        for snippet in sorted_snippets:
+            if used_tokens + snippet.token_count <= budget and len(selected) < self.target_code_snippets:
                 snippet_dict = {
-                    'file': snippet.file_path,
                     'file_path': snippet.file_path,
                     'code': snippet.code,
                     'start_line': snippet.start_line,
                     'end_line': snippet.end_line,
                     'last_accessed': snippet.last_accessed,
-                    'relevance_score': snippet.relevance_score,
-                    'token_count': snippet.token_count
+                    'relevance_score': snippet.relevance_score
                 }
-                snippet_dicts.append(snippet_dict)
-            
-            # Get current context for prioritization (use recent conversation if available)
-            current_context = ""
-            if self.conversation_turns:
-                recent_turn = self.conversation_turns[-1]
-                current_context = (recent_turn.user_message or "") + " " + (recent_turn.agent_message or "")
-            
-            # Apply smart prioritization
-            prioritized_snippets = self.smart_prioritizer.prioritize_code_snippets(
-                snippet_dicts, current_context, self.current_turn_number
-            )
-            
-            # Apply cross-turn correlation after prioritization
-            logger.info("  🔗 Applying cross-turn correlation analysis...")
-            
-            # Get tool results for correlation (convert current tool results to dicts)
-            tool_result_dicts = []
-            for result in self.tool_results:
-                tool_dict = {
-                    'tool': result.tool_name,
-                    'summary': result.result_summary,
-                    'turn': result.turn_number,
-                    'is_error': result.is_error,
-                    'relevance_score': result.relevance_score,
-                    'token_count': result.token_count
-                }
-                tool_result_dicts.append(tool_dict)
-            
-            # Build conversation context for correlation
-            conversation_context = []
-            for turn in self.conversation_turns:
-                turn_dict = {
-                    'turn': turn.turn_number,
-                    'user_message': turn.user_message,
-                    'agent_message': turn.agent_message,
-                    'tool_calls': turn.tool_calls
-                }
-                conversation_context.append(turn_dict)
-            
-            # Apply cross-turn correlation
-            prioritized_snippets, correlated_tools = self.cross_turn_correlator.correlate_context_items(
-                prioritized_snippets, tool_result_dicts, conversation_context
-            )
-            
-            temp_code_snippets = []
-            code_tokens = 0
-            for i, snippet_dict in enumerate(prioritized_snippets):
-                snippet_tokens = snippet_dict['token_count'] + self._count_tokens(json.dumps({"file":"", "start_line":0, "end_line":0, "code":""}))
-                
-                logger.info(f"    Code Snippet {i+1}:")
-                logger.info(f"      File: {snippet_dict['file_path']}:{snippet_dict['start_line']}-{snippet_dict['end_line']}")
-                logger.info(f"      Relevance Score: {snippet_dict['relevance_score']:.2f}")
-                logger.info(f"      Last Accessed: Turn {snippet_dict['last_accessed']}")
-                logger.info(f"      Code Content: {snippet_dict['token_count']:,} tokens")
-                logger.info(f"      JSON Structure: {self._count_tokens(json.dumps({'file':'', 'start_line':0, 'end_line':0, 'code':''})):,} tokens")
-                logger.info(f"      Total: {snippet_tokens:,} tokens")
-                
-                # Check for smart prioritization score if available
-                if '_relevance_score' in snippet_dict:
-                    rel_score = snippet_dict['_relevance_score']
-                    logger.info(f"      🧠 Smart Priority Score: {rel_score.final_score:.3f}")
-                    logger.info(f"        (Content: {rel_score.content_relevance:.2f}, Recency: {rel_score.recency_score:.2f}, Error: {rel_score.error_priority:.2f})")
-                
-                if current_tokens + snippet_tokens <= available_tokens and len(temp_code_snippets) < adaptive_targets['code_snippets']:
-                    temp_code_snippets.append({
-                        "file": snippet_dict['file_path'],
-                        "start_line": snippet_dict['start_line'],
-                        "end_line": snippet_dict['end_line'],
-                        "code": snippet_dict['code']
-                    })
-                    current_tokens += snippet_tokens
-                    code_tokens += snippet_tokens
-                    logger.info(f"      ✅ INCLUDED: Code snippet {i+1} ({snippet_tokens:,} tokens)")
-                else:
-                    if current_tokens + snippet_tokens > available_tokens:
-                        logger.warning(f"      ❌ EXCLUDED: Code snippet {i+1} ({snippet_tokens:,} tokens) - Exceeds available budget")
-                    else:
-                        logger.warning(f"      ❌ EXCLUDED: Code snippet {i+1} ({snippet_tokens:,} tokens) - Exceeds target snippet limit ({self.target_code_snippets})")
-                    break
-            if temp_code_snippets:
-                context_dict["relevant_code"] = temp_code_snippets
-                component_tokens["relevant_code"] = code_tokens
-                logger.info(f"  📊 TOTAL: Included {len(temp_code_snippets)}/{len(valid_code_snippets)} code snippets ({code_tokens:,} tokens)")
-            else:
-                logger.info("  ⚠️  SKIPPED: Code Snippets - None fit in budget")
-        else:
-            logger.info("  ⚠️  SKIPPED: Code Snippets - None available")
-
-        # Tool Results with Smart Prioritization
-        logger.info("CONTEXT ASSEMBLY: Processing Tool Results...")
-        if self.tool_results:
-            logger.info(f"  📝 Available: {len(self.tool_results)} tool results - applying smart prioritization...")
-            
-            # Convert ToolResult objects to dictionaries for prioritization
-            result_dicts = []
-            for result in self.tool_results:
-                result_dict = {
-                    'tool': result.tool_name,
-                    'summary': result.result_summary,
-                    'turn': result.turn_number,
-                    'is_error': result.is_error,
-                    'relevance_score': result.relevance_score,
-                    'token_count': result.token_count
-                }
-                result_dicts.append(result_dict)
-            
-            # Get current context for prioritization
-            current_context = ""
-            if self.conversation_turns:
-                recent_turn = self.conversation_turns[-1]
-                current_context = (recent_turn.user_message or "") + " " + (recent_turn.agent_message or "")
-            
-            # Apply smart prioritization
-            prioritized_results = self.smart_prioritizer.prioritize_tool_results(
-                result_dicts, current_context, self.current_turn_number
-            )
-            
-            # Note: Cross-turn correlation for tools was already applied during code snippets processing
-            # Use the correlated tools from there if they exist, otherwise use prioritized results
-            if 'correlated_tools' in locals():
-                prioritized_results = correlated_tools
-                logger.info("  🔗 Using cross-turn correlated tool results")
-            
-            temp_tool_results = []
-            tool_results_tokens = 0
-            for i, result_dict in enumerate(prioritized_results):
-                result_tokens = result_dict['token_count'] + self._count_tokens(json.dumps({"tool":"", "turn":0, "summary":"", "is_error": False}))
-                
-                logger.info(f"    Tool Result {i+1}:")
-                logger.info(f"      Tool: {result_dict['tool']}")
-                logger.info(f"      Turn: {result_dict['turn']}")
-                logger.info(f"      Is Error: {result_dict['is_error']}")
-                logger.info(f"      Relevance Score: {result_dict['relevance_score']:.2f}")
-                logger.info(f"      Summary: {result_dict['token_count']:,} tokens")
-                logger.info(f"      JSON Structure: {self._count_tokens(json.dumps({'tool':'', 'turn':0, 'summary':'', 'is_error': False})):,} tokens")
-                logger.info(f"      Total: {result_tokens:,} tokens")
-                
-                # Check for smart prioritization score if available
-                if '_relevance_score' in result_dict:
-                    rel_score = result_dict['_relevance_score']
-                    logger.info(f"      🧠 Smart Priority Score: {rel_score.final_score:.3f}")
-                    logger.info(f"        (Content: {rel_score.content_relevance:.2f}, Recency: {rel_score.recency_score:.2f}, Error: {rel_score.error_priority:.2f})")
-                
-                if current_tokens + result_tokens <= available_tokens and len(temp_tool_results) < adaptive_targets['tool_results']:
-                    temp_tool_results.append({
-                        "tool": result_dict['tool'],
-                        "turn": result_dict['turn'],
-                        "summary": result_dict['summary'],
-                        "is_error": result_dict['is_error']
-                    })
-                    current_tokens += result_tokens
-                    tool_results_tokens += result_tokens
-                    logger.info(f"      ✅ INCLUDED: Tool result {i+1} ({result_tokens:,} tokens)")
-                else:
-                    if current_tokens + result_tokens > available_tokens:
-                        logger.warning(f"      ❌ EXCLUDED: Tool result {i+1} ({result_tokens:,} tokens) - Exceeds available budget")
-                    else:
-                        logger.warning(f"      ❌ EXCLUDED: Tool result {i+1} ({result_tokens:,} tokens) - Exceeds target result limit ({self.target_tool_results})")
-                    break
-            if temp_tool_results:
-                context_dict["recent_tool_results"] = temp_tool_results
-                component_tokens["recent_tool_results"] = tool_results_tokens
-                logger.info(f"  📊 TOTAL: Included {len(temp_tool_results)}/{len(self.tool_results)} tool results ({tool_results_tokens:,} tokens)")
-            else:
-                logger.info("  ⚠️  SKIPPED: Tool Results - None fit in budget")
-        else:
-            logger.info("  ⚠️  SKIPPED: Tool Results - None available")
+                selected.append(snippet_dict)
+                used_tokens += snippet.token_count
+            elif used_tokens + snippet.token_count > budget:
+                break
         
-        # Key Decisions
-        logger.info("CONTEXT ASSEMBLY: Processing Key Decisions...")
-        if self.state.key_decisions:
-            temp_key_decisions_str = json.dumps(self.state.key_decisions[-15:]) # Increased from 5 to 15 decisions
-            decisions_tokens = self._count_tokens(temp_key_decisions_str)
-            logger.info(f"  📝 Available: {len(self.state.key_decisions)} key decisions (using last 15)")
-            logger.info(f"  Token Cost: {decisions_tokens:,} tokens")
-            if current_tokens + decisions_tokens <= available_tokens:
-                context_dict["key_decisions"] = self.state.key_decisions[-15:]
-                current_tokens += decisions_tokens
-                component_tokens["key_decisions"] = decisions_tokens
-                logger.info(f"  ✅ INCLUDED: Key Decisions ({decisions_tokens:,} tokens)")
-            else:
-                logger.warning(f"  ❌ EXCLUDED: Key Decisions ({decisions_tokens:,} tokens) - Exceeds available budget")
-        else:
-            logger.info("  ⚠️  SKIPPED: Key Decisions - None available")
-        
-        # Recently Modified Files  
-        logger.info("CONTEXT ASSEMBLY: Processing Recently Modified Files...")
-        if self.state.last_modified_files:
-            modified_files_json = json.dumps(self.state.last_modified_files)
-            modified_files_tokens = self._count_tokens(modified_files_json)
-            logger.info(f"  📝 Available: {len(self.state.last_modified_files)} recently modified files")
-            logger.info(f"  Token Cost: {modified_files_tokens:,} tokens")
-            if current_tokens + modified_files_tokens <= available_tokens:
-                context_dict["recent_modified_files"] = self.state.last_modified_files
-                current_tokens += modified_files_tokens
-                component_tokens["recent_modified_files"] = modified_files_tokens
-                logger.info(f"  ✅ INCLUDED: Recently Modified Files ({modified_files_tokens:,} tokens)")
-            else:
-                logger.warning(f"  ❌ EXCLUDED: Recently Modified Files ({modified_files_tokens:,} tokens) - Exceeds available budget")
-        else:
-            logger.info("  ⚠️  SKIPPED: Recently Modified Files - None available")
-
-        # Proactive Context (NEW: Phase 2 Implementation)
-        logger.info("CONTEXT ASSEMBLY: Processing Proactive Context...")
-        proactive_context = self._gather_proactive_context()
-        if proactive_context and self._proactive_context_tokens > 0:
-            logger.info(f"  📝 Available: {len(proactive_context)} proactive context categories")
-            logger.info(f"  Token Cost: {self._proactive_context_tokens:,} tokens")
-            
-            # Try to include proactive context if there's budget remaining
-            remaining_budget = available_tokens - current_tokens
-            logger.info(f"  Remaining Budget: {remaining_budget:,} tokens")
-            
-            if remaining_budget >= self._proactive_context_tokens:
-                # Include full proactive context
-                context_dict["proactive_context"] = proactive_context
-                current_tokens += self._proactive_context_tokens
-                component_tokens["proactive_context"] = self._proactive_context_tokens
-                logger.info(f"  ✅ INCLUDED: Full Proactive Context ({self._proactive_context_tokens:,} tokens)")
-                
-                # Log what was included
-                for key, value in proactive_context.items():
-                    if isinstance(value, list):
-                        logger.info(f"    {key}: {len(value)} items")
-            elif remaining_budget > 1000:  # If we have at least 1000 tokens, try partial inclusion
-                # Try to include subset of proactive context
-                logger.info(f"  🔄 PARTIAL: Attempting to include subset of proactive context...")
-                partial_context = {}
-                partial_tokens = 0
-                
-                # Prioritize project files first, then git history, then documentation
-                priority_order = ["project_files", "git_history", "documentation"]
-                
-                for category in priority_order:
-                    if category in proactive_context:
-                        category_str = json.dumps(proactive_context[category])
-                        category_tokens = self._count_tokens(category_str)
-                        
-                        if partial_tokens + category_tokens <= remaining_budget:
-                            partial_context[category] = proactive_context[category]
-                            partial_tokens += category_tokens
-                            logger.info(f"    ✅ INCLUDED: {category} ({category_tokens:,} tokens)")
-                        else:
-                            logger.info(f"    ❌ EXCLUDED: {category} ({category_tokens:,} tokens) - Would exceed budget")
-                
-                if partial_context:
-                    context_dict["proactive_context"] = partial_context
-                    current_tokens += partial_tokens
-                    component_tokens["proactive_context"] = partial_tokens
-                    logger.info(f"  📊 TOTAL: Included partial proactive context ({partial_tokens:,} tokens)")
-                else:
-                    logger.info("  ⚠️  SKIPPED: Proactive Context - No categories fit in remaining budget")
-            else:
-                logger.warning(f"  ❌ EXCLUDED: Proactive Context ({self._proactive_context_tokens:,} tokens) - Exceeds remaining budget ({remaining_budget:,} tokens)")
-        else:
-            logger.info("  ⚠️  SKIPPED: Proactive Context - None available or gathering failed")
-
-        # Final Summary
-        logger.info("=" * 60)
-        logger.info("CONTEXT ASSEMBLY - FINAL SUMMARY")
-        logger.info("=" * 60)
-        logger.info(f"Total Context Tokens Used: {current_tokens:,}")
-        logger.info(f"Available Token Budget: {available_tokens:,}")
-        logger.info(f"Token Budget Utilization: {(current_tokens/available_tokens*100):.1f}%")
-        logger.info(f"Context Components Included: {list(context_dict.keys())}")
-        logger.info("")
-        logger.info("TOKEN BREAKDOWN BY COMPONENT:")
-        for component, tokens in component_tokens.items():
-            percentage = (tokens / current_tokens * 100) if current_tokens > 0 else 0
-            logger.info(f"  {component}: {tokens:,} tokens ({percentage:.1f}%)")
-        logger.info("=" * 60)
-
-        logger.info(f"Assembled context with {current_tokens} tokens for context block. Available budget was {available_tokens}. Keys: {list(context_dict.keys())}")
-        # The returned token count is for the JSON content itself, not including the wrapper.
-        return context_dict, current_tokens
+        return selected, used_tokens
     
-    def _log_detailed_inputs(self):
-        """Log detailed input state for optimization analysis."""
-        logger.info("=" * 60)
-        logger.info("CONTEXTMANAGER DETAILED INPUT STATE")
-        logger.info("=" * 60)
+    def _update_state_token_counts(self) -> None:
+        """Update token counts for state elements."""
+        self.state.core_goal_tokens = self._count_tokens(self.state.core_goal)
+        self.state.current_phase_tokens = self._count_tokens(self.state.current_phase)
         
-        # Log conversation history details
-        logger.info(f"CONVERSATION HISTORY: {len(self.conversation_turns)} turns")
-        for turn in self.conversation_turns:
-            logger.info(f"  Turn {turn.turn_number}:")
-            logger.info(f"    User Message: {turn.user_message_tokens:,} tokens | {len(turn.user_message) if turn.user_message else 0} chars")
-            if turn.user_message:
-                logger.info(f"    User Content Preview: {turn.user_message[:150]}...")
-            logger.info(f"    Agent Message: {turn.agent_message_tokens:,} tokens | {len(turn.agent_message) if turn.agent_message else 0} chars")
-            if turn.agent_message:
-                logger.info(f"    Agent Content Preview: {turn.agent_message[:150]}...")
-            logger.info(f"    Tool Calls: {turn.tool_calls_tokens:,} tokens | {len(turn.tool_calls)} calls")
-            for call in turn.tool_calls:
-                logger.info(f"      - {call.get('tool_name', 'unknown')} with {len(str(call.get('args', {})))} char args")
-                
-        # Log code snippets details
-        logger.info(f"CODE SNIPPETS: {len(self.code_snippets)} snippets")
-        for snippet in self.code_snippets:
-            logger.info(f"  {snippet.file_path}:{snippet.start_line}-{snippet.end_line}")
-            logger.info(f"    Tokens: {snippet.token_count:,} | Chars: {len(snippet.code)}")
-            logger.info(f"    Relevance: {snippet.relevance_score:.2f} | Last Accessed: Turn {snippet.last_accessed}")
-            logger.info(f"    Code Preview: {snippet.code[:100].replace(chr(10), ' ')[:100]}...")
-            
-        # Log tool results details
-        logger.info(f"TOOL RESULTS: {len(self.tool_results)} results")
-        for result in self.tool_results:
-            logger.info(f"  {result.tool_name} (Turn {result.turn_number})")
-            logger.info(f"    Summary Tokens: {result.token_count:,} | Chars: {len(result.result_summary)}")
-            logger.info(f"    Is Error: {result.is_error} | Relevance: {result.relevance_score:.2f}")
-            logger.info(f"    Summary Preview: {result.result_summary[:100]}...")
-            logger.info(f"    Full Result Type: {type(result.full_result).__name__} | Size: {len(str(result.full_result))} chars")
-            
-        # Log context state details
-        logger.info(f"CONTEXT STATE:")
-        logger.info(f"  Core Goal: {self.state.core_goal_tokens:,} tokens | {len(self.state.core_goal)} chars")
-        if self.state.core_goal:
-            logger.info(f"    Content: {self.state.core_goal}")
-        logger.info(f"  Current Phase: {self.state.current_phase_tokens:,} tokens | {len(self.state.current_phase)} chars")
-        if self.state.current_phase:
-            logger.info(f"    Content: {self.state.current_phase}")
-        logger.info(f"  Key Decisions: {len(self.state.key_decisions)} decisions")
-        for i, decision in enumerate(self.state.key_decisions):
-            logger.info(f"    {i+1}: {decision[:100]}...")
-        logger.info(f"  Last Modified Files: {len(self.state.last_modified_files)} files")
-        for file_path in self.state.last_modified_files:
-            logger.info(f"    - {file_path}")
-            
-        # Log system messages
-        logger.info(f"SYSTEM MESSAGES: {len(self.system_messages)} messages")
-        for i, (msg, tokens) in enumerate(self.system_messages):
-            logger.info(f"  {i+1}: {tokens:,} tokens | {len(msg)} chars")
-            logger.info(f"    Preview: {msg[:100]}...")
-            
-        logger.info("=" * 60)
-
-    def get_relevant_code_for_file(self, file_path: str) -> List[CodeSnippet]:
-        return [s for s in self.code_snippets if s.file_path == file_path]
+        try:
+            decisions_json = json.dumps(self.state.key_decisions)
+            self.state.decisions_tokens = self._count_tokens(decisions_json)
+        except Exception:
+            self.state.decisions_tokens = self._count_tokens(str(self.state.key_decisions))
+        
+        try:
+            files_json = json.dumps(self.state.last_modified_files)
+            self.state.files_tokens = self._count_tokens(files_json)
+        except Exception:
+            self.state.files_tokens = self._count_tokens(str(self.state.last_modified_files))
+    
+    def _calculate_adaptive_limits(self) -> Dict[str, int]:
+        """Calculate adaptive limits based on conversation progress."""
+        conversation_length = len(self.conversation_turns)
+        
+        if conversation_length <= 3:
+            # Early conversation: generous limits
+            return {
+                'target_recent_turns': 5,
+                'target_code_snippets': 8,
+                'target_tool_results': 10,
+                'emergency_turns': 2,
+                'emergency_snippets': 2,
+                'emergency_results': 3
+            }
+        elif conversation_length <= 10:
+            # Mid conversation: balanced limits
+            return {
+                'target_recent_turns': 4,
+                'target_code_snippets': 5,
+                'target_tool_results': 7,
+                'emergency_turns': 2,
+                'emergency_snippets': 1,
+                'emergency_results': 2
+            }
+        else:
+            # Long conversation: conservative limits
+            return {
+                'target_recent_turns': 3,
+                'target_code_snippets': 3,
+                'target_tool_results': 5,
+                'emergency_turns': 1,
+                'emergency_snippets': 0,
+                'emergency_results': 1
+            }
+    
+    def get_token_growth_analysis(self) -> Dict[str, Any]:
+        """Analyze token growth patterns over conversation history."""
+        if len(self._token_growth_history) < 2:
+            return {'status': 'insufficient_data'}
+        
+        # Calculate growth rate
+        first_turn, first_tokens = self._token_growth_history[0]
+        last_turn, last_tokens = self._token_growth_history[-1]
+        
+        growth_rate = ((last_tokens - first_tokens) / first_tokens * 100) if first_tokens > 0 else 0
+        avg_tokens_per_turn = sum(tokens for _, tokens in self._token_growth_history) / len(self._token_growth_history)
+        
+        # Detect concerning patterns
+        concerns = []
+        if growth_rate > 50:
+            concerns.append(f"High growth rate: {growth_rate:.1f}%")
+        if last_tokens > self.max_token_limit * 0.8:
+            concerns.append(f"Approaching token limit: {last_tokens:,}/{self.max_token_limit:,}")
+        
+        return {
+            'status': 'analyzed',
+            'total_turns': len(self._token_growth_history),
+            'growth_rate_percent': growth_rate,
+            'current_tokens': last_tokens,
+            'average_tokens_per_turn': avg_tokens_per_turn,
+            'concerns': concerns,
+            'adaptive_limits': self._adaptive_limits
+        }
 
     def expand_context_dynamically(
         self,
@@ -1126,64 +973,3 @@ class ContextManager:
                 logger.warning(f"Could not auto-add discovered content {content.file_path}: {e}")
         
         return added_count
-
-    def _get_adaptive_targets(self) -> Dict[str, int]:
-        """
-        Get adaptive targets based on conversation length and current token pressure.
-        Implements aggressive optimization for longer conversations to prevent token explosion.
-        """
-        conversation_length = len(self.conversation_turns)
-        
-        # Base targets for short conversations
-        base_recent_turns = 20
-        base_code_snippets = 25
-        base_tool_results = 30
-        
-        if conversation_length <= 3:
-            # Short conversations: use generous targets
-            return {
-                "recent_turns": base_recent_turns,
-                "code_snippets": base_code_snippets, 
-                "tool_results": base_tool_results
-            }
-        elif conversation_length <= 8:
-            # Medium conversations: start reducing
-            return {
-                "recent_turns": max(8, base_recent_turns // 2),
-                "code_snippets": max(10, base_code_snippets // 2),
-                "tool_results": max(15, base_tool_results // 2)
-            }
-        elif conversation_length <= 15:
-            # Long conversations: aggressive reduction
-            return {
-                "recent_turns": max(4, base_recent_turns // 4),
-                "code_snippets": max(5, base_code_snippets // 4),
-                "tool_results": max(8, base_tool_results // 4)
-            }
-        else:
-            # Very long conversations: extreme optimization
-            return {
-                "recent_turns": 3,  # Only keep last 3 turns
-                "code_snippets": 3,  # Only keep most relevant 3 snippets
-                "tool_results": 5    # Only keep most relevant 5 tool results
-            }
-
-    def _calculate_token_pressure(self, available_tokens: int) -> float:
-        """Calculate token pressure ratio (0.0 = plenty of space, 1.0 = at limit)."""
-        total_potential_tokens = 0
-        
-        # Calculate potential token usage from all context components
-        for turn in self.conversation_turns:
-            total_potential_tokens += turn.user_message_tokens + turn.agent_message_tokens + turn.tool_calls_tokens
-            
-        for snippet in self.code_snippets:
-            total_potential_tokens += snippet.token_count
-            
-        for result in self.tool_results:
-            total_potential_tokens += result.token_count
-            
-        if available_tokens <= 0:
-            return 1.0
-            
-        pressure = total_potential_tokens / available_tokens
-        return min(1.0, pressure)  # Cap at 1.0

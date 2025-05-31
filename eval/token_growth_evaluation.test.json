@@ -1,0 +1,150 @@
+{
+  "eval_set_id": "enhanced_token_growth_test_set",
+  "eval_cases": [
+    {
+      "eval_id": "token_growth_prevention_validation",
+      "conversation": [
+        {
+          "userContent": {
+            "parts": [
+              {
+                "text": "Test the token management system with a detailed analysis of the codebase structure"
+              }
+            ]
+          }
+        },
+        {
+          "userContent": {
+            "parts": [
+              {
+                "text": "Now show me all the code files that handle context management, and provide detailed explanations"
+              }
+            ]
+          }
+        },
+        {
+          "userContent": {
+            "parts": [
+              {
+                "text": "Analyze the token counting mechanisms in the context manager and show implementation details"
+              }
+            ]
+          }
+        },
+        {
+          "userContent": {
+            "parts": [
+              {
+                "text": "What are the adaptive limits in the enhanced context manager and how do they prevent token growth?"
+              }
+            ]
+          }
+        },
+        {
+          "userContent": {
+            "parts": [
+              {
+                "text": "Show me the priority-based context selection system and how it works with different conversation lengths"
+              }
+            ]
+          }
+        },
+        {
+          "userContent": {
+            "parts": [
+              {
+                "text": "Demonstrate the emergency optimization features when token limits are approached"
+              }
+            ]
+          }
+        },
+        {
+          "userContent": {
+            "parts": [
+              {
+                "text": "Test the conversation turn prioritization - how does the system select which turns to include?"
+              }
+            ]
+          }
+        },
+        {
+          "userContent": {
+            "parts": [
+              {
+                "text": "Analyze the code snippet selection algorithm and relevance scoring"
+              }
+            ]
+          }
+        },
+        {
+          "userContent": {
+            "parts": [
+              {
+                "text": "How does the tool result prioritization work with error handling and recency scoring?"
+              }
+            ]
+          }
+        },
+        {
+          "userContent": {
+            "parts": [
+              {
+                "text": "Show me the token growth tracking and analysis features - what patterns does it detect?"
+              }
+            ]
+          }
+        },
+        {
+          "userContent": {
+            "parts": [
+              {
+                "text": "Test the smart conversation filtering that preserves tool execution flows"
+              }
+            ]
+          }
+        },
+        {
+          "userContent": {
+            "parts": [
+              {
+                "text": "Demonstrate how the context manager handles very long conversations with 20+ turns"
+              }
+            ]
+          }
+        },
+        {
+          "userContent": {
+            "parts": [
+              {
+                "text": "What happens when the base prompt itself exceeds the token limit?"
+              }
+            ]
+          }
+        },
+        {
+          "userContent": {
+            "parts": [
+              {
+                "text": "Show the complete token budget analysis and utilization reporting"
+              }
+            ]
+          }
+        },
+        {
+          "userContent": {
+            "parts": [
+              {
+                "text": "Provide a comprehensive summary of all token management improvements and their effectiveness"
+              }
+            ]
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "devops_agent",
+        "user_id": "enhanced_token_test",
+        "state": {}
+      }
+    }
+  ]
+} 
