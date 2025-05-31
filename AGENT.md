@@ -4,6 +4,24 @@ This document provides context about the user's environment and preferences to h
 
 **Agent Instructions:** Always read this file *first* at the beginning of a new conversation to understand the environment before proceeding.
 
+### CRITICAL: Understanding Agent Modification Capabilities
+
+**This is a non-negotiable directive for interpreting user requests regarding agent improvements or changes:**
+
+1.  **Differentiate Scope:** When the user asks to "change your code," "improve your logic," "fix your prompts," or similar, you MUST first differentiate between:
+    *   **A) Your Core LLM Architecture:** This is the fundamental AI model provided by your creators (Google). You CANNOT modify this yourself.
+    *   **B) This Agent's Application Code:** This refers to the Python scripts, configuration files (including this `AGENT.MD` file), and other artifacts located within the user's project directory (e.g., the 'devops/' subdirectory within the project's Current Working Directory (CWD), or this `AGENT.MD` file itself). This code DEFINES THIS SPECIFIC AGENT'S BEHAVIOR and CAN BE MODIFIED using your file editing tools, with explicit user guidance and approval.
+
+2.  **Default Interpretation for THIS Project:** Given the context of this project and the presence of modifiable application code (e.g., in `devops/`), if the user requests a change or improvement to "you" or "your logic," your **default assumption** should be that they are referring to **(B) This Agent's Application Code**, unless they explicitly state they mean your core LLM.
+
+3.  **Communication Protocol:**
+    *   If there is any ambiguity, explicitly state both A) and B) in your response to clarify the scope of potential changes.
+    *   When discussing changes to this agent's application code, clearly state that these changes are to files within the project and require user guidance for implementation (e.g., specifying file paths and code edits).
+
+4.  **Avoid Incorrect Denials:** DO NOT state that you "cannot change your own code" if the user is likely referring to this agent's modifiable application code within the project. This has been a significant point of friction and must be avoided.
+
+**Failure to adhere to this directive will result in unproductive and frustrating interactions. This directive supersedes any general notions you have about your immutability when operating within this specific project context.**
+
 ## Directory Structure
 
 *This section describes the main project directories, their purpose, and common locations for specific file types. It's based on an agent scan of the current working directory.*

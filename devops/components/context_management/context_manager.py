@@ -536,6 +536,10 @@ class ContextManager:
         
         available_tokens = self.max_token_limit - base_prompt_tokens - self._count_tokens(f"SYSTEM CONTEXT (JSON):\n```json\n```\nUse this context to inform your response. Do not directly refer to this context block.") - 50 # 50 for safety margin
         
+        # Get adaptive targets for this conversation length and token pressure
+        adaptive_targets = self._get_adaptive_targets()
+        token_pressure = self._calculate_token_pressure(available_tokens)
+        
         logger.info("=" * 60)
         logger.info("CONTEXT ASSEMBLY - TOKEN BUDGET ANALYSIS")
         logger.info("=" * 60)
@@ -545,6 +549,17 @@ class ContextManager:
         logger.info(f"Context Wrapper Overhead: {self._count_tokens(wrapper_text):,}")
         logger.info(f"Safety Margin: 50")
         logger.info(f"Available Tokens for Context: {available_tokens:,}")
+        logger.info("=" * 60)
+        logger.info("🔧 ADAPTIVE OPTIMIZATION ANALYSIS")
+        logger.info("=" * 60)
+        logger.info(f"Conversation Length: {len(self.conversation_turns)} turns")
+        logger.info(f"Token Pressure: {token_pressure:.2f} (0.0=low, 1.0=critical)")
+        logger.info(f"Adaptive Targets Applied:")
+        logger.info(f"  📚 Recent Turns: {adaptive_targets['recent_turns']} (vs base {self.target_recent_turns})")
+        logger.info(f"  📝 Code Snippets: {adaptive_targets['code_snippets']} (vs base {self.target_code_snippets})")
+        logger.info(f"  🛠️  Tool Results: {adaptive_targets['tool_results']} (vs base {self.target_tool_results})")
+        if token_pressure > 0.8:
+            logger.warning("🚨 HIGH TOKEN PRESSURE - Aggressive optimization in effect!")
         logger.info("=" * 60)
         
         if available_tokens <= 0:
@@ -620,7 +635,7 @@ class ContextManager:
                 logger.info(f"      JSON Structure Overhead: {self._count_tokens(json.dumps({'turn':0, 'user':'', 'agent':'', 'tool_calls':[]})):,} tokens")
                 logger.info(f"      Total Turn: {turn_tokens:,} tokens")
                 
-                if current_tokens + turn_tokens <= available_tokens and len(temp_conversation) < self.target_recent_turns:
+                if current_tokens + turn_tokens <= available_tokens and len(temp_conversation) < adaptive_targets['recent_turns']:
                     temp_conversation.append({
                         "turn": turn.turn_number,
                         "user": turn.user_message,
@@ -634,7 +649,7 @@ class ContextManager:
                     if current_tokens + turn_tokens > available_tokens:
                         logger.warning(f"    ❌ EXCLUDED: Turn {turn.turn_number} ({turn_tokens:,} tokens) - Exceeds available budget")
                     else:
-                        logger.warning(f"    ❌ EXCLUDED: Turn {turn.turn_number} ({turn_tokens:,} tokens) - Exceeds target turn limit ({self.target_recent_turns})")
+                        logger.warning(f"    ❌ EXCLUDED: Turn {turn.turn_number} ({turn_tokens:,} tokens) - Exceeds adaptive turn limit ({adaptive_targets['recent_turns']})")
                     break 
             if temp_conversation:
                 context_dict["recent_conversation"] = list(reversed(temp_conversation))
@@ -729,7 +744,7 @@ class ContextManager:
                     logger.info(f"      🧠 Smart Priority Score: {rel_score.final_score:.3f}")
                     logger.info(f"        (Content: {rel_score.content_relevance:.2f}, Recency: {rel_score.recency_score:.2f}, Error: {rel_score.error_priority:.2f})")
                 
-                if current_tokens + snippet_tokens <= available_tokens and len(temp_code_snippets) < self.target_code_snippets:
+                if current_tokens + snippet_tokens <= available_tokens and len(temp_code_snippets) < adaptive_targets['code_snippets']:
                     temp_code_snippets.append({
                         "file": snippet_dict['file_path'],
                         "start_line": snippet_dict['start_line'],
@@ -809,7 +824,7 @@ class ContextManager:
                     logger.info(f"      🧠 Smart Priority Score: {rel_score.final_score:.3f}")
                     logger.info(f"        (Content: {rel_score.content_relevance:.2f}, Recency: {rel_score.recency_score:.2f}, Error: {rel_score.error_priority:.2f})")
                 
-                if current_tokens + result_tokens <= available_tokens and len(temp_tool_results) < self.target_tool_results:
+                if current_tokens + result_tokens <= available_tokens and len(temp_tool_results) < adaptive_targets['tool_results']:
                     temp_tool_results.append({
                         "tool": result_dict['tool'],
                         "turn": result_dict['turn'],
@@ -1111,3 +1126,64 @@ class ContextManager:
                 logger.warning(f"Could not auto-add discovered content {content.file_path}: {e}")
         
         return added_count
+
+    def _get_adaptive_targets(self) -> Dict[str, int]:
+        """
+        Get adaptive targets based on conversation length and current token pressure.
+        Implements aggressive optimization for longer conversations to prevent token explosion.
+        """
+        conversation_length = len(self.conversation_turns)
+        
+        # Base targets for short conversations
+        base_recent_turns = 20
+        base_code_snippets = 25
+        base_tool_results = 30
+        
+        if conversation_length <= 3:
+            # Short conversations: use generous targets
+            return {
+                "recent_turns": base_recent_turns,
+                "code_snippets": base_code_snippets, 
+                "tool_results": base_tool_results
+            }
+        elif conversation_length <= 8:
+            # Medium conversations: start reducing
+            return {
+                "recent_turns": max(8, base_recent_turns // 2),
+                "code_snippets": max(10, base_code_snippets // 2),
+                "tool_results": max(15, base_tool_results // 2)
+            }
+        elif conversation_length <= 15:
+            # Long conversations: aggressive reduction
+            return {
+                "recent_turns": max(4, base_recent_turns // 4),
+                "code_snippets": max(5, base_code_snippets // 4),
+                "tool_results": max(8, base_tool_results // 4)
+            }
+        else:
+            # Very long conversations: extreme optimization
+            return {
+                "recent_turns": 3,  # Only keep last 3 turns
+                "code_snippets": 3,  # Only keep most relevant 3 snippets
+                "tool_results": 5    # Only keep most relevant 5 tool results
+            }
+
+    def _calculate_token_pressure(self, available_tokens: int) -> float:
+        """Calculate token pressure ratio (0.0 = plenty of space, 1.0 = at limit)."""
+        total_potential_tokens = 0
+        
+        # Calculate potential token usage from all context components
+        for turn in self.conversation_turns:
+            total_potential_tokens += turn.user_message_tokens + turn.agent_message_tokens + turn.tool_calls_tokens
+            
+        for snippet in self.code_snippets:
+            total_potential_tokens += snippet.token_count
+            
+        for result in self.tool_results:
+            total_potential_tokens += result.token_count
+            
+        if available_tokens <= 0:
+            return 1.0
+            
+        pressure = total_potential_tokens / available_tokens
+        return min(1.0, pressure)  # Cap at 1.0

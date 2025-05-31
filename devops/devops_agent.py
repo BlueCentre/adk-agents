@@ -623,17 +623,74 @@ Begin execution now, starting with the first step."""
                 base_prompt_tokens += tools_tokens
                 logger.info(f"Tools definition tokens: {tools_tokens:,}")
             
-            # Count existing message tokens (excluding the context we're about to add)
-            if hasattr(llm_request, 'messages') and isinstance(llm_request.messages, list):
-                for message in llm_request.messages:
-                    if hasattr(message, 'parts') and message.parts:
-                        for part in message.parts:
+            # CRITICAL FIX: Do NOT count existing conversation history as "base prompt"
+            # Conversation history should be managed by the context manager, not included
+            # in base prompt calculation. This was causing massive token growth between turns.
+            # 
+            # The ADK framework automatically includes conversation history in the request,
+            # but we want our context manager to handle that intelligently with optimization.
+            #
+            # Previous buggy code was:
+            # if hasattr(llm_request, 'messages') and isinstance(llm_request.messages, list):
+            #     for message in llm_request.messages:
+            #         ...count all existing messages as "base prompt"...
+            #
+            # This caused:
+            # - Turn 1: base = 2,011 tokens  
+            # - Turn 2: base = 2,001 + previous_conversation = 7,859 tokens (242% increase!)
+            logger.info("🔧 OPTIMIZATION: Excluding conversation history from base prompt calculation")
+            logger.info("   Conversation history will be managed by context manager with smart optimization")
+            
+            # ADVANCED OPTIMIZATION: Apply smart conversation history filtering
+            # This preserves tool execution flows while optimizing token usage
+            logger.info("🔧 APPLYING SMART CONVERSATION FILTERING...")
+            self._apply_smart_conversation_filtering(llm_request, user_message_content)
+            
+            # Recalculate base tokens after smart filtering
+            if hasattr(llm_request, 'contents') and isinstance(llm_request.contents, list):
+                logger.info(f"🔧 RECALCULATING tokens after smart filtering...")
+                
+                # Reset and recalculate from filtered contents
+                filtered_content_tokens = 0
+                for content in llm_request.contents:
+                    if hasattr(content, 'parts') and content.parts:
+                        for part in content.parts:
                             if hasattr(part, 'text') and part.text:
-                                # Skip the context block we're about to add
+                                # Don't count context injections we'll add later
                                 if not part.text.startswith("SYSTEM CONTEXT (JSON):"):
-                                    message_tokens = self._count_tokens(part.text)
-                                    base_prompt_tokens += message_tokens
-                                    logger.info(f"Existing message part tokens: {message_tokens:,}")
+                                    content_tokens = self._count_tokens(part.text)
+                                    filtered_content_tokens += content_tokens
+                
+                # Update base_prompt_tokens with filtered content
+                base_prompt_tokens = filtered_content_tokens
+                
+                # Add back the core components
+                if user_message_content:
+                    user_tokens = self._count_tokens(user_message_content) 
+                    # Only add if not already counted in filtered contents
+                    current_user_in_contents = any(
+                        hasattr(content, 'parts') and content.parts and
+                        any(hasattr(part, 'text') and part.text == user_message_content 
+                            for part in content.parts if hasattr(part, 'text'))
+                        for content in llm_request.contents if content.role == "user"
+                    )
+                    if not current_user_in_contents:
+                        base_prompt_tokens += user_tokens
+                        logger.info(f"  Added user message tokens: {user_tokens:,}")
+                
+                if hasattr(llm_request, 'system_instruction') and llm_request.system_instruction:
+                    system_tokens = self._count_tokens(str(llm_request.system_instruction))
+                    base_prompt_tokens += system_tokens
+                    logger.info(f"  Added system instruction tokens: {system_tokens:,}")
+                
+                if hasattr(llm_request, 'tools') and llm_request.tools:
+                    tools_tokens = self._count_tokens(str(llm_request.tools))
+                    base_prompt_tokens += tools_tokens
+                    logger.info(f"  Added tools tokens: {tools_tokens:,}")
+                
+                logger.info(f"🔧 SMART FILTERING TOKEN IMPACT:")
+                logger.info(f"  Filtered content tokens: {filtered_content_tokens:,}")
+                logger.info(f"  Total base prompt tokens: {base_prompt_tokens:,}")
             
             # Add safety margin for JSON structure overhead and response generation
             safety_margin = 2000
@@ -669,19 +726,41 @@ Begin execution now, starting with the first step."""
                 if hasattr(llm_request, 'model') and llm_request.model:
                     system_context_message = f"SYSTEM CONTEXT (JSON):\n```json\n{json.dumps(context_dict, indent=2)}\n```\nUse this context to inform your response. Do not directly refer to this context block unless asked."
 
-                    if hasattr(llm_request, 'messages') and isinstance(llm_request.messages, list):
+                    # CRITICAL FIX PART 3: Inject context into the filtered contents, not messages
+                    # We need to inject our optimized context into the filtered contents that we created
+                    if hasattr(llm_request, 'contents') and isinstance(llm_request.contents, list):
                         try:
                             from google.genai import types as genai_types
+                            
+                            # Create our context injection
                             system_message_part = genai_types.Part(text=system_context_message)
-                            system_content = genai_types.Content(role='system', parts=[system_message_part])
-                            llm_request.messages.insert(0, system_content)
-                            logger.info("Injected structured context into llm_request messages.")
+                            system_content = genai_types.Content(role='user', parts=[system_message_part])
+                            
+                            # Insert context at the beginning of filtered contents (before current user message)
+                            # Our filtered contents should be: [system_messages, context_injection, current_user_message]
+                            insert_position = 0
+                            
+                            # Find position after any system messages
+                            for i, content in enumerate(llm_request.contents):
+                                if content.role == "system":
+                                    insert_position = i + 1
+                                else:
+                                    break
+                            
+                            # Insert our context after system messages but before user messages
+                            llm_request.contents.insert(insert_position, system_content)
+                            logger.info(f"🔧 INJECTED optimized context into filtered contents at position {insert_position}")
                             
                             # Log final assembled prompt details for optimization analysis
                             self._log_final_prompt_analysis(llm_request, context_dict, system_context_message)
                             
                         except Exception as e:
-                            logger.warning(f"Could not inject structured context into llm_request messages: {e}")
+                            logger.warning(f"Could not inject structured context into llm_request contents: {e}")
+                    
+                    # DEPRECATED: Remove old messages injection that was causing double-counting
+                    # This was the old approach that added context to messages even though we already filtered contents
+                    # if hasattr(llm_request, 'messages') and isinstance(llm_request.messages, list):
+                    #     llm_request.messages.insert(0, system_content)
 
                     total_context_block_tokens = self._count_tokens(system_context_message)
                     logger.info(f"Total tokens for prompt (base + context_block): {base_prompt_tokens + total_context_block_tokens}")
@@ -1709,3 +1788,217 @@ Begin execution now, starting with the first step."""
                 logger.warning(f"Could not reconstruct full prompt string: {e}")
         else:
             logger.info("ℹ️  Set LOG_FULL_PROMPTS=true to enable raw prompt logging")
+
+    def _analyze_conversation_structure(self, contents: List) -> Dict[str, Any]:
+        """
+        Analyze the conversation structure to identify tool execution flows and conversation boundaries.
+        
+        Returns a dictionary with:
+        - current_tool_chains: Active/incomplete tool execution flows 
+        - completed_conversations: Finished conversation segments
+        - current_user_message: The current user request
+        - system_messages: System-level messages to preserve
+        """
+        analysis = {
+            'current_tool_chains': [],
+            'completed_conversations': [],
+            'current_user_message': None,
+            'system_messages': [],
+            'context_injections': []
+        }
+        
+        i = 0
+        while i < len(contents):
+            content = contents[i]
+            
+            if content.role == "system":
+                analysis['system_messages'].append(content)
+                
+            elif content.role == "user":
+                # Check if this is our context injection
+                if (content.parts and len(content.parts) == 1 and 
+                    hasattr(content.parts[0], 'text') and content.parts[0].text and
+                    content.parts[0].text.startswith("SYSTEM CONTEXT (JSON):")):
+                    analysis['context_injections'].append(content)
+                else:
+                    # This could be current user message or conversation history
+                    # Look ahead to see if there's a tool execution flow
+                    tool_chain = self._extract_tool_chain_from_position(contents, i)
+                    if tool_chain['is_current_or_active']:
+                        analysis['current_user_message'] = content
+                        analysis['current_tool_chains'].extend(tool_chain['chain'])
+                        i += len(tool_chain['chain'])  # Skip processed items
+                    else:
+                        # This is historical conversation
+                        conversation_segment = self._extract_conversation_segment(contents, i)
+                        analysis['completed_conversations'].append(conversation_segment)
+                        i += len(conversation_segment) - 1  # Skip processed items
+                        
+            elif content.role == "assistant":
+                # Assistant messages are usually part of tool chains or responses
+                # They should be handled by the tool chain analysis above
+                # If we encounter a standalone assistant message, it's likely historical
+                analysis['completed_conversations'].append([content])
+                
+            i += 1
+            
+        return analysis
+    
+    def _extract_tool_chain_from_position(self, contents: List, start_pos: int) -> Dict[str, Any]:
+        """
+        Extract a complete tool execution chain starting from a user message.
+        
+        Pattern: user_message -> assistant_with_tool_calls -> tool_results -> assistant_response
+        """
+        chain = []
+        is_current_or_active = False
+        i = start_pos
+        
+        # Start with the user message
+        if i < len(contents):
+            chain.append(contents[i])
+            i += 1
+        
+        # Look for assistant responses with tool calls
+        while i < len(contents) and contents[i].role == "assistant":
+            assistant_msg = contents[i]
+            chain.append(assistant_msg)
+            
+            # Check if this assistant message contains function calls (indicates active tool usage)
+            has_function_calls = False
+            if hasattr(assistant_msg, 'parts') and assistant_msg.parts:
+                for part in assistant_msg.parts:
+                    if hasattr(part, 'function_call') and part.function_call:
+                        has_function_calls = True
+                        is_current_or_active = True
+                        break
+            
+            # If this is at the end of the conversation, it's likely current
+            if i == len(contents) - 1:
+                is_current_or_active = True
+                
+            i += 1
+        
+        # Check if chain is incomplete (no final assistant response), indicating active flow
+        if len(chain) > 1 and not is_current_or_active:
+            # Look for patterns that suggest this is an active conversation
+            last_message = chain[-1]
+            if (hasattr(last_message, 'parts') and last_message.parts and
+                any(hasattr(part, 'function_call') for part in last_message.parts if hasattr(part, 'function_call'))):
+                is_current_or_active = True
+        
+        return {
+            'chain': chain,
+            'is_current_or_active': is_current_or_active,
+            'has_tool_calls': any(self._message_has_tool_calls(msg) for msg in chain)
+        }
+    
+    def _extract_conversation_segment(self, contents: List, start_pos: int) -> List:
+        """Extract a complete conversation segment (user + assistant response(s))."""
+        segment = []
+        i = start_pos
+        
+        # Add the user message
+        if i < len(contents) and contents[i].role == "user":
+            segment.append(contents[i])
+            i += 1
+            
+        # Add following assistant responses until we hit another user message or end
+        while i < len(contents) and contents[i].role == "assistant":
+            segment.append(contents[i])
+            i += 1
+            
+        return segment
+    
+    def _message_has_tool_calls(self, message) -> bool:
+        """Check if a message contains tool/function calls."""
+        if hasattr(message, 'parts') and message.parts:
+            for part in message.parts:
+                if hasattr(part, 'function_call') and part.function_call:
+                    return True
+        return False
+    
+    def _apply_smart_conversation_filtering(self, llm_request: LlmRequest, user_message_content: str) -> None:
+        """
+        Apply sophisticated conversation history filtering that preserves tool flows.
+        """
+        if not hasattr(llm_request, 'contents') or not isinstance(llm_request.contents, list):
+            logger.info("🔧 No contents to filter")
+            return
+            
+        original_count = len(llm_request.contents)
+        logger.info(f"🔧 SMART FILTERING: Analyzing {original_count} conversation contents...")
+        
+        # Analyze conversation structure
+        analysis = self._analyze_conversation_structure(llm_request.contents)
+        
+        logger.info(f"🔧 ANALYSIS RESULTS:")
+        logger.info(f"  📋 System messages: {len(analysis['system_messages'])}")
+        logger.info(f"  🧩 Context injections: {len(analysis['context_injections'])}")
+        logger.info(f"  🔧 Current tool chains: {len(analysis['current_tool_chains'])}")
+        logger.info(f"  📚 Completed conversations: {len(analysis['completed_conversations'])}")
+        logger.info(f"  👤 Current user message: {'Yes' if analysis['current_user_message'] else 'No'}")
+        
+        # Build filtered contents list
+        filtered_contents = []
+        
+        # 1. Always keep system messages
+        filtered_contents.extend(analysis['system_messages'])
+        logger.info(f"🔧 PRESERVED: {len(analysis['system_messages'])} system messages")
+        
+        # 2. Keep context injections
+        filtered_contents.extend(analysis['context_injections'])
+        logger.info(f"🔧 PRESERVED: {len(analysis['context_injections'])} context injections")
+        
+        # 3. Keep current tool chains (active tool execution flows)
+        active_chain_count = 0
+        for chain in analysis['current_tool_chains']:
+            if isinstance(chain, list):
+                filtered_contents.extend(chain)
+                active_chain_count += len(chain)
+            else:
+                filtered_contents.append(chain)
+                active_chain_count += 1
+        logger.info(f"🔧 PRESERVED: {active_chain_count} messages from active tool chains")
+        
+        # 4. Keep current user message if not already included
+        if analysis['current_user_message'] and analysis['current_user_message'] not in filtered_contents:
+            filtered_contents.append(analysis['current_user_message'])
+            logger.info(f"🔧 PRESERVED: Current user message")
+        
+        # 5. Selectively keep recent completed conversations based on token budget
+        conversation_limit = 2  # Keep last 2 completed conversation segments
+        kept_conversations = 0
+        total_conversation_messages = 0
+        
+        # Keep most recent completed conversations
+        for conversation in reversed(analysis['completed_conversations'][-conversation_limit:]):
+            if isinstance(conversation, list):
+                # Check if this conversation has tool calls (higher priority)
+                has_tools = any(self._message_has_tool_calls(msg) for msg in conversation)
+                if has_tools or kept_conversations < 1:  # Always keep at least 1, prioritize tool conversations
+                    filtered_contents.extend(conversation)
+                    total_conversation_messages += len(conversation)
+                    kept_conversations += 1
+                    logger.info(f"🔧 PRESERVED: Recent conversation segment with {len(conversation)} messages (has_tools: {has_tools})")
+                else:
+                    logger.info(f"🔧 FILTERED: Older conversation segment with {len(conversation)} messages")
+            else:
+                # Single message conversation
+                filtered_contents.append(conversation)
+                total_conversation_messages += 1
+                logger.info(f"🔧 PRESERVED: Single conversation message")
+        
+        # Apply the filtered contents
+        llm_request.contents = filtered_contents
+        new_count = len(filtered_contents)
+        
+        # Log filtering results
+        logger.info(f"🔧 SMART FILTERING COMPLETE:")
+        logger.info(f"  📊 Original contents: {original_count}")
+        logger.info(f"  📊 Filtered contents: {new_count}")
+        logger.info(f"  📊 Reduction: {original_count - new_count} messages ({((original_count - new_count) / original_count * 100):.1f}%)")
+        logger.info(f"  ✅ Tool flows preserved: Active chains maintained")
+        logger.info(f"  ✅ Recent context preserved: {kept_conversations} conversation segments")
+        
+        return
