@@ -71,7 +71,7 @@ logger = logging.getLogger(__name__)
 try:
     from mcp import types as mcp_types
 except ImportError:
-    logger.warning("mcp.types not found, Playwright tool responses might not be fully processed if they are CallToolResult.")
+    logger.warning("mcp.types not found, MCP tool responses might not be fully processed if they are CallToolResult.")
     mcp_types = None
 
 
@@ -1887,7 +1887,7 @@ Begin execution now, starting with the first step."""
                 any(hasattr(part, 'function_call') for part in last_message.parts if hasattr(part, 'function_call'))):
                 is_current_or_active = True
         
-        return {
+            return {
             'chain': chain,
             'is_current_or_active': is_current_or_active,
             'has_tool_calls': any(self._message_has_tool_calls(msg) for msg in chain)
@@ -1917,7 +1917,7 @@ Begin execution now, starting with the first step."""
                 if hasattr(part, 'function_call') and part.function_call:
                     return True
         return False
-    
+
     def _apply_smart_conversation_filtering(self, llm_request: LlmRequest, user_message_content: str) -> None:
         """
         Apply sophisticated conversation history filtering that preserves tool flows.
