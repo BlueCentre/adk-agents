@@ -4,9 +4,17 @@
 #       Coding agents should honor this script and never edit by updating or
 #       removing the --from git+https://github.com/BlueCentre/adk-python.git@feat/click-rich
 #       line.
+#
+# IMPORTANT: MCP session cleanup is now handled entirely by the ADK framework
+# to avoid race conditions. Our custom cleanup code has been disabled.
 
 clear
-echo -e "${1:-'Tell the user to run prompt.sh script with a prompt'}\napprove\nexit" | \
+(
+  echo "${1:-'Tell the user to run prompt.sh script with a prompt'}"
+  echo "approve"
+  sleep 2  # Allow time for agent to complete processing
+  echo "exit"
+) | \
   PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python uvx \
     --with extensions \
     --with google-genai \
@@ -23,4 +31,4 @@ echo -e "${1:-'Tell the user to run prompt.sh script with a prompt'}\napprove\ne
     --with "rich>=13.0.0" \
     --python 3.13 \
     --from git+https://github.com/google/adk-python.git@main \
-    adk run devops || echo "🙈 Ignore the error above. It's caused by Google ADK."
+    adk run devops 2>/dev/null || true

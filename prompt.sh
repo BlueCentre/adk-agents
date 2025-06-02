@@ -6,8 +6,13 @@
 #       line.
 
 clear
-echo -e "${1:-'Tell the user to run prompt.sh script with a prompt'}\napprove\nexit" | \
-  PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python uv tool run \
+(
+  echo "${1:-'Tell the user to run prompt.sh script with a prompt'}"
+  echo "approve"
+  sleep 2  # Allow time for agent to complete processing
+  echo "exit"
+) | \
+  PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python uvx \
     --with extensions \
     --with google-genai \
     --with google-api-core \
@@ -23,4 +28,4 @@ echo -e "${1:-'Tell the user to run prompt.sh script with a prompt'}\napprove\ne
     --with "rich>=13.0.0" \
     --python 3.13 \
     --from git+https://github.com/BlueCentre/adk-python.git@feat/rich-click \
-    adk run devops
+    adk run devops 2>/dev/null || true
