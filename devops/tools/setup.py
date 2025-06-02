@@ -327,78 +327,78 @@ def load_all_tools_and_toolsets():
 # This follows the ADK documentation pattern for proper async lifecycle management.
 
 async def cleanup_mcp_toolsets():
-    """Properly closes MCP toolset connections using the appropriate pattern.
-    
-    Handles both the async pattern (with exit stack) and simple pattern
-    depending on which ADK version and pattern was used.
-    """
     global _loaded_mcp_toolsets, _global_mcp_exit_stack
-    
-    logger.info("Starting cleanup of MCP toolsets...")
+    logger.info("atexit: Starting cleanup of MCP toolsets...")
     cleanup_errors = []
-    
-    # First, try to close the global exit stack if it exists (async pattern)
+
+    # 1. Close the global exit stack (handles newer ADK pattern toolsets)
+    # This is idempotent and safe to call.
     if _global_mcp_exit_stack is not None:
+        logger.info("atexit: Closing global MCP exit stack...")
         try:
-            logger.info("Closing global MCP exit stack (async pattern)...")
             await _global_mcp_exit_stack.aclose()
-            logger.info("Successfully closed global MCP exit stack.")
-            _global_mcp_exit_stack = None
+            logger.info("atexit: Successfully closed global MCP exit stack.")
         except Exception as e:
-            error_msg = f"Error closing MCP exit stack: {e}"
+            error_msg = f"atexit: Error closing global MCP exit stack: {e}"
             logger.error(error_msg, exc_info=True)
             cleanup_errors.append(error_msg)
-    
-    # Also try to close individual toolsets (simple pattern or fallback)
+        # Set to None regardless, to prevent re-attempts if atexit were somehow called multiple times
+        _global_mcp_exit_stack = None
+
+    # 2. Close individual MCPToolset instances (older ADK pattern or direct instantiations)
     if _loaded_mcp_toolsets:
-        for toolset_name, toolset_instance in list(_loaded_mcp_toolsets.items()):
-            if toolset_instance is None:
+        logger.info("atexit: Processing _loaded_mcp_toolsets...")
+        for toolset_name, toolset_obj in list(_loaded_mcp_toolsets.items()): # Use list() for safe iteration if modifying dict
+            if toolset_obj is None:
+                logger.info(f"atexit: Toolset {toolset_name} is already None. Skipping.")
                 continue
-                
-            # Handle both single toolsets and lists of tools
-            toolsets_to_close = []
-            if isinstance(toolset_instance, list):
-                toolsets_to_close = toolset_instance
-            else:
-                toolsets_to_close = [toolset_instance]
-            
-            for i, toolset in enumerate(toolsets_to_close):
-                if toolset and hasattr(toolset, 'close') and callable(toolset.close):
+
+            if isinstance(toolset_obj, MCPToolset): # Check if it's the toolset itself
+                logger.info(f"atexit: Attempting to close MCPToolset instance: {toolset_name}")
+                if hasattr(toolset_obj, 'close') and callable(toolset_obj.close):
                     try:
-                        toolset_id = f"{toolset_name}[{i}]" if len(toolsets_to_close) > 1 else toolset_name
-                        
-                        if asyncio.iscoroutinefunction(toolset.close):
-                            logger.info(f"Asynchronously closing MCP Toolset: {toolset_id}")
-                            await asyncio.wait_for(toolset.close(), timeout=3.0)
+                        if asyncio.iscoroutinefunction(toolset_obj.close):
+                            logger.info(f"atexit: Asynchronously closing MCPToolset: {toolset_name}")
+                            await asyncio.wait_for(toolset_obj.close(), timeout=3.0) # Short timeout
                         else:
-                            logger.info(f"Synchronously closing MCP Toolset: {toolset_id}")
-                            toolset.close()
-                        logger.info(f"Successfully closed MCP Toolset: {toolset_id}")
+                            logger.info(f"atexit: Synchronously closing MCPToolset: {toolset_name} (unexpected for ADK MCPToolset)")
+                            toolset_obj.close()
+                        logger.info(f"atexit: Successfully initiated close for MCPToolset: {toolset_name}")
                     except asyncio.TimeoutError:
-                        error_msg = f"Timeout while closing MCP Toolset {toolset_id}"
+                        error_msg = f"atexit: Timeout (3s) while closing MCPToolset {toolset_name}. It might have been stuck or already handled."
+                        logger.warning(error_msg)
+                        cleanup_errors.append(error_msg)
+                    except asyncio.CancelledError:
+                        error_msg = f"atexit: MCPToolset {toolset_name} close operation was cancelled. Likely already handled/cancelled by ADK."
+                        logger.warning(error_msg)
+                        cleanup_errors.append(error_msg)
+                    except RuntimeError as e:
+                        error_msg = f"atexit: RuntimeError while closing MCPToolset {toolset_name} (e.g. event loop closed): {e}"
                         logger.warning(error_msg)
                         cleanup_errors.append(error_msg)
                     except Exception as e:
-                        error_msg = f"Error closing MCP Toolset {toolset_id}: {e}"
+                        error_msg = f"atexit: Error closing MCPToolset {toolset_name}: {e}"
                         logger.error(error_msg, exc_info=True)
                         cleanup_errors.append(error_msg)
-                elif toolset:
-                    toolset_id = f"{toolset_name}[{i}]" if len(toolsets_to_close) > 1 else toolset_name
-                    logger.warning(f"MCP Toolset {toolset_id} does not have a callable 'close' method.")
+                else:
+                    logger.warning(f"atexit: MCPToolset instance {toolset_name} does not have a callable 'close' method.")
+            elif isinstance(toolset_obj, list):
+                logger.info(f"atexit: Toolset {toolset_name} is a list (new ADK pattern tools). Cleanup assumed handled by global exit stack. Skipping individual close here.")
+            else:
+                logger.warning(f"atexit: Toolset {toolset_name} is of unexpected type: {type(toolset_obj)}. Skipping.")
             
-            # Always mark as closed to prevent duplicate cleanup attempts
             _loaded_mcp_toolsets[toolset_name] = None
     
-    # Clear the loaded toolsets registry
-    if _loaded_mcp_toolsets:
+    if _loaded_mcp_toolsets: # Check before clearing, mainly for logging
         _loaded_mcp_toolsets.clear()
-        logger.info("Cleared MCP toolsets registry.")
-    
-    # Summary logging
+        logger.info("atexit: Cleared _loaded_mcp_toolsets registry.")
+
     if cleanup_errors:
-        logger.warning(f"Finished cleanup of MCP toolsets with {len(cleanup_errors)} errors/warnings.")
-        logger.debug(f"Cleanup issues encountered: {cleanup_errors}")
+        logger.warning(f"atexit: Finished cleanup of MCP toolsets with {len(cleanup_errors)} errors/warnings.")
     else:
-        logger.info("Finished cleanup of MCP toolsets successfully.")
+        logger.info("atexit: Finished cleanup of MCP toolsets (according to atexit handler).")
+
+# Ensure MCPToolset is imported if not already (it should be).
+# from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset
 
 atexit.register(lambda: asyncio.run(cleanup_mcp_toolsets()))
