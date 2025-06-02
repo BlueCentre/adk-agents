@@ -332,6 +332,8 @@ class MyDevopsAgent(LlmAgent):
     _context_manager: Optional[ContextManager] = PrivateAttr(default=None)
     llm_client: Optional[genai.Client] = None
 
+    # 1. Initialization and Configuration
+
     def __init__(self, **data: any):
         super().__init__(**data)
         if 'llm_client' in data:
@@ -413,22 +415,6 @@ class MyDevopsAgent(LlmAgent):
         
         logger.info(f"Using token limit for {model_to_check}: {self._actual_llm_token_limit}")
 
-    def _start_status(self, message: str):
-        """
-        Starts the status spinner.
-
-        We call ui_utils.stop_status_spinner to stop the status spinner if it is already running.
-        This is to avoid the status spinner from being displayed twice.
-        We then call ui_utils.start_status_spinner to start the status spinner with the new message.
-        We then set the _status_indicator to the new status indicator.
-        """
-        ui_utils.stop_status_spinner(self._status_indicator)
-        self._status_indicator = ui_utils.start_status_spinner(self._console, message)
-
-    def _stop_status(self):
-        ui_utils.stop_status_spinner(self._status_indicator)
-        self._status_indicator = None
-
     async def _ensure_mcp_tools_loaded(self):
         """Ensure MCP tools are loaded asynchronously if not already loaded.
         
@@ -477,6 +463,26 @@ class MyDevopsAgent(LlmAgent):
             self._mcp_tools_loaded = True
         finally:
             self._mcp_loading_lock = False
+
+    # 2. Status Indicator
+
+    def _start_status(self, message: str):
+        """
+        Starts the status spinner.
+
+        We call ui_utils.stop_status_spinner to stop the status spinner if it is already running.
+        This is to avoid the status spinner from being displayed twice.
+        We then call ui_utils.start_status_spinner to start the status spinner with the new message.
+        We then set the _status_indicator to the new status indicator.
+        """
+        ui_utils.stop_status_spinner(self._status_indicator)
+        self._status_indicator = ui_utils.start_status_spinner(self._console, message)
+
+    def _stop_status(self):
+        ui_utils.stop_status_spinner(self._status_indicator)
+        self._status_indicator = None
+
+    # 3. ADK Callback Handlers
 
     @telemetry.track_operation(OperationType.LLM_REQUEST, "before_model")
     async def handle_before_model(
@@ -876,113 +882,6 @@ Begin execution now, starting with the first step."""
 
         return None
 
-    def _extract_response_text(self, llm_response: LlmResponse) -> Optional[str]:
-        try:
-            extracted_text = getattr(llm_response, 'text', None)
-            if extracted_text:
-                return llm_response.text
-            if hasattr(llm_response, 'content') and getattr(llm_response, 'content'):
-                content_obj = getattr(llm_response, 'content')
-                if isinstance(content_obj, genai_types.Content) and content_obj.parts:
-                    parts_texts = [part.text for part in content_obj.parts if hasattr(part, 'text') and part.text is not None]
-                    if parts_texts:
-                        return "".join(parts_texts)
-            elif hasattr(llm_response, 'parts') and getattr(llm_response, 'parts'):
-                parts = getattr(llm_response, 'parts')
-                if isinstance(parts, list):
-                    parts_texts = [part.text for part in parts if hasattr(part, 'text') and part.text is not None]
-                    if parts_texts:
-                        return "".join(parts_texts)
-        except Exception as e:
-            logger.warning(f"Failed to extract text from LLM response: {e}. "
-                        f"LLM response type: {type(llm_response)}. "
-                        f"LLM response attributes: {dir(llm_response)}")
-        return None
-
-    def _process_llm_response(self, llm_response: LlmResponse) -> Dict[str, Any]:
-        """Processes the LLM response to extract text and function calls."""
-        extracted_data: Dict[str, Any] = {
-            "text_parts": [],
-            "function_calls": []
-        }
-
-        if hasattr(llm_response, 'content') and getattr(llm_response, 'content'):
-            content_obj = getattr(llm_response, 'content')
-            if isinstance(content_obj, genai_types.Content) and content_obj.parts:
-                for part in content_obj.parts:
-                    if hasattr(part, 'text') and part.text is not None:
-                        extracted_data["text_parts"].append(part.text)
-                    elif hasattr(part, 'function_call') and part.function_call is not None:
-                        # Convert function_call to serializable dictionary
-                        func_call_dict = self._serialize_function_call(part.function_call)
-                        extracted_data["function_calls"].append(func_call_dict)
-
-        elif hasattr(llm_response, 'parts') and getattr(llm_response, 'parts'):
-            parts = getattr(llm_response, 'parts')
-            if isinstance(parts, list):
-                for part in parts:
-                    if hasattr(part, 'text') and part.text is not None:
-                        extracted_data["text_parts"].append(part.text)
-                    elif hasattr(part, 'function_call') and part.function_call is not None:
-                        # Convert function_call to serializable dictionary
-                        func_call_dict = self._serialize_function_call(part.function_call)
-                        extracted_data["function_calls"].append(func_call_dict)
-
-        direct_text = getattr(llm_response, 'text', None)
-        if direct_text and not extracted_data["text_parts"] and not extracted_data["function_calls"]:
-            extracted_data["text_parts"].append(direct_text)
-
-        if extracted_data["function_calls"]:
-            logger.info(f"Detected function calls in LLM response: {extracted_data['function_calls']}")
-
-        return extracted_data
-
-    def _serialize_function_call(self, function_call) -> Dict[str, Any]:
-        """Convert a function_call object to a JSON-serializable dictionary."""
-        try:
-            # Try to extract common attributes from function_call objects
-            func_call_dict = {}
-            
-            # Common attributes that function calls typically have
-            if hasattr(function_call, 'name'):
-                func_call_dict['name'] = function_call.name
-            if hasattr(function_call, 'args'):
-                func_call_dict['args'] = function_call.args
-            if hasattr(function_call, 'id'):
-                func_call_dict['id'] = function_call.id
-                
-            # If the object has a dict representation, use it
-            if hasattr(function_call, '__dict__'):
-                for key, value in function_call.__dict__.items():
-                    if not key.startswith('_'):  # Skip private attributes
-                        try:
-                            # Test if the value is JSON serializable
-                            json.dumps(value)
-                            func_call_dict[key] = value
-                        except (TypeError, ValueError):
-                            # If not serializable, convert to string
-                            func_call_dict[key] = str(value)
-            
-            # If we couldn't extract anything meaningful, convert the whole object to string
-            if not func_call_dict:
-                func_call_dict = {
-                    'name': getattr(function_call, 'name', 'unknown'),
-                    'args': getattr(function_call, 'args', {}),
-                    'raw_str': str(function_call)
-                }
-                
-            return func_call_dict
-            
-        except Exception as e:
-            logger.warning(f"Failed to serialize function_call object: {e}")
-            # Fallback: return a basic dictionary with string representation
-            return {
-                'name': 'unknown',
-                'args': {},
-                'error': f"Serialization failed: {e}",
-                'raw_str': str(function_call)
-            }
-
     @telemetry.track_operation(OperationType.TOOL_EXECUTION, "before_tool")
     async def handle_before_tool(
         self, tool: BaseTool, args: dict, tool_context: ToolContext, callback_context: CallbackContext | None = None
@@ -1128,333 +1027,124 @@ Begin execution now, starting with the first step."""
 
         return None
 
-    @override
-    async def _run_async_impl(
-        self, ctx: InvocationContext
-    ) -> AsyncGenerator[Event, None]:
-        """
-        Robust implementation of the agent loop with proper error handling,
-        circuit breakers, and retry mechanisms.
-        """
-        # Initialize circuit breaker parameters
-        max_events_per_attempt = 50  # Increased from 20 to allow for complex operations
-        max_retries = 3  # Increased from 2 for better resilience
-        max_consecutive_errors = 5  # New: prevent error loops
-        
-        retry_count = 0
-        consecutive_errors = 0
-        
+    # 4. Internal Response and Tool Processing Helpers
+
+    def _extract_response_text(self, llm_response: LlmResponse) -> Optional[str]:
         try:
-            while retry_count <= max_retries:
-                event_count = 0
-                attempt_start_time = time.time()
-                
-                try:
-                    logger.info(f"Agent {self.name}: Starting attempt {retry_count + 1}/{max_retries + 1}")
-                    
-                    # Reset consecutive error counter on successful attempt start
-                    consecutive_errors = 0
-                    
-                    # Process events with circuit breaker
-                    async for event in super()._run_async_impl(ctx):
-                        event_count += 1
-                        
-                        # Circuit breaker: prevent infinite event generation
-                        if event_count > max_events_per_attempt:
-                            logger.error(f"Agent {self.name}: Circuit breaker triggered - too many events ({event_count})")
-                            yield Event(
-                                author=self.name,
-                                content=genai_types.Content(parts=[genai_types.Part(
-                                    text="I encountered an internal issue with response generation. The request may be too complex. Please try breaking it into smaller parts."
-                                )]),
-                                actions=EventActions()
-                            )
-                            ctx.end_invocation = True
-                            return
-                        
-                        # Check for timeout (prevent hanging)
-                        elapsed_time = time.time() - attempt_start_time
-                        if elapsed_time > 300:  # 5 minutes timeout per attempt
-                            logger.error(f"Agent {self.name}: Attempt timeout after {elapsed_time:.1f} seconds")
-                            yield Event(
-                                author=self.name,
-                                content=genai_types.Content(parts=[genai_types.Part(
-                                    text="The request is taking too long to process. Please try a simpler request or break it into smaller parts."
-                                )]),
-                                actions=EventActions()
-                            )
-                            ctx.end_invocation = True
-                            return
-                        
-                        yield event
-                    
-                    # Success - exit retry loop
-                    logger.info(f"Agent {self.name}: Successfully completed after {retry_count + 1} attempts")
-                    break
-                    
-                except Exception as e:
-                    consecutive_errors += 1
-                    error_message = str(e)
-                    error_type = type(e).__name__
-                    
-                    # Check if we've hit too many consecutive errors
-                    if consecutive_errors >= max_consecutive_errors:
-                        logger.error(f"Agent {self.name}: Too many consecutive errors ({consecutive_errors}), aborting")
-                        raise e
-                    
-                    # Determine if this error is retryable
-                    should_retry = self._is_retryable_error(error_message, error_type)
-                    
-                    if should_retry and retry_count < max_retries:
-                        retry_count += 1
-                        logger.warning(f"Agent {self.name}: Retryable error on attempt {retry_count}/{max_retries + 1}: {error_type}: {error_message}")
-                        
-                        # Optimize input for retry
-                        optimization_success = await self._optimize_input_for_retry(ctx, retry_count)
-                        if not optimization_success:
-                            logger.warning(f"Agent {self.name}: Input optimization failed, continuing with retry anyway")
-                        
-                        # Exponential backoff with jitter
-                        import asyncio
-                        import random
-                        base_delay = min(2 ** retry_count, 30)  # Cap at 30 seconds
-                        jitter = random.uniform(0.1, 0.5)  # Add randomness to prevent thundering herd
-                        delay = base_delay + jitter
-                        
-                        logger.info(f"Agent {self.name}: Waiting {delay:.1f} seconds before retry...")
-                        await asyncio.sleep(delay)
-                        continue
-                    else:
-                        # Either not retryable or max retries exceeded
-                        logger.error(f"Agent {self.name}: Non-retryable error or max retries exceeded: {error_type}: {error_message}")
-                        raise e
-
+            extracted_text = getattr(llm_response, 'text', None)
+            if extracted_text:
+                return llm_response.text
+            if hasattr(llm_response, 'content') and getattr(llm_response, 'content'):
+                content_obj = getattr(llm_response, 'content')
+                if isinstance(content_obj, genai_types.Content) and content_obj.parts:
+                    parts_texts = [part.text for part in content_obj.parts if hasattr(part, 'text') and part.text is not None]
+                    if parts_texts:
+                        return "".join(parts_texts)
+            elif hasattr(llm_response, 'parts') and getattr(llm_response, 'parts'):
+                parts = getattr(llm_response, 'parts')
+                if isinstance(parts, list):
+                    parts_texts = [part.text for part in parts if hasattr(part, 'text') and part.text is not None]
+                    if parts_texts:
+                        return "".join(parts_texts)
         except Exception as e:
-            self._stop_status()
-            error_type = type(e).__name__
-            error_message = str(e)
-            tb_str = traceback.format_exc()
-            
-            # Check if this is one of our target API errors
-            if ("429" in error_message and "RESOURCE_EXHAUSTED" in error_message) or \
-               ("500" in error_message and ("INTERNAL" in error_message or "ServerError" in error_message)):
-                logger.error(f"Agent {self.name}: API error after all retry attempts: {error_type}: {error_message}")
-                user_facing_error = (
-                    f"I encountered API rate limits or server issues. "
-                    f"I tried optimizing the request and retrying, but the issue persists. "
-                    f"Please try again in a few moments or with a simpler request."
-                )
-            elif "JSONDecodeError" in error_type or "JSON" in error_message:
-                logger.error(f"Agent {self.name}: JSON parsing error after all retry attempts: {error_type}: {error_message}")
-                user_facing_error = (
-                    f"I encountered a communication issue with the AI service. "
-                    f"This appears to be a temporary issue. Please try your request again."
-                )
-            else:
-                logger.error(
-                    f"Agent {self.name}: Unhandled exception in _run_async_impl: "
-                    f"{error_type}: {error_message}\n{tb_str}"
-                )
-                mcp_related_hint = ""
-                if isinstance(e, (BrokenPipeError, EOFError)):
-                    logger.error(f"This error ({error_type}) often indicates an MCP server communication failure.")
-                    mcp_related_hint = " (possibly due to an issue with an external MCP tool process)."
+            logger.warning(f"Failed to extract text from LLM response: {e}. "
+                        f"LLM response type: {type(llm_response)}. "
+                        f"LLM response attributes: {dir(llm_response)}")
+        return None
 
-                ui_utils.display_unhandled_error(self._console, error_type, error_message, mcp_related_hint)
+    def _process_llm_response(self, llm_response: LlmResponse) -> Dict[str, Any]:
+        """Processes the LLM response to extract text and function calls."""
+        extracted_data: Dict[str, Any] = {
+            "text_parts": [],
+            "function_calls": []
+        }
 
-                user_facing_error = (
-                    f"I encountered an unexpected internal issue{mcp_related_hint}. "
-                    f"I cannot proceed with this request. Details: {error_type}."
-                )
-            
-            yield Event(
-                author=self.name,
-                content=genai_types.Content(parts=[genai_types.Part(text=user_facing_error)]),
-                actions=EventActions()
-            )
-            # Gracefully end the invocation
-            ctx.end_invocation = True
+        if hasattr(llm_response, 'content') and getattr(llm_response, 'content'):
+            content_obj = getattr(llm_response, 'content')
+            if isinstance(content_obj, genai_types.Content) and content_obj.parts:
+                for part in content_obj.parts:
+                    if hasattr(part, 'text') and part.text is not None:
+                        extracted_data["text_parts"].append(part.text)
+                    elif hasattr(part, 'function_call') and part.function_call is not None:
+                        # Convert function_call to serializable dictionary
+                        func_call_dict = self._serialize_function_call(part.function_call)
+                        extracted_data["function_calls"].append(func_call_dict)
 
-    def _is_retryable_error(self, error_message: str, error_type: str) -> bool:
-        """
-        Determine if an error is retryable based on error message and type.
-        
-        Args:
-            error_message: The error message string
-            error_type: The error type name
+        elif hasattr(llm_response, 'parts') and getattr(llm_response, 'parts'):
+            parts = getattr(llm_response, 'parts')
+            if isinstance(parts, list):
+                for part in parts:
+                    if hasattr(part, 'text') and part.text is not None:
+                        extracted_data["text_parts"].append(part.text)
+                    elif hasattr(part, 'function_call') and part.function_call is not None:
+                        # Convert function_call to serializable dictionary
+                        func_call_dict = self._serialize_function_call(part.function_call)
+                        extracted_data["function_calls"].append(func_call_dict)
+
+        direct_text = getattr(llm_response, 'text', None)
+        if direct_text and not extracted_data["text_parts"] and not extracted_data["function_calls"]:
+            extracted_data["text_parts"].append(direct_text)
+
+        if extracted_data["function_calls"]:
+            logger.info(f"Detected function calls in LLM response: {extracted_data['function_calls']}")
+
+        return extracted_data
+
+    def _serialize_function_call(self, function_call) -> Dict[str, Any]:
+        """Convert a function_call object to a JSON-serializable dictionary."""
+        try:
+            # Try to extract common attributes from function_call objects
+            func_call_dict = {}
             
-        Returns:
-            True if the error should be retried, False otherwise
-        """
-        error_message_lower = error_message.lower()
-        
-        # API rate limiting and quota errors
-        if any(pattern in error_message for pattern in ["429", "RESOURCE_EXHAUSTED", "quota", "rate limit"]):
-            return True
+            # Common attributes that function calls typically have
+            if hasattr(function_call, 'name'):
+                func_call_dict['name'] = function_call.name
+            if hasattr(function_call, 'args'):
+                func_call_dict['args'] = function_call.args
+            if hasattr(function_call, 'id'):
+                func_call_dict['id'] = function_call.id
+                
+            # If the object has a dict representation, use it
+            if hasattr(function_call, '__dict__'):
+                for key, value in function_call.__dict__.items():
+                    if not key.startswith('_'):  # Skip private attributes
+                        try:
+                            # Test if the value is JSON serializable
+                            json.dumps(value)
+                            func_call_dict[key] = value
+                        except (TypeError, ValueError):
+                            # If not serializable, convert to string
+                            func_call_dict[key] = str(value)
             
-        # Temporary server errors
-        if any(pattern in error_message for pattern in ["500", "502", "503", "504", "INTERNAL", "ServerError", "timeout"]):
-            return True
+            # If we couldn't extract anything meaningful, convert the whole object to string
+            if not func_call_dict:
+                func_call_dict = {
+                    'name': getattr(function_call, 'name', 'unknown'),
+                    'args': getattr(function_call, 'args', {}),
+                    'raw_str': str(function_call)
+                }
+                
+            return func_call_dict
             
-        # Network and connection errors
-        if any(pattern in error_message_lower for pattern in ["connection", "network", "timeout", "unreachable"]):
-            return True
-            
-        # JSON parsing errors (often due to malformed responses)
-        if "json" in error_type.lower() or "json" in error_message_lower:
-            return True
-            
-        # Token limit errors (can be resolved with context optimization)
-        if any(pattern in error_message_lower for pattern in ["token", "context length", "too long", "maximum context"]):
-            return True
-            
-        # Specific Google API errors that are retryable
-        if any(pattern in error_message for pattern in ["DEADLINE_EXCEEDED", "UNAVAILABLE", "ABORTED"]):
-            return True
-            
-        # Non-retryable errors
-        non_retryable_patterns = [
-            "PERMISSION_DENIED", "UNAUTHENTICATED", "INVALID_ARGUMENT", 
-            "NOT_FOUND", "ALREADY_EXISTS", "FAILED_PRECONDITION",
-            "authentication", "authorization", "invalid api key",
-            "model not found", "unsupported"
-        ]
-        
-        if any(pattern in error_message_lower for pattern in non_retryable_patterns):
-            return False
-            
-        # Default to non-retryable for unknown errors to prevent infinite loops
-        logger.warning(f"Unknown error type '{error_type}' with message '{error_message}' - treating as non-retryable")
+        except Exception as e:
+            logger.warning(f"Failed to serialize function_call object: {e}")
+            # Fallback: return a basic dictionary with string representation
+            return {
+                'name': 'unknown',
+                'args': {},
+                'error': f"Serialization failed: {e}",
+                'raw_str': str(function_call)
+            }
+
+    def _message_has_tool_calls(self, message) -> bool:
+        """Check if a message contains tool/function calls."""
+        if hasattr(message, 'parts') and message.parts:
+            for part in message.parts:
+                if hasattr(part, 'function_call') and part.function_call:
+                    return True
         return False
 
-    async def _optimize_input_for_retry(self, ctx: InvocationContext, retry_attempt: int) -> bool:
-        """
-        Optimize input for retry by reducing context size and complexity.
-        
-        Args:
-            ctx: The invocation context
-            retry_attempt: The current retry attempt number (1-based)
-            
-        Returns:
-            True if optimization was successful, False otherwise
-        """
-        try:
-            logger.info(f"Agent {self.name}: Optimizing input for retry attempt {retry_attempt}")
-            
-            # Use state manager for optimization
-            if not self._state_manager:
-                logger.warning("State manager not available for optimization")
-                return False
-            
-            # Get current state for optimization
-            if hasattr(ctx, 'state') and ctx.state:
-                # Sync state manager with context
-                self._state_manager.sync_from_legacy_state(ctx.state)
-            
-            # Progressive optimization based on retry attempt
-            optimization_applied = False
-            
-            if retry_attempt == 1:
-                # First retry: Reduce context moderately
-                logger.info("Agent optimization level 1: Reducing conversation history and code snippets")
-                
-                # Reduce conversation history using state manager
-                if len(self._state_manager.conversation_history) > 2:
-                    original_count = len(self._state_manager.conversation_history)
-                    self._state_manager.conversation_history = self._state_manager.conversation_history[-2:]
-                    logger.info(f"Reduced conversation history from {original_count} to 2 turns")
-                    optimization_applied = True
-                
-                # Reduce code snippets
-                if len(self._state_manager.app_state['code_snippets']) > 3:
-                    original_count = len(self._state_manager.app_state['code_snippets'])
-                    self._state_manager.app_state['code_snippets'] = self._state_manager.app_state['code_snippets'][:3]
-                    logger.info(f"Reduced code snippets from {original_count} to 3")
-                    optimization_applied = True
-                        
-            elif retry_attempt == 2:
-                # Second retry: Aggressive reduction
-                logger.info("Agent optimization level 2: Aggressive context reduction")
-                
-                # Keep only the last conversation turn
-                if len(self._state_manager.conversation_history) > 1:
-                    original_count = len(self._state_manager.conversation_history)
-                    self._state_manager.conversation_history = self._state_manager.conversation_history[-1:]
-                    logger.info(f"Reduced conversation history from {original_count} to 1 turn")
-                    optimization_applied = True
-                
-                # Remove all code snippets
-                if self._state_manager.app_state['code_snippets']:
-                    self._state_manager.app_state['code_snippets'] = []
-                    logger.info("Removed all code snippets")
-                    optimization_applied = True
-                
-                # Remove tool results from current turn
-                if self._state_manager.current_turn and self._state_manager.current_turn.tool_results:
-                    self._state_manager.current_turn.tool_results = []
-                    logger.info("Removed tool results from current turn")
-                    optimization_applied = True
-                    
-            elif retry_attempt >= 3:
-                # Third+ retry: Minimal context
-                logger.info("Agent optimization level 3+: Minimal context")
-                
-                # Keep only current turn
-                self._state_manager.conversation_history = []
-                if self._state_manager.current_turn:
-                    # Keep only user message, remove everything else
-                    user_msg = self._state_manager.current_turn.user_message
-                    self._state_manager.current_turn = TurnState(
-                        turn_number=1,
-                        user_message=user_msg,
-                        phase=TurnPhase.PROCESSING_USER_INPUT
-                    )
-                
-                # Clear all app state
-                self._state_manager.app_state = {
-                    'code_snippets': [],
-                    'core_goal': '',
-                    'current_phase': '',
-                    'key_decisions': [],
-                    'last_modified_files': []
-                }
-                logger.info("Applied minimal context optimization")
-                optimization_applied = True
-            
-            # Also reduce the context manager's target limits if available
-            if self._context_manager:
-                original_turns = self._context_manager.target_recent_turns
-                original_snippets = self._context_manager.target_code_snippets
-                original_results = self._context_manager.target_tool_results
-                
-                if retry_attempt == 1:
-                    self._context_manager.target_recent_turns = min(2, original_turns)
-                    self._context_manager.target_code_snippets = min(3, original_snippets)
-                    self._context_manager.target_tool_results = min(3, original_results)
-                elif retry_attempt == 2:
-                    self._context_manager.target_recent_turns = 1
-                    self._context_manager.target_code_snippets = 0
-                    self._context_manager.target_tool_results = 1
-                elif retry_attempt >= 3:
-                    self._context_manager.target_recent_turns = 1
-                    self._context_manager.target_code_snippets = 0
-                    self._context_manager.target_tool_results = 0
-                
-                logger.info(f"Adjusted context manager limits: turns={self._context_manager.target_recent_turns}, "
-                          f"snippets={self._context_manager.target_code_snippets}, results={self._context_manager.target_tool_results}")
-                optimization_applied = True
-            
-            # Update context state if available
-            if hasattr(ctx, 'state') and ctx.state:
-                ctx.state.update(self._state_manager.get_state_for_context())
-                logger.debug("Updated context state after optimization")
-            
-            logger.info(f"Agent {self.name}: Input optimization for retry attempt {retry_attempt} completed, applied: {optimization_applied}")
-            return optimization_applied
-                
-        except Exception as e:
-            logger.error(f"Agent {self.name}: Error during input optimization: {e}", exc_info=True)
-            return False
+    # 5. Context and State Management Helpers
 
     def _assemble_context_from_state(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """Assembles context dictionary from state for LLM injection, respecting token limits.
@@ -1887,7 +1577,7 @@ Begin execution now, starting with the first step."""
                 any(hasattr(part, 'function_call') for part in last_message.parts if hasattr(part, 'function_call'))):
                 is_current_or_active = True
         
-            return {
+        return {
             'chain': chain,
             'is_current_or_active': is_current_or_active,
             'has_tool_calls': any(self._message_has_tool_calls(msg) for msg in chain)
@@ -1910,14 +1600,6 @@ Begin execution now, starting with the first step."""
             
         return segment
     
-    def _message_has_tool_calls(self, message) -> bool:
-        """Check if a message contains tool/function calls."""
-        if hasattr(message, 'parts') and message.parts:
-            for part in message.parts:
-                if hasattr(part, 'function_call') and part.function_call:
-                    return True
-        return False
-
     def _apply_smart_conversation_filtering(self, llm_request: LlmRequest, user_message_content: str) -> None:
         """
         Apply sophisticated conversation history filtering that preserves tool flows.
@@ -2004,3 +1686,335 @@ Begin execution now, starting with the first step."""
         logger.info(f"  ✅ Recent context preserved: {kept_conversations} conversation segments")
         
         return
+
+    # 6. Retry and Error Handling Helpers
+
+    def _is_retryable_error(self, error_message: str, error_type: str) -> bool:
+        """
+        Determine if an error is retryable based on error message and type.
+        
+        Args:
+            error_message: The error message string
+            error_type: The error type name
+            
+        Returns:
+            True if the error should be retried, False otherwise
+        """
+        error_message_lower = error_message.lower()
+        
+        # API rate limiting and quota errors
+        if any(pattern in error_message for pattern in ["429", "RESOURCE_EXHAUSTED", "quota", "rate limit"]):
+            return True
+            
+        # Temporary server errors
+        if any(pattern in error_message for pattern in ["500", "502", "503", "504", "INTERNAL", "ServerError", "timeout"]):
+            return True
+            
+        # Network and connection errors
+        if any(pattern in error_message_lower for pattern in ["connection", "network", "timeout", "unreachable"]):
+            return True
+            
+        # JSON parsing errors (often due to malformed responses)
+        if "json" in error_type.lower() or "json" in error_message_lower:
+            return True
+            
+        # Token limit errors (can be resolved with context optimization)
+        if any(pattern in error_message_lower for pattern in ["token", "context length", "too long", "maximum context"]):
+            return True
+            
+        # Specific Google API errors that are retryable
+        if any(pattern in error_message for pattern in ["DEADLINE_EXCEEDED", "UNAVAILABLE", "ABORTED"]):
+            return True
+            
+        # Non-retryable errors
+        non_retryable_patterns = [
+            "PERMISSION_DENIED", "UNAUTHENTICATED", "INVALID_ARGUMENT", 
+            "NOT_FOUND", "ALREADY_EXISTS", "FAILED_PRECONDITION",
+            "authentication", "authorization", "invalid api key",
+            "model not found", "unsupported"
+        ]
+        
+        if any(pattern in error_message_lower for pattern in non_retryable_patterns):
+            return False
+            
+        # Default to non-retryable for unknown errors to prevent infinite loops
+        logger.warning(f"Unknown error type '{error_type}' with message '{error_message}' - treating as non-retryable")
+        return False
+
+    async def _optimize_input_for_retry(self, ctx: InvocationContext, retry_attempt: int) -> bool:
+        """
+        Optimize input for retry by reducing context size and complexity.
+        
+        Args:
+            ctx: The invocation context
+            retry_attempt: The current retry attempt number (1-based)
+            
+        Returns:
+            True if optimization was successful, False otherwise
+        """
+        try:
+            logger.info(f"Agent {self.name}: Optimizing input for retry attempt {retry_attempt}")
+            
+            # Use state manager for optimization
+            if not self._state_manager:
+                logger.warning("State manager not available for optimization")
+                return False
+            
+            # Get current state for optimization
+            if hasattr(ctx, 'state') and ctx.state:
+                # Sync state manager with context
+                self._state_manager.sync_from_legacy_state(ctx.state)
+            
+            # Progressive optimization based on retry attempt
+            optimization_applied = False
+            
+            if retry_attempt == 1:
+                # First retry: Reduce context moderately
+                logger.info("Agent optimization level 1: Reducing conversation history and code snippets")
+                
+                # Reduce conversation history using state manager
+                if len(self._state_manager.conversation_history) > 2:
+                    original_count = len(self._state_manager.conversation_history)
+                    self._state_manager.conversation_history = self._state_manager.conversation_history[-2:]
+                    logger.info(f"Reduced conversation history from {original_count} to 2 turns")
+                    optimization_applied = True
+                
+                # Reduce code snippets
+                if len(self._state_manager.app_state['code_snippets']) > 3:
+                    original_count = len(self._state_manager.app_state['code_snippets'])
+                    self._state_manager.app_state['code_snippets'] = self._state_manager.app_state['code_snippets'][:3]
+                    logger.info(f"Reduced code snippets from {original_count} to 3")
+                    optimization_applied = True
+                        
+            elif retry_attempt == 2:
+                # Second retry: Aggressive reduction
+                logger.info("Agent optimization level 2: Aggressive context reduction")
+                
+                # Keep only the last conversation turn
+                if len(self._state_manager.conversation_history) > 1:
+                    original_count = len(self._state_manager.conversation_history)
+                    self._state_manager.conversation_history = self._state_manager.conversation_history[-1:]
+                    logger.info(f"Reduced conversation history from {original_count} to 1 turn")
+                    optimization_applied = True
+                
+                # Remove all code snippets
+                if self._state_manager.app_state['code_snippets']:
+                    self._state_manager.app_state['code_snippets'] = []
+                    logger.info("Removed all code snippets")
+                    optimization_applied = True
+                
+                # Remove tool results from current turn
+                if self._state_manager.current_turn and self._state_manager.current_turn.tool_results:
+                    self._state_manager.current_turn.tool_results = []
+                    logger.info("Removed tool results from current turn")
+                    optimization_applied = True
+                    
+            elif retry_attempt >= 3:
+                # Third+ retry: Minimal context
+                logger.info("Agent optimization level 3+: Minimal context")
+                
+                # Keep only current turn
+                self._state_manager.conversation_history = []
+                if self._state_manager.current_turn:
+                    # Keep only user message, remove everything else
+                    user_msg = self._state_manager.current_turn.user_message
+                    self._state_manager.current_turn = TurnState(
+                        turn_number=1,
+                        user_message=user_msg,
+                        phase=TurnPhase.PROCESSING_USER_INPUT
+                    )
+                
+                # Clear all app state
+                self._state_manager.app_state = {
+                    'code_snippets': [],
+                    'core_goal': '',
+                    'current_phase': '',
+                    'key_decisions': [],
+                    'last_modified_files': []
+                }
+                logger.info("Applied minimal context optimization")
+                optimization_applied = True
+            
+            # Also reduce the context manager's target limits if available
+            if self._context_manager:
+                original_turns = self._context_manager.target_recent_turns
+                original_snippets = self._context_manager.target_code_snippets
+                original_results = self._context_manager.target_tool_results
+                
+                if retry_attempt == 1:
+                    self._context_manager.target_recent_turns = min(2, original_turns)
+                    self._context_manager.target_code_snippets = min(3, original_snippets)
+                    self._context_manager.target_tool_results = min(3, original_results)
+                elif retry_attempt == 2:
+                    self._context_manager.target_recent_turns = 1
+                    self._context_manager.target_code_snippets = 0
+                    self._context_manager.target_tool_results = 1
+                elif retry_attempt >= 3:
+                    self._context_manager.target_recent_turns = 1
+                    self._context_manager.target_code_snippets = 0
+                    self._context_manager.target_tool_results = 0
+                
+                logger.info(f"Adjusted context manager limits: turns={self._context_manager.target_recent_turns}, "
+                          f"snippets={self._context_manager.target_code_snippets}, results={self._context_manager.target_tool_results}")
+                optimization_applied = True
+            
+            # Update context state if available
+            if hasattr(ctx, 'state') and ctx.state:
+                ctx.state.update(self._state_manager.get_state_for_context())
+                logger.debug("Updated context state after optimization")
+            
+            logger.info(f"Agent {self.name}: Input optimization for retry attempt {retry_attempt} completed, applied: {optimization_applied}")
+            return optimization_applied
+                
+        except Exception as e:
+            logger.error(f"Agent {self.name}: Error during input optimization: {e}", exc_info=True)
+            return False
+
+    # 7. Main Execution Logic
+
+    @override
+    async def _run_async_impl(
+        self, ctx: InvocationContext
+    ) -> AsyncGenerator[Event, None]:
+        """
+        Robust implementation of the agent loop with proper error handling,
+        circuit breakers, and retry mechanisms.
+        """
+        # Initialize circuit breaker parameters
+        max_events_per_attempt = 50  # Increased from 20 to allow for complex operations
+        max_retries = 3  # Increased from 2 for better resilience
+        max_consecutive_errors = 5  # New: prevent error loops
+        
+        retry_count = 0
+        consecutive_errors = 0
+        
+        try:
+            while retry_count <= max_retries:
+                event_count = 0
+                attempt_start_time = time.time()
+                
+                try:
+                    logger.info(f"Agent {self.name}: Starting attempt {retry_count + 1}/{max_retries + 1}")
+                    
+                    # Reset consecutive error counter on successful attempt start
+                    consecutive_errors = 0
+                    
+                    # Process events with circuit breaker
+                    async for event in super()._run_async_impl(ctx):
+                        event_count += 1
+                        
+                        # Circuit breaker: prevent infinite event generation
+                        if event_count > max_events_per_attempt:
+                            logger.error(f"Agent {self.name}: Circuit breaker triggered - too many events ({event_count})")
+                            yield Event(
+                                author=self.name,
+                                content=genai_types.Content(parts=[genai_types.Part(
+                                    text="I encountered an internal issue with response generation. The request may be too complex. Please try breaking it into smaller parts."
+                                )]),
+                                actions=EventActions()
+                            )
+                            ctx.end_invocation = True
+                            return
+                        
+                        # Check for timeout (prevent hanging)
+                        elapsed_time = time.time() - attempt_start_time
+                        if elapsed_time > 300:  # 5 minutes timeout per attempt
+                            logger.error(f"Agent {self.name}: Attempt timeout after {elapsed_time:.1f} seconds")
+                            yield Event(
+                                author=self.name,
+                                content=genai_types.Content(parts=[genai_types.Part(
+                                    text="The request is taking too long to process. Please try a simpler request or break it into smaller parts."
+                                )]),
+                                actions=EventActions()
+                            )
+                            ctx.end_invocation = True
+                            return
+                        
+                        yield event
+                    
+                    # Success - exit retry loop
+                    logger.info(f"Agent {self.name}: Successfully completed after {retry_count + 1} attempts")
+                    break
+                    
+                except Exception as e:
+                    consecutive_errors += 1
+                    error_message = str(e)
+                    error_type = type(e).__name__
+                    
+                    # Check if we've hit too many consecutive errors
+                    if consecutive_errors >= max_consecutive_errors:
+                        logger.error(f"Agent {self.name}: Too many consecutive errors ({consecutive_errors}), aborting")
+                        raise e
+                    
+                    # Determine if this error is retryable
+                    should_retry = self._is_retryable_error(error_message, error_type)
+                    
+                    if should_retry and retry_count < max_retries:
+                        retry_count += 1
+                        logger.warning(f"Agent {self.name}: Retryable error on attempt {retry_count}/{max_retries + 1}: {error_type}: {error_message}")
+                        
+                        # Optimize input for retry
+                        optimization_success = await self._optimize_input_for_retry(ctx, retry_count)
+                        if not optimization_success:
+                            logger.warning(f"Agent {self.name}: Input optimization failed, continuing with retry anyway")
+                        
+                        # Exponential backoff with jitter
+                        import asyncio
+                        import random
+                        base_delay = min(2 ** retry_count, 30)  # Cap at 30 seconds
+                        jitter = random.uniform(0.1, 0.5)  # Add randomness to prevent thundering herd
+                        delay = base_delay + jitter
+                        
+                        logger.info(f"Agent {self.name}: Waiting {delay:.1f} seconds before retry...")
+                        await asyncio.sleep(delay)
+                        continue
+                    else:
+                        # Either not retryable or max retries exceeded
+                        logger.error(f"Agent {self.name}: Non-retryable error or max retries exceeded: {error_type}: {error_message}")
+                        raise e
+
+        except Exception as e:
+            self._stop_status()
+            error_type = type(e).__name__
+            error_message = str(e)
+            tb_str = traceback.format_exc()
+            
+            # Check if this is one of our target API errors
+            if ("429" in error_message and "RESOURCE_EXHAUSTED" in error_message) or \
+               ("500" in error_message and ("INTERNAL" in error_message or "ServerError" in error_message)):
+                logger.error(f"Agent {self.name}: API error after all retry attempts: {error_type}: {error_message}")
+                user_facing_error = (
+                    f"I encountered API rate limits or server issues. "
+                    f"I tried optimizing the request and retrying, but the issue persists. "
+                    f"Please try again in a few moments or with a simpler request."
+                )
+            elif "JSONDecodeError" in error_type or "JSON" in error_message:
+                logger.error(f"Agent {self.name}: JSON parsing error after all retry attempts: {error_type}: {error_message}")
+                user_facing_error = (
+                    f"I encountered a communication issue with the AI service. "
+                    f"This appears to be a temporary issue. Please try your request again."
+                )
+            else:
+                logger.error(
+                    f"Agent {self.name}: Unhandled exception in _run_async_impl: "
+                    f"{error_type}: {error_message}\n{tb_str}"
+                )
+                mcp_related_hint = ""
+                if isinstance(e, (BrokenPipeError, EOFError)):
+                    logger.error(f"This error ({error_type}) often indicates an MCP server communication failure.")
+                    mcp_related_hint = " (possibly due to an issue with an external MCP tool process)."
+
+                ui_utils.display_unhandled_error(self._console, error_type, error_message, mcp_related_hint)
+
+                user_facing_error = (
+                    f"I encountered an unexpected internal issue{mcp_related_hint}. "
+                    f"I cannot proceed with this request. Details: {error_type}."
+                )
+            
+            yield Event(
+                author=self.name,
+                content=genai_types.Content(parts=[genai_types.Part(text=user_facing_error)]),
+                actions=EventActions()
+            )
+            # Gracefully end the invocation
+            ctx.end_invocation = True
