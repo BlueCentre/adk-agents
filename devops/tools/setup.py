@@ -7,6 +7,7 @@ import logging
 import json
 import os
 import asyncio
+import atexit
 from contextlib import AsyncExitStack
 
 from google.adk.agents.llm_agent import LlmAgent
@@ -399,3 +400,5 @@ async def cleanup_mcp_toolsets():
         logger.debug(f"Cleanup issues encountered: {cleanup_errors}")
     else:
         logger.info("Finished cleanup of MCP toolsets successfully.")
+
+atexit.register(lambda: asyncio.run(cleanup_mcp_toolsets()))
