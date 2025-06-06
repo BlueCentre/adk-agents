@@ -63,6 +63,87 @@ To get started with the DevOps Agent, ensure you have Python 3.13 (or a compatib
     ```
     Replace `[YOUR_GCP_PROJECT]` and `[YOUR_GCP_REGION]` with your Google Cloud project ID and desired region. This command packages the agent and deploys it, making it accessible via an HTTP endpoint.
 
+## Advanced Configuration
+
+### Gemini Thinking Feature
+
+The DevOps Agent supports **Gemini's advanced thinking capabilities** for enhanced reasoning and complex problem-solving. This feature leverages Gemini 2.5 series models' internal reasoning process to provide better results for complex DevOps tasks.
+
+**Supported Models:**
+- `gemini-2.5-flash-preview-05-20` (Gemini 2.5 Flash with thinking)
+- `gemini-2.5-pro-preview-06-05` (Gemini 2.5 Pro with thinking)
+
+**Configuration:**
+
+Create or update your `.env` file in the project root with these settings:
+
+```bash
+# Enable Gemini thinking (default: false)
+GEMINI_THINKING_ENABLE=true
+
+# Include thought summaries in responses (default: true)  
+GEMINI_THINKING_INCLUDE_THOUGHTS=true
+
+# Set thinking budget (tokens allocated for reasoning, default: 8192)
+GEMINI_THINKING_BUDGET=8192
+
+# Use a 2.5 series model that supports thinking
+AGENT_MODEL=gemini-2.5-pro-preview-06-05
+# or
+AGENT_MODEL=gemini-2.5-flash-preview-05-20
+
+# Your Google API key (required)
+GOOGLE_API_KEY=your_api_key_here
+```
+
+**What Thinking Enables:**
+
+- **Enhanced Problem Solving:** The model can "think through" complex DevOps scenarios step-by-step before responding
+- **Better Planning:** Improved analysis and planning for multi-step operations 
+- **Debugging Assistance:** More thorough reasoning when troubleshooting issues
+- **Code Analysis:** Deeper understanding when analyzing complex codebases
+
+**Usage Transparency:**
+
+When thinking is enabled, you'll see:
+- 🧠 **Enhanced usage display** showing thinking tokens separately from output tokens
+- **Thought summaries** (when `GEMINI_THINKING_INCLUDE_THOUGHTS=true`) providing insight into the model's reasoning process
+- **Detailed token breakdown** including thinking costs in logs
+
+**Example with thinking enabled:**
+
+1. **Create/update your `.env` file:**
+   ```bash
+   GEMINI_THINKING_ENABLE=true
+   AGENT_MODEL=gemini-2.5-pro-preview-06-05
+   GOOGLE_API_KEY=your_api_key_here
+   ```
+
+2. **Run the agent:**
+   ```bash
+   PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python uvx --with extensions --with google-generativeai --with google-api-core --with chromadb --with protobuf --with openai --with tiktoken --no-cache --python 3.13 --from git+https://github.com/BlueCentre/adk-python.git@main adk run devops
+   ```
+
+   Or use the convenience script:
+   ```bash
+   ./run.sh
+   ```
+
+**Performance Considerations:**
+
+- **Thinking Budget:** Higher values (16384+) enable more complex reasoning but increase costs
+- **Token Usage:** Thinking tokens are charged in addition to input/output tokens
+- **Response Time:** Complex reasoning may take longer but produces higher quality results
+- **Model Selection:** Gemini 2.5 Pro generally provides deeper reasoning than Flash for complex tasks
+
+**Best Use Cases for Thinking:**
+
+- Complex infrastructure planning and design
+- Multi-step deployment troubleshooting  
+- Advanced code refactoring and optimization
+- System architecture analysis and recommendations
+- Security analysis and compliance checks
+
 ## Core Technologies / Stack
 
 The DevOps Agent leverages a powerful stack of technologies to deliver its capabilities:

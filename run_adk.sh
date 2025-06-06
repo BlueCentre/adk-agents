@@ -22,4 +22,4 @@ PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python uvx \
   --no-cache \
   --python 3.13 \
   --from git+https://github.com/google/adk-python.git@main \
-  adk run "${1:-devops}" || echo "🙈 Ignore the error above. It's caused by Google ADK."
+  adk run "${1:-devops}" 2>/dev/null || true

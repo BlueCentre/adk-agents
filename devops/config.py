@@ -22,11 +22,40 @@ GEMINI_FLASH_MODEL_NAME = os.getenv("GEMINI_FLASH_MODEL", "gemini-1.5-flash")
 GEMINI_PRO_MODEL_NAME = os.getenv("GEMINI_PRO_MODEL", "gemini-1.5-pro")
 GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL", GEMINI_FLASH_MODEL_NAME) # Default to Pro
 
+# Gemini 2.5 series models with thinking support
+GEMINI_2_5_FLASH_MODEL_NAME = "gemini-2.5-flash-preview-05-20"
+GEMINI_2_5_PRO_MODEL_NAME = "gemini-2.5-pro-preview-06-05"
+
 DEFAULT_AGENT_MODEL = os.getenv("AGENT_MODEL", GEMINI_MODEL_NAME)
 DEFAULT_SUB_AGENT_MODEL = os.getenv("SUB_AGENT_MODEL", GEMINI_FLASH_MODEL_NAME)
 DEFAULT_CODE_EXECUTION_MODEL = os.getenv("CODE_EXECUTION_MODEL", GEMINI_FLASH_MODEL_NAME)
 DEFAULT_SEARCH_MODEL = os.getenv("GOOGLE_SEARCH_MODEL", GEMINI_FLASH_MODEL_NAME)
 DEFAULT_SUMMARIZER_MODEL = os.getenv("SUMMARIZER_MODEL", GEMINI_FLASH_MODEL_NAME)
+
+# --- Gemini Thinking Configuration ---
+GEMINI_THINKING_ENABLE_STR = os.getenv("GEMINI_THINKING_ENABLE", "false")
+GEMINI_THINKING_ENABLE = GEMINI_THINKING_ENABLE_STR.lower() == "true"
+
+GEMINI_THINKING_INCLUDE_THOUGHTS_STR = os.getenv("GEMINI_THINKING_INCLUDE_THOUGHTS", "true")
+GEMINI_THINKING_INCLUDE_THOUGHTS = GEMINI_THINKING_INCLUDE_THOUGHTS_STR.lower() == "true"
+
+# Thinking budget (tokens allocated for internal reasoning)
+# Higher values allow more complex reasoning but cost more
+GEMINI_THINKING_BUDGET = int(os.getenv("GEMINI_THINKING_BUDGET", "8192"))
+
+# Models that support thinking
+THINKING_SUPPORTED_MODELS = {
+    GEMINI_2_5_FLASH_MODEL_NAME,
+    GEMINI_2_5_PRO_MODEL_NAME
+}
+
+def is_thinking_supported(model_name: str) -> bool:
+    """Check if the given model supports thinking."""
+    return model_name in THINKING_SUPPORTED_MODELS
+
+def should_enable_thinking(model_name: str) -> bool:
+    """Determine if thinking should be enabled for the given model."""
+    return GEMINI_THINKING_ENABLE and is_thinking_supported(model_name)
 
 # --- LLM Generation Configuration ---
 MAIN_LLM_GENERATION_CONFIG = genai_types.GenerateContentConfig(
@@ -102,6 +131,11 @@ logger.info(f"Config - Default Search Model: {DEFAULT_SEARCH_MODEL}")
 logger.info(f"Config - Default Summarizer Model: {DEFAULT_SUMMARIZER_MODEL}")
 logger.info(f"Config - Interactive Planning Enabled: {ENABLE_INTERACTIVE_PLANNING}")
 logger.info(f"Config - Code Execution Enabled: {ENABLE_CODE_EXECUTION}")
+logger.info(f"Config - Gemini Thinking Enabled: {GEMINI_THINKING_ENABLE}")
+if GEMINI_THINKING_ENABLE:
+    logger.info(f"Config - Gemini Thinking Include Thoughts: {GEMINI_THINKING_INCLUDE_THOUGHTS}")
+    logger.info(f"Config - Gemini Thinking Budget: {GEMINI_THINKING_BUDGET}")
+    logger.info(f"Config - Agent Model Supports Thinking: {is_thinking_supported(DEFAULT_AGENT_MODEL)}")
 logger.info(f"Config - Context Target Recent Turns: {CONTEXT_TARGET_RECENT_TURNS}")
 logger.info(f"Config - Context Target Code Snippets: {CONTEXT_TARGET_CODE_SNIPPETS}")
 logger.info(f"Config - Context Target Tool Results: {CONTEXT_TARGET_TOOL_RESULTS}")

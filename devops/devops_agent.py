@@ -388,6 +388,9 @@ class MyDevopsAgent(LlmAgent):
         self._determine_actual_token_limit()
         logger.info(f"Agent {self.name} initialized with token limit: {self._actual_llm_token_limit}")
 
+        # Check thinking configuration and provide warnings if needed
+        self._validate_thinking_configuration()
+
         self._planning_manager = PlanningManager(console_manager=self._console)
 
         # Initialize ContextManager here
@@ -414,6 +417,29 @@ class MyDevopsAgent(LlmAgent):
             self._actual_llm_token_limit = agent_config.DEFAULT_TOKEN_LIMIT_FALLBACK
         
         logger.info(f"Using token limit for {model_to_check}: {self._actual_llm_token_limit}")
+
+    def _validate_thinking_configuration(self):
+        """Validate thinking configuration and provide helpful warnings."""
+        model_name = self.model or agent_config.DEFAULT_AGENT_MODEL
+        
+        if agent_config.GEMINI_THINKING_ENABLE:
+            if agent_config.is_thinking_supported(model_name):
+                logger.info(f"✅ Gemini thinking enabled for supported model: {model_name}")
+                logger.info(f"   Include thoughts: {agent_config.GEMINI_THINKING_INCLUDE_THOUGHTS}")
+                logger.info(f"   Thinking budget: {agent_config.GEMINI_THINKING_BUDGET:,} tokens")
+            else:
+                logger.warning(f"⚠️  Gemini thinking enabled but model '{model_name}' does not support thinking!")
+                logger.warning(f"   Supported models: {', '.join(agent_config.THINKING_SUPPORTED_MODELS)}")
+                logger.warning(f"   Thinking configuration will be ignored for this model.")
+                logger.warning(f"   Consider setting AGENT_MODEL to a supported 2.5 series model:")
+                for supported_model in agent_config.THINKING_SUPPORTED_MODELS:
+                    logger.warning(f"     export AGENT_MODEL={supported_model}")
+        else:
+            if agent_config.is_thinking_supported(model_name):
+                logger.info(f"ℹ️  Model '{model_name}' supports thinking, but it's disabled.")
+                logger.info(f"   To enable: export GEMINI_THINKING_ENABLE=true")
+            else:
+                logger.debug(f"Thinking not enabled and model '{model_name}' doesn't support it.")
 
     async def _ensure_mcp_tools_loaded(self):
         """Ensure MCP tools are loaded asynchronously if not already loaded.
@@ -545,6 +571,18 @@ class MyDevopsAgent(LlmAgent):
             logger.error(f"Unexpected error in state management: {e}", exc_info=True)
             # Continue with degraded functionality
 
+        # Apply thinking configuration if supported and enabled
+        thinking_config = self._create_thinking_config()
+        if thinking_config and hasattr(llm_request, 'config'):
+            # Apply thinking config to the existing request config
+            if hasattr(llm_request.config, 'thinking_config'):
+                llm_request.config.thinking_config = thinking_config
+                logger.info("Applied thinking configuration to LLM request")
+            else:
+                logger.warning("LLM request config does not support thinking_config attribute")
+        elif thinking_config:
+            logger.warning("LLM request does not have config attribute to apply thinking configuration")
+
         planning_response, approved_plan_text = await self._planning_manager.handle_before_model_planning_logic(
             user_message_content, llm_request
         )
@@ -603,8 +641,13 @@ Begin execution now, starting with the first step."""
         is_currently_a_plan_generation_turn = self._planning_manager.is_plan_generation_turn
 
         if not is_currently_a_plan_generation_turn:
-            # Add status indicator for regular turns
-            self._start_status("[bold blue](Agent is thinking...)[/bold blue]")
+            # Add enhanced status indicator showing thinking mode
+            thinking_config = self._create_thinking_config()
+            if thinking_config:
+                self._start_status("[bold cyan]🧠 (Agent is thinking deeply...)[/bold cyan]")
+                logger.info("🧠 Enhanced thinking mode enabled - using advanced reasoning capabilities")
+            else:
+                self._start_status("[bold blue](Agent is thinking...)[/bold blue]")
             logger.info("Assembling context from context.state (user:conversation_history, temp:tool_results, etc.)")
             
             # Calculate accurate base prompt tokens BEFORE assembling context
@@ -796,12 +839,19 @@ Begin execution now, starting with the first step."""
     async def handle_after_model(
         self, callback_context: CallbackContext, llm_response: LlmResponse
     ) -> LlmResponse | None:
-        # Track LLM response metrics
+        # Track LLM response metrics including thinking tokens
         if hasattr(llm_response, 'usage_metadata') and llm_response.usage_metadata:
             usage = llm_response.usage_metadata
             prompt_tokens = getattr(usage, 'prompt_token_count', 0)
             completion_tokens = getattr(usage, 'candidates_token_count', 0)
             total_tokens = getattr(usage, 'total_token_count', 0)
+            thinking_tokens = getattr(usage, 'thoughts_token_count', 0)
+            
+            # Log thinking token usage if present
+            if thinking_tokens > 0:
+                logger.info(f"Thinking tokens used: {thinking_tokens:,}")
+                logger.info(f"Output tokens: {completion_tokens:,}")
+                logger.info(f"Total response tokens (thinking + output): {thinking_tokens + completion_tokens:,}")
             
             # Track LLM usage in telemetry
             telemetry.track_llm_request(
@@ -825,11 +875,22 @@ Begin execution now, starting with the first step."""
 
         if hasattr(llm_response, 'usage_metadata') and llm_response.usage_metadata:
             usage = llm_response.usage_metadata
-            ui_utils.display_model_usage(self._console,
-                getattr(usage, 'prompt_token_count', 'N/A'),
-                getattr(usage, 'candidates_token_count', 'N/A'),
-                getattr(usage, 'total_token_count', 'N/A')
-            )
+            thinking_tokens = getattr(usage, 'thoughts_token_count', 0)
+            
+            # Display enhanced usage info including thinking tokens if present
+            if thinking_tokens > 0:
+                ui_utils.display_model_usage_with_thinking(self._console,
+                    getattr(usage, 'prompt_token_count', 'N/A'),
+                    getattr(usage, 'candidates_token_count', 'N/A'),
+                    thinking_tokens,
+                    getattr(usage, 'total_token_count', 'N/A')
+                )
+            else:
+                ui_utils.display_model_usage(self._console,
+                    getattr(usage, 'prompt_token_count', 'N/A'),
+                    getattr(usage, 'candidates_token_count', 'N/A'),
+                    getattr(usage, 'total_token_count', 'N/A')
+                )
 
         processed_response = self._process_llm_response(llm_response)
 
@@ -1053,10 +1114,11 @@ Begin execution now, starting with the first step."""
         return None
 
     def _process_llm_response(self, llm_response: LlmResponse) -> Dict[str, Any]:
-        """Processes the LLM response to extract text and function calls."""
+        """Processes the LLM response to extract text, function calls, and thought summaries."""
         extracted_data: Dict[str, Any] = {
             "text_parts": [],
-            "function_calls": []
+            "function_calls": [],
+            "thought_summaries": []
         }
 
         if hasattr(llm_response, 'content') and getattr(llm_response, 'content'):
@@ -1064,7 +1126,12 @@ Begin execution now, starting with the first step."""
             if isinstance(content_obj, genai_types.Content) and content_obj.parts:
                 for part in content_obj.parts:
                     if hasattr(part, 'text') and part.text is not None:
-                        extracted_data["text_parts"].append(part.text)
+                        # Check if this is a thought summary
+                        if hasattr(part, 'thought') and part.thought:
+                            extracted_data["thought_summaries"].append(part.text)
+                            logger.info(f"Extracted thought summary: {part.text[:200]}...")
+                        else:
+                            extracted_data["text_parts"].append(part.text)
                     elif hasattr(part, 'function_call') and part.function_call is not None:
                         # Convert function_call to serializable dictionary
                         func_call_dict = self._serialize_function_call(part.function_call)
@@ -1075,7 +1142,12 @@ Begin execution now, starting with the first step."""
             if isinstance(parts, list):
                 for part in parts:
                     if hasattr(part, 'text') and part.text is not None:
-                        extracted_data["text_parts"].append(part.text)
+                        # Check if this is a thought summary
+                        if hasattr(part, 'thought') and part.thought:
+                            extracted_data["thought_summaries"].append(part.text)
+                            logger.info(f"Extracted thought summary: {part.text[:200]}...")
+                        else:
+                            extracted_data["text_parts"].append(part.text)
                     elif hasattr(part, 'function_call') and part.function_call is not None:
                         # Convert function_call to serializable dictionary
                         func_call_dict = self._serialize_function_call(part.function_call)
@@ -1087,6 +1159,9 @@ Begin execution now, starting with the first step."""
 
         if extracted_data["function_calls"]:
             logger.info(f"Detected function calls in LLM response: {extracted_data['function_calls']}")
+
+        if extracted_data["thought_summaries"]:
+            logger.info(f"Detected {len(extracted_data['thought_summaries'])} thought summaries in LLM response")
 
         return extracted_data
 
@@ -2018,3 +2093,19 @@ Begin execution now, starting with the first step."""
             )
             # Gracefully end the invocation
             ctx.end_invocation = True
+
+    def _create_thinking_config(self) -> Optional[genai_types.ThinkingConfig]:
+        """Create thinking configuration if thinking is enabled and supported for the current model."""
+        model_name = self.model or agent_config.DEFAULT_AGENT_MODEL
+        
+        if not agent_config.should_enable_thinking(model_name):
+            return None
+        
+        logger.info(f"Creating thinking configuration for model {model_name}")
+        logger.info(f"  Include thoughts: {agent_config.GEMINI_THINKING_INCLUDE_THOUGHTS}")
+        logger.info(f"  Thinking budget: {agent_config.GEMINI_THINKING_BUDGET}")
+        
+        return genai_types.ThinkingConfig(
+            include_thoughts=agent_config.GEMINI_THINKING_INCLUDE_THOUGHTS,
+            thinking_budget=agent_config.GEMINI_THINKING_BUDGET
+        )

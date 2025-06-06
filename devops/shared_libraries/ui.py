@@ -39,6 +39,24 @@ def display_model_usage(console: Console, prompt_tokens: Any, completion_tokens:
     except Exception as e:
         logger.error(f"Error displaying model usage: {e}")
 
+def display_model_usage_with_thinking(console: Console, prompt_tokens: Any, completion_tokens: Any, thinking_tokens: Any, total_tokens: Any):
+    """Displays model token usage including thinking tokens in a Rich panel."""
+    try:
+        content = Text.from_markup(
+            f"[dim][b]Token Usage:[/b] Prompt: {prompt_tokens}, "
+            f"[cyan]Thinking: {thinking_tokens}[/cyan], "
+            f"Output: {completion_tokens}, Total: {total_tokens}[/dim]"
+        )
+        panel = Panel(
+            content,
+            title="[blue]🧠 Model Usage (with Thinking)[/blue]",
+            border_style="blue",
+            expand=False
+        )
+        console.print(panel)
+    except Exception as e:
+        logger.error(f"Error displaying model usage with thinking: {e}")
+
 def display_tool_execution_start(console: Console, tool_name: str, args: dict):
     """Displays the start of a tool execution in a Rich panel."""
     try:
