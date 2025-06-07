@@ -95,6 +95,11 @@ async def create_agent():
         name="devops_agent",
         description="Self-sufficient agent specialized in Platform Engineering, DevOps, and SRE practices.",
         instruction=agent_prompts.DEVOPS_AGENT_INSTR,
+        # planner=BuiltInPlanner(
+        #     thinking_config=types.ThinkingConfig(
+        #         include_thoughts=True,
+        #     ),
+        # ),
         generate_content_config=agent_config.MAIN_LLM_GENERATION_CONFIG,
         tools=tools,
         output_key="devops",

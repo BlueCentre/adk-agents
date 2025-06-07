@@ -83,16 +83,6 @@ list_dir (structure) → codebase_search (key concepts) → retrieve_code_contex
 - Note any context gaps that might affect recommendations
 """
 
-# Current user:
-#   <user_profile>
-#   {user_profile}
-#   </user_profile>
-
-# Current project:
-#   <project_context>
-#   {project_context}
-#   </project_context>
-
 CODE_EXECUTION_AGENT_INSTR = """
 **Role:** Generate/refine scripts or code snippets based on the main agent's goal and context.
 **Input:** Goal, Context (code, errors, env details), Script/Code Type (e.g., bash, python, kubectl).

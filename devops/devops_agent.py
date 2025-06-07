@@ -2069,6 +2069,14 @@ Begin execution now, starting with the first step."""
                     f"I encountered a communication issue with the AI service. "
                     f"This appears to be a temporary issue. Please try your request again."
                 )
+            elif "TypeError" in error_type and ("format" in error_message or "__format__" in error_message):
+                logger.error(f"Agent {self.name}: Format string error after all retry attempts: {error_type}: {error_message}")
+                user_facing_error = (
+                    f"I encountered an internal formatting error while processing your request. "
+                    f"This might be due to missing or invalid data in the planning system. "
+                    f"Please try rephrasing your request or try again. "
+                    f"Details: {error_type}: {error_message}"
+                )
             else:
                 logger.error(
                     f"Agent {self.name}: Unhandled exception in _run_async_impl: "
@@ -2081,10 +2089,25 @@ Begin execution now, starting with the first step."""
 
                 ui_utils.display_unhandled_error(self._console, error_type, error_message, mcp_related_hint)
 
-                user_facing_error = (
-                    f"I encountered an unexpected internal issue{mcp_related_hint}. "
-                    f"I cannot proceed with this request. Details: {error_type}."
-                )
+                # For specific error types, provide more detailed messages
+                if "format" in error_message.lower() or "__format__" in error_message:
+                    user_facing_error = (
+                        f"I encountered a formatting error while processing your request. "
+                        f"This typically occurs when the planning system receives unexpected input. "
+                        f"Details: {error_type}: {error_message}. Please try rephrasing your request."
+                    )
+                elif "retryable error" in error_message.lower():
+                    user_facing_error = (
+                        f"I encountered an issue that couldn't be resolved after multiple attempts. "
+                        f"Details: {error_type}: {error_message}. "
+                        f"This might be a temporary issue - please try again."
+                    )
+                else:
+                    user_facing_error = (
+                        f"I encountered an unexpected internal issue{mcp_related_hint}. "
+                        f"Details: {error_type}: {error_message}. "
+                        f"I cannot proceed with this request."
+                    )
             
             yield Event(
                 author=self.name,

@@ -186,98 +186,130 @@ class PlanningManager:
             - LlmResponse: If the planning manager fully handles the turn (e.g. sends feedback ack).
             - approved_plan_text: The text of the plan if it was just approved by the user.
         """
-        if self.is_awaiting_plan_approval and user_message_content:
-            user_feedback_lower = user_message_content.strip().lower()
-            if user_feedback_lower == "approve":
-                logger.info("PlanningManager: User approved the plan.")
-                approved_plan = self.pending_plan_text # Capture before reset
-                self.reset_planning_state()
-                return None, approved_plan # (No LlmResponse, approved_plan_text)
-            elif self._is_plan_related_feedback(user_message_content):
-                logger.info("PlanningManager: User provided feedback on the plan. Resetting planning state.")
-                self.reset_planning_state()
-                response_part = genai_types.Part(
-                    text="Okay, I've received your feedback. I will consider it for the next step. If you'd like me to try planning again with this new information, please let me know or re-state your goal."
-                )
-                # (LlmResponse to send, no approved_plan_text)
-                return LlmResponse(content=genai_types.Content(parts=[response_part])), None 
-            else:
-                # This appears to be a completely different request, not plan feedback
-                logger.info("PlanningManager: User message appears to be a new request, not plan feedback. Resetting planning state and allowing normal processing.")
-                self.reset_planning_state()
-                # Return None to allow normal processing of the new request
-                return None, None
-
-        if not self.is_awaiting_plan_approval and agent_config.ENABLE_INTERACTIVE_PLANNING and user_message_content:
-            if self._should_trigger_heuristic(user_message_content):
-                logger.info("PlanningManager: Heuristic triggered. Preparing for plan generation.")
-                self.is_plan_generation_turn = True 
-
-                # Try to gather relevant code context for planning
-                code_context_str = ""
-                try:
-                    # Check if this looks like a request about a specific codebase
-                    if any(keyword in user_message_content.lower() for keyword in 
-                           ["codebase", "code", "file", "function", "class", "module", "analyze", "agent"]):
-                        logger.info("PlanningManager: Request mentions code/codebase, attempting to retrieve context.")
-                        
-                        # This is a simplified context gathering approach
-                        # In a full implementation, you'd want to use the RAG tools if available
-                        code_context_str = "\n--- RELEVANT CODE CONTEXT ---\n"
-                        code_context_str += "Note: Planning system detected this is a code-related request.\n"
-                        code_context_str += "The agent has access to tools like 'codebase_search', 'read_file', and 'index_directory_tool'\n"
-                        code_context_str += "to analyze and understand the codebase structure during plan execution.\n"
-                        code_context_str += "--- END RELEVANT CODE CONTEXT ---\n"
-                        
-                except Exception as e:
-                    logger.warning(f"PlanningManager: Error gathering code context: {e}")
-                    code_context_str = ""
-                
-                planning_prompt_text = agent_prompts.PLANNING_PROMPT_TEMPLATE.format(
-                    user_request=user_message_content,
-                    code_context_section=code_context_str
-                )
-                
-                llm_request.contents = [genai_types.Content(parts=[genai_types.Part(text=planning_prompt_text)], role="user")]
-                
-                if hasattr(llm_request, 'tools'): 
-                    llm_request.tools = [] 
+        try:
+            if self.is_awaiting_plan_approval and user_message_content:
+                user_feedback_lower = user_message_content.strip().lower()
+                if user_feedback_lower == "approve":
+                    logger.info("PlanningManager: User approved the plan.")
+                    approved_plan = self.pending_plan_text # Capture before reset
+                    self.reset_planning_state()
+                    return None, approved_plan # (No LlmResponse, approved_plan_text)
+                elif self._is_plan_related_feedback(user_message_content):
+                    logger.info("PlanningManager: User provided feedback on the plan. Resetting planning state.")
+                    self.reset_planning_state()
+                    response_part = genai_types.Part(
+                        text="Okay, I've received your feedback. I will consider it for the next step. If you'd like me to try planning again with this new information, please let me know or re-state your goal."
+                    )
+                    # (LlmResponse to send, no approved_plan_text)
+                    return LlmResponse(content=genai_types.Content(parts=[response_part])), None 
                 else:
-                    logger.warning("PlanningManager: 'LlmRequest' object has no 'tools' attribute to clear. Tools might remain active.")
-                
-                logger.info("PlanningManager: LLM request modified for plan generation with enhanced context.")
-                return None, None # (No LlmResponse, no approved_plan_text yet)
-        
-        return None, None # Default: No planning action, no approved plan
+                    # This appears to be a completely different request, not plan feedback
+                    logger.info("PlanningManager: User message appears to be a new request, not plan feedback. Resetting planning state and allowing normal processing.")
+                    self.reset_planning_state()
+                    # Return None to allow normal processing of the new request
+                    return None, None
+
+            if not self.is_awaiting_plan_approval and agent_config.ENABLE_INTERACTIVE_PLANNING and user_message_content:
+                if self._should_trigger_heuristic(user_message_content):
+                    logger.info("PlanningManager: Heuristic triggered. Preparing for plan generation.")
+                    self.is_plan_generation_turn = True 
+
+                    # Try to gather relevant code context for planning
+                    code_context_str = ""
+                    try:
+                        # Check if this looks like a request about a specific codebase
+                        if any(keyword in user_message_content.lower() for keyword in 
+                               ["codebase", "code", "file", "function", "class", "module", "analyze", "agent"]):
+                            logger.info("PlanningManager: Request mentions code/codebase, attempting to retrieve context.")
+                            
+                            # This is a simplified context gathering approach
+                            # In a full implementation, you'd want to use the RAG tools if available
+                            code_context_str = "\n--- RELEVANT CODE CONTEXT ---\n"
+                            code_context_str += "Note: Planning system detected this is a code-related request.\n"
+                            code_context_str += "The agent has access to tools like 'codebase_search', 'read_file', and 'index_directory_tool'\n"
+                            code_context_str += "to analyze and understand the codebase structure during plan execution.\n"
+                            code_context_str += "--- END RELEVANT CODE CONTEXT ---\n"
+                            
+                    except Exception as e:
+                        logger.warning(f"PlanningManager: Error gathering code context: {e}")
+                        code_context_str = ""
+                    
+                    # Ensure parameters are not None before formatting
+                    safe_user_request = user_message_content or ""
+                    safe_code_context = code_context_str or ""
+                    
+                    try:
+                        planning_prompt_text = agent_prompts.PLANNING_PROMPT_TEMPLATE.format(
+                            user_request=safe_user_request,
+                            code_context_section=safe_code_context
+                        )
+                    except Exception as format_error:
+                        logger.error(f"PlanningManager: Failed to format planning prompt template: {format_error}")
+                        logger.error(f"user_request type: {type(safe_user_request)}, value: {repr(safe_user_request)}")
+                        logger.error(f"code_context_section type: {type(safe_code_context)}, value: {repr(safe_code_context)}")
+                        # Fallback to a simple prompt without template formatting
+                        planning_prompt_text = f"Create a comprehensive plan for this request: {safe_user_request}"
+                    
+                    try:
+                        llm_request.contents = [genai_types.Content(parts=[genai_types.Part(text=planning_prompt_text)], role="user")]
+                        
+                        if hasattr(llm_request, 'tools'): 
+                            llm_request.tools = [] 
+                        else:
+                            logger.warning("PlanningManager: 'LlmRequest' object has no 'tools' attribute to clear. Tools might remain active.")
+                        
+                        logger.info("PlanningManager: LLM request modified for plan generation with enhanced context.")
+                        return None, None # (No LlmResponse, no approved_plan_text yet)
+                    except Exception as request_error:
+                        logger.error(f"PlanningManager: Error modifying LLM request: {request_error}")
+                        # Reset state and allow normal processing
+                        self.reset_planning_state()
+                        return None, None
+            
+            return None, None # Default: No planning action, no approved plan
+            
+        except Exception as e:
+            logger.error(f"PlanningManager: Unexpected error in handle_before_model_planning_logic: {e}", exc_info=True)
+            # Reset state to prevent stuck conditions
+            self.reset_planning_state()
+            return None, None
 
     async def handle_after_model_planning_logic(
         self, 
         llm_response: LlmResponse,
         extract_text_fn # Callable[[LlmResponse], Optional[str]]
     ) -> Optional[LlmResponse]: 
-        if self.is_plan_generation_turn: 
-            self.is_plan_generation_turn = False 
-            plan_text = extract_text_fn(llm_response)
+        try:
+            if self.is_plan_generation_turn: 
+                self.is_plan_generation_turn = False 
+                plan_text = extract_text_fn(llm_response)
 
-            if plan_text:
-                logger.info(f"PlanningManager: LLM generated plan: {plan_text[:300]}...")
-                self.pending_plan_text = plan_text
-                self.is_awaiting_plan_approval = True
-                
-                user_facing_plan_message = (
-                    f"{plan_text}\n\n" 
-                    "Does this plan look correct? Please type 'approve' to proceed, "
-                    "or provide feedback to revise the plan."
-                )
-                response_part = genai_types.Part(text=user_facing_plan_message)
-                usage_meta = llm_response.usage_metadata if hasattr(llm_response, 'usage_metadata') else None
-                final_response = LlmResponse(content=genai_types.Content(parts=[response_part]), 
-                                           usage_metadata=usage_meta)
-                return final_response 
-            else:
-                logger.error("PlanningManager: Plan generation turn, but could not extract plan text.")
-                self.reset_planning_state() 
-                error_message = "I tried to generate a plan, but something went wrong. Please try rephrasing your request."
-                return LlmResponse(content=genai_types.Content(parts=[genai_types.Part(text=error_message)]))
-        
-        return None 
+                if plan_text:
+                    logger.info(f"PlanningManager: LLM generated plan: {plan_text[:300]}...")
+                    self.pending_plan_text = plan_text
+                    self.is_awaiting_plan_approval = True
+                    
+                    user_facing_plan_message = (
+                        f"{plan_text}\n\n" 
+                        "Does this plan look correct? Please type 'approve' to proceed, "
+                        "or provide feedback to revise the plan."
+                    )
+                    response_part = genai_types.Part(text=user_facing_plan_message)
+                    usage_meta = llm_response.usage_metadata if hasattr(llm_response, 'usage_metadata') else None
+                    final_response = LlmResponse(content=genai_types.Content(parts=[response_part]), 
+                                               usage_metadata=usage_meta)
+                    return final_response 
+                else:
+                    logger.error("PlanningManager: Plan generation turn, but could not extract plan text.")
+                    self.reset_planning_state() 
+                    error_message = "I tried to generate a plan, but something went wrong. Please try rephrasing your request."
+                    return LlmResponse(content=genai_types.Content(parts=[genai_types.Part(text=error_message)]))
+            
+            return None 
+            
+        except Exception as e:
+            logger.error(f"PlanningManager: Unexpected error in handle_after_model_planning_logic: {e}", exc_info=True)
+            # Reset state to prevent stuck conditions
+            self.reset_planning_state()
+            error_message = f"I encountered an error while processing the planning response: {str(e)}. Please try again."
+            return LlmResponse(content=genai_types.Content(parts=[genai_types.Part(text=error_message)]))
