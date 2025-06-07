@@ -57,6 +57,35 @@ def display_model_usage_with_thinking(console: Console, prompt_tokens: Any, comp
     except Exception as e:
         logger.error(f"Error displaying model usage with thinking: {e}")
 
+def display_agent_thought(console: Console, thought_summaries: list):
+    """Displays agent thought summaries in a Rich panel."""
+    try:
+        logger.info(f"display_agent_thought called with {len(thought_summaries) if thought_summaries else 0} summaries")
+        if not thought_summaries:
+            logger.info("No thought summaries to display, returning early")
+            return
+            
+        # Combine multiple thought summaries if present
+        combined_thoughts = "\n\n".join(thought_summaries)
+        
+        # Truncate very long thoughts for display
+        max_display_length = 800
+        if len(combined_thoughts) > max_display_length:
+            display_text = combined_thoughts[:max_display_length] + "..."
+        else:
+            display_text = combined_thoughts
+        
+        content = Text.from_markup(f"[dim]{escape(display_text)}[/dim]")
+        panel = Panel(
+            content,
+            title="[magenta]🧠 Agent Thought[/magenta]",
+            border_style="magenta",
+            expand=False
+        )
+        console.print(panel)
+    except Exception as e:
+        logger.error(f"Error displaying agent thought: {e}")
+
 def display_tool_execution_start(console: Console, tool_name: str, args: dict):
     """Displays the start of a tool execution in a Rich panel."""
     try:

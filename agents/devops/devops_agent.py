@@ -894,6 +894,11 @@ Begin execution now, starting with the first step."""
 
         processed_response = self._process_llm_response(llm_response)
 
+        # Display agent thought summaries if present
+        if processed_response["thought_summaries"]:
+            logger.info(f"Displaying {len(processed_response['thought_summaries'])} thought summaries in rich panel")
+            ui_utils.display_agent_thought(self._console, processed_response["thought_summaries"])
+
         # Use robust state management for response processing
         try:
             if processed_response["text_parts"]:
