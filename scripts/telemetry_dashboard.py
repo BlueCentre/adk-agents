@@ -45,7 +45,7 @@ try:
     import importlib.util
     
     # Import telemetry module directly
-    telemetry_spec = importlib.util.spec_from_file_location("telemetry", "devops/telemetry.py")
+    telemetry_spec = importlib.util.spec_from_file_location("telemetry", "agents/devops/telemetry.py")
     telemetry_module = importlib.util.module_from_spec(telemetry_spec)
     telemetry_spec.loader.exec_module(telemetry_module)
     
@@ -54,7 +54,7 @@ try:
     
     # Try to import other modules
     try:
-        logging_spec = importlib.util.spec_from_file_location("logging_config", "devops/logging_config.py")
+        logging_spec = importlib.util.spec_from_file_location("logging_config", "agents/devops/disabled/logging_config.py")
         logging_module = importlib.util.module_from_spec(logging_spec)
         logging_spec.loader.exec_module(logging_module)
         log_performance_metrics = logging_module.log_performance_metrics
@@ -64,7 +64,7 @@ try:
         log_business_event = None
     
     try:
-        analytics_spec = importlib.util.spec_from_file_location("analytics", "devops/tools/analytics.py")
+        analytics_spec = importlib.util.spec_from_file_location("analytics", "agents/devops/tools/disabled/analytics.py")
         analytics_module = importlib.util.module_from_spec(analytics_spec)
         analytics_spec.loader.exec_module(analytics_module)
         tool_analytics = analytics_module.tool_analytics

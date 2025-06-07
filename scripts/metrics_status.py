@@ -51,7 +51,7 @@ def check_custom_metrics_status():
     print("=" * 40)
     
     try:
-        from devops.telemetry import get_openlit_metrics_status
+        from agents.devops.telemetry import get_openlit_metrics_status
         status = get_openlit_metrics_status()
         
         print("📈 Available Metric Categories:")
@@ -158,7 +158,7 @@ def main():
     show_recommendations()
     
     print("🔗 For more information:")
-    print("  • Documentation: devops/docs/TELEMETRY_CONFIGURATION.md")
+    print("  • Documentation: agents/devops/docs/TELEMETRY_CONFIGURATION.md")
     print("  • Rate limit fixes: ./scripts/fix_rate_limits.sh")
     print("  • Local dashboard: uvx --with rich --with psutil python scripts/telemetry_dashboard.py")
 

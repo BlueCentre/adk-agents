@@ -229,7 +229,7 @@ def main():
     print("🔗 Next Steps:")
     print("  • View trace status: python scripts/tracing_status.py")
     print("  • Check metrics: python scripts/metrics_overview.py")
-    print("  • View documentation: devops/docs/TELEMETRY_CONFIGURATION.md")
+    print("  • View documentation: agents/devops/docs/TELEMETRY_CONFIGURATION.md")
     print("  • Run agent with tracing: ./run.sh")
 
 if __name__ == "__main__":

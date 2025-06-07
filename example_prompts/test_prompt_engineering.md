@@ -97,7 +97,7 @@ index_directory → retrieve_code_context (related patterns) → edit_file → e
 **Expected:** Should use `file_search` (partial filename knowledge)
 
 ```bash
-./prompt.sh "Show me the structure of the devops directory"
+./prompt.sh "Show me the structure of the agents/devops directory"
 ```
 **Expected:** Should use `list_dir` (directory exploration)
 

@@ -169,7 +169,7 @@ def main():
     print("🔗 Next Steps:")
     print("  • Check detailed status: python scripts/metrics_status.py")
     print("  • Fix rate limits: ./scripts/fix_rate_limits.sh")
-    print("  • View documentation: devops/docs/TELEMETRY_CONFIGURATION.md")
+    print("  • View documentation: agents/devops/docs/TELEMETRY_CONFIGURATION.md")
     print("  • Run agent: ./run.sh")
 
 if __name__ == "__main__":

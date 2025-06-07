@@ -10,11 +10,11 @@ import logging
 from typing import List, Dict, Any
 from datetime import datetime, timezone
 
-# Add the devops directory to the path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'devops'))
+# Add the agents/devops directory to the path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'agents', 'devops'))
 
 # Import only the smart prioritization module directly
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'devops', 'components', 'context_management'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'agents', 'devops', 'components', 'context_management'))
 
 # Configure logging
 logging.basicConfig(

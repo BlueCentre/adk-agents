@@ -63,23 +63,23 @@ def check_telemetry_modules():
     
     try:
         # Check if telemetry.py exists
-        if os.path.exists('devops/telemetry.py'):
-            print("✅ devops/telemetry.py: Found")
+        if os.path.exists('agents/devops/telemetry.py'):
+            print("✅ agents/devops/telemetry.py: Found")
         else:
-            print("❌ devops/telemetry.py: Not found")
+            print("❌ agents/devops/telemetry.py: Not found")
             return False
             
         # Check if logging_config.py exists
-        if os.path.exists('devops/logging_config.py'):
-            print("✅ devops/logging_config.py: Found")
+        if os.path.exists('agents/devops/disabled/logging_config.py'):
+            print("✅ agents/devops/disabled/logging_config.py: Found")
         else:
-            print("❌ devops/logging_config.py: Not found")
+            print("❌ agents/devops/disabled/logging_config.py: Not found")
             
         # Check if analytics.py exists
-        if os.path.exists('devops/tools/analytics.py'):
-            print("✅ devops/tools/analytics.py: Found")
+        if os.path.exists('agents/devops/tools/disabled/analytics.py'):
+            print("✅ agents/devops/tools/disabled/analytics.py: Found")
         else:
-            print("❌ devops/tools/analytics.py: Not found")
+            print("❌ agents/devops/tools/disabled/analytics.py: Not found")
             
         print("✅ Telemetry modules are available")
         return True
@@ -138,9 +138,9 @@ def export_config_summary():
             "environment": os.getenv('OPENLIT_ENVIRONMENT', 'Production')
         },
         "modules": {
-            "telemetry_py": os.path.exists('devops/telemetry.py'),
-            "logging_config_py": os.path.exists('devops/logging_config.py'),
-            "analytics_py": os.path.exists('devops/tools/analytics.py')
+            "telemetry_py": os.path.exists('agents/devops/telemetry.py'),
+            "logging_config_py": os.path.exists('agents/devops/disabled/logging_config.py'),
+            "analytics_py": os.path.exists('agents/devops/tools/disabled/analytics.py')
         }
     }
     
@@ -252,7 +252,7 @@ def main():
         print("📊 Test dependencies: uv run scripts/test_run_sh_telemetry.py")
     else:
         print("⚠️  Telemetry system needs configuration.")
-        print("📖 See devops/docs/TELEMETRY_CONFIGURATION.md for setup instructions")
+        print("📖 See agents/devops/docs/TELEMETRY_CONFIGURATION.md for setup instructions")
 
 if __name__ == "__main__":
     main() 

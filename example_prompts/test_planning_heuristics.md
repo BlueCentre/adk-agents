@@ -15,13 +15,13 @@ Previously, the planning system triggered on simple requests like "read file X t
 
 #### Test 1.1: File Reading
 ```bash
-./prompt.sh "Read the devops/devops_agent.py file and tell me what it does"
+./prompt.sh "Read the agents/devops/devops_agent.py file and tell me what it does"
 ```
 **Expected:** Direct file reading, no planning prompt
 
 #### Test 1.2: Directory Listing  
 ```bash
-./prompt.sh "List the contents of the devops/components directory"
+./prompt.sh "List the contents of the agents/devops/components directory"
 ```
 **Expected:** Direct listing, no planning prompt
 

@@ -31,4 +31,4 @@ clear
     --with "rich>=13.0.0" \
     --python 3.13 \
     --from git+https://github.com/google/adk-python.git@main \
-    adk run devops 2>/dev/null || true
+    adk run agents/devops 2>/dev/null || true

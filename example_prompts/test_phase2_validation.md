@@ -18,7 +18,7 @@ Validate that our new Phase 2 features work correctly:
 **Commands:**
 ```bash
 # Step 1: Read a Python file to establish context
-./prompt.sh "Please read the devops/components/context_management/smart_prioritization.py file and explain what it does"
+./prompt.sh "Please read the agents/devops/components/context_management/smart_prioritization.py file and explain what it does"
 
 # Step 2: Edit a related file (should show high correlation)
 ./prompt.sh "Now let's make a small improvement to the cross_turn_correlation.py file in the same directory"

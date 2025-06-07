@@ -94,7 +94,7 @@ uv run pytest tests/unit/test_state_management.py::TestStateManager::test_start_
 
 ```bash
 # Run tests with coverage reporting
-uv run pytest --cov=devops --cov-report=html --cov-report=term-missing
+uv run pytest --cov=agents.devops --cov-report=html --cov-report=term-missing
 
 # Run tests in parallel (if pytest-xdist is installed)
 uv run pytest -n auto
@@ -314,7 +314,7 @@ jobs:
       - name: Install dependencies
         run: uv sync --dev
       - name: Run tests
-        run: uv run pytest --cov=devops --cov-report=xml
+        run: uv run pytest --cov=agents.devops --cov-report=xml
       - name: Upload coverage
         uses: codecov/codecov-action@v3
 ```

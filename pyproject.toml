@@ -1,5 +1,5 @@
 [project]
-name = "devops_agent_v2"
+name = "devops_agent"
 version = "0.1.0"
 description = "DevOps Agent v2 with RAG capabilities."
 dependencies = [
@@ -24,7 +24,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["devops*"]
+include = ["agents*"]
 exclude = ["example_prompts*", "scripts*", ".cache*", ".agent*"]
 
 [dependency-groups]

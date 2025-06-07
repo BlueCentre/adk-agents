@@ -66,7 +66,7 @@ openlit.init(application_name="DevOps Agent", environment="Production")
 Custom OpenTelemetry implementation with comprehensive metrics:
 
 ```python
-from devops.telemetry import telemetry, track_tool_execution, OperationType
+from agents.devops.telemetry import telemetry, track_tool_execution, OperationType
 
 # Track any operation
 @telemetry.track_operation(OperationType.TOOL_EXECUTION, "my_tool")
@@ -100,7 +100,7 @@ def file_operation():
 Correlation-aware logging with OpenTelemetry integration:
 
 ```python
-from devops.logging_config import log_tool_usage, log_performance_metrics, set_user_context
+from agents.devops.disabled.logging_config import log_tool_usage, log_performance_metrics, set_user_context
 
 # Set user context for correlation
 set_user_context("user123", "session456")
@@ -136,7 +136,7 @@ log_performance_metrics(
 Comprehensive tool usage analysis and optimization:
 
 ```python
-from devops.tools.analytics import tool_analytics, track_tool_execution
+from agents.devops.tools.disabled.analytics import tool_analytics, track_tool_execution
 
 # Automatic tool tracking decorator
 @track_tool_execution("my_custom_tool")
@@ -188,8 +188,8 @@ The telemetry dashboard provides real-time monitoring with:
 ### Adding Telemetry to Custom Tools
 
 ```python
-from devops.telemetry import track_tool_execution
-from devops.tools.analytics import tool_analytics
+from agents.devops.telemetry import track_tool_execution
+from agents.devops.tools.disabled.analytics import tool_analytics
 
 @track_tool_execution("my_deployment_tool")
 def deploy_application(config):
@@ -209,7 +209,7 @@ def deploy_application(config):
 ### Custom Performance Monitoring
 
 ```python
-from devops.telemetry import telemetry, OperationType
+from agents.devops.telemetry import telemetry, OperationType
 
 @telemetry.track_operation(OperationType.PLANNING, "deployment_planning")
 def plan_deployment(requirements):
@@ -229,7 +229,7 @@ telemetry.track_llm_request(
 ### Structured Logging with Context
 
 ```python
-from devops.logging_config import log_operation, log_business_event
+from agents.devops.disabled.logging_config import log_operation, log_business_event
 
 @log_operation("infrastructure_provisioning", 
                resource_type="kubernetes", 
@@ -317,13 +317,13 @@ export ANALYTICS_RETENTION_DAYS=30
 
 ```python
 # Configure telemetry instance
-from devops.telemetry import telemetry
+from agents.devops.telemetry import telemetry
 
 # Adjust memory snapshot retention
 telemetry.memory_snapshots = telemetry.memory_snapshots[-50:]  # Keep last 50
 
 # Configure analytics retention
-from devops.tools.analytics import tool_analytics
+from agents.devops.tools.disabled.analytics import tool_analytics
 tool_analytics.max_records = 5000  # Reduce memory usage
 ```
 
@@ -391,7 +391,7 @@ for tool_name, metrics in tool_analytics.tool_metrics.items():
 **Missing Metrics:**
 ```python
 # Verify telemetry initialization
-from devops.telemetry import telemetry
+from agents.devops.telemetry import telemetry
 print(f"Operations tracked: {len(telemetry.operation_metrics)}")
 print(f"Errors recorded: {len(telemetry.error_counts)}")
 ```
@@ -410,7 +410,7 @@ logging.getLogger('devops.tools.analytics').setLevel(logging.DEBUG)
 ### Custom Metric Creation
 
 ```python
-from devops.telemetry import telemetry
+from agents.devops.telemetry import telemetry
 
 # Add custom counter
 custom_counter = telemetry.meter.create_counter(
@@ -451,7 +451,7 @@ class CustomAnalytics:
         pass
 
 # Integrate with existing system
-from devops.tools.analytics import tool_analytics
+from agents.devops.tools.disabled.analytics import tool_analytics
 tool_analytics.custom_analytics = CustomAnalytics()
 ```
 
