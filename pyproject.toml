@@ -60,9 +60,8 @@ build-backend = "setuptools.build_meta"
 #google-adk = { git = "https://github.com/google/adk-python.git", rev = "main" }
 
 [tool.setuptools.packages.find]
-where = ["src"]
-#where = ["."]
-#include = ["agents*"]
+where = ["src", "."]
+include = ["wrapper*", "agents*"]
 #exclude = ["example_prompts*", "scripts*", ".cache*", ".agent*"]
 
 [dependency-groups]
