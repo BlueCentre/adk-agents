@@ -36,6 +36,7 @@ dependencies = [
   "opentelemetry-exporter-otlp>=1.30.0,<2.0.0", # OTLP exporter for Grafana Cloud
   "psutil~=5.9.0", # System monitoring
   "rich~=13.0.0", # Console output (for local dashboard if needed)
+  "prompt_toolkit~=3.0.0", # For enhanced command-line input
   "pexpect>=4.9.0",
   # "google-adk @ git+https://github.com/google/adk-python.git@main", # Added google-adk as a direct dependency
   "google-adk @ git+https://github.com/BlueCentre/adk-python.git@feat/rich-click", # Added google-adk as a direct dependency

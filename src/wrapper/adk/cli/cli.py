@@ -20,6 +20,9 @@ from typing import Optional
 import rich_click as click
 from rich.console import Console
 from rich.markdown import Markdown
+from rich.panel import Panel
+from prompt_toolkit import PromptSession
+from prompt_toolkit.patch_stdout import patch_stdout
 from google.genai import types
 from pydantic import BaseModel
 
@@ -92,8 +95,10 @@ async def run_interactively(
   )
   # Initialize Rich Console
   console = Console()
+  prompt_session = PromptSession()
   while True:
-    query = console.input('😎 [blue]user[/blue] > ')
+    with patch_stdout():
+      query = await prompt_session.prompt_async('😎 user > ')
     if not query or not query.strip():
       continue
     if query == 'exit':
@@ -106,7 +111,13 @@ async def run_interactively(
       if event.content and event.content.parts:
         if text := ''.join(part.text or '' for part in event.content.parts):
           markdown_text = Markdown(text)
-          console.print(f'🤖 [green]{event.author}[/green] > ', markdown_text)
+          panel = Panel(
+              markdown_text,
+              title=f"🤖 [green]{event.author}[/green]",
+              border_style="green",
+              expand=True
+          )
+          console.print(panel)
   await runner.close()
 
 
