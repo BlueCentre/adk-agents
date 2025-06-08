@@ -946,7 +946,9 @@ Begin execution now, starting with the first step."""
         except Exception as e:
             logger.error(f"Unexpected error completing turn: {e}", exc_info=True)
 
-        return None
+        # Return the original response so it gets displayed to the user
+        # Only return None if we want to suppress the response entirely
+        return llm_response
 
     @telemetry.track_operation(OperationType.TOOL_EXECUTION, "before_tool")
     async def handle_before_tool(
