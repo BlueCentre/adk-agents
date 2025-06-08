@@ -13,7 +13,6 @@ htmlcov/
 coverage.xml
 *.cover
 .hypothesis/
-.pytest_cache/
 test-results/
 test-reports/
 
@@ -38,9 +37,7 @@ __pycache__/
 *.pyd
 *.so
 .Python
-build/
 develop-eggs/
-dist/
 downloads/
 eggs/
 .eggs/
@@ -97,17 +94,11 @@ Thumbs.db
 *.backup
 *~
 
-# Log files
-*.log
-logs/
-log/
-
 # Chroma index
 chroma_data/
 
 # Distribution / build
 /dist
-/build
 
 # Documentation
 /docs/_build/
@@ -122,6 +113,7 @@ yarn.lock
 package-lock.json
 
 # Development and debugging
+.ruff_cache/
 .mypy_cache/
 .dmypy.json
 dmypy.json
@@ -135,12 +127,6 @@ cython_debug/
 # IPython
 profile_default/
 ipython_config.py
-
-# pipenv
-Pipfile.lock
-
-# PEP 582
-__pypackages__/
 
 # Celery
 celerybeat-schedule
@@ -158,17 +144,3 @@ celerybeat.pid
 
 # mkdocs documentation
 /site
-
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Pyre type checker
-.pyre/
-
-# pytype static type analyzer
-.pytype/
-
-# Cython debug symbols
-cython_debug/
