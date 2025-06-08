@@ -14,6 +14,8 @@
 
 import logging
 import os
+import importlib.resources
+from typing import Optional
 
 from dotenv import load_dotenv
 
@@ -33,14 +35,26 @@ def _walk_to_root_until_found(folder, filename) -> str:
 
 
 def load_dotenv_for_agent(
-    agent_name: str, agent_parent_folder: str, filename: str = '.env'
+    agent_name: str, agent_parent_folder: Optional[str] = None, filename: str = '.env'
 ):
   """Loads the .env file for the agent module."""
 
   # Gets the folder of agent_module as starting_folder
-  starting_folder = os.path.abspath(
-      os.path.join(agent_parent_folder, agent_name)
-  )
+  if agent_parent_folder:
+    starting_folder = os.path.abspath(
+        os.path.join(agent_parent_folder, agent_name)
+    )
+  else:
+    # If agent_parent_folder is not provided, assume it's an installed package
+    # and try to find the module's location
+    try:
+      module_path = importlib.resources.files(agent_name.replace('/', '.'))
+      starting_folder = str(module_path) # Convert Path to string
+    except Exception as e:
+      logger.warning(f"Could not determine agent module path for {agent_name}: {e}")
+      logger.info('No %s file found for %s', filename, agent_name)
+      return
+
   dotenv_file_path = _walk_to_root_until_found(starting_folder, filename)
   if dotenv_file_path:
     load_dotenv(dotenv_file_path, override=True, verbose=True)

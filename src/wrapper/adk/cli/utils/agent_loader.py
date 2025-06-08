@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import importlib
 import logging
+import os
 import sys
 from typing import Optional
 
@@ -37,8 +38,8 @@ class AgentLoader:
 
   """
 
-  def __init__(self, agents_dir: str):
-    self.agents_dir = agents_dir.rstrip("/")
+  def __init__(self, agents_dir: Optional[str] = None):
+    self.agents_dir = agents_dir.rstrip("/") if agents_dir else None
     self._original_sys_path = None
     self._agent_cache: dict[str, BaseAgent] = {}
 
@@ -73,16 +74,11 @@ class AgentLoader:
       else:
         # it's the case the module imported by {agent_name}.agent module is not
         # found
-        e.msg = f"Fail to load '{agent_name}' module. " + e.msg
-        raise e
+        raise ValueError(f"Fail to load '{agent_name}' module. {str(e)}") from e
     except Exception as e:
-      if hasattr(e, "msg"):
-        e.msg = f"Fail to load '{agent_name}' module. " + e.msg
-        raise e
-      e.args = (
-          f"Fail to load '{agent_name}' module. {e.args[0] if e.args else ''}",
-      ) + e.args[1:]
-      raise e
+      raise ValueError(
+          f"Fail to load '{agent_name}' module. {str(e)}"
+      ) from e
 
     return None
 
@@ -112,32 +108,30 @@ class AgentLoader:
       else:
         # it's the case the module imported by {agent_name}.agent module is not
         # found
-        e.msg = f"Fail to load '{agent_name}.agent' module. " + e.msg
-        raise e
+        raise ValueError(f"Fail to load '{agent_name}.agent' module. {str(e)}") from e
     except Exception as e:
-      if hasattr(e, "msg"):
-        e.msg = f"Fail to load '{agent_name}.agent' module. " + e.msg
-        raise e
-      e.args = (
+      raise ValueError(
           (
               f"Fail to load '{agent_name}.agent' module."
-              f" {e.args[0] if e.args else ''}"
+              f" {str(e)}"
           ),
-      ) + e.args[1:]
-      raise e
+      ) from e
 
     return None
 
   def _perform_load(self, agent_name: str) -> BaseAgent:
     """Internal logic to load an agent"""
     # Add self.agents_dir to sys.path
-    if self.agents_dir not in sys.path:
-      sys.path.insert(0, self.agents_dir)
+    if self.agents_dir:
+      if self.agents_dir not in sys.path:
+        sys.path.insert(0, self.agents_dir)
 
-    logger.debug(
-        "Loading .env for agent %s from %s", agent_name, self.agents_dir
-    )
-    envs.load_dotenv_for_agent(agent_name, str(self.agents_dir))
+      logger.debug(
+          "Loading .env for agent %s from %s", agent_name, self.agents_dir
+      )
+      envs.load_dotenv_for_agent(agent_name, str(self.agents_dir))
+    else: # Handle case when agents_dir is None, so .env file needs to be located differently
+      envs.load_dotenv_for_agent(agent_name)
 
     if root_agent := self._load_from_module_or_package(agent_name):
       return root_agent
@@ -164,3 +158,35 @@ class AgentLoader:
     agent = self._perform_load(agent_name)
     self._agent_cache[agent_name] = agent
     return agent
+
+
+def load_agent_from_module(agent_module_name: str) -> BaseAgent:
+  """Loads an agent directly from an installed Python module.
+
+  Args:
+    agent_module_name: The full module path to the agent, e.g., 'agents.devops'.
+
+  Returns:
+    The loaded BaseAgent instance.
+
+  Raises:
+    ValueError: If the agent module or `root_agent` is not found.
+  """
+  try:
+    module = importlib.import_module(agent_module_name)
+    if hasattr(module, "root_agent"):
+      if isinstance(module.root_agent, BaseAgent):
+        return module.root_agent
+      else:
+        raise TypeError(
+            f"root_agent in '{agent_module_name}' is not an instance of "
+            f"BaseAgent, but type {type(module.root_agent)}."
+        )
+    else:
+      raise ValueError(f"No 'root_agent' found in module '{agent_module_name}'.")
+  except ModuleNotFoundError as e:
+    raise ValueError(f"Agent module '{agent_module_name}' not found.") from e
+  except Exception as e:
+    raise ValueError(
+        f"Failed to load agent from module '{agent_module_name}'. Error: {e}"
+    ) from e

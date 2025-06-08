@@ -29,7 +29,7 @@ from google.adk.sessions.base_session_service import BaseSessionService
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.adk.sessions.session import Session
 from .utils import envs
-from .utils.agent_loader import AgentLoader
+from .utils.agent_loader import AgentLoader, load_agent_from_module
 
 
 class InputFile(BaseModel):
@@ -101,8 +101,7 @@ async def run_interactively(
 
 async def run_cli(
     *,
-    agent_parent_dir: str,
-    agent_folder_name: str,
+    agent_module_name: str,
     input_file: Optional[str] = None,
     saved_session_file: Optional[str] = None,
     save_session: bool,
@@ -111,9 +110,7 @@ async def run_cli(
   """Runs an interactive CLI for a certain agent.
 
   Args:
-    agent_parent_dir: str, the absolute path of the parent folder of the agent
-      folder.
-    agent_folder_name: str, the name of the agent folder.
+    agent_module_name: str, the module path to the agent, e.g. 'agents.devops'
     input_file: Optional[str], the absolute path to the json file that contains
       the initial session state and user queries, exclusive with
       saved_session_file.
@@ -128,15 +125,13 @@ async def run_cli(
 
   user_id = 'test_user'
   session = await session_service.create_session(
-      app_name=agent_folder_name, user_id=user_id
+      app_name=agent_module_name, user_id=user_id
   )
-  root_agent = AgentLoader(agents_dir=agent_parent_dir).load_agent(
-      agent_folder_name
-  )
-  envs.load_dotenv_for_agent(agent_folder_name, agent_parent_dir)
+  root_agent = load_agent_from_module(agent_module_name)
+  envs.load_dotenv_for_agent(agent_module_name)
   if input_file:
     session = await run_input_file(
-        app_name=agent_folder_name,
+        app_name=agent_module_name,
         user_id=user_id,
         root_agent=root_agent,
         artifact_service=artifact_service,
@@ -175,17 +170,8 @@ async def run_cli(
 
   if save_session:
     session_id = session_id or input('Session ID to save: ')
-    session_path = (
-        f'{agent_parent_dir}/{agent_folder_name}/{session_id}.session.json'
-    )
-
-    # Fetch the session again to get all the details.
-    session = await session_service.get_session(
-        app_name=session.app_name,
-        user_id=session.user_id,
-        session_id=session.id,
-    )
-    with open(session_path, 'w', encoding='utf-8') as f:
-      f.write(session.model_dump_json(indent=2, exclude_none=True))
-
-    print('Session saved to', session_path)
+    # session_path = (
+    #     f'{agent_parent_dir}/{agent_folder_name}/{session_id}.session.json'
+    # )
+    # TODO(b/341398863): Save session into artifact service or use XDG_STATE_HOME
+    print('Session saving is not implemented for installed agents yet.')

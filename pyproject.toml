@@ -50,7 +50,7 @@ dynamic = ["version"]
 
 [project.scripts]
 adk-agent = "google.adk.cli:main"
-# adk-agent = "wrapper.adk.cli:main"
+adk-agent-wrapper = "wrapper.adk.cli:main"
 
 [build-system]
 requires = ["setuptools>=61.0"]
