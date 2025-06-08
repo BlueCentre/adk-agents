@@ -48,7 +48,7 @@ To get started with the DevOps Agent, ensure you have Python 3.13 (or a compatib
     Use the following command from the root of the repository to run the agent locally with the necessary dependencies and a workaround for a compatibility issue:
     
     ```bash
-    PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python uvx --with extensions --with google-generativeai --with google-api-core --with chromadb --with protobuf --with openai --with tiktoken --no-cache --python 3.13 --from git+https://github.com/BlueCentre/adk-python.git@main adk run devops
+    PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python uvx --with extensions --with google-generativeai --with google-api-core --with chromadb --with protobuf --with openai --with tiktoken --no-cache --python 3.13 --from git+https://github.com/BlueCentre/adk-python.git@main adk run agents/devops
     ```
     
     *Note:* The `PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python` part is a workaround for a compatibility issue between recent `protobuf` versions and older pre-compiled code in some dependencies (`chromadb` via `opentelemetry` components).
@@ -59,7 +59,7 @@ To get started with the DevOps Agent, ensure you have Python 3.13 (or a compatib
     The agent can be deployed as a service to Google Cloud Run.
 
     ```bash
-    adk deploy cloud_run --project=[YOUR_GCP_PROJECT] --region=[YOUR_GCP_REGION] Agents/devops/
+    adk deploy cloud_run --project=[YOUR_GCP_PROJECT] --region=[YOUR_GCP_REGION] agents/devops/
     ```
     Replace `[YOUR_GCP_PROJECT]` and `[YOUR_GCP_REGION]` with your Google Cloud project ID and desired region. This command packages the agent and deploys it, making it accessible via an HTTP endpoint.
 
@@ -121,12 +121,12 @@ When thinking is enabled, you'll see:
 
 2. **Run the agent:**
    ```bash
-   PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python uvx --with extensions --with google-generativeai --with google-api-core --with chromadb --with protobuf --with openai --with tiktoken --no-cache --python 3.13 --from git+https://github.com/BlueCentre/adk-python.git@main adk run devops
+   PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python uvx --with extensions --with google-generativeai --with google-api-core --with chromadb --with protobuf --with openai --with tiktoken --no-cache --python 3.13 --from git+https://github.com/BlueCentre/adk-python.git@main adk run agents/devops
    ```
 
    Or use the convenience script:
    ```bash
-   ./run.sh
+   ./scripts/execution/run.sh
    ```
 
 **Performance Considerations:**
@@ -156,42 +156,69 @@ The DevOps Agent leverages a powerful stack of technologies to deliver its capab
 ## Directory Structure
 
 ```
-devops/
-├── devops_agent.py           # Main agent implementation (ADK LlmAgent)
-├── agent.py                  # Agent entry point and configuration  
-├── prompts.py                # Core agent instructions and persona
-├── config.py                 # Configuration management and environment setup
-├── components/               # Core agent components
-│   ├── planning_manager.py   # Interactive planning workflow management
-│   └── context_management/   # Advanced context management system
-│       ├── context_manager.py           # Main context orchestration
-│       ├── smart_prioritization.py     # Multi-factor relevance scoring
-│       ├── cross_turn_correlation.py   # Turn relationship detection  
-│       ├── intelligent_summarization.py # Content-aware compression
-│       └── dynamic_context_expansion.py # Automatic content discovery
-├── tools/                    # Comprehensive tool suite
-│   ├── __init__.py          # Tool registration and exports
-│   ├── rag_tools.py         # RAG indexing and retrieval tools
-│   ├── rag_components/      # ChromaDB and embedding components
-│   │   ├── chunking.py      # AST-based code chunking
-│   │   ├── indexing.py      # Vector embedding and storage  
-│   │   └── retriever.py     # Semantic similarity search
-│   ├── filesystem.py        # File system operations
-│   ├── shell_command.py     # Vetted command execution
-│   ├── code_analysis.py     # Static code analysis capabilities
-│   ├── code_search.py       # Code pattern search utilities
-│   ├── project_context.py   # Project-level context gathering
-│   └── [additional tools]   # Memory, analysis, and utility tools
-├── shared_libraries/         # Shared utilities and common functions
-├── docs/                     # Documentation and specifications
-│   ├── IMPLEMENTATION_STATUS.md     # Current implementation status
-│   ├── CONTEXT_MANAGEMENT_STRATEGY.md # Context management approach
-│   └── features/            # Feature-specific documentation
-│       ├── FEATURE_AGENT_INTERACTIVE_PLANNING.md
-│       ├── FEATURE_RAG.md
-│       ├── PHASE2_IMPLEMENTATION_DETAILS.md
-│       └── [other features]
-└── .indexignore             # RAG indexing exclusion rules
+adk-agents/                   # Repository root
+├── agents/devops/            # DevOps Agent implementation
+│   ├── devops_agent.py       # Main agent implementation (ADK LlmAgent)
+│   ├── agent.py              # Agent entry point and configuration  
+│   ├── prompts.py            # Core agent instructions and persona
+│   ├── config.py             # Configuration management and environment setup
+│   ├── components/           # Core agent components
+│   │   ├── planning_manager.py   # Interactive planning workflow management
+│   │   └── context_management/   # Advanced context management system
+│   │       ├── context_manager.py          # Main context orchestration
+│   │       ├── smart_prioritization.py     # Multi-factor relevance scoring
+│   │       ├── cross_turn_correlation.py   # Turn relationship detection  
+│   │       ├── intelligent_summarization.py # Content-aware compression
+│   │       └── dynamic_context_expansion.py # Automatic content discovery
+│   ├── tools/                # Comprehensive tool suite
+│   │   ├── __init__.py       # Tool registration and exports
+│   │   ├── rag_tools.py      # RAG indexing and retrieval tools
+│   │   ├── rag_components/   # ChromaDB and embedding components
+│   │   │   ├── chunking.py   # AST-based code chunking
+│   │   │   ├── indexing.py   # Vector embedding and storage  
+│   │   │   └── retriever.py  # Semantic similarity search
+│   │   ├── filesystem.py     # File system operations
+│   │   ├── shell_command.py  # Vetted command execution
+│   │   ├── code_analysis.py  # Static code analysis capabilities
+│   │   ├── code_search.py    # Code pattern search utilities
+│   │   ├── project_context.py # Project-level context gathering
+│   │   └── [additional tools] # Memory, analysis, and utility tools
+│   ├── shared_libraries/     # Shared utilities and common functions
+│   ├── docs/                 # 📚 Consolidated documentation
+│   │   ├── README.md         # Navigation hub and quick reference
+│   │   ├── CONSOLIDATED_STATUS.md # Complete Phase 2 status and validation
+│   │   ├── IMPLEMENTATION_STATUS.md # Technical implementation details
+│   │   ├── CONTEXT_MANAGEMENT_STRATEGY.md # Context management architecture
+│   │   ├── features/         # Feature-specific documentation
+│   │   │   ├── FEATURE_AGENT_INTERACTIVE_PLANNING.md
+│   │   │   ├── FEATURE_RAG.md
+│   │   │   └── FEATURE_AGENT_LOOP_OPTIMIZATION.md
+│   │   └── archive/          # Archived documentation
+│   └── .indexignore          # RAG indexing exclusion rules
+├── scripts/                  # 🔧 Organized utility scripts
+│   ├── README.md             # Scripts documentation and usage guide
+│   ├── execution/            # Agent execution and deployment scripts
+│   │   ├── run.sh            # Local agent execution
+│   │   ├── eval.sh           # Evaluation and testing
+│   │   ├── prompt.sh         # Interactive prompt testing
+│   │   └── [deployment scripts] # Push, web interface, etc.
+│   ├── monitoring/           # Telemetry and performance monitoring
+│   │   ├── telemetry_check.py # Health checks and validation
+│   │   ├── metrics_overview.py # Comprehensive metrics analysis
+│   │   └── [monitoring tools] # Dashboard, tracing, status
+│   └── validation/           # Testing and validation scripts
+│       └── validate_smart_prioritization_simple.py
+├── example_prompts/          # 🧪 Organized test prompts
+│   ├── README.md             # Test prompt documentation and guidelines
+│   ├── current/              # Active test prompts for ongoing features
+│   │   ├── test_gemini_thinking_feature.md
+│   │   ├── test_dynamic_discovery.md
+│   │   └── [current tests]   # Context diagnostics, planning, etc.
+│   └── archive/              # Completed test prompts (Phase 2, etc.)
+├── tests/                    # Test suite (unit, integration, e2e)
+├── eval/                     # Evaluation datasets and results
+├── src/                      # Source package structure
+└── [config files]            # pyproject.toml, README.md, etc.
 ```
 
 ## Technical Design
