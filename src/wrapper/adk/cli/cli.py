@@ -23,6 +23,13 @@ from rich.markdown import Markdown
 from rich.panel import Panel
 from prompt_toolkit import PromptSession
 from prompt_toolkit.patch_stdout import patch_stdout
+from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.shortcuts import confirm
+from prompt_toolkit.styles import Style
+from prompt_toolkit.history import InMemoryHistory
+from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
+from prompt_toolkit.completion import WordCompleter
+
 from google.genai import types
 from pydantic import BaseModel
 
@@ -43,6 +50,130 @@ from google.adk.events.event import Event
 class InputFile(BaseModel):
   state: dict[str, object]
   queries: list[str]
+
+
+def create_enhanced_prompt_session() -> PromptSession:
+  """Create an enhanced PromptSession with multi-line input, mouse support, and other features."""
+  
+  # Create custom key bindings for enhanced functionality
+  bindings = KeyBindings()
+  
+  # Alt+Enter for multi-line input submission
+  @bindings.add('escape', 'enter')
+  def _(event):
+    """Submit multi-line input with Alt+Enter."""
+    event.app.exit(result=event.app.current_buffer.text)
+  
+  # Ctrl+D for graceful exit
+  @bindings.add('c-d')
+  def _(event):
+    """Exit gracefully with Ctrl+D."""
+    if not event.app.current_buffer.text:
+      event.app.exit(result='exit')
+    else:
+      event.app.current_buffer.delete_before_cursor()
+  
+  # Ctrl+C for cancel current input
+  @bindings.add('c-c')
+  def _(event):
+    """Cancel current input with Ctrl+C."""
+    event.app.current_buffer.reset()
+  
+  # Ctrl+L for clear screen
+  @bindings.add('c-l')
+  def _(event):
+    """Clear screen with Ctrl+L."""
+    event.app.renderer.clear()
+  
+  # Define custom style for the prompt
+  style = Style.from_dict({
+    'prompt': '#ansibrightblue bold',
+    'user-input': '#ansiwhite',
+    'completion-menu': 'bg:#333333 #ffffff',
+    'completion-menu.completion': 'bg:#333333 #ffffff',
+    'completion-menu.completion.current': 'bg:#444444 #ffffff bold',
+    'auto-suggestion': '#666666 italic',
+    'bottom-toolbar': 'bg:#333333 #ffffff',
+  })
+  
+  # Common agentic workflow commands for completion
+  common_commands = [
+    # Code analysis and improvement
+    'analyze this code',
+    'review the codebase',
+    'find security vulnerabilities', 
+    'optimize performance of',
+    'refactor this function',
+    'add error handling to',
+    'add type hints to',
+    'add documentation for',
+    'write unit tests for',
+    'write integration tests for',
+    'fix the bug in',
+    'debug this issue',
+    
+    # Infrastructure and DevOps
+    'create a dockerfile',
+    'create docker-compose.yml',
+    'write kubernetes manifests',
+    'create helm chart for',
+    'write terraform code for',
+    'setup CI/CD pipeline',
+    'configure github actions',
+    'setup monitoring for',
+    'add logging to',
+    'create health checks',
+    'setup load balancer',
+    'configure autoscaling',
+    
+    # Deployment and operations
+    'deploy to production',
+    'deploy to staging', 
+    'rollback deployment',
+    'check service status',
+    'troubleshoot deployment',
+    'scale the service',
+    'update dependencies',
+    'backup the database',
+    'restore from backup',
+    
+    # Development workflow
+    'create new feature branch',
+    'merge pull request',
+    'tag new release',
+    'update changelog',
+    'bump version number',
+    'run security scan',
+    'run performance tests',
+    'generate documentation',
+    
+    # CLI commands
+    'exit',
+    'quit',
+    'bye', 
+    'help',
+    'clear',
+  ]
+  
+  completer = WordCompleter(common_commands, ignore_case=True)
+  
+  # Create history for command recall
+  history = InMemoryHistory()
+  
+  return PromptSession(
+    key_bindings=bindings,
+    style=style,
+    completer=completer,
+    auto_suggest=AutoSuggestFromHistory(),
+    history=history,
+    multiline=True,
+    mouse_support=True,
+    wrap_lines=True,
+    enable_history_search=True,
+    prompt_continuation=lambda width, line_number, is_soft_wrap: "     > " if not is_soft_wrap else "",
+    bottom_toolbar="💡 Tip: Alt+Enter to submit multi-line | Ctrl+D to exit | Ctrl+L to clear | Tab for suggestions",
+    reserve_space_for_menu=4,
+  )
 
 
 async def run_input_file(
@@ -93,16 +224,50 @@ async def run_interactively(
       artifact_service=artifact_service,
       session_service=session_service,
   )
-  # Initialize Rich Console
+  # Initialize Rich Console  
   console = Console()
-  prompt_session = PromptSession()
+  prompt_session = create_enhanced_prompt_session()
+  
+  # Welcome message with usage tips
+  console.print("\n[bold blue]🤖 Enhanced Agent CLI[/bold blue]")
+  console.print("[dim]Features enabled:[/dim]")
+  console.print("[dim]  • Multi-line input support (Alt+Enter to submit)[/dim]")
+  console.print("[dim]  • Mouse support for selection and cursor positioning[/dim]") 
+  console.print("[dim]  • Command history with auto-suggestions[/dim]")
+  console.print("[dim]  • Tab completion for common DevOps commands[/dim]")
+  console.print("[dim]  • Ctrl+L to clear screen, Ctrl+D to exit[/dim]")
+  console.print()
+  
   while True:
-    with patch_stdout():
-      query = await prompt_session.prompt_async('😎 user > ')
+    try:
+      with patch_stdout():
+        query = await prompt_session.prompt_async('😎 user > ')
+    except (EOFError, KeyboardInterrupt):
+      # Handle Ctrl+D and Ctrl+C gracefully
+      console.print("\n[yellow]Goodbye! 👋[/yellow]")
+      break
+      
     if not query or not query.strip():
       continue
-    if query == 'exit':
+    if query.strip().lower() in ['exit', 'quit', 'bye']:
+      console.print("[yellow]Goodbye! 👋[/yellow]")
       break
+    
+    # Handle special commands
+    if query.strip().lower() == 'clear':
+      console.clear()
+      continue
+    elif query.strip().lower() == 'help':
+      console.print("\n[bold blue]Available Commands:[/bold blue]")
+      console.print("[dim]  • exit, quit, bye - Exit the CLI[/dim]")
+      console.print("[dim]  • clear - Clear the screen[/dim]")
+      console.print("[dim]  • help - Show this help message[/dim]")
+      console.print("[dim]  • Alt+Enter - Submit multi-line input[/dim]")
+      console.print("[dim]  • Ctrl+D - Exit gracefully[/dim]")
+      console.print("[dim]  • Ctrl+L - Clear screen[/dim]")
+      console.print("[dim]  • Tab - Show command suggestions[/dim]")
+      console.print()
+      continue
     async for event in runner.run_async(
         user_id=session.user_id,
         session_id=session.id,
@@ -194,7 +359,8 @@ async def run_cli(
         session_service,
     )
   else:
-    console.print(f'[yellow]Running agent [green]{root_agent.name}[/green], type exit to exit.[/yellow]')
+    console.print(f'[yellow]🚀 Starting interactive session with agent [green]{root_agent.name}[/green][/yellow]')
+    console.print(f'[dim]Type [bold]help[/bold] for commands or [bold]exit[/bold] to quit[/dim]')
     await run_interactively(
         root_agent,
         artifact_service,

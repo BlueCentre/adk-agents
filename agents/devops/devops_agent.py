@@ -946,6 +946,13 @@ Begin execution now, starting with the first step."""
         except Exception as e:
             logger.error(f"Unexpected error completing turn: {e}", exc_info=True)
 
+        # If thought summaries were displayed separately and there are NO function calls, 
+        # create a filtered response to avoid duplication. Don't filter if there are function calls
+        # to preserve the function call/response cycle.
+        if processed_response["thought_summaries"] and not processed_response["function_calls"]:
+            logger.info("Creating filtered response to avoid thought summary duplication (no function calls present)")
+            return self._create_filtered_response(llm_response, processed_response)
+
         # Return the original response so it gets displayed to the user
         # Only return None if we want to suppress the response entirely
         return llm_response
@@ -1171,6 +1178,45 @@ Begin execution now, starting with the first step."""
             logger.info(f"Detected {len(extracted_data['thought_summaries'])} thought summaries in LLM response")
 
         return extracted_data
+
+    def _create_filtered_response(self, original_response: LlmResponse, processed_response: Dict[str, Any]) -> LlmResponse:
+        """Creates a filtered response that excludes thought summaries to avoid duplication."""
+        try:
+            # Create new parts list excluding thought summaries
+            filtered_parts = []
+            
+            # Add text parts (non-thought content)
+            for text_part in processed_response["text_parts"]:
+                if text_part.strip():  # Only add non-empty text
+                    filtered_parts.append(genai_types.Part(text=text_part))
+            
+            # Add function calls
+            for func_call in processed_response["function_calls"]:
+                # Convert back from serialized dict to function call object if needed
+                # For now, we'll preserve function calls as they are important
+                if hasattr(original_response, 'content') and original_response.content and original_response.content.parts:
+                    for part in original_response.content.parts:
+                        if hasattr(part, 'function_call') and part.function_call:
+                            filtered_parts.append(part)
+            
+            # If we have filtered parts, create a new response
+            if filtered_parts:
+                filtered_content = genai_types.Content(parts=filtered_parts)
+                filtered_response = LlmResponse(
+                    content=filtered_content,
+                    usage_metadata=getattr(original_response, 'usage_metadata', None)
+                )
+                logger.info(f"Created filtered response with {len(filtered_parts)} parts (thought summaries excluded)")
+                return filtered_response
+            else:
+                # If no filtered parts, return None to suppress the response entirely
+                logger.info("No non-thought content found, suppressing response to avoid empty display")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error creating filtered response: {e}", exc_info=True)
+            # Fallback to original response if filtering fails
+            return original_response
 
     def _serialize_function_call(self, function_call) -> Dict[str, Any]:
         """Convert a function_call object to a JSON-serializable dictionary."""

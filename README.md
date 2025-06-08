@@ -30,7 +30,8 @@ Built on the **Google Agent Development Kit (ADK)** foundation with **Google Gem
 *   **Proactive Context Addition:** Automatically discovers and includes project files, Git history, documentation, and configuration files with zero manual intervention. Enhanced support for modern Python packaging with `uv` detection.
 *   **Token Optimization & Transparency:** Dynamic token limit determination, usage transparency with detailed breakdowns, accurate counting methods, and context optimization strategies to maximize relevance within limits.
 *   **Production-Ready Architecture:** Built on Google ADK with robust error handling, comprehensive logging, full type annotations, and enterprise-grade deployment capabilities via Google Cloud Run.
-*   **Enhanced User Experience:** Rich interactive CLI, detailed execution feedback, granular error reporting, and intelligent status indicators providing clear insight into agent operations and decision-making processes.
+*   **Enhanced Interactive CLI:** Advanced command-line interface with multi-line input support, mouse interaction, auto-completion for DevOps workflows, command history with auto-suggestions, and intelligent keyboard shortcuts. Rich visual feedback with styled prompts, continuation indicators, and contextual help designed specifically for agentic workflow interactions.
+*   **Enhanced User Experience:** Detailed execution feedback, granular error reporting, and intelligent status indicators providing clear insight into agent operations and decision-making processes.
 
 ## Quickstart
 
@@ -110,6 +111,8 @@ When thinking is enabled, you'll see:
 - **Thought summaries** (when `GEMINI_THINKING_INCLUDE_THOUGHTS=true`) providing insight into the model's reasoning process
 - **Detailed token breakdown** including thinking costs in logs
 
+**Display Enhancement (June 8 2025):** The agent automatically filters thought summaries from the main response to prevent duplication. The thought process is displayed once in the dedicated "🧠 Agent Thought" panel, and the main response contains only the final output without redundant content.
+
 **Example with thinking enabled:**
 
 1. **Create/update your `.env` file:**
@@ -143,6 +146,80 @@ When thinking is enabled, you'll see:
 - Advanced code refactoring and optimization
 - System architecture analysis and recommendations
 - Security analysis and compliance checks
+
+### Enhanced Interactive CLI
+
+The DevOps Agent features an advanced command-line interface optimized for agentic workflows and complex multi-turn conversations:
+
+**🚀 Key Features:**
+
+- **Multi-line Input Support:** Use Alt+Enter to submit complex, multi-line requests perfect for detailed task descriptions
+- **Mouse Support:** Click to position cursor, drag to select text, scroll through completion menus  
+- **Smart Auto-completion:** Tab completion for 50+ common DevOps commands organized by category
+- **Command History:** Intelligent history with auto-suggestions based on previous interactions
+- **Visual Enhancements:** Styled prompts, continuation indicators ("     >"), and contextual help
+
+**⌨️ Keyboard Shortcuts:**
+
+- `Alt+Enter` - Submit multi-line input
+- `Ctrl+D` - Exit gracefully  
+- `Ctrl+L` - Clear screen
+- `Ctrl+C` - Cancel current input
+- `Tab` - Show command completions
+- `↑/↓` - Navigate command history
+
+**🛠️ DevOps-Optimized Completions:**
+
+The CLI includes intelligent completions for common workflows:
+
+```bash
+# Code analysis and improvement
+analyze this code → "analyze this code"
+review the → "review the codebase"
+add error → "add error handling to"
+
+# Infrastructure and DevOps  
+create a → "create a dockerfile"
+setup mon → "setup monitoring for"
+write terra → "write terraform code for"
+
+# Deployment and operations
+deploy to → "deploy to production", "deploy to staging"
+check ser → "check service status"
+troublesh → "troubleshoot deployment"
+```
+
+**💡 Usage Examples:**
+
+1. **Multi-line Complex Request:**
+   ```
+   Create a Kubernetes deployment that:
+   - Uses a multi-container pod setup
+   - Includes health checks and resource limits  
+   - Has proper security contexts
+   - Implements horizontal pod autoscaling
+   [Alt+Enter to submit]
+   ```
+
+2. **Quick Commands with Completion:**
+   ```
+   setup monitoring for[Tab] → Shows completion options
+   ```
+
+3. **Interactive Help:**
+   ```
+   help → Shows available commands and shortcuts
+   clear → Clears the screen
+   ```
+
+**🎯 Optimized for Agentic Workflows:**
+
+The enhanced CLI is specifically designed for complex, multi-turn conversations with AI agents, supporting:
+- Long-form task descriptions spanning multiple lines
+- Easy editing and refinement of complex requests  
+- Quick access to common DevOps workflows
+- Seamless history navigation for iterative development
+- Visual feedback that doesn't interfere with agent output
 
 ## Core Technologies / Stack
 
