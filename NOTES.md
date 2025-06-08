@@ -1,1 +1,0 @@
-I'm currently running my agent directly from this repository using `uvx ...` like how my `./prompt.sh` or `./run.sh`. Although my agent is in the repo, the adk runtime is directly from a github repo. How can a user run my agent without having to clone this agent repo?
