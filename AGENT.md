@@ -24,51 +24,74 @@ This document provides context about the user's environment and preferences to h
 
 ## Directory Structure
 
-*This section describes the main project directories, their purpose, and common locations for specific file types. It's based on an agent scan of the current working directory.*
+*This section describes the current project organization after comprehensive repository grooming and consolidation (December 2024).*
 
-*   `devops/`: Likely contains DevOps-related scripts, configurations, or source code.
-    *   `docs/`: Documentation files.
-        *   `FEATURE_RAG.md`: Documentation for RAG feature.
-        *   `FEATURE_AGENT_LOOP_OPTIMIZATION.md`: Documentation for agent loop optimization.
-        *   `REFACTOR_CONTEXT_MANAGER_2_CONTEXT_STATE.md`: Documentation for refactoring context manager.
-        *   `FEATURE_AGENT_INTERACTIVE_PLANNING.md`: Documentation for interactive planning feature.
-    *   `components/`: Various components of the agent.
-        *   `__init__.py`: Python package indicator.
-        *   `context_management/`: Components for context management.
-        *   `planning_manager.py`: Manages agent planning.
-    *   `shared_libraries/`: Shared Python libraries.
-        *   `__init__.py`: Python package indicator.
-        *   `ui.py`: UI-related library.
-        *   `types.py`: Custom type definitions.
-    *   `tools/`: Contains various tools used by the agent.
-        *   `__init__.py`: Python package indicator.
-        *   `setup.py`: Python package setup script.
-        *   `shell_command.py`: Likely handles shell command execution.
-        *   `persistent_memory_tool.py`: Tool for managing persistent memory.
-        *   `memory_tools.py`: Tools related to memory management.
-        *   `filesystem.py`: Filesystem interaction tools.
-        *   `rag_tools.py`: Tools for Retrieval Augmented Generation.
-        *   `file_summarizer_tool.py`: Tool for summarizing file content.
-        *   `analysis_state.py`: Manages analysis state.
-        *   `project_context.py`: Manages project context.
-        *   `search.py`: Search-related tools.
-        *   `code_analysis.py`: Tools for code analysis.
-        *   `rag_components/`: Components for RAG.
-        *   `code_search.py`: Tools for code search.
-    *   `__init__.py`: Python package indicator.
-    *   `.indexignore`: Specifies files to ignore during indexing.
-    *   `config.py`: Configuration file for the DevOps agent.
-    *   `prompts.py`: Contains prompts for the agent.
-    *   `devops_agent.py`: Main DevOps agent script.
-    *   `agent.py`: Core agent logic.
-*   `.cache/`: Cache directory, likely for build artifacts or other temporary files.
-*   `.env.example`: Example environment variable file.
-*   `.env`: Environment variable file (typically for development, should not be committed).
-*   `AGENT.md`: This file, containing agent context and instructions.
-*   `README.md`: Project README file.
-*   `pyproject.toml`: Python project configuration file (PEP 518).
+### **Core Agent Implementation** (`agents/devops/`)
+*   **`devops_agent.py`**: Main DevOps agent implementation (ADK LlmAgent)
+*   **`agent.py`**: Agent entry point and configuration
+*   **`prompts.py`**: Core agent instructions and persona definition
+*   **`config.py`**: Configuration management and environment setup
+*   **`components/`**: Advanced agent components
+    *   **`planning_manager.py`**: Interactive planning workflow management
+    *   **`context_management/`**: Advanced context management system
+        *   `context_manager.py`: Main context orchestration
+        *   `smart_prioritization.py`: Multi-factor relevance scoring
+        *   `cross_turn_correlation.py`: Turn relationship detection
+        *   `intelligent_summarization.py`: Content-aware compression
+        *   `dynamic_context_expansion.py`: Automatic content discovery
+*   **`tools/`**: Comprehensive tool suite
+    *   `rag_tools.py`: RAG indexing and retrieval tools
+    *   `rag_components/`: ChromaDB and embedding components
+    *   `filesystem.py`: File system operations
+    *   `shell_command.py`: Vetted command execution
+    *   `code_analysis.py`: Static code analysis capabilities
+    *   `project_context.py`: Project-level context gathering
+    *   `[additional tools]`: Memory, analysis, and utility tools
+*   **`shared_libraries/`**: Shared utilities and common functions
+*   **`docs/`**: 📚 **Consolidated documentation hub**
+    *   **`README.md`**: Navigation hub and quick reference
+    *   **`CONSOLIDATED_STATUS.md`**: Complete Phase 2 status and validation ⭐
+    *   **`IMPLEMENTATION_STATUS.md`**: Technical implementation details
+    *   **`CONTEXT_MANAGEMENT_STRATEGY.md`**: Context management architecture
+    *   **`features/`**: Feature-specific documentation
+    *   **`archive/`**: Archived documentation
 
-**(Please review this refined list. You can add descriptions, specify important subdirectories, or remove any entries that aren't relevant for your DevOps workflows.)**
+### **Organized Utility Scripts** (`scripts/`)
+*   **`README.md`**: Scripts documentation and usage guide
+*   **`execution/`**: Agent execution and deployment scripts
+    *   `run.sh`, `run_adk.sh`: Local agent execution
+    *   `eval.sh`, `eval_adk.sh`: Evaluation and testing
+    *   `prompt.sh`, `prompt_adk.sh`: Interactive prompt testing
+    *   `push.sh`, `web_adk.sh`: Deployment and web interface
+    *   `mcp.sh`, `fix_rate_limits.sh`, `groom.sh`: Utilities
+*   **`monitoring/`**: Telemetry and performance monitoring
+    *   `telemetry_check.py`, `telemetry_dashboard.py`: Health checks and dashboard
+    *   `metrics_overview.py`, `metrics_status.py`: Metrics analysis
+    *   `tracing_overview.py`: Distributed tracing analysis
+*   **`validation/`**: Testing and validation scripts
+    *   `validate_smart_prioritization_simple.py`: Smart prioritization validation
+
+### **Organized Test Prompts** (`example_prompts/`)
+*   **`README.md`**: Test prompt documentation and guidelines
+*   **`current/`**: Active test prompts for ongoing features
+    *   `test_gemini_thinking_feature.md`: Gemini thinking validation
+    *   `test_dynamic_discovery.md`: Dynamic tool discovery testing
+    *   `test_context_diagnostics.md`: Context management diagnostics
+    *   `test_planning_heuristics.md`: Interactive planning validation
+    *   `test_prompt_engineering.md`: Prompt optimization testing
+*   **`archive/`**: Completed test prompts (Phase 2, etc.)
+
+### **Additional Directories**
+*   **`tests/`**: Test suite (unit, integration, e2e)
+*   **`eval/`**: Evaluation datasets and results
+*   **`src/`**: Source package structure
+*   **Root files**: `AGENT.md`, `README.md`, `pyproject.toml`, etc.
+
+**Key Organizational Benefits:**
+- **Consolidated documentation** with clear navigation paths
+- **Organized scripts** by purpose (execution, monitoring, validation)
+- **Categorized test prompts** (current vs. archived)
+- **Clean structure** with no build artifacts or duplicates
 
 **IMPORTANT**: When the user mentions `current working directory`, you will use `pwd` to figure out the directory
 

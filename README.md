@@ -199,22 +199,35 @@ adk-agents/                   # Repository root
 │   ├── README.md             # Scripts documentation and usage guide
 │   ├── execution/            # Agent execution and deployment scripts
 │   │   ├── run.sh            # Local agent execution
+│   │   ├── run_adk.sh        # ADK-specific execution
 │   │   ├── eval.sh           # Evaluation and testing
+│   │   ├── eval_adk.sh       # ADK-specific evaluation
 │   │   ├── prompt.sh         # Interactive prompt testing
-│   │   └── [deployment scripts] # Push, web interface, etc.
+│   │   ├── prompt_adk.sh     # ADK-specific prompt testing
+│   │   ├── web_adk.sh        # Web interface for ADK agent
+│   │   ├── push.sh           # Deployment and push automation
+│   │   ├── mcp.sh            # Model Context Protocol integration
+│   │   ├── fix_rate_limits.sh # Rate limiting configuration
+│   │   └── groom.sh          # Repository grooming automation
 │   ├── monitoring/           # Telemetry and performance monitoring
 │   │   ├── telemetry_check.py # Health checks and validation
+│   │   ├── telemetry_dashboard.py # Interactive telemetry dashboard
 │   │   ├── metrics_overview.py # Comprehensive metrics analysis
-│   │   └── [monitoring tools] # Dashboard, tracing, status
+│   │   ├── metrics_status.py # Real-time metrics monitoring
+│   │   └── tracing_overview.py # Distributed tracing analysis
 │   └── validation/           # Testing and validation scripts
-│       └── validate_smart_prioritization_simple.py
+│       └── validate_smart_prioritization_simple.py # Smart prioritization validation
 ├── example_prompts/          # 🧪 Organized test prompts
 │   ├── README.md             # Test prompt documentation and guidelines
 │   ├── current/              # Active test prompts for ongoing features
-│   │   ├── test_gemini_thinking_feature.md
-│   │   ├── test_dynamic_discovery.md
-│   │   └── [current tests]   # Context diagnostics, planning, etc.
+│   │   ├── test_gemini_thinking_feature.md # Gemini thinking validation
+│   │   ├── test_dynamic_discovery.md # Dynamic tool discovery testing
+│   │   ├── test_context_diagnostics.md # Context management diagnostics
+│   │   ├── test_planning_heuristics.md # Interactive planning validation
+│   │   └── test_prompt_engineering.md # Prompt optimization testing
 │   └── archive/              # Completed test prompts (Phase 2, etc.)
+│       ├── test_phase2_remaining_features.md # Phase 2 feature validation (COMPLETED)
+│       └── test_phase2_validation.md # Comprehensive Phase 2 testing (COMPLETED)
 ├── tests/                    # Test suite (unit, integration, e2e)
 ├── eval/                     # Evaluation datasets and results
 ├── src/                      # Source package structure
