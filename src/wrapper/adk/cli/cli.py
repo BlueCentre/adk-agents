@@ -22,6 +22,7 @@ from google.genai import types
 from pydantic import BaseModel
 
 from google.adk.agents.llm_agent import LlmAgent
+from google.adk.agents.base_agent import BaseAgent
 from google.adk.artifacts import BaseArtifactService
 from google.adk.artifacts import InMemoryArtifactService
 from google.adk.runners import Runner
@@ -29,7 +30,9 @@ from google.adk.sessions.base_session_service import BaseSessionService
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.adk.sessions.session import Session
 from .utils import envs
-from .utils.agent_loader import AgentLoader, load_agent_from_module
+from .utils.agent_loader import AgentLoader
+from .utils.envs import load_dotenv_for_agent
+from google.adk.events.event import Event
 
 
 class InputFile(BaseModel):
@@ -40,7 +43,7 @@ class InputFile(BaseModel):
 async def run_input_file(
     app_name: str,
     user_id: str,
-    root_agent: LlmAgent,
+    root_agent: BaseAgent,
     artifact_service: BaseArtifactService,
     session_service: BaseSessionService,
     input_path: str,
@@ -71,7 +74,7 @@ async def run_input_file(
 
 
 async def run_interactively(
-    root_agent: LlmAgent,
+    root_agent: BaseAgent,
     artifact_service: BaseArtifactService,
     session: Session,
     session_service: BaseSessionService,
@@ -127,7 +130,15 @@ async def run_cli(
   session = await session_service.create_session(
       app_name=agent_module_name, user_id=user_id
   )
-  root_agent = load_agent_from_module(agent_module_name)
+  root_agent: BaseAgent = AgentLoader().load_agent(agent_module_name)
+
+  # Ensure the loaded agent is an LlmAgent before proceeding.
+  if not isinstance(root_agent, LlmAgent):
+    raise ValueError(
+        f"Loaded agent '{agent_module_name}' is of type {type(root_agent).__name__},"
+        " but an LlmAgent is required."
+    )
+
   envs.load_dotenv_for_agent(agent_module_name)
   if input_file:
     session = await run_input_file(

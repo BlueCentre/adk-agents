@@ -19,6 +19,7 @@ import logging
 import os
 import sys
 from typing import Optional
+from pathlib import Path
 
 from . import envs
 from google.adk.agents.base_agent import BaseAgent
@@ -42,6 +43,30 @@ class AgentLoader:
     self.agents_dir = agents_dir.rstrip("/") if agents_dir else None
     self._original_sys_path = None
     self._agent_cache: dict[str, BaseAgent] = {}
+
+  @staticmethod
+  def get_available_agent_modules(agents_dir: str) -> list[str]:
+    # List all immediate subdirectories and .py files in agents_dir
+    base_path = Path(agents_dir)
+    if not base_path.exists():
+      return []
+    if not base_path.is_dir():
+      return []
+
+    agent_modules = []
+    for item in os.listdir(base_path):
+      item_path = base_path / item
+      if item_path.is_dir() and not item.startswith(".") and item != "__pycache__":
+        # This is a package, so the module name is the directory name
+        agent_modules.append(item)
+      elif item_path.is_file() and item.endswith(".py") and not item.startswith("."):
+        # This is a module, remove .py extension
+        module_name = item[:-3]
+        if module_name != "__init__":  # Avoid listing __init__.py as a separate agent
+          agent_modules.append(module_name)
+
+    agent_modules.sort()
+    return agent_modules
 
   def _load_from_module_or_package(
       self, agent_name: str
