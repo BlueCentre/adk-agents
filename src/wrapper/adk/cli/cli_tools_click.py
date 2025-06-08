@@ -29,7 +29,7 @@ import click
 from fastapi import FastAPI
 import uvicorn
 
-from google.adk.evaluation.eval_case import EvalCaseResult
+from google.adk.evaluation.eval_result import EvalCaseResult
 from google.adk.evaluation.eval_metrics import EvalMetric
 from google.adk.evaluation.evaluator import EvalStatus
 from google.adk.evaluation.evaluator import Evaluator
@@ -322,7 +322,7 @@ def cli_eval(
 
   overall_eval_status: EvalStatus = EvalStatus.PASSED
   agent_parent_dir_for_eval = os.path.dirname(agent_module_file_path)
-  eval_case_results_manager = LocalEvalSetResultsManager(
+  eval_set_results_manager = LocalEvalSetResultsManager(
       eval_set_name=os.path.basename(eval_set_file_path[0]),
       timestamp=datetime.now().isoformat(),
       agents_dir=agent_parent_dir_for_eval,
@@ -333,7 +333,7 @@ def cli_eval(
         f" {eval_set_file_path[0]}:\n{'=' * 80}"
     )
   for result in eval_set_results:
-    eval_case_results_manager.add_eval_case_result(result)
+    eval_set_results_manager.add_eval_case_result(result)
 
     if print_detailed_results:
       click.echo(f"\n  Case: {result.eval_case.agent_input}")

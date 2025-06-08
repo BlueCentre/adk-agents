@@ -33,6 +33,7 @@ from google.adk.evaluation.eval_metrics import EvalMetricResultPerInvocation
 from google.adk.evaluation.eval_result import EvalCaseResult
 from google.adk.evaluation.evaluator import EvalStatus
 from google.adk.evaluation.evaluator import Evaluator
+from google.adk.evaluation.loader import EvalSetLoader
 from google.adk.sessions.base_session_service import BaseSessionService
 
 logger = logging.getLogger("google_adk." + __name__)
