@@ -17,7 +17,7 @@ import subprocess
 from typing import Optional
 from typing import Tuple
 
-import click
+import rich_click as click
 
 _INIT_PY_TEMPLATE = """\
 from . import agent

@@ -25,7 +25,7 @@ import sys
 import tempfile
 from typing import Optional
 
-import click
+import rich_click as click
 from fastapi import FastAPI
 import uvicorn
 

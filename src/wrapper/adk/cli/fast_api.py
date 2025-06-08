@@ -27,7 +27,7 @@ from typing import List
 from typing import Literal
 from typing import Optional
 
-import click
+import rich_click as click
 from fastapi import FastAPI
 from fastapi import HTTPException
 from fastapi import Query

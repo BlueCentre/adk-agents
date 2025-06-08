@@ -18,7 +18,7 @@ import shutil
 import subprocess
 from typing import Optional
 
-import click
+import rich_click as click
 
 _DOCKERFILE_TEMPLATE = """
 FROM python:3.11-slim
