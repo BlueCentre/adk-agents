@@ -115,7 +115,7 @@ docs/_build/
 site/
 
 # Package managers
-uv.lock
+#uv.lock
 poetry.lock
 Pipfile.lock
 yarn.lock
@@ -135,9 +135,6 @@ cython_debug/
 # IPython
 profile_default/
 ipython_config.py
-
-# pyenv
-.python-version
 
 # pipenv
 Pipfile.lock

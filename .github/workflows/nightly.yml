@@ -1,0 +1,46 @@
+name: Nightly Build
+
+on:
+  schedule:
+    # Run every day at midnight
+    - cron: '0 0 * * *'
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  test-latest:
+    name: Test with Latest Dependencies
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.11', '3.12']
+      fail-fast: false  # Continue with other Python versions if one fails
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install UV and setup Python ${{ matrix.python-version }}
+      uses: astral-sh/setup-uv@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+        version: 'latest'  # Use latest uv version
+        enable-cache: true
+        
+    # Install dependencies without lockfile to get latest versions
+    - name: Install latest dependencies
+      run: uv pip install -e ".[dev]"
+
+    # Run tests
+    - name: Run tests
+      run: uv run pytest tests/
+
+    # If tests pass, send notification (for failures, GitHub will notify automatically)
+    - name: Notify success
+      if: success()
+      uses: rtCamp/action-slack-notify@v2
+      env:
+        SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+        SLACK_CHANNEL: ci-notifications
+        SLACK_COLOR: good
+        SLACK_MESSAGE: 'Nightly build passed with Python ${{ matrix.python-version }} 🎉'
+        SLACK_TITLE: Nightly Build Success
+      continue-on-error: true 

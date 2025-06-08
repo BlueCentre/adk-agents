@@ -1,0 +1,85 @@
+name: Test Coverage
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      modules:
+        description: 'Specific module to test (e.g., code_agent.tools.native_tools)'
+        required: false
+        default: 'code_agent'
+        type: string
+
+jobs:
+  coverage-analysis:
+    name: Analysis
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.11']
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install UV and setup Python ${{ matrix.python-version }}
+      uses: astral-sh/setup-uv@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+        enable-cache: true
+        cache-dependency-glob: "pyproject.toml uv.toml"
+
+    - name: Install dependencies
+      run: uv sync --all-extras --dev
+      
+    - name: Run tests with coverage
+      run: |
+        if [[ "${{ github.event.inputs.modules }}" == "code_agent.tools.native_tools" ]]; then
+          echo "Running tests for native_tools module only"
+          uv run pytest tests/test_native_tools.py tests/test_native_tools_additional.py --cov=code_agent.tools.native_tools --cov-report=xml --cov-report=term --cov-fail-under=80
+        else
+          echo "Running tests for all modules"
+          uv run pytest --cov=code_agent \
+          --cov-config=pyproject.toml \
+          --cov-report=xml --cov-report=term --cov-fail-under=80
+        fi
+
+    - name: Upload coverage report
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: coverage.xml
+
+  coverage-report:
+    name: SonarQube
+    needs: coverage-analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+
+      - name: Download coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-report
+
+      - name: Make extract_version.sh executable
+        run: |
+          chmod +x scripts/extract_version.sh
+
+      - name: Extract version
+        id: get_version
+        run: |
+          VERSION=$(./scripts/extract_version.sh)
+          echo "PROJECT_VERSION=$VERSION" >> $GITHUB_ENV
+          echo "Extracted version: $VERSION"
+
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          PROJECT_VERSION: ${{ env.PROJECT_VERSION }}
+          # SONAR_SCANNER_OPTS: "-Dsonar.branch.name=${{ github.ref_name }}"

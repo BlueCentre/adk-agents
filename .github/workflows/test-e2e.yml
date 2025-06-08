@@ -1,0 +1,58 @@
+name: End-to-End Tests
+
+on:
+  push:
+    branches:
+      - main  # Only run on main branch after merges
+  workflow_dispatch:  # Allow manual triggering
+
+# Cancel in-progress runs when a new commit is pushed
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-e2e:
+    name: Run End-to-End Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install UV and setup Python
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: '3.11'
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml uv.toml"
+
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Run E2E tests
+        run: uv run ./scripts/run_e2e_tests.sh
+        env:
+          GOOGLE_API_KEY: ${{ secrets.AI_STUDIO_API_KEY_TEST }}
+          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY_TEST }}
+          RUN_PROVIDER_API_TESTS: true
+
+      - name: Archive test artifacts
+        if: always()  # Run even if tests fail
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results
+          path: |
+            logs/
+            test-reports/
+
+      - name: Send Slack notification
+        if: failure()
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "End-to-End tests failed on main branch! See details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

@@ -1,0 +1,123 @@
+name: Pull Request Workflow
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint:
+    name: Lint Code
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Needed for PR comments
+  
+    - name: Install UV and setup Python
+      uses: astral-sh/setup-uv@v5
+      with:
+        python-version: '3.11'
+        enable-cache: true
+        cache-dependency-glob: "pyproject.toml uv.toml"
+        
+    - name: Install dependencies
+      run: uv sync --all-extras --dev
+        
+    - name: Run linting
+      run: uv run ruff check . --output-format=github
+
+  test:
+    name: Tests with Coverage
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.11']
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Needed for PR comments
+
+    - name: Install UV and setup Python ${{ matrix.python-version }}
+      uses: astral-sh/setup-uv@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+        enable-cache: true
+        cache-dependency-glob: "pyproject.toml uv.toml"
+
+    # Install dependencies using uv
+    - name: Install dependencies
+      run: uv sync --all-extras --dev
+
+    - name: Run tests with coverage
+      run: |
+        uv run pytest tests/ --cov=code_agent \
+        --cov-config=pyproject.toml \
+        --cov-report=xml --cov-report=term --cov-fail-under=80 --junitxml=test-results.xml
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()  # Upload test results even if tests fail
+      with:
+        name: test-results
+        path: |
+          test-results.xml
+          coverage.xml
+          
+    - name: Generate Coverage Report
+      run: |
+        # Use a multi-line Python script instead of one-liners to avoid f-string backslash issues
+        cat > generate_coverage.py << 'EOF'
+        import xml.etree.ElementTree as ET
+
+        # Parse coverage XML
+        tree = ET.parse("coverage.xml")
+        root = tree.getroot()
+
+        # Calculate overall coverage
+        overall_coverage = float(root.attrib["line-rate"]) * 100
+
+        # Open report file
+        with open("coverage_report.md", "w") as f:
+            f.write("## Test Coverage Report\n")
+            f.write(f"### Overall Coverage: {overall_coverage:.2f}%\n\n")
+            f.write("| Module | Coverage |\n")
+            f.write("| ------ | -------- |\n")
+
+            # Add each package
+            for pkg in root.findall(".//package"):
+                pkg_name = pkg.attrib["name"]
+                pkg_coverage = float(pkg.attrib["line-rate"]) * 100
+                f.write(f"| {pkg_name} | {pkg_coverage:.2f}% |\n")
+        EOF
+
+        # Generate HTML coverage for artifact
+        uv run pytest tests/ --cov=code_agent \
+        --cov-config=pyproject.toml \
+        --cov-report=html
+
+        # Run the script
+        uv run python generate_coverage.py
+        
+    - name: Upload coverage HTML report
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-html-report
+        path: htmlcov/
+        
+    - name: Find Comment
+      uses: peter-evans/find-comment@v2
+      id: fc
+      with:
+        issue-number: ${{ github.event.pull_request.number }}
+        comment-author: 'github-actions[bot]'
+        body-includes: Test Coverage Report
+
+    - name: Create or update PR comment with coverage
+      uses: peter-evans/create-or-update-comment@v3
+      with:
+        comment-id: ${{ steps.fc.outputs.comment-id }}
+        issue-number: ${{ github.event.pull_request.number }}
+        body-file: coverage_report.md
+        edit-mode: replace
