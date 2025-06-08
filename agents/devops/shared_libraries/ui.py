@@ -33,7 +33,7 @@ def display_model_usage(console: Console, prompt_tokens: Any, completion_tokens:
             content,
             title="[blue]📊 Model Usage[/blue]",
             border_style="blue",
-            expand=False
+            expand=True
         )
         console.print(panel)
     except Exception as e:
@@ -51,7 +51,7 @@ def display_model_usage_with_thinking(console: Console, prompt_tokens: Any, comp
             content,
             title="[blue]🧠 Model Usage (with Thinking)[/blue]",
             border_style="blue",
-            expand=False
+            expand=True
         )
         console.print(panel)
     except Exception as e:
@@ -80,7 +80,7 @@ def display_agent_thought(console: Console, thought_summaries: list):
             content,
             title="[magenta]🧠 Agent Thought[/magenta]",
             border_style="magenta",
-            expand=False
+            expand=True
         )
         console.print(panel)
     except Exception as e:
@@ -98,7 +98,7 @@ def display_tool_execution_start(console: Console, tool_name: str, args: dict):
             content,
             title="[cyan]🔧 Running Tool[/cyan]",
             border_style="cyan",
-            expand=False
+            expand=True
         )
         console.print(panel)
     except Exception as e:
@@ -117,7 +117,7 @@ def display_tool_finished(console: Console, tool_name: str, result: Any, duratio
             content,
             title="[green]✅ Tool Finished[/green]",
             border_style="green",
-            expand=False
+            expand=True
         )
         console.print(panel)
     except Exception as e:
@@ -131,7 +131,8 @@ def display_unhandled_error(console: Console, error_type: str, error_message: st
             Text.from_markup(f"""[bold red]💥 Unhandled Agent Error[/bold red]\n{rich_error_message_display}"""
             ),
             title="[red]Critical Error[/red]",
-            border_style="red"
+            border_style="red",
+            expand=True
         )
         console.print(panel)
     except Exception as e:
@@ -151,7 +152,7 @@ def display_tool_error(console: Console, tool_name: str, error_response: dict, d
             content,
             title="[red]❌ Tool Error[/red]",
             border_style="red",
-            expand=False
+            expand=True
         )
         console.print(panel)
     except Exception as e:
@@ -194,7 +195,7 @@ def display_tool_error_with_suggestions(console: Console, tool_name: str, error_
             content,
             title="[red]❌ Tool Error with Recovery Options[/red]",
             border_style="red",
-            expand=False
+            expand=True
         )
         console.print(panel)
     except Exception as e:
@@ -222,7 +223,7 @@ def display_retry_suggestions(console: Console, command: str, suggestions: list)
             content,
             title="[yellow]💡 Command Retry Suggestions[/yellow]",
             border_style="yellow",
-            expand=False
+            expand=True
         )
         console.print(panel)
     except Exception as e:
