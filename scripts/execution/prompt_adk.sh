@@ -5,8 +5,8 @@
 #       removing the --from git+https://github.com/BlueCentre/adk-python.git@feat/click-rich
 #       line.
 #
-# IMPORTANT: MCP session cleanup is now handled entirely by the ADK framework
-# to avoid race conditions. Our custom cleanup code has been disabled.
+# IMPORTANT: MCP session cleanup is handled gracefully by our enhanced CLI
+# with proper error handling for common async cancellation issues.
 
 clear
 (

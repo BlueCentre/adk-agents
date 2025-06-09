@@ -82,6 +82,10 @@ async def run_input_file(
       if event.content and event.content.parts:
         if text := ''.join(part.text or '' for part in event.content.parts):
           console.print(f'[green][{event.author}][/green]: {text}')
+  
+  # Use graceful cleanup to handle MCP session cleanup errors
+  from .utils.cleanup import close_runner_gracefully
+  await close_runner_gracefully(runner)
   return session
 
 
@@ -198,7 +202,9 @@ async def run_interactively(
             else:
               # Simple output for fallback mode
               console.print(f"[green]{event.author}[/green]: {filtered_text}")
-  await runner.close()
+  # Use graceful cleanup to handle MCP session cleanup errors
+  from .utils.cleanup import close_runner_gracefully
+  await close_runner_gracefully(runner)
 
 
 def _filter_thought_content(text: str) -> str:

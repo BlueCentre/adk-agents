@@ -220,8 +220,10 @@ class EnhancedCLI:
     def create_enhanced_prompt_session(self, agent_name: str = "Agent", session_id: str = "unknown") -> PromptSession:
         """Create an enhanced PromptSession with tmux-style theming."""
 
+        # https://python-prompt-toolkit.readthedocs.io/en/master/pages/advanced_topics/key_bindings.html
+
         # # Create custom key bindings
-        # bindings = KeyBindings()
+        bindings = KeyBindings()
 
         # # Alt+Enter for multi-line input submission
         # @bindings.add('escape', 'enter')
@@ -251,11 +253,11 @@ class EnhancedCLI:
         #     event.app.renderer.clear()
 
         # # Ctrl+T for theme toggle
-        # @bindings.add('c-t')
-        # def _(event):
-        #     """Toggle theme with Ctrl+T."""
-        #     self.toggle_theme()
-        #     event.app.invalidate()  # Refresh the display
+        @bindings.add('c-t')
+        def _(event):
+            """Toggle theme with Ctrl+T."""
+            self.toggle_theme()
+            event.app.invalidate()  # Refresh the display
 
         # Create style from theme config
         style = Style.from_dict(self.theme_config)
@@ -292,7 +294,7 @@ class EnhancedCLI:
         history = InMemoryHistory()
         
         return PromptSession(
-            # key_bindings=bindings,
+            key_bindings=bindings,
             style=style,
             completer=completer,
             auto_suggest=AutoSuggestFromHistory(),
@@ -312,7 +314,7 @@ class EnhancedCLI:
             return self.status_bar.format_toolbar(agent_name, session_id)
         except Exception as e:
             # Fallback to simple toolbar if formatting fails
-            return f" 🤖 {agent_name} | Session: {session_id[:8]}... | 💡 Alt+Enter:submit | Ctrl+D:exit"
+            return f" 🤖 {agent_name} | Session: {session_id[:8]}... | 💡 Alt+Enter:submit | 🚪 Ctrl+D:exit"
     
     def toggle_theme(self) -> None:
         """Toggle between light and dark themes."""
