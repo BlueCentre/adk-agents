@@ -334,12 +334,12 @@ class EnhancedCLI:
             self.status_bar.theme = self.theme
             self.console = Console(theme=self.rich_theme)
             
-            theme_name = "🌙 Dark" if self.theme == UITheme.DARK else "☀️ Light"
+            theme_name = "🌒 Dark" if self.theme == UITheme.DARK else "🌞 Light"
             self.console.print(f"[info]Set theme to {theme_name}[/info]")
     
     def print_welcome_message(self, agent_name: str) -> None:
         """Print a themed welcome message with tmux-style formatting."""
-        theme_indicator = "🌙" if self.theme == UITheme.DARK else "☀️"
+        theme_indicator = "🌒" if self.theme == UITheme.DARK else "🌞"
         
         self.console.print("\n[accent]┌─ Enhanced Agent CLI ─────────────────────────────────────┐[/accent]")
         self.console.print(f"[accent]│[/accent] [agent]🤖 Agent:[/agent] [highlight]{agent_name}[/highlight]")
