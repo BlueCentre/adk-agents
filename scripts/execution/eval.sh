@@ -24,4 +24,4 @@ PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python uvx \
   --no-cache \
   --python 3.13 \
   --from git+https://github.com/BlueCentre/adk-python.git@feat/rich-click \
-  adk eval "agents/devops" "${1}" --print_detailed_results || echo "🙈 Ignore the error above. It's caused by Google ADK."
+  adk eval "agents/devops" "${1}" --print_detailed_results

@@ -87,4 +87,4 @@ exit" | \
     --with tiktoken \
     --python 3.13 \
     --from git+https://github.com/BlueCentre/adk-python.git@feat/rich-click \
-    adk run agents/devops || echo "🙈 Ignore the error above. It's caused by Google ADK."
+    adk run agents/devops
