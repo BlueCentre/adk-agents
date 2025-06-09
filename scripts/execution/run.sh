@@ -6,20 +6,21 @@
 #       line.
 
 clear
-PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python uvx \
-  --with extensions \
-  --with google-api-core \
-  --with chromadb \
-  --with protobuf \
-  --with openai \
-  --with tiktoken \
-  --with "openlit>=1.13.2" \
-  --with "opentelemetry-api>=1.21.0" \
-  --with "opentelemetry-sdk>=1.21.0" \
-  --with "opentelemetry-exporter-otlp>=1.21.0" \
-  --with "psutil>=5.9.0" \
-  --with "rich>=13.0.0" \
-  --no-cache \
-  --python 3.13 \
-  --from git+https://github.com/BlueCentre/adk-python.git@feat/rich-click \
-  adk run "${1:-agents/devops}" || true
+# PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python uvx \
+#   --with extensions \
+#   --with google-api-core \
+#   --with chromadb \
+#   --with protobuf \
+#   --with openai \
+#   --with tiktoken \
+#   --with "openlit>=1.13.2" \
+#   --with "opentelemetry-api>=1.21.0" \
+#   --with "opentelemetry-sdk>=1.21.0" \
+#   --with "opentelemetry-exporter-otlp>=1.21.0" \
+#   --with "psutil>=5.9.0" \
+#   --with "rich>=13.0.0" \
+#   --no-cache \
+#   --python 3.13 \
+#   --from git+https://github.com/BlueCentre/adk-python.git@feat/rich-click \
+#   adk run "${1:-agents/devops}" || true
+uv run agent run agents.devops || true

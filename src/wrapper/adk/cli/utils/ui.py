@@ -219,44 +219,44 @@ class EnhancedCLI:
     
     def create_enhanced_prompt_session(self, agent_name: str = "Agent", session_id: str = "unknown") -> PromptSession:
         """Create an enhanced PromptSession with tmux-style theming."""
-        
-        # Create custom key bindings
-        bindings = KeyBindings()
-        
-        # Alt+Enter for multi-line input submission
-        @bindings.add('escape', 'enter')
-        def _(event):
-            """Submit multi-line input with Alt+Enter."""
-            event.app.exit(result=event.app.current_buffer.text)
-        
-        # Ctrl+D for graceful exit
-        @bindings.add('c-d')
-        def _(event):
-            """Exit gracefully with Ctrl+D."""
-            if not event.app.current_buffer.text:
-                event.app.exit(result='exit')
-            else:
-                event.app.current_buffer.delete_before_cursor()
-        
-        # Ctrl+C for cancel current input
-        @bindings.add('c-c')
-        def _(event):
-            """Cancel current input with Ctrl+C."""
-            event.app.current_buffer.reset()
-        
-        # Ctrl+L for clear screen
-        @bindings.add('c-l')
-        def _(event):
-            """Clear screen with Ctrl+L."""
-            event.app.renderer.clear()
-        
-        # Ctrl+T for theme toggle
-        @bindings.add('c-t')
-        def _(event):
-            """Toggle theme with Ctrl+T."""
-            self.toggle_theme()
-            event.app.invalidate()  # Refresh the display
-        
+
+        # # Create custom key bindings
+        # bindings = KeyBindings()
+
+        # # Alt+Enter for multi-line input submission
+        # @bindings.add('escape', 'enter')
+        # def _(event):
+        #     """Submit multi-line input with Alt+Enter."""
+        #     event.app.exit(result=event.app.current_buffer.text)
+
+        # # Ctrl+D for graceful exit
+        # @bindings.add('c-d')
+        # def _(event):
+        #     """Exit gracefully with Ctrl+D."""
+        #     if not event.app.current_buffer.text:
+        #         event.app.exit(result='exit')
+        #     else:
+        #         event.app.current_buffer.delete_before_cursor()
+
+        # # Ctrl+C for cancel current input
+        # @bindings.add('c-c')
+        # def _(event):
+        #     """Cancel current input with Ctrl+C."""
+        #     event.app.current_buffer.reset()
+
+        # # Ctrl+L for clear screen
+        # @bindings.add('c-l')
+        # def _(event):
+        #     """Clear screen with Ctrl+L."""
+        #     event.app.renderer.clear()
+
+        # # Ctrl+T for theme toggle
+        # @bindings.add('c-t')
+        # def _(event):
+        #     """Toggle theme with Ctrl+T."""
+        #     self.toggle_theme()
+        #     event.app.invalidate()  # Refresh the display
+
         # Create style from theme config
         style = Style.from_dict(self.theme_config)
         
@@ -292,7 +292,7 @@ class EnhancedCLI:
         history = InMemoryHistory()
         
         return PromptSession(
-            key_bindings=bindings,
+            # key_bindings=bindings,
             style=style,
             completer=completer,
             auto_suggest=AutoSuggestFromHistory(),
