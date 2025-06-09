@@ -21,14 +21,7 @@ import rich_click as click
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
-from prompt_toolkit import PromptSession
 from prompt_toolkit.patch_stdout import patch_stdout
-from prompt_toolkit.key_binding import KeyBindings
-from prompt_toolkit.shortcuts import confirm
-from prompt_toolkit.styles import Style
-from prompt_toolkit.history import InMemoryHistory
-from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
-from prompt_toolkit.completion import WordCompleter
 
 from google.genai import types
 from pydantic import BaseModel
@@ -44,6 +37,7 @@ from google.adk.sessions.session import Session
 from .utils import envs
 from .utils.agent_loader import AgentLoader
 from .utils.envs import load_dotenv_for_agent
+from .utils.ui import get_cli_instance, UITheme
 from google.adk.events.event import Event
 
 
@@ -52,128 +46,7 @@ class InputFile(BaseModel):
   queries: list[str]
 
 
-def create_enhanced_prompt_session() -> PromptSession:
-  """Create an enhanced PromptSession with multi-line input, mouse support, and other features."""
-  
-  # Create custom key bindings for enhanced functionality
-  bindings = KeyBindings()
-  
-  # Alt+Enter for multi-line input submission
-  @bindings.add('escape', 'enter')
-  def _(event):
-    """Submit multi-line input with Alt+Enter."""
-    event.app.exit(result=event.app.current_buffer.text)
-  
-  # Ctrl+D for graceful exit
-  @bindings.add('c-d')
-  def _(event):
-    """Exit gracefully with Ctrl+D."""
-    if not event.app.current_buffer.text:
-      event.app.exit(result='exit')
-    else:
-      event.app.current_buffer.delete_before_cursor()
-  
-  # Ctrl+C for cancel current input
-  @bindings.add('c-c')
-  def _(event):
-    """Cancel current input with Ctrl+C."""
-    event.app.current_buffer.reset()
-  
-  # Ctrl+L for clear screen
-  @bindings.add('c-l')
-  def _(event):
-    """Clear screen with Ctrl+L."""
-    event.app.renderer.clear()
-  
-  # Define custom style for the prompt
-  style = Style.from_dict({
-    'prompt': '#ansibrightblue bold',
-    'user-input': '#ansiwhite',
-    'completion-menu': 'bg:#333333 #ffffff',
-    'completion-menu.completion': 'bg:#333333 #ffffff',
-    'completion-menu.completion.current': 'bg:#444444 #ffffff bold',
-    'auto-suggestion': '#666666 italic',
-    'bottom-toolbar': 'bg:#333333 #ffffff',
-  })
-  
-  # Common agentic workflow commands for completion
-  common_commands = [
-    # Code analysis and improvement
-    'analyze this code',
-    'review the codebase',
-    'find security vulnerabilities', 
-    'optimize performance of',
-    'refactor this function',
-    'add error handling to',
-    'add type hints to',
-    'add documentation for',
-    'write unit tests for',
-    'write integration tests for',
-    'fix the bug in',
-    'debug this issue',
-    
-    # Infrastructure and DevOps
-    'create a dockerfile',
-    'create docker-compose.yml',
-    'write kubernetes manifests',
-    'create helm chart for',
-    'write terraform code for',
-    'setup CI/CD pipeline',
-    'configure github actions',
-    'setup monitoring for',
-    'add logging to',
-    'create health checks',
-    'setup load balancer',
-    'configure autoscaling',
-    
-    # Deployment and operations
-    'deploy to production',
-    'deploy to staging', 
-    'rollback deployment',
-    'check service status',
-    'troubleshoot deployment',
-    'scale the service',
-    'update dependencies',
-    'backup the database',
-    'restore from backup',
-    
-    # Development workflow
-    'create new feature branch',
-    'merge pull request',
-    'tag new release',
-    'update changelog',
-    'bump version number',
-    'run security scan',
-    'run performance tests',
-    'generate documentation',
-    
-    # CLI commands
-    'exit',
-    'quit',
-    'bye', 
-    'help',
-    'clear',
-  ]
-  
-  completer = WordCompleter(common_commands, ignore_case=True)
-  
-  # Create history for command recall
-  history = InMemoryHistory()
-  
-  return PromptSession(
-    key_bindings=bindings,
-    style=style,
-    completer=completer,
-    auto_suggest=AutoSuggestFromHistory(),
-    history=history,
-    multiline=True,
-    mouse_support=True,
-    wrap_lines=True,
-    enable_history_search=True,
-    prompt_continuation=lambda width, line_number, is_soft_wrap: "     > " if not is_soft_wrap else "",
-    bottom_toolbar="💡 Tip: Alt+Enter to submit multi-line | Ctrl+D to exit | Ctrl+L to clear | Tab for suggestions",
-    reserve_space_for_menu=4,
-  )
+# This function is now replaced by the UI module functionality
 
 
 async def run_input_file(
@@ -217,6 +90,7 @@ async def run_interactively(
     artifact_service: BaseArtifactService,
     session: Session,
     session_service: BaseSessionService,
+    ui_theme: Optional[str] = None,
 ) -> None:
   runner = Runner(
       app_name=session.app_name,
@@ -224,50 +98,89 @@ async def run_interactively(
       artifact_service=artifact_service,
       session_service=session_service,
   )
-  # Initialize Rich Console  
+  
+  # Initialize basic console for fallback
   console = Console()
-  prompt_session = create_enhanced_prompt_session()
+  
+  # Initialize enhanced CLI with theming
+  try:
+    cli = get_cli_instance(ui_theme)
+    prompt_session = cli.create_enhanced_prompt_session(root_agent.name, session.id)
+    fallback_mode = False
+  except Exception as e:
+    # Fallback to basic CLI if enhanced UI fails
+    console.print(f"[warning]⚠️  Enhanced UI initialization failed: {str(e)}[/warning]")
+    console.print("[info]Falling back to basic CLI mode...[/info]")
+    # Create a minimal prompt session
+    from prompt_toolkit import PromptSession
+    prompt_session = PromptSession()
+    cli = None
+    fallback_mode = True
   
   # Welcome message with usage tips
-  console.print("\n[bold blue]🤖 Enhanced Agent CLI[/bold blue]")
-  console.print("[dim]Features enabled:[/dim]")
-  console.print("[dim]  • Multi-line input support (Alt+Enter to submit)[/dim]")
-  console.print("[dim]  • Mouse support for selection and cursor positioning[/dim]") 
-  console.print("[dim]  • Command history with auto-suggestions[/dim]")
-  console.print("[dim]  • Tab completion for common DevOps commands[/dim]")
-  console.print("[dim]  • Ctrl+L to clear screen, Ctrl+D to exit[/dim]")
-  console.print()
+  if not fallback_mode and cli:
+    cli.print_welcome_message(root_agent.name)
+  else:
+    console.print(f"🚀 Starting interactive session with agent {root_agent.name}")
+    console.print("Enhanced UI features are disabled. Basic CLI mode active.")
   
   while True:
     try:
-      with patch_stdout():
-        query = await prompt_session.prompt_async('😎 user > ')
+      if fallback_mode:
+        query = await prompt_session.prompt_async('user > ')
+      else:
+        with patch_stdout():
+          query = await prompt_session.prompt_async('😎 user > ')
     except (EOFError, KeyboardInterrupt):
       # Handle Ctrl+D and Ctrl+C gracefully
-      console.print("\n[yellow]Goodbye! 👋[/yellow]")
+      output_console = console if fallback_mode else cli.console
+      output_console.print("\n[warning]Goodbye! 👋[/warning]")
       break
+    except Exception as e:
+      # Handle other prompt-related errors gracefully
+      output_console = console if fallback_mode else cli.console
+      output_console.print(f"\n[red]❌ Prompt error: {str(e)}[/red]")
+      output_console.print("[yellow]💡 Try using a simpler terminal or check your environment.[/yellow]")
+      output_console.print("[blue]Falling back to basic input mode...[/blue]")
+      try:
+        query = input('user > ')
+      except (EOFError, KeyboardInterrupt):
+        output_console.print("\n[warning]Goodbye! 👋[/warning]")
+        break
       
     if not query or not query.strip():
       continue
     if query.strip().lower() in ['exit', 'quit', 'bye']:
-      console.print("[yellow]Goodbye! 👋[/yellow]")
+      output_console = console if fallback_mode else cli.console
+      output_console.print("[warning]Goodbye! 👋[/warning]")
       break
     
     # Handle special commands
     if query.strip().lower() == 'clear':
-      console.clear()
+      output_console = console if fallback_mode else cli.console
+      output_console.clear()
       continue
     elif query.strip().lower() == 'help':
-      console.print("\n[bold blue]Available Commands:[/bold blue]")
-      console.print("[dim]  • exit, quit, bye - Exit the CLI[/dim]")
-      console.print("[dim]  • clear - Clear the screen[/dim]")
-      console.print("[dim]  • help - Show this help message[/dim]")
-      console.print("[dim]  • Alt+Enter - Submit multi-line input[/dim]")
-      console.print("[dim]  • Ctrl+D - Exit gracefully[/dim]")
-      console.print("[dim]  • Ctrl+L - Clear screen[/dim]")
-      console.print("[dim]  • Tab - Show command suggestions[/dim]")
-      console.print()
+      if not fallback_mode and cli:
+        cli.print_help()
+      else:
+        console.print("[blue]Available Commands:[/blue]")
+        console.print("  • exit, quit, bye - Exit the CLI")
+        console.print("  • clear - Clear the screen")
+        console.print("  • help - Show this help message")
       continue
+    elif query.strip().lower().startswith('theme') and not fallback_mode and cli:
+      theme_cmd = query.strip().lower().split()
+      if len(theme_cmd) == 1 or theme_cmd[1] == 'toggle':
+        cli.toggle_theme()
+        # Recreate prompt session with new theme
+        prompt_session = cli.create_enhanced_prompt_session(root_agent.name, session.id)
+      elif len(theme_cmd) == 2 and theme_cmd[1] in ['dark', 'light']:
+        cli.set_theme(UITheme(theme_cmd[1]))
+        # Recreate prompt session with new theme
+        prompt_session = cli.create_enhanced_prompt_session(root_agent.name, session.id)
+      continue
+      
     async for event in runner.run_async(
         user_id=session.user_id,
         session_id=session.id,
@@ -275,14 +188,12 @@ async def run_interactively(
     ):
       if event.content and event.content.parts:
         if text := ''.join(part.text or '' for part in event.content.parts):
-          markdown_text = Markdown(text)
-          panel = Panel(
-              markdown_text,
-              title=f"🤖 [green]{event.author}[/green]",
-              border_style="green",
-              expand=True
-          )
-          console.print(panel)
+          if not fallback_mode and cli:
+            panel = cli.format_agent_response(text, event.author)
+            cli.console.print(panel)
+          else:
+            # Simple output for fallback mode
+            console.print(f"[green]{event.author}[/green]: {text}")
   await runner.close()
 
 
@@ -293,6 +204,7 @@ async def run_cli(
     saved_session_file: Optional[str] = None,
     save_session: bool,
     session_id: Optional[str] = None,
+    ui_theme: Optional[str] = None,
 ) -> None:
   """Runs an interactive CLI for a certain agent.
 
@@ -305,6 +217,8 @@ async def run_cli(
       contains a previously saved session, exclusive with input_file.
     save_session: bool, whether to save the session on exit.
     session_id: Optional[str], the session ID to save the session to on exit.
+    ui_theme: Optional[str], the UI theme to use ('light' or 'dark'). 
+      If not provided, auto-detects from environment.
   """
 
   # Initialize Rich Console
@@ -357,15 +271,19 @@ async def run_cli(
         artifact_service,
         session,
         session_service,
+        ui_theme,
     )
   else:
-    console.print(f'[yellow]🚀 Starting interactive session with agent [green]{root_agent.name}[/green][/yellow]')
-    console.print(f'[dim]Type [bold]help[/bold] for commands or [bold]exit[/bold] to quit[/dim]')
+    # Use enhanced CLI for startup message too
+    cli = get_cli_instance(ui_theme)
+    cli.console.print(f'[accent]🚀 Starting interactive session with agent [agent]{root_agent.name}[/agent][/accent]')
+    cli.console.print(f'[muted]Type [user]help[/user] for commands or [user]exit[/user] to quit[/muted]')
     await run_interactively(
         root_agent,
         artifact_service,
         session,
         session_service,
+        ui_theme,
     )
 
   if save_session:

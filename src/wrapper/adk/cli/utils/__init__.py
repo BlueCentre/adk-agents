@@ -18,9 +18,13 @@ from typing import Optional
 
 from google.adk.agents.base_agent import BaseAgent
 from google.adk.agents.llm_agent import LlmAgent
+from .ui import get_cli_instance, EnhancedCLI, UITheme
 
 __all__ = [
     'create_empty_state',
+    'get_cli_instance',
+    'EnhancedCLI',
+    'UITheme',
 ]
 
 

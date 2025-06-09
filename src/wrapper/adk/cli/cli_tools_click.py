@@ -222,6 +222,14 @@ def validate_exclusive(ctx, param, value):
     ),
     callback=validate_exclusive,
 )
+@click.option(
+    "--ui_theme",
+    type=click.Choice(["dark", "light"], case_sensitive=False),
+    help=(
+        "Optional. UI theme for the CLI interface. Choices: 'dark', 'light'. "
+        "If not provided, auto-detects from environment (ADK_CLI_THEME) or defaults to dark."
+    ),
+)
 @click.argument(
     "agent_module_name",
     type=str,
@@ -232,6 +240,7 @@ def cli_run(
     session_id: Optional[str],
     replay: Optional[str],
     resume: Optional[str],
+    ui_theme: Optional[str],
 ):
   """Runs an interactive CLI for a certain agent.
 
@@ -249,6 +258,7 @@ def cli_run(
           saved_session_file=resume,
           save_session=save_session,
           session_id=session_id,
+          ui_theme=ui_theme,
       )
   )
 
