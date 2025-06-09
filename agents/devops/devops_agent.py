@@ -1135,49 +1135,145 @@ Begin execution now, starting with the first step."""
             "thought_summaries": []
         }
 
+        logger.debug(f"Processing LLM response - has content: {hasattr(llm_response, 'content')}, has parts: {hasattr(llm_response, 'parts')}")
+
         if hasattr(llm_response, 'content') and getattr(llm_response, 'content'):
             content_obj = getattr(llm_response, 'content')
             if isinstance(content_obj, genai_types.Content) and content_obj.parts:
-                for part in content_obj.parts:
+                logger.debug(f"Processing {len(content_obj.parts)} parts from content object")
+                for i, part in enumerate(content_obj.parts):
                     if hasattr(part, 'text') and part.text is not None:
                         # Check if this is a thought summary
                         if hasattr(part, 'thought') and part.thought:
                             extracted_data["thought_summaries"].append(part.text)
-                            logger.info(f"Extracted thought summary: {part.text[:200]}...")
+                            logger.debug(f"Part {i}: Extracted as thought summary (length: {len(part.text)})")
                         else:
                             extracted_data["text_parts"].append(part.text)
+                            logger.debug(f"Part {i}: Extracted as regular text (length: {len(part.text)})")
                     elif hasattr(part, 'function_call') and part.function_call is not None:
                         # Convert function_call to serializable dictionary
                         func_call_dict = self._serialize_function_call(part.function_call)
                         extracted_data["function_calls"].append(func_call_dict)
+                        logger.debug(f"Part {i}: Extracted as function call: {func_call_dict.get('name', 'unknown')}")
 
         elif hasattr(llm_response, 'parts') and getattr(llm_response, 'parts'):
             parts = getattr(llm_response, 'parts')
             if isinstance(parts, list):
-                for part in parts:
+                logger.debug(f"Processing {len(parts)} parts from direct parts attribute")
+                for i, part in enumerate(parts):
                     if hasattr(part, 'text') and part.text is not None:
                         # Check if this is a thought summary
                         if hasattr(part, 'thought') and part.thought:
                             extracted_data["thought_summaries"].append(part.text)
-                            logger.info(f"Extracted thought summary: {part.text[:200]}...")
+                            logger.debug(f"Part {i}: Extracted as thought summary (length: {len(part.text)})")
                         else:
                             extracted_data["text_parts"].append(part.text)
+                            logger.debug(f"Part {i}: Extracted as regular text (length: {len(part.text)})")
                     elif hasattr(part, 'function_call') and part.function_call is not None:
                         # Convert function_call to serializable dictionary
                         func_call_dict = self._serialize_function_call(part.function_call)
                         extracted_data["function_calls"].append(func_call_dict)
+                        logger.debug(f"Part {i}: Extracted as function call: {func_call_dict.get('name', 'unknown')}")
 
         direct_text = getattr(llm_response, 'text', None)
         if direct_text and not extracted_data["text_parts"] and not extracted_data["function_calls"]:
-            extracted_data["text_parts"].append(direct_text)
+            logger.debug(f"Using direct text fallback (length: {len(direct_text)})")
+            # Check if the direct text contains thought patterns
+            if self._is_thought_content(direct_text):
+                extracted_data["thought_summaries"].append(direct_text)
+                logger.debug("Direct text identified as thought content")
+            else:
+                extracted_data["text_parts"].append(direct_text)
+
+        # Fallback: Check if any text_parts contain thought markers/patterns and move them
+        text_parts_to_remove = []
+        for i, text_part in enumerate(extracted_data["text_parts"]):
+            if self._is_thought_content(text_part):
+                extracted_data["thought_summaries"].append(text_part)
+                text_parts_to_remove.append(i)
+                logger.debug(f"Moved text part {i} to thought summaries based on content pattern")
+        
+        # Remove text parts that were moved to thought summaries (in reverse order to maintain indices)
+        for i in reversed(text_parts_to_remove):
+            extracted_data["text_parts"].pop(i)
 
         if extracted_data["function_calls"]:
             logger.info(f"Detected function calls in LLM response: {extracted_data['function_calls']}")
 
         if extracted_data["thought_summaries"]:
             logger.info(f"Detected {len(extracted_data['thought_summaries'])} thought summaries in LLM response")
+        
+        # Debug: Log summary of what was extracted
+        logger.debug(f"Extraction summary - Text parts: {len(extracted_data['text_parts'])}, Function calls: {len(extracted_data['function_calls'])}, Thought summaries: {len(extracted_data['thought_summaries'])}")
 
         return extracted_data
+
+    def _is_thought_content(self, text: str) -> bool:
+        """Detect if text content appears to be agent thinking/reasoning."""
+        if not text or not text.strip():
+            return False
+            
+        text_lower = text.lower().strip()
+        
+        # Common thought patterns
+        thought_patterns = [
+            # Direct thinking indicators
+            "**thinking through",
+            "**my analytical process",
+            "**determining the current",
+            "**navigating the",
+            "**finding the current",
+            "**current time is already known",
+            "**providing the requested information",
+            
+            # Reasoning patterns
+            "okay, so the user wants",
+            "let me think about",
+            "i need to",
+            "my best bet is to",
+            "let's see",
+            "first step is to",
+            "good practice, always",
+            "it's important to",
+            "essentially,",
+            "the logic is straightforward",
+            
+            # Planning/analysis patterns  
+            "given my understanding",
+            "i recognize that",
+            "i'll just",
+            "no need to",
+            "i remember that",
+            "i already",
+            "therefore,",
+        ]
+        
+        # Check for thought patterns at the beginning of text
+        for pattern in thought_patterns:
+            if text_lower.startswith(pattern):
+                return True
+                
+        # Check for markdown bold thinking headers
+        if text.startswith("**") and "**" in text[2:]:
+            first_line = text.split('\n')[0]
+            if any(word in first_line.lower() for word in ["thinking", "analytical", "process", "determining", "navigating", "finding"]):
+                return True
+        
+        # Check if text is entirely reasoning/explanation without direct commands or responses
+        direct_response_indicators = [
+            "the current time is",
+            "i have a set of tools",
+            "these tools allow me",
+            "here are the",
+            "the following",
+        ]
+        
+        # If it starts with direct response indicators, it's not thought content
+        for indicator in direct_response_indicators:
+            if text_lower.startswith(indicator):
+                return False
+                
+        return False
 
     def _create_filtered_response(self, original_response: LlmResponse, processed_response: Dict[str, Any]) -> LlmResponse:
         """Creates a filtered response that excludes thought summaries to avoid duplication."""

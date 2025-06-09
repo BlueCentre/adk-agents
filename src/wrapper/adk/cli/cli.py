@@ -133,31 +133,32 @@ async def run_interactively(
           query = await prompt_session.prompt_async('😎 user > ')
     except (EOFError, KeyboardInterrupt):
       # Handle Ctrl+D and Ctrl+C gracefully
-      output_console = console if fallback_mode else cli.console
+      output_console = console if fallback_mode else (cli.console if cli else console)
       output_console.print("\n[warning]Goodbye! 👋[/warning]")
       break
     except Exception as e:
       # Handle other prompt-related errors gracefully
-      output_console = console if fallback_mode else cli.console
+      output_console = console if fallback_mode else (cli.console if cli else console)
       output_console.print(f"\n[red]❌ Prompt error: {str(e)}[/red]")
       output_console.print("[yellow]💡 Try using a simpler terminal or check your environment.[/yellow]")
       output_console.print("[blue]Falling back to basic input mode...[/blue]")
       try:
         query = input('user > ')
       except (EOFError, KeyboardInterrupt):
+        output_console = console if fallback_mode else (cli.console if cli else console)
         output_console.print("\n[warning]Goodbye! 👋[/warning]")
         break
       
     if not query or not query.strip():
       continue
     if query.strip().lower() in ['exit', 'quit', 'bye']:
-      output_console = console if fallback_mode else cli.console
+      output_console = console if fallback_mode else (cli.console if cli else console)
       output_console.print("[warning]Goodbye! 👋[/warning]")
       break
     
     # Handle special commands
     if query.strip().lower() == 'clear':
-      output_console = console if fallback_mode else cli.console
+      output_console = console if fallback_mode else (cli.console if cli else console)
       output_console.clear()
       continue
     elif query.strip().lower() == 'help':
@@ -188,13 +189,61 @@ async def run_interactively(
     ):
       if event.content and event.content.parts:
         if text := ''.join(part.text or '' for part in event.content.parts):
-          if not fallback_mode and cli:
-            panel = cli.format_agent_response(text, event.author)
-            cli.console.print(panel)
-          else:
-            # Simple output for fallback mode
-            console.print(f"[green]{event.author}[/green]: {text}")
+          # Filter out thought content to prevent duplication
+          filtered_text = _filter_thought_content(text)
+          if filtered_text.strip():  # Only display if there's non-thought content
+            if not fallback_mode and cli:
+              panel = cli.format_agent_response(filtered_text, event.author)
+              cli.console.print(panel)
+            else:
+              # Simple output for fallback mode
+              console.print(f"[green]{event.author}[/green]: {filtered_text}")
   await runner.close()
+
+
+def _filter_thought_content(text: str) -> str:
+  """Filter out thought content patterns from agent responses."""
+  if not text or not text.strip():
+    return text
+    
+  lines = text.split('\n')
+  filtered_lines = []
+  skip_section = False
+  
+  for line in lines:
+    line_lower = line.lower().strip()
+    
+    # Check for thought section markers
+    if line.startswith('**') and any(marker in line_lower for marker in [
+      'thinking', 'approach', 'analytical', 'process', 'determining', 
+      'navigating', 'finding', 'current time', 'my approach'
+    ]):
+      skip_section = True
+      continue
+    
+    # Check for end of thought section (empty line or new content)
+    if skip_section and (not line.strip() or line.startswith('#') or 
+                        line.startswith('The ') or line.startswith('I ')):
+      if line.startswith('The ') or line.startswith('I '):
+        skip_section = False
+        filtered_lines.append(line)
+      continue
+    
+    # Skip lines that are part of thought content
+    if skip_section:
+      continue
+      
+    # Check for standalone thought patterns
+    if any(pattern in line_lower for pattern in [
+      'okay, so the user wants', 'let me think about', 'my best bet is to',
+      'first step is to', 'given my understanding', 'i recognize that'
+    ]):
+      continue
+    
+    # Keep the line if it's not thought content
+    filtered_lines.append(line)
+  
+  return '\n'.join(filtered_lines)
 
 
 async def run_cli(
