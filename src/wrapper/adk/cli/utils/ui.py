@@ -322,7 +322,7 @@ class EnhancedCLI:
         self.status_bar.theme = self.theme
         self.console = Console(theme=self.rich_theme)
         
-        theme_name = "🌙 Dark" if self.theme == UITheme.DARK else "☀️ Light"
+        theme_name = "🌒 Dark" if self.theme == UITheme.DARK else "🌞 Light"
         self.console.print(f"[info]Switched to {theme_name} theme[/info]")
     
     def set_theme(self, theme: UITheme) -> None:
