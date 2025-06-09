@@ -47,7 +47,7 @@ class ThemeConfig:
         # Prompt styles
         'prompt': '#87ceeb bold',  # sky blue
         'user-input': '#ffffff',  # white
-        'agent-output': '#98fb98',  # pale green
+        'agent-output': '#008000',  # green
         
         # Completion menu
         'completion-menu': 'bg:#2d2d2d #ffffff',
@@ -58,7 +58,8 @@ class ThemeConfig:
         'auto-suggestion': '#666666 italic',
         
         # Bottom toolbar (tmux-style)
-        'bottom-toolbar': 'bg:#1e1e1e #87ceeb',
+        # 'bottom-toolbar': 'bg:#1e1e1e #cccccc',
+        'bottom-toolbar': 'bg:#cccccc #1e1e1e',
         'bottom-toolbar.accent': 'bg:#87ceeb #000000 bold',
         'bottom-toolbar.info': 'bg:#404040 #ffffff',
         'bottom-toolbar.success': 'bg:#32cd32 #000000 bold',
@@ -77,7 +78,7 @@ class ThemeConfig:
         # Prompt styles
         'prompt': '#0066cc bold',  # blue
         'user-input': '#000000',  # black
-        'agent-output': '#006600',  # dark green
+        'agent-output': '#008000',  # green
         
         # Completion menu
         'completion-menu': 'bg:#f0f0f0 #000000',
