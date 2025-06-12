@@ -53,6 +53,7 @@ class ThemeConfig:
         'completion-menu': 'bg:#2d2d2d #ffffff',
         'completion-menu.completion': 'bg:#2d2d2d #ffffff',
         'completion-menu.completion.current': 'bg:#4a4a4a #ffffff bold',
+        'completion-menu.category': 'bg:#1e1e1e #87ceeb bold',
         
         # Auto-suggestion
         'auto-suggestion': '#666666 italic',
@@ -84,6 +85,7 @@ class ThemeConfig:
         'completion-menu': 'bg:#f0f0f0 #000000',
         'completion-menu.completion': 'bg:#f0f0f0 #000000',
         'completion-menu.completion.current': 'bg:#d0d0d0 #000000 bold',
+        'completion-menu.category': 'bg:#e0e0e0 #0066cc bold',
         
         # Auto-suggestion
         'auto-suggestion': '#999999 italic',
@@ -262,35 +264,78 @@ class EnhancedCLI:
         # Create style from theme config
         style = Style.from_dict(self.theme_config)
         
-        # Common agentic workflow commands for completion
-        common_commands = [
-            # Code analysis and improvement
-            'analyze this code', 'review the codebase', 'find security vulnerabilities', 
-            'optimize performance of', 'refactor this function', 'add error handling to',
-            'add type hints to', 'add documentation for', 'write unit tests for',
-            'write integration tests for', 'fix the bug in', 'debug this issue',
-            
-            # Infrastructure and DevOps
-            'create a dockerfile', 'create docker-compose.yml', 'write kubernetes manifests',
-            'create helm chart for', 'write terraform code for', 'setup CI/CD pipeline',
-            'configure github actions', 'setup monitoring for', 'add logging to',
-            'create health checks', 'setup load balancer', 'configure autoscaling',
-            
-            # Deployment and operations
-            'deploy to production', 'deploy to staging', 'rollback deployment',
-            'check service status', 'troubleshoot deployment', 'scale the service',
-            'update dependencies', 'backup the database', 'restore from backup',
-            
-            # Development workflow
-            'create new feature branch', 'merge pull request', 'tag new release',
-            'update changelog', 'bump version number', 'run security scan',
-            'run performance tests', 'generate documentation',
-            
-            # CLI commands
-            'exit', 'quit', 'bye', 'help', 'clear', 'theme toggle', 'theme dark', 'theme light',
-        ]
+        # Categorized agentic workflow commands for completion
+        categorized_commands = {
+            '🔍 Code Analysis': [
+                'analyze this code', 'review the codebase', 'find security vulnerabilities', 
+                'optimize performance of', 'refactor this function', 'add error handling to',
+                'add type hints to', 'add documentation for', 'write unit tests for',
+                'write integration tests for', 'fix the bug in', 'debug this issue',
+            ],
+            '🚀 Infrastructure & DevOps': [
+                'create a dockerfile', 'create docker-compose.yml', 'write kubernetes manifests',
+                'create helm chart for', 'write terraform code for', 'setup CI/CD pipeline',
+                'configure github actions', 'setup monitoring for', 'add logging to',
+                'create health checks', 'setup load balancer', 'configure autoscaling',
+            ],
+            '📦 Deployment & Operations': [
+                'deploy to production', 'deploy to staging', 'rollback deployment',
+                'check service status', 'troubleshoot deployment', 'scale the service',
+                'update dependencies', 'backup the database', 'restore from backup',
+            ],
+            '🔧 Development Workflow': [
+                'create new feature branch', 'merge pull request', 'tag new release',
+                'update changelog', 'bump version number', 'run security scan',
+                'run performance tests', 'generate documentation',
+            ],
+            '⚙️ CLI Commands': [
+                'exit', 'quit', 'bye', 'help', 'clear', 'theme toggle', 'theme dark', 'theme light',
+            ],
+        }
         
-        completer = WordCompleter(common_commands, ignore_case=True)
+        # Create a custom completer that shows categories
+        from prompt_toolkit.completion import Completer, Completion
+        
+        class CategorizedCompleter(Completer):
+            def __init__(self, categorized_commands):
+                self.categorized_commands = categorized_commands
+                # Flatten all commands for matching
+                self.all_commands = []
+                for category, commands in categorized_commands.items():
+                    self.all_commands.extend(commands)
+            
+            def get_completions(self, document, complete_event):
+                text = document.get_word_before_cursor(WORD=True)
+                text_lower = text.lower()
+                
+                # Group completions by category
+                for category, commands in self.categorized_commands.items():
+                    category_matches = []
+                    for command in commands:
+                        if text_lower in command.lower():
+                            category_matches.append(command)
+                    
+                    # If we have matches in this category, yield them with category header
+                    if category_matches:
+                        # Add category separator (only visible in completion menu)
+                        yield Completion(
+                            '',
+                            start_position=0,
+                            display=f'{category}',
+                            style='class:completion-menu.category'
+                        )
+                        
+                        # Add the actual completions
+                        for command in category_matches:
+                            start_pos = -len(text) if text else 0
+                            yield Completion(
+                                command,
+                                start_position=start_pos,
+                                display=f'  {command}',
+                                style='class:completion-menu.completion'
+                            )
+        
+        completer = CategorizedCompleter(categorized_commands)
         history = InMemoryHistory()
         
         return PromptSession(
@@ -343,21 +388,20 @@ class EnhancedCLI:
         """Print a themed welcome message with tmux-style formatting."""
         theme_indicator = "🌒" if self.theme == UITheme.DARK else "🌞"
         
+        # Welcome ASCII Art Logo
+        self.console.print()
+        self.console.print("[agent]                 ▄▀█ █   ▄▀█ █▀▀ █▀▀ █▄█ ▀█▀[/agent]")
+        self.console.print("[agent]                 █▀█ █   █▀█ █▄█ █▄▄ █░█ ░█░[/agent]")
+        self.console.print()
+        self.console.print("[muted]           🤖 Advanced AI Agent Development Kit 🤖[/muted]")
+        self.console.print()
+
         self.console.print("\n[accent]┌─ Enhanced Agent CLI ─────────────────────────────────────┐[/accent]")
-        self.console.print(f"[accent]│[/accent] [agent]🤖 Agent:[/agent] [highlight]{agent_name}[/highlight]")
+        self.console.print(f"[accent]│[/accent] [agent]Agent:[/agent] [highlight]{agent_name}[/highlight]")
         self.console.print(f"[accent]│[/accent] [muted]Theme:[/muted] {theme_indicator} {self.theme.value.title()}")
         self.console.print(f"[accent]│[/accent] [muted]Session started:[/muted] {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         self.console.print("[accent]└──────────────────────────────────────────────────────────┘[/accent]")
         
-        self.console.print("\n[muted]Enhanced Features:[/muted]")
-        self.console.print("[muted]  • Multi-line input support (Alt+Enter to submit)[/muted]")
-        self.console.print("[muted]  • Mouse support for selection and cursor positioning[/muted]") 
-        self.console.print("[muted]  • Command history with auto-suggestions[/muted]")
-        self.console.print("[muted]  • Tab completion for common DevOps commands[/muted]")
-        self.console.print("[muted]  • Tmux-style status bar with session info[/muted]")
-        self.console.print("[muted]  • Theme switching (Ctrl+T or 'theme toggle')[/muted]")
-        self.console.print()
-    
     def format_agent_response(self, text: str, author: str) -> Panel:
         """Format agent response with themed panel."""
         markdown_text = Markdown(text)
