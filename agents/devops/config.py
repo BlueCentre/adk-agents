@@ -104,7 +104,7 @@ DEFAULT_SAFE_COMMANDS = [
 ]
 
 # Persistent Memory Tool
-DEFAULT_MEMORY_FILE = ".manual_agent_memory.json"
+DEFAULT_MEMORY_FILE = ".memory.json"
 
 # --- MCP Tool Configurations ---
 # MCP_ALLOWED_DIRECTORIES_STR = os.getenv("MCP_ALLOWED_DIRECTORIES")
