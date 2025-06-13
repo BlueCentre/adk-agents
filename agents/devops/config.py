@@ -107,13 +107,13 @@ DEFAULT_SAFE_COMMANDS = [
 DEFAULT_MEMORY_FILE = ".manual_agent_memory.json"
 
 # --- MCP Tool Configurations ---
-MCP_ALLOWED_DIRECTORIES_STR = os.getenv("MCP_ALLOWED_DIRECTORIES")
-MCP_ALLOWED_DIRECTORIES = []
-if MCP_ALLOWED_DIRECTORIES_STR:
-    MCP_ALLOWED_DIRECTORIES = [d.strip() for d in MCP_ALLOWED_DIRECTORIES_STR.split(",") if d.strip()]
-if not MCP_ALLOWED_DIRECTORIES:
-    MCP_ALLOWED_DIRECTORIES = [os.path.dirname(os.path.abspath(__file__))]
-    logger.info(f"MCP_ALLOWED_DIRECTORIES not set in .env, defaulting to agent directory: {MCP_ALLOWED_DIRECTORIES[0]}")
+# MCP_ALLOWED_DIRECTORIES_STR = os.getenv("MCP_ALLOWED_DIRECTORIES")
+# MCP_ALLOWED_DIRECTORIES = []
+# if MCP_ALLOWED_DIRECTORIES_STR:
+#     MCP_ALLOWED_DIRECTORIES = [d.strip() for d in MCP_ALLOWED_DIRECTORIES_STR.split(",") if d.strip()]
+# if not MCP_ALLOWED_DIRECTORIES:
+#     MCP_ALLOWED_DIRECTORIES = [os.path.dirname(os.path.abspath(__file__))]
+#     logger.info(f"MCP_ALLOWED_DIRECTORIES not set in .env, defaulting to agent directory: {MCP_ALLOWED_DIRECTORIES[0]}")
 
 # --- Feature Flags ---
 ENABLE_INTERACTIVE_PLANNING_STR = os.getenv("ENABLE_INTERACTIVE_PLANNING", "false")
@@ -140,4 +140,4 @@ logger.info(f"Config - Context Target Recent Turns: {CONTEXT_TARGET_RECENT_TURNS
 logger.info(f"Config - Context Target Code Snippets: {CONTEXT_TARGET_CODE_SNIPPETS}")
 logger.info(f"Config - Context Target Tool Results: {CONTEXT_TARGET_TOOL_RESULTS}")
 logger.info(f"Config - Shell Command Default Timeout: {DEFAULT_SHELL_COMMAND_TIMEOUT}s")
-logger.info(f"Config - MCP Allowed Directories: {MCP_ALLOWED_DIRECTORIES}")
+# logger.info(f"Config - MCP Allowed Directories: {MCP_ALLOWED_DIRECTORIES}")
