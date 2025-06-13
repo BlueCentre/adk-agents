@@ -26,6 +26,7 @@ from prompt_toolkit.styles import Style
 from prompt_toolkit.history import InMemoryHistory
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.completion import WordCompleter
+from prompt_toolkit.keys import Keys
 
 from rich.console import Console
 from rich.markdown import Markdown
@@ -180,7 +181,8 @@ class StatusBar:
         
         # Add keyboard shortcuts on the right
         shortcuts = [
-            ("Alt+Enter", "submit"),
+            ("Enter", "submit"),
+            ("Alt+Enter", "multi-line"),
             ("Ctrl+D", "exit"), 
             ("Ctrl+L", "clear"),
             ("Tab", "complete"),
@@ -224,37 +226,16 @@ class EnhancedCLI:
 
         # https://python-prompt-toolkit.readthedocs.io/en/master/pages/advanced_topics/key_bindings.html
 
-        # # Create custom key bindings
+        # Create custom key bindings
         bindings = KeyBindings()
 
-        # # Alt+Enter for multi-line input submission
-        # @bindings.add('escape', 'enter')
-        # def _(event):
-        #     """Submit multi-line input with Alt+Enter."""
-        #     event.app.exit(result=event.app.current_buffer.text)
+        # Alt+Enter for multi-line input submission
+        @bindings.add('escape', 'enter')
+        def _(event):
+            """Insert newline for multi-line input with Alt+Enter."""
+            event.current_buffer.insert_text('\n')
 
-        # # Ctrl+D for graceful exit
-        # @bindings.add('c-d')
-        # def _(event):
-        #     """Exit gracefully with Ctrl+D."""
-        #     if not event.app.current_buffer.text:
-        #         event.app.exit(result='exit')
-        #     else:
-        #         event.app.current_buffer.delete_before_cursor()
-
-        # # Ctrl+C for cancel current input
-        # @bindings.add('c-c')
-        # def _(event):
-        #     """Cancel current input with Ctrl+C."""
-        #     event.app.current_buffer.reset()
-
-        # # Ctrl+L for clear screen
-        # @bindings.add('c-l')
-        # def _(event):
-        #     """Clear screen with Ctrl+L."""
-        #     event.app.renderer.clear()
-
-        # # Ctrl+T for theme toggle
+        # Ctrl+T for theme toggle
         @bindings.add('c-t')
         def _(event):
             """Toggle theme with Ctrl+T."""
@@ -344,7 +325,7 @@ class EnhancedCLI:
             completer=completer,
             auto_suggest=AutoSuggestFromHistory(),
             history=history,
-            multiline=True,
+            multiline=False,
             mouse_support=True,
             wrap_lines=True,
             enable_history_search=True,
@@ -359,7 +340,7 @@ class EnhancedCLI:
             return self.status_bar.format_toolbar(agent_name, session_id)
         except Exception as e:
             # Fallback to simple toolbar if formatting fails
-            return f" 🤖 {agent_name} | Session: {session_id[:8]}... | 💡 Alt+Enter:submit | 🚪 Ctrl+D:exit"
+            return f" 🤖 {agent_name} | Session: {session_id[:8]}... | 💡 Alt+Enter:multi-line | 🚪 Ctrl+D:exit"
     
     def toggle_theme(self) -> None:
         """Toggle between light and dark themes."""
@@ -434,7 +415,8 @@ class EnhancedCLI:
         self.console.print("[accent]│[/accent]   [user]theme light[/user] - Switch to light theme")
         self.console.print("[accent]│[/accent]")
         self.console.print("[accent]│[/accent] [highlight]Keyboard Shortcuts:[/highlight]")
-        self.console.print("[accent]│[/accent]   [user]Alt+Enter[/user] - Submit multi-line input")
+        self.console.print("[accent]│[/accent]   [user]Enter[/user] - Submit input")
+        self.console.print("[accent]│[/accent]   [user]Alt+Enter[/user] - Insert new line for multi-line input")
         self.console.print("[accent]│[/accent]   [user]Ctrl+D[/user] - Exit gracefully")
         self.console.print("[accent]│[/accent]   [user]Ctrl+L[/user] - Clear screen")
         self.console.print("[accent]│[/accent]   [user]Ctrl+T[/user] - Toggle theme")

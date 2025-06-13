@@ -12,14 +12,14 @@
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-memory"],
       "env": {
-        "MEMORY_FILE_PATH": "/tmp/.server-memory.json"
+        "MEMORY_FILE_PATH": "/Users/james/Workspace/gh/lab/adk-agents/.agent/memory.json"
       }
     },
     "sonarqube": {
       "command": "npx",
       "args": [
         "-y",
-        "sonarqube-mcp-server@1.0.0"
+        "sonarqube-mcp-server@latest"
       ],
       "env": {
         "SONARQUBE_URL": "https://sonarcloud.io",

@@ -66,6 +66,7 @@ env/
 .index_data/
 .server-memory.json
 .adk/
+.agent/memory.json
 push.sh
 
 # IDE and editor files
