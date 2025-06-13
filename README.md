@@ -785,3 +785,23 @@ sequenceDiagram
     Agent->>ADK: Send Output
     ADK-->>User: Display Output
 ```
+
+**Telemetry:** Observability is now **disabled by default** for clean output! No configuration needed.
+
+```bash
+# Clean output by default - just run the agent
+echo "hi" | uv run agent run agents.devops
+
+# Test with the provided script
+./scripts/test_clean_output.sh
+```
+
+**If you need observability**, enable it explicitly:
+
+```bash
+# Enable full observability when needed
+export DEVOPS_AGENT_OBSERVABILITY_ENABLE=true
+echo "hi" | uv run agent run agents.devops
+```
+
+**Advanced Configuration:** For more observability options, see [Observability Configuration](agents/devops/docs/OBSERVABILITY_CONFIGURATION.md)

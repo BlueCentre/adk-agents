@@ -1,7 +1,6 @@
 """DevOps Agent Implementation."""
 
 import logging
-import openlit
 import os
 import asyncio
 
@@ -21,56 +20,87 @@ logger = logging.getLogger(__name__)
 # interactive_mode = os.getenv('DEVOPS_AGENT_INTERACTIVE', 'true').lower() in ('true', '1', 'yes')
 # set_interactive_mode(interactive_mode)
 
-# Enhanced OpenLIT configuration with GPU monitoring
-# https://docs.openlit.io/latest/sdk-configuration
-# https://docs.openlit.io/latest/features/metrics
-# https://docs.openlit.io/latest/features/tracing
-openlit_config = {
-    "application_name": "DevOps Agent",
-    "environment": os.getenv('OPENLIT_ENVIRONMENT', 'Production'),
-    # Enable GPU monitoring if available (disabled by default to avoid warnings on non-GPU systems)
-    "collect_gpu_stats": os.getenv('OPENLIT_COLLECT_GPU_STATS', 'false').lower() in ('true', '1', 'yes'),
-    # Disable metrics if requested (for rate limiting)
-    "disable_metrics": os.getenv('OPENLIT_DISABLE_METRICS', 'false').lower() in ('true', '1', 'yes'),
-    # Tracing configuration
-    "capture_message_content": os.getenv('OPENLIT_CAPTURE_CONTENT', 'true').lower() in ('true', '1', 'yes'),
-    "disable_batch": os.getenv('OPENLIT_DISABLE_BATCH', 'false').lower() in ('true', '1', 'yes'),
-    # Disable specific instrumentations if needed (disable some that might cause attribute issues)
-    # "disabled_instrumentors": os.getenv('OPENLIT_DISABLED_INSTRUMENTORS', 'google_generativeai').split(',') if os.getenv('OPENLIT_DISABLED_INSTRUMENTORS') else ['google_generativeai'],
-}
+# Check if observability should be enabled
+def _should_enable_observability() -> bool:
+    """Check if observability should be enabled based on configuration."""
+    # Check if explicitly enabled
+    if os.getenv('DEVOPS_AGENT_OBSERVABILITY_ENABLE', '').lower() in ('true', '1', 'yes'):
+        return True
+    
+    # Check if local metrics are explicitly enabled
+    if os.getenv('DEVOPS_AGENT_ENABLE_LOCAL_METRICS', '').lower() in ('true', '1', 'yes'):
+        return True
+    
+    # Check if any observability configuration is present (auto-enable for convenience)
+    has_grafana_config = bool(os.getenv('GRAFANA_OTLP_ENDPOINT') and os.getenv('GRAFANA_OTLP_TOKEN'))
+    has_openlit_config = bool(os.getenv('OPENLIT_ENVIRONMENT') or os.getenv('OPENLIT_APPLICATION_NAME'))
+    
+    # Auto-enable if production observability is configured
+    if has_grafana_config or has_openlit_config:
+        return True
+    
+    # Default: observability disabled for clean output
+    return False
 
-# Set custom resource attributes for better trace context
-resource_attributes = {
-    "service.instance.id": os.getenv('SERVICE_INSTANCE_ID', f"devops-agent-{os.getpid()}"),
-    "service.version": os.getenv('SERVICE_VERSION', '1.0.0'),
-    "deployment.environment": openlit_config["environment"],
-    "agent.type": "devops",
-    "agent.capabilities.shell": "true",
-    "agent.capabilities.file": "true", 
-    "agent.capabilities.rag": "true",
-    "agent.capabilities.planning": "true",
-    "agent.capabilities.context": "true",
-}
+# Initialize OpenLIT only if observability is enabled
+OBSERVABILITY_ENABLED = _should_enable_observability()
 
-# Add Kubernetes attributes if available
-# if os.getenv('K8S_POD_NAME'):
-#     resource_attributes.update({
-#         "k8s.pod.name": os.getenv('K8S_POD_NAME'),
-#         "k8s.namespace.name": os.getenv('K8S_NAMESPACE_NAME', 'default'),
-#         "k8s.node.name": os.getenv('K8S_NODE_NAME', 'unknown'),
-#     })
+if OBSERVABILITY_ENABLED:
+    import openlit
+    
+    # Enhanced OpenLIT configuration with GPU monitoring
+    # https://docs.openlit.io/latest/sdk-configuration
+    # https://docs.openlit.io/latest/features/metrics
+    # https://docs.openlit.io/latest/features/tracing
+    openlit_config = {
+        "application_name": "DevOps Agent",
+        "environment": os.getenv('OPENLIT_ENVIRONMENT', 'Production'),
+        # Enable GPU monitoring if available (disabled by default to avoid warnings on non-GPU systems)
+        "collect_gpu_stats": os.getenv('OPENLIT_COLLECT_GPU_STATS', 'false').lower() in ('true', '1', 'yes'),
+        # Disable metrics if requested (for rate limiting)
+        "disable_metrics": os.getenv('OPENLIT_DISABLE_METRICS', 'false').lower() in ('true', '1', 'yes'),
+        # Tracing configuration
+        "capture_message_content": os.getenv('OPENLIT_CAPTURE_CONTENT', 'true').lower() in ('true', '1', 'yes'),
+        "disable_batch": os.getenv('OPENLIT_DISABLE_BATCH', 'false').lower() in ('true', '1', 'yes'),
+        # Disable specific instrumentations if needed (disable some that might cause attribute issues)
+        # "disabled_instrumentors": os.getenv('OPENLIT_DISABLED_INSTRUMENTORS', 'google_generativeai').split(',') if os.getenv('OPENLIT_DISABLED_INSTRUMENTORS') else ['google_generativeai'],
+    }
 
-# Set OTEL_RESOURCE_ATTRIBUTES environment variable
-existing_attrs = os.getenv('OTEL_RESOURCE_ATTRIBUTES', '')
-new_attrs = ','.join([f"{k}={v}" for k, v in resource_attributes.items()])
-combined_attrs = f"{existing_attrs},{new_attrs}" if existing_attrs else new_attrs
-os.environ['OTEL_RESOURCE_ATTRIBUTES'] = combined_attrs
+    # Set custom resource attributes for better trace context
+    resource_attributes = {
+        "service.instance.id": os.getenv('SERVICE_INSTANCE_ID', f"devops-agent-{os.getpid()}"),
+        "service.version": os.getenv('SERVICE_VERSION', '1.0.0'),
+        "deployment.environment": openlit_config["environment"],
+        "agent.type": "devops",
+        "agent.capabilities.shell": "true",
+        "agent.capabilities.file": "true", 
+        "agent.capabilities.rag": "true",
+        "agent.capabilities.planning": "true",
+        "agent.capabilities.context": "true",
+    }
 
-# Initialize OpenLIT with enhanced configuration
-openlit.init(**openlit_config)
+    # Add Kubernetes attributes if available
+    # if os.getenv('K8S_POD_NAME'):
+    #     resource_attributes.update({
+    #         "k8s.pod.name": os.getenv('K8S_POD_NAME'),
+    #         "k8s.namespace.name": os.getenv('K8S_NAMESPACE_NAME', 'default'),
+    #         "k8s.node.name": os.getenv('K8S_NODE_NAME', 'unknown'),
+    #     })
 
-logger.info(f"OpenLIT initialized: {openlit_config}")
-logger.info(f"Resource attributes: {resource_attributes}")
+    # Set OTEL_RESOURCE_ATTRIBUTES environment variable
+    existing_attrs = os.getenv('OTEL_RESOURCE_ATTRIBUTES', '')
+    new_attrs = ','.join([f"{k}={v}" for k, v in resource_attributes.items()])
+    combined_attrs = f"{existing_attrs},{new_attrs}" if existing_attrs else new_attrs
+    os.environ['OTEL_RESOURCE_ATTRIBUTES'] = combined_attrs
+
+    # Initialize OpenLIT with enhanced configuration
+    openlit.init(**openlit_config)
+
+    logger.info(f"✅ OpenLIT observability enabled: {openlit_config}")
+    logger.info(f"📊 Resource attributes: {resource_attributes}")
+else:
+    logger.info("🚫 Observability disabled - skipping OpenLIT initialization")
+    logger.info("💡 To enable observability, set DEVOPS_AGENT_OBSERVABILITY_ENABLE=true")
 
 # Create LLM client explicitly
 try:

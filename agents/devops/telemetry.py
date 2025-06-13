@@ -8,16 +8,111 @@ from typing import Dict, Any, Optional, List, Callable
 from dataclasses import dataclass
 from enum import Enum
 
-# OpenTelemetry imports for custom instrumentation
-from opentelemetry import trace, metrics
-from opentelemetry.trace import Status, StatusCode
-from opentelemetry.metrics import CallbackOptions, Observation
-from opentelemetry.sdk.metrics import MeterProvider
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
-from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
-
 logger = logging.getLogger(__name__)
+
+# Check if observability should be enabled
+def _should_enable_observability() -> bool:
+    """Check if observability should be enabled based on configuration."""
+    # Check if explicitly enabled
+    if os.getenv('DEVOPS_AGENT_OBSERVABILITY_ENABLE', '').lower() in ('true', '1', 'yes'):
+        return True
+    
+    # Check if local metrics are explicitly enabled
+    if os.getenv('DEVOPS_AGENT_ENABLE_LOCAL_METRICS', '').lower() in ('true', '1', 'yes'):
+        return True
+    
+    # Check if any observability configuration is present (auto-enable for convenience)
+    has_grafana_config = bool(os.getenv('GRAFANA_OTLP_ENDPOINT') and os.getenv('GRAFANA_OTLP_TOKEN'))
+    has_openlit_config = bool(os.getenv('OPENLIT_ENVIRONMENT') or os.getenv('OPENLIT_APPLICATION_NAME'))
+    
+    # Auto-enable if production observability is configured
+    if has_grafana_config or has_openlit_config:
+        return True
+    
+    # Default: observability disabled for clean output
+    return False
+
+# Initialize observability components conditionally
+OBSERVABILITY_ENABLED = _should_enable_observability()
+
+if OBSERVABILITY_ENABLED:
+    # OpenTelemetry imports for custom instrumentation
+    from opentelemetry import trace, metrics
+    from opentelemetry.trace import Status, StatusCode
+    from opentelemetry.metrics import CallbackOptions, Observation
+    from opentelemetry.sdk.metrics import MeterProvider
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+    from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
+else:
+    # Create no-op imports when observability is disabled
+    class NoOpTrace:
+        def get_tracer(self, name):
+            return NoOpTracer()
+    
+    class NoOpMetrics:
+        def get_meter(self, name):
+            return NoOpMeter()
+        def set_meter_provider(self, provider):
+            pass
+    
+    class NoOpTracer:
+        def start_span(self, name, **kwargs):
+            return NoOpSpan()
+        def start_as_current_span(self, name, **kwargs):
+            return NoOpSpan()
+    
+    class NoOpMeter:
+        def create_counter(self, **kwargs):
+            return NoOpCounter()
+        def create_histogram(self, **kwargs):
+            return NoOpHistogram()
+        def create_up_down_counter(self, **kwargs):
+            return NoOpCounter()
+        def create_observable_gauge(self, **kwargs):
+            return NoOpGauge()
+    
+    class NoOpSpan:
+        def set_attribute(self, key, value):
+            pass
+        def set_status(self, status):
+            pass
+        def record_exception(self, exception):
+            pass
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            pass
+    
+    class NoOpCounter:
+        def add(self, amount, attributes=None):
+            pass
+    
+    class NoOpHistogram:
+        def record(self, amount, attributes=None):
+            pass
+    
+    class NoOpGauge:
+        pass
+    
+    class NoOpCallbackOptions:
+        pass
+    
+    class NoOpObservation:
+        pass
+    
+    # Create no-op instances
+    trace = NoOpTrace()
+    metrics = NoOpMetrics()
+    
+    class NoOpStatus:
+        def __init__(self, *args, **kwargs):
+            pass
+    
+    Status = NoOpStatus
+    StatusCode = type('StatusCode', (), {'ERROR': 'ERROR', 'OK': 'OK'})
+    CallbackOptions = NoOpCallbackOptions
+    Observation = NoOpObservation
 
 class OperationType(Enum):
     """Types of agent operations to track."""
@@ -46,24 +141,48 @@ class DevOpsAgentTelemetry:
     """Enhanced telemetry for DevOps Agent operations."""
     
     def __init__(self):
-        # Configure OpenTelemetry for Grafana Cloud export
-        self._configure_grafana_cloud_export()
+        self.enabled = OBSERVABILITY_ENABLED
         
-        # OpenTelemetry setup
-        self.tracer = trace.get_tracer("devops_agent")
-        self.meter = metrics.get_meter("devops_agent")
+        if self.enabled:
+            # Configure OpenTelemetry for Grafana Cloud export
+            self._configure_grafana_cloud_export()
+            
+            # OpenTelemetry setup
+            self.tracer = trace.get_tracer("devops_agent")
+            self.meter = metrics.get_meter("devops_agent")
+            
+            # Initialize custom metrics
+            self._setup_custom_metrics()
+        else:
+            logger.info("🚫 Telemetry disabled - using no-op telemetry")
+            self.tracer = trace.get_tracer("devops_agent")
+            self.meter = metrics.get_meter("devops_agent")
+            
+            # Initialize no-op metric attributes
+            self.operation_counter = self.meter.create_counter()
+            self.error_counter = self.meter.create_counter()
+            self.token_counter = self.meter.create_counter()
+            self.tool_usage_counter = self.meter.create_counter()
+            self.context_operations_counter = self.meter.create_counter()
+            self.operation_duration = self.meter.create_histogram()
+            self.llm_response_time = self.meter.create_histogram()
+            self.context_size = self.meter.create_histogram()
+            self.tool_execution_time = self.meter.create_histogram()
+            self.file_operation_size = self.meter.create_histogram()
+            self.active_tools = self.meter.create_up_down_counter()
+            self.context_cache_size = self.meter.create_up_down_counter()
         
-        # Performance tracking
+        # Performance tracking (always available for basic functionality)
         self.operation_metrics: Dict[str, List[float]] = {}
         self.error_counts: Dict[str, int] = {}
         self.token_usage_history: List[int] = []
         self.memory_snapshots: List[MetricSnapshot] = []
-        
-        # Initialize custom metrics
-        self._setup_custom_metrics()
     
     def _configure_grafana_cloud_export(self):
         """Configure OpenTelemetry to export to Grafana Cloud if credentials are available."""
+        if not self.enabled:
+            return
+            
         # Check if telemetry export is disabled
         if os.getenv('DEVOPS_AGENT_DISABLE_TELEMETRY_EXPORT', '').lower() in ('true', '1', 'yes'):
             logger.info("🚫 Telemetry export disabled via DEVOPS_AGENT_DISABLE_TELEMETRY_EXPORT")
@@ -109,6 +228,8 @@ class DevOpsAgentTelemetry:
         
     def _setup_custom_metrics(self):
         """Setup custom OpenTelemetry metrics."""
+        if not self.enabled:
+            return
         
         # Counter metrics
         self.operation_counter = self.meter.create_counter(
