@@ -478,6 +478,10 @@ class DevOpsAgentTelemetry:
                          prompt_tokens: int = 0, completion_tokens: int = 0):
         """Track LLM request metrics."""
         
+        # Handle None values by converting to 0
+        prompt_tokens = prompt_tokens or 0
+        completion_tokens = completion_tokens or 0
+        
         # Record metrics
         self.token_counter.add(tokens_used, {"model": model, "type": "total"})
         if prompt_tokens > 0:

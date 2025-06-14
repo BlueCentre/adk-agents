@@ -99,7 +99,7 @@ async def create_agent():
 
     # Create agent instance using the MyDevopsAgent abstraction
     devops_agent_instance = MyDevopsAgent(
-        model=agent_config.GEMINI_MODEL_NAME,
+        model=agent_config.DEFAULT_AGENT_MODEL,
         name="devops_agent",
         description="Self-sufficient agent specialized in Platform Engineering, DevOps, and SRE practices.",
         instruction=agent_prompts.DEVOPS_AGENT_INSTR,
@@ -126,7 +126,7 @@ try:
     
     # Create agent instance directly for the custom ADK fork
     root_agent = MyDevopsAgent(
-        model=agent_config.GEMINI_MODEL_NAME,
+        model=agent_config.DEFAULT_AGENT_MODEL,
         name="devops_agent",
         description="Self-sufficient agent specialized in Platform Engineering, DevOps, and SRE practices.",
         instruction=agent_prompts.DEVOPS_AGENT_INSTR,
@@ -142,7 +142,7 @@ except Exception as e:
     logger.error(f"Failed to create agent instance: {e}")
     # Fallback to a basic agent without tools
     root_agent = MyDevopsAgent(
-        model=agent_config.GEMINI_MODEL_NAME,
+        model=agent_config.DEFAULT_AGENT_MODEL,
         name="devops_agent",
         description="Self-sufficient agent specialized in Platform Engineering, DevOps, and SRE practices.",
         instruction=agent_prompts.DEVOPS_AGENT_INSTR,
