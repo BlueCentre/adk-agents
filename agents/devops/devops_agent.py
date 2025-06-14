@@ -1665,7 +1665,7 @@ Begin execution now, starting with the first step."""
         logger.info("=" * 80)
         
         # Log the raw final prompt for exact inspection (if enabled via config)
-        if os.getenv('LOG_FULL_PROMPTS', 'false').lower() == 'true':
+        if agent_config.LOG_FULL_PROMPTS:
             logger.info("\n" + "=" * 80)
             logger.info("RAW FINAL PROMPT STRING (Set LOG_FULL_PROMPTS=false to disable)")
             logger.info("=" * 80)

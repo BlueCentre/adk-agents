@@ -57,6 +57,66 @@ def should_enable_thinking(model_name: str) -> bool:
     """Determine if thinking should be enabled for the given model."""
     return GEMINI_THINKING_ENABLE and is_thinking_supported(model_name)
 
+# --- Observability and Telemetry Configuration ---
+# Agent observability control
+DEVOPS_AGENT_OBSERVABILITY_ENABLE = os.getenv('DEVOPS_AGENT_OBSERVABILITY_ENABLE', '').lower() in ('true', '1', 'yes')
+DEVOPS_AGENT_ENABLE_LOCAL_METRICS = os.getenv('DEVOPS_AGENT_ENABLE_LOCAL_METRICS', '').lower() in ('true', '1', 'yes')
+DEVOPS_AGENT_DISABLE_TELEMETRY_EXPORT = os.getenv('DEVOPS_AGENT_DISABLE_TELEMETRY_EXPORT', '').lower() in ('true', '1', 'yes')
+
+# Grafana Cloud OTLP configuration
+GRAFANA_OTLP_ENDPOINT = os.getenv('GRAFANA_OTLP_ENDPOINT')
+GRAFANA_OTLP_TOKEN = os.getenv('GRAFANA_OTLP_TOKEN')
+GRAFANA_EXPORT_INTERVAL_SECONDS = int(os.getenv('GRAFANA_EXPORT_INTERVAL_SECONDS', '120'))
+GRAFANA_EXPORT_TIMEOUT_SECONDS = int(os.getenv('GRAFANA_EXPORT_TIMEOUT_SECONDS', '30'))
+
+# OpenLIT configuration
+OPENLIT_ENVIRONMENT = os.getenv('OPENLIT_ENVIRONMENT', 'Production')
+OPENLIT_APPLICATION_NAME = os.getenv('OPENLIT_APPLICATION_NAME')
+OPENLIT_COLLECT_GPU_STATS = os.getenv('OPENLIT_COLLECT_GPU_STATS', 'false').lower() in ('true', '1', 'yes')
+OPENLIT_DISABLE_METRICS = os.getenv('OPENLIT_DISABLE_METRICS', 'false').lower() in ('true', '1', 'yes')
+OPENLIT_CAPTURE_CONTENT = os.getenv('OPENLIT_CAPTURE_CONTENT', 'true').lower() in ('true', '1', 'yes')
+OPENLIT_DISABLE_BATCH = os.getenv('OPENLIT_DISABLE_BATCH', 'false').lower() in ('true', '1', 'yes')
+OPENLIT_DISABLED_INSTRUMENTORS = os.getenv('OPENLIT_DISABLED_INSTRUMENTORS', '')
+
+# Service identification
+SERVICE_INSTANCE_ID = os.getenv('SERVICE_INSTANCE_ID', f"devops-agent-{os.getpid()}")
+SERVICE_VERSION = os.getenv('SERVICE_VERSION', '1.0.0')
+
+# OpenTelemetry resource attributes
+OTEL_RESOURCE_ATTRIBUTES = os.getenv('OTEL_RESOURCE_ATTRIBUTES', '')
+
+# Tracing configuration
+TRACE_SAMPLING_RATE = float(os.getenv('TRACE_SAMPLING_RATE', '1.0'))
+
+# Kubernetes attributes (commented out but available for future use)
+# K8S_POD_NAME = os.getenv('K8S_POD_NAME')
+# K8S_NAMESPACE_NAME = os.getenv('K8S_NAMESPACE_NAME', 'default')
+# K8S_NODE_NAME = os.getenv('K8S_NODE_NAME', 'unknown')
+
+def should_enable_observability() -> bool:
+    """Check if observability should be enabled based on configuration."""
+    # Check if explicitly enabled
+    if DEVOPS_AGENT_OBSERVABILITY_ENABLE:
+        return True
+    
+    # Check if local metrics are explicitly enabled
+    if DEVOPS_AGENT_ENABLE_LOCAL_METRICS:
+        return True
+    
+    # Check if any observability configuration is present (auto-enable for convenience)
+    has_grafana_config = bool(GRAFANA_OTLP_ENDPOINT and GRAFANA_OTLP_TOKEN)
+    has_openlit_config = bool(OPENLIT_ENVIRONMENT != 'Production' or OPENLIT_APPLICATION_NAME)
+    
+    # Auto-enable if production observability is configured
+    if has_grafana_config or has_openlit_config:
+        return True
+    
+    # Default: observability disabled for clean output
+    return False
+
+# --- Debugging and Development Configuration ---
+LOG_FULL_PROMPTS = os.getenv('LOG_FULL_PROMPTS', 'false').lower() == 'true'
+
 # --- LLM Generation Configuration ---
 MAIN_LLM_GENERATION_CONFIG = genai_types.GenerateContentConfig(
     temperature=0.3,
@@ -136,6 +196,7 @@ if GEMINI_THINKING_ENABLE:
     logger.info(f"Config - Gemini Thinking Include Thoughts: {GEMINI_THINKING_INCLUDE_THOUGHTS}")
     logger.info(f"Config - Gemini Thinking Budget: {GEMINI_THINKING_BUDGET}")
     logger.info(f"Config - Agent Model Supports Thinking: {is_thinking_supported(DEFAULT_AGENT_MODEL)}")
+logger.info(f"Config - Observability Enabled: {should_enable_observability()}")
 logger.info(f"Config - Context Target Recent Turns: {CONTEXT_TARGET_RECENT_TURNS}")
 logger.info(f"Config - Context Target Code Snippets: {CONTEXT_TARGET_CODE_SNIPPETS}")
 logger.info(f"Config - Context Target Tool Results: {CONTEXT_TARGET_TOOL_RESULTS}")

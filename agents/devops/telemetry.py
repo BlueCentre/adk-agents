@@ -1,6 +1,5 @@
 """Enhanced telemetry implementation for DevOps Agent."""
 
-import os
 import time
 import functools
 import logging
@@ -8,32 +7,12 @@ from typing import Dict, Any, Optional, List, Callable
 from dataclasses import dataclass
 from enum import Enum
 
+from . import config as agent_config
+
 logger = logging.getLogger(__name__)
 
-# Check if observability should be enabled
-def _should_enable_observability() -> bool:
-    """Check if observability should be enabled based on configuration."""
-    # Check if explicitly enabled
-    if os.getenv('DEVOPS_AGENT_OBSERVABILITY_ENABLE', '').lower() in ('true', '1', 'yes'):
-        return True
-    
-    # Check if local metrics are explicitly enabled
-    if os.getenv('DEVOPS_AGENT_ENABLE_LOCAL_METRICS', '').lower() in ('true', '1', 'yes'):
-        return True
-    
-    # Check if any observability configuration is present (auto-enable for convenience)
-    has_grafana_config = bool(os.getenv('GRAFANA_OTLP_ENDPOINT') and os.getenv('GRAFANA_OTLP_TOKEN'))
-    has_openlit_config = bool(os.getenv('OPENLIT_ENVIRONMENT') or os.getenv('OPENLIT_APPLICATION_NAME'))
-    
-    # Auto-enable if production observability is configured
-    if has_grafana_config or has_openlit_config:
-        return True
-    
-    # Default: observability disabled for clean output
-    return False
-
 # Initialize observability components conditionally
-OBSERVABILITY_ENABLED = _should_enable_observability()
+OBSERVABILITY_ENABLED = agent_config.should_enable_observability()
 
 if OBSERVABILITY_ENABLED:
     # OpenTelemetry imports for custom instrumentation
@@ -63,13 +42,13 @@ else:
             return NoOpSpan()
     
     class NoOpMeter:
-        def create_counter(self, **kwargs):
+        def create_counter(self, name="noop", **kwargs):
             return NoOpCounter()
-        def create_histogram(self, **kwargs):
+        def create_histogram(self, name="noop", **kwargs):
             return NoOpHistogram()
-        def create_up_down_counter(self, **kwargs):
+        def create_up_down_counter(self, name="noop", **kwargs):
             return NoOpCounter()
-        def create_observable_gauge(self, **kwargs):
+        def create_observable_gauge(self, name="noop", **kwargs):
             return NoOpGauge()
     
     class NoOpSpan:
@@ -99,7 +78,8 @@ else:
         pass
     
     class NoOpObservation:
-        pass
+        def __init__(self, *args, **kwargs):
+            pass
     
     # Create no-op instances
     trace = NoOpTrace()
@@ -110,7 +90,12 @@ else:
             pass
     
     Status = NoOpStatus
-    StatusCode = type('StatusCode', (), {'ERROR': 'ERROR', 'OK': 'OK'})
+    
+    class NoOpStatusCode:
+        ERROR = 'ERROR'
+        OK = 'OK'
+    
+    StatusCode = NoOpStatusCode
     CallbackOptions = NoOpCallbackOptions
     Observation = NoOpObservation
 
@@ -159,18 +144,18 @@ class DevOpsAgentTelemetry:
             self.meter = metrics.get_meter("devops_agent")
             
             # Initialize no-op metric attributes
-            self.operation_counter = self.meter.create_counter()
-            self.error_counter = self.meter.create_counter()
-            self.token_counter = self.meter.create_counter()
-            self.tool_usage_counter = self.meter.create_counter()
-            self.context_operations_counter = self.meter.create_counter()
-            self.operation_duration = self.meter.create_histogram()
-            self.llm_response_time = self.meter.create_histogram()
-            self.context_size = self.meter.create_histogram()
-            self.tool_execution_time = self.meter.create_histogram()
-            self.file_operation_size = self.meter.create_histogram()
-            self.active_tools = self.meter.create_up_down_counter()
-            self.context_cache_size = self.meter.create_up_down_counter()
+            self.operation_counter = self.meter.create_counter(name="noop_operation_counter")
+            self.error_counter = self.meter.create_counter(name="noop_error_counter")
+            self.token_counter = self.meter.create_counter(name="noop_token_counter")
+            self.tool_usage_counter = self.meter.create_counter(name="noop_tool_usage_counter")
+            self.context_operations_counter = self.meter.create_counter(name="noop_context_operations_counter")
+            self.operation_duration = self.meter.create_histogram(name="noop_operation_duration")
+            self.llm_response_time = self.meter.create_histogram(name="noop_llm_response_time")
+            self.context_size = self.meter.create_histogram(name="noop_context_size")
+            self.tool_execution_time = self.meter.create_histogram(name="noop_tool_execution_time")
+            self.file_operation_size = self.meter.create_histogram(name="noop_file_operation_size")
+            self.active_tools = self.meter.create_up_down_counter(name="noop_active_tools")
+            self.context_cache_size = self.meter.create_up_down_counter(name="noop_context_cache_size")
         
         # Performance tracking (always available for basic functionality)
         self.operation_metrics: Dict[str, List[float]] = {}
@@ -184,20 +169,20 @@ class DevOpsAgentTelemetry:
             return
             
         # Check if telemetry export is disabled
-        if os.getenv('DEVOPS_AGENT_DISABLE_TELEMETRY_EXPORT', '').lower() in ('true', '1', 'yes'):
+        if agent_config.DEVOPS_AGENT_DISABLE_TELEMETRY_EXPORT:
             logger.info("🚫 Telemetry export disabled via DEVOPS_AGENT_DISABLE_TELEMETRY_EXPORT")
             return
             
         # Check for Grafana Cloud configuration
-        grafana_otlp_endpoint = os.getenv('GRAFANA_OTLP_ENDPOINT')
-        grafana_otlp_token = os.getenv('GRAFANA_OTLP_TOKEN')
+        grafana_otlp_endpoint = agent_config.GRAFANA_OTLP_ENDPOINT
+        grafana_otlp_token = agent_config.GRAFANA_OTLP_TOKEN
         
         if grafana_otlp_endpoint and grafana_otlp_token:
             logger.info("Configuring Grafana Cloud OTLP export...")
             
             # Get export interval from environment or use default
-            export_interval_seconds = int(os.getenv('GRAFANA_EXPORT_INTERVAL_SECONDS', '120'))  # Default 2 minutes
-            export_timeout_seconds = int(os.getenv('GRAFANA_EXPORT_TIMEOUT_SECONDS', '30'))    # Default 30 seconds
+            export_interval_seconds = agent_config.GRAFANA_EXPORT_INTERVAL_SECONDS
+            export_timeout_seconds = agent_config.GRAFANA_EXPORT_TIMEOUT_SECONDS
             
             # Configure OTLP metric exporter for Grafana Cloud
             otlp_exporter = OTLPMetricExporter(
@@ -311,45 +296,52 @@ class DevOpsAgentTelemetry:
             unit="1"
         )
         
-        # Observable metrics for system resources
-        self.meter.create_observable_gauge(
-            name="devops_agent_memory_usage_mb",
-            callbacks=[self._get_memory_usage],
-            description="Current memory usage in MB"
-        )
+        # Observable metrics for system resources - only create if enabled
+        if self.enabled:
+            self.meter.create_observable_gauge(
+                name="devops_agent_memory_usage_mb",
+                callbacks=[self._get_memory_usage],
+                description="Current memory usage in MB"
+            )
+            
+            self.meter.create_observable_gauge(
+                name="devops_agent_avg_response_time",
+                callbacks=[self._get_avg_response_time],
+                description="Average response time over last N operations"
+            )
+            
+            # New: CPU usage gauge
+            self.meter.create_observable_gauge(
+                name="devops_agent_cpu_usage_percent",
+                callbacks=[self._get_cpu_usage],
+                description="Current CPU usage percentage"
+            )
+            
+            # New: Disk usage gauge
+            self.meter.create_observable_gauge(
+                name="devops_agent_disk_usage_mb",
+                callbacks=[self._get_disk_usage],
+                description="Current disk usage in MB"
+            )
         
-        self.meter.create_observable_gauge(
-            name="devops_agent_avg_response_time",
-            callbacks=[self._get_avg_response_time],
-            description="Average response time over last N operations"
-        )
-        
-        # New: CPU usage gauge
-        self.meter.create_observable_gauge(
-            name="devops_agent_cpu_usage_percent",
-            callbacks=[self._get_cpu_usage],
-            description="Current CPU usage percentage"
-        )
-        
-        # New: Disk usage gauge
-        self.meter.create_observable_gauge(
-            name="devops_agent_disk_usage_mb",
-            callbacks=[self._get_disk_usage],
-            description="Current disk usage in MB"
-        )
-        
-    def _get_memory_usage(self, options: CallbackOptions):
+    def _get_memory_usage(self, options):
         """Callback for memory usage metric."""
         try:
             import psutil
             process = psutil.Process()
             memory_mb = process.memory_info().rss / 1024 / 1024
-            yield Observation(memory_mb, {"component": "devops_agent"})
+            if self.enabled:
+                yield Observation(memory_mb, {"component": "devops_agent"})
+            else:
+                yield NoOpObservation(memory_mb, {"component": "devops_agent"})
         except ImportError:
             # Fallback if psutil not available
-            yield Observation(0, {"component": "devops_agent", "status": "unavailable"})
+            if self.enabled:
+                yield Observation(0, {"component": "devops_agent", "status": "unavailable"})
+            else:
+                yield NoOpObservation(0, {"component": "devops_agent", "status": "unavailable"})
     
-    def _get_avg_response_time(self, options: CallbackOptions):
+    def _get_avg_response_time(self, options):
         """Callback for average response time metric."""
         if self.operation_metrics:
             all_times = []
@@ -358,19 +350,28 @@ class DevOpsAgentTelemetry:
             
             if all_times:
                 avg_time = sum(all_times) / len(all_times)
-                yield Observation(avg_time, {"metric": "avg_response_time"})
+                if self.enabled:
+                    yield Observation(avg_time, {"metric": "avg_response_time"})
+                else:
+                    yield NoOpObservation(avg_time, {"metric": "avg_response_time"})
     
-    def _get_cpu_usage(self, options: CallbackOptions):
+    def _get_cpu_usage(self, options):
         """Callback for CPU usage metric."""
         try:
             import psutil
             cpu_percent = psutil.cpu_percent(interval=None)
-            yield Observation(cpu_percent, {"component": "devops_agent"})
+            if self.enabled:
+                yield Observation(cpu_percent, {"component": "devops_agent"})
+            else:
+                yield NoOpObservation(cpu_percent, {"component": "devops_agent"})
         except ImportError:
             # Fallback if psutil not available
-            yield Observation(0, {"component": "devops_agent", "status": "unavailable"})
+            if self.enabled:
+                yield Observation(0, {"component": "devops_agent", "status": "unavailable"})
+            else:
+                yield NoOpObservation(0, {"component": "devops_agent", "status": "unavailable"})
     
-    def _get_disk_usage(self, options: CallbackOptions):
+    def _get_disk_usage(self, options):
         """Callback for disk usage metric."""
         try:
             import psutil
@@ -378,10 +379,16 @@ class DevOpsAgentTelemetry:
             # Get disk usage for current working directory
             disk_usage = psutil.disk_usage(os.getcwd())
             used_mb = disk_usage.used / 1024 / 1024
-            yield Observation(used_mb, {"component": "devops_agent", "path": os.getcwd()})
+            if self.enabled:
+                yield Observation(used_mb, {"component": "devops_agent", "path": os.getcwd()})
+            else:
+                yield NoOpObservation(used_mb, {"component": "devops_agent", "path": os.getcwd()})
         except ImportError:
             # Fallback if psutil not available
-            yield Observation(0, {"component": "devops_agent", "status": "unavailable"})
+            if self.enabled:
+                yield Observation(0, {"component": "devops_agent", "status": "unavailable"})
+            else:
+                yield NoOpObservation(0, {"component": "devops_agent", "status": "unavailable"})
     
     def track_operation(self, operation_type: OperationType, operation_name: str = ""):
         """Decorator to track operation performance and errors."""
@@ -583,17 +590,17 @@ def track_tool_execution(tool_name: str = ""):
     return telemetry.track_operation(OperationType.TOOL_EXECUTION, tool_name)
 
 
-def track_llm_request(func: Callable) -> Callable:
+def track_llm_request_decorator(func: Callable) -> Callable:
     """Decorator for tracking LLM requests."""
     return telemetry.track_operation(OperationType.LLM_REQUEST)(func)
 
 
-def track_context_operation(func: Callable) -> Callable:
+def track_context_operation_decorator(func: Callable) -> Callable:
     """Decorator for tracking context management operations."""
     return telemetry.track_operation(OperationType.CONTEXT_MANAGEMENT)(func)
 
 
-def track_file_operation(operation_name: str = ""):
+def track_file_operation_decorator(operation_name: str = ""):
     """Decorator for tracking file operations."""
     return telemetry.track_operation(OperationType.FILE_OPERATION, operation_name)
 
@@ -616,6 +623,12 @@ def track_tool_usage(tool_name: str, execution_time: float, success: bool, **met
     })
 
 
+def track_llm_request(model: str, tokens_used: int, response_time: float, 
+                     prompt_tokens: int = 0, completion_tokens: int = 0):
+    """Track LLM request metrics."""
+    telemetry.track_llm_request(model, tokens_used, response_time, prompt_tokens, completion_tokens)
+
+
 def track_context_operation(operation: str, items_count: int = 0):
     """Track context management operations."""
     telemetry.context_operations_counter.add(1, {"operation": operation})
@@ -636,13 +649,13 @@ def get_openlit_metrics_status() -> dict:
     """Get status of OpenLIT metrics configuration."""
     return {
         "openlit_enabled": True,  # Always true since we initialize it
-        "gpu_monitoring": os.getenv('OPENLIT_COLLECT_GPU_STATS', 'true').lower() in ('true', '1', 'yes'),
-        "metrics_disabled": os.getenv('OPENLIT_DISABLE_METRICS', 'false').lower() in ('true', '1', 'yes'),
-        "environment": os.getenv('OPENLIT_ENVIRONMENT', 'Production'),
+        "gpu_monitoring": agent_config.OPENLIT_COLLECT_GPU_STATS,
+        "metrics_disabled": agent_config.OPENLIT_DISABLE_METRICS,
+        "environment": agent_config.OPENLIT_ENVIRONMENT,
         "available_metrics": {
             "llm_metrics": ["gen_ai.total.requests", "gen_ai.usage.input_tokens", "gen_ai.usage.output_tokens", "gen_ai.usage.total_tokens", "gen_ai.usage.cost"],
             "vectordb_metrics": ["db.total.requests"],
-            "gpu_metrics": ["gpu.utilization", "gpu.memory.used", "gpu.temperature", "gpu.power.draw"] if os.getenv('OPENLIT_COLLECT_GPU_STATS', 'true').lower() in ('true', '1', 'yes') else [],
+            "gpu_metrics": ["gpu.utilization", "gpu.memory.used", "gpu.temperature", "gpu.power.draw"] if agent_config.OPENLIT_COLLECT_GPU_STATS else [],
             "custom_agent_metrics": [
                 "devops_agent_operations_total",
                 "devops_agent_errors_total", 
@@ -656,4 +669,4 @@ def get_openlit_metrics_status() -> dict:
                 "devops_agent_disk_usage_mb"
             ]
         }
-    } 
+    }
