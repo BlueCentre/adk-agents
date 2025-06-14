@@ -24,18 +24,17 @@ classifiers = [
   #"License :: OSI Approved :: Apache Software License",
 ]
 dependencies = [
-  "chromadb~=1.0.8", # Using ~= for compatible releases with 1.0.x
+  "chromadb>=1.0.12", # Using newer version that might be compatible
   "google-genai~=1.19.0", # Migrated from google-generativeai
   "google-api-core>=2.19.0", # Updated for protobuf 5.x compatibility
   "protobuf>=5.0,<6.0", # Updated for OpenTelemetry compatibility
-  "openai~=1.10.0",
-  "tiktoken>=0.7.0,<0.8.0", # Compatible with openlit 1.33.x
-  "openlit>=1.33.20", # LLM observability - using newer version
+  "openai>=1.10.0", # Using latest stable version
+  "openlit>=1.33.20", # Using latest stable version
   "opentelemetry-api>=1.30.0,<2.0.0", # OpenTelemetry core - compatible with openlit
   "opentelemetry-sdk>=1.30.0,<2.0.0", # OpenTelemetry SDK - compatible with openlit
   "opentelemetry-exporter-otlp>=1.30.0,<2.0.0", # OTLP exporter for Grafana Cloud
   "psutil~=5.9.0", # System monitoring
-  "rich~=13.0.0", # Console output (for local dashboard if needed)
+  "rich>=13.7.0,<14.0.0", # Console output (for local dashboard if needed) - updated for crewai compatibility
   "prompt_toolkit~=3.0.0", # For enhanced command-line input
   "pexpect>=4.9.0",
   # "google-adk @ git+https://github.com/google/adk-python.git@main", # Added google-adk as a direct dependency
@@ -52,6 +51,71 @@ dynamic = ["version"]
 [project.scripts]
 agent = "wrapper.adk.cli:main"
 adk-agent = "google.adk.cli:main"
+
+[project.optional-dependencies]
+
+dev = [
+  # go/keep-sorted start
+  "flit>=3.10.0",
+  "isort>=6.0.0",
+  "pyink>=24.10.0",
+  "pylint>=2.6.0",
+  "mypy>=1.15.0",
+  # go/keep-sorted end
+]
+
+a2a = [
+  # go/keep-sorted start
+  # Temporarily disabled due to FastAPI version conflict with chromadb
+  # "a2a-sdk>=0.2.7;python_version>='3.10'"
+  # go/keep-sorted end
+]
+
+eval = [
+  # go/keep-sorted start
+  "google-cloud-aiplatform[evaluation]>=1.87.0",
+  "pandas>=2.2.3",
+  "tabulate>=0.9.0",
+  # go/keep-sorted end
+]
+
+test = [
+  # go/keep-sorted start
+  "anthropic>=0.43.0",               # For anthropic model tests
+  "langchain-community>=0.3.17",
+  "langgraph>=0.2.60",               # For LangGraphAgent
+  "litellm>=1.71.2",                 # For LiteLLM tests
+  "llama-index-readers-file>=0.4.0", # For retrieval tests
+
+  "pytest-asyncio>=0.25.0",
+  "pytest-mock>=3.14.0",
+  "pytest-xdist>=3.6.1",
+  "pytest>=8.3.4",
+  # go/keep-sorted end
+]
+
+docs = [
+  "autodoc_pydantic",
+  "furo",
+  "myst-parser",
+  "sphinx",
+  "sphinx-autodoc-typehints",
+  "sphinx-rtd-theme",
+]
+
+# Optional extensions
+extensions = [
+  "anthropic>=0.43.0",                    # For anthropic model support
+  "beautifulsoup4>=3.2.2",                # For load_web_page tool.
+  # "crewai[tools];python_version>='3.10'", # Temporarily disabled due to dependency conflicts
+  "docker>=7.0.0",                        # For ContainerCodeExecutor
+  "langgraph>=0.2.60",                    # For LangGraphAgent
+  "litellm>=1.63.11",                     # For LiteLLM support
+  "llama-index-readers-file>=0.4.0",      # For retrieval using LlamaIndex.
+  "lxml>=5.3.0",                          # For load_web_page tool.
+  "tiktoken>=0.7.0,<0.8.0",               # Using latest stable version
+  "toolbox-core>=0.1.0",                  # For tools.toolbox_toolset.ToolboxToolset
+]
 
 [build-system]
 requires = ["setuptools>=61.0"]
