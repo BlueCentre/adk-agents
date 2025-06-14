@@ -114,6 +114,14 @@ def should_enable_observability() -> bool:
     # Default: observability disabled for clean output
     return False
 
+# --- RAG and Tools Configuration ---
+CHROMA_DATA_PATH = os.getenv("CHROMA_DATA_PATH")
+SOFTWARE_ENGINEER_CONTEXT = os.getenv("SOFTWARE_ENGINEER_CONTEXT", "eval/project_context_empty.json")
+
+# --- Agent Control Configuration ---
+DEVOPS_AGENT_INTERACTIVE = os.getenv('DEVOPS_AGENT_INTERACTIVE', '').lower() in ('true', '1', 'yes')
+DEVOPS_AGENT_QUIET = os.getenv('DEVOPS_AGENT_QUIET', '').lower() in ('true', '1', 'yes')
+
 # --- Debugging and Development Configuration ---
 LOG_FULL_PROMPTS = os.getenv('LOG_FULL_PROMPTS', 'false').lower() == 'true'
 

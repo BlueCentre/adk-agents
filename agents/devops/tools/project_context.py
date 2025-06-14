@@ -5,10 +5,13 @@ import os
 
 from google.adk.agents.callback_context import CallbackContext
 
+# Import agent configuration
+from ..config import SOFTWARE_ENGINEER_CONTEXT
+
 # Define constants
 PROJECT_CONTEXT_KEY = "project_context"
 USER_PROFILE_KEY = "user_profile"
-DEFAULT_CONTEXT_PATH = os.getenv("SOFTWARE_ENGINEER_CONTEXT", "eval/project_context_empty.json")
+DEFAULT_CONTEXT_PATH = SOFTWARE_ENGINEER_CONTEXT
 
 
 def load_project_context(callback_context: CallbackContext):

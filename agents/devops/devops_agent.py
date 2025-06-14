@@ -845,7 +845,7 @@ Begin execution now, starting with the first step."""
             prompt_tokens = getattr(usage, 'prompt_token_count', 0)
             completion_tokens = getattr(usage, 'candidates_token_count', 0)
             total_tokens = getattr(usage, 'total_token_count', 0)
-            thinking_tokens = getattr(usage, 'thoughts_token_count', 0)
+            thinking_tokens = getattr(usage, 'thoughts_token_count', 0) or 0
             
             # Log thinking token usage if present
             if thinking_tokens > 0:
@@ -875,7 +875,7 @@ Begin execution now, starting with the first step."""
 
         if hasattr(llm_response, 'usage_metadata') and llm_response.usage_metadata:
             usage = llm_response.usage_metadata
-            thinking_tokens = getattr(usage, 'thoughts_token_count', 0)
+            thinking_tokens = getattr(usage, 'thoughts_token_count', 0) or 0
             
             # Display enhanced usage info including thinking tokens if present
             if thinking_tokens > 0:

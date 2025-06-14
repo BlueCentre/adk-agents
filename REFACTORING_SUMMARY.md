@@ -126,8 +126,48 @@ Successfully refactored the DevOps Agent codebase to centralize all environment 
 3. **Type Safety:** Improved boolean and numeric type conversion
 4. **Code Organization:** Better separation of concerns between configuration and implementation
 
-## Next Steps
-- Monitor for any remaining scattered `os.getenv()` calls in other DevOps agent files
+## Next Steps Completed
+
+### ✅ **Monitor for any remaining scattered `os.getenv()` calls in other DevOps agent files**
+**Completed:** All remaining scattered `os.getenv()` calls have been identified and refactored.
+
+#### Additional Files Refactored:
+5. **`agents/devops/tools/rag_components/indexing.py`** - 3 calls removed
+   - Replaced `os.getenv("CHROMA_DATA_PATH")` with `CONFIGURED_CHROMA_DATA_PATH`
+   - Replaced `os.getenv("GOOGLE_API_KEY")` calls with `GOOGLE_API_KEY` import
+   - Added import from `...config` module
+
+6. **`agents/devops/tools/project_context.py`** - 1 call removed
+   - Replaced `os.getenv("SOFTWARE_ENGINEER_CONTEXT", "eval/project_context_empty.json")` with `SOFTWARE_ENGINEER_CONTEXT`
+   - Added import from `..config` module
+
+7. **`agents/devops/tools/rag_components/retriever.py`** - 1 call removed
+   - Replaced `os.getenv("GOOGLE_API_KEY")` check with `GOOGLE_API_KEY` import
+   - Added import from `...config` module
+
+8. **`agents/devops/tracing.py`** - 6 calls removed
+   - Replaced `os.getenv('OPENLIT_CAPTURE_CONTENT', 'true')` with `OPENLIT_CAPTURE_CONTENT`
+   - Replaced `os.getenv('TRACE_SAMPLING_RATE', '1.0')` with `TRACE_SAMPLING_RATE`
+   - Replaced multiple `os.getenv()` calls in `get_trace_status()` method
+   - Added imports from `.config` module
+
+9. **`agents/devops/tools/file_summarizer_tool.py`** - 1 commented call cleaned up
+   - Removed commented out `os.getenv("SUMMARIZER_GEMINI_MODEL")` line
+   - Added note about centralized configuration
+
+#### New Environment Variables Added to config.py:
+- `CHROMA_DATA_PATH` - RAG component ChromaDB data path
+- `SOFTWARE_ENGINEER_CONTEXT` - Project context configuration file path  
+- `DEVOPS_AGENT_INTERACTIVE` - Interactive mode control
+- `DEVOPS_AGENT_QUIET` - Quiet mode control
+
+#### Final Status:
+✅ **All scattered `os.getenv()` calls have been successfully centralized!**
+
+**Total Files Refactored:** 9 files
+**Total os.getenv() calls removed:** 35+ calls (15 from agent.py + 10 from telemetry.py + 1 from devops_agent.py + 3 from indexing.py + 1 from project_context.py + 1 from retriever.py + 6 from tracing.py)
+
+## Remaining Next Steps
 - Consider adding validation for required environment variables
 - Add configuration schema documentation
 - Consider adding environment variable prefix support 

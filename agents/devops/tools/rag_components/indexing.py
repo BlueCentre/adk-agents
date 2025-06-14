@@ -1,4 +1,3 @@
-# /Users/james/Agents/devops_v2/rag_components/indexing.py
 import os
 import logging
 import chromadb
@@ -10,6 +9,9 @@ from google import genai as google_genai_sdk # Renamed to avoid conflict with a 
 from google.api_core import exceptions as google_exceptions
 from dotenv import load_dotenv # Added import
 from typing import List, Dict, Any, Optional
+
+# Import agent configuration
+from ...config import GOOGLE_API_KEY, CHROMA_DATA_PATH as CONFIGURED_CHROMA_DATA_PATH
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -23,7 +25,7 @@ def get_chroma_data_path():
     # Try multiple potential locations in order of preference
     potential_paths = [
         # 1. Environment variable (highest priority)
-        os.getenv("CHROMA_DATA_PATH"),
+        CONFIGURED_CHROMA_DATA_PATH,
         
         # 2. Current working directory + .index_data subfolder
         os.path.join(os.getcwd(), ".index_data", "chroma_data"),
@@ -70,7 +72,7 @@ EMBEDDING_MODEL_NAME = "models/text-embedding-004"
 
 # --- Google AI Client ---
 try:
-    api_key = os.getenv("GOOGLE_API_KEY")
+    api_key = GOOGLE_API_KEY
     if not api_key:
         logger.error("GOOGLE_API_KEY environment variable not set.")
         raise ValueError("GOOGLE_API_KEY not found in environment.")
@@ -323,7 +325,7 @@ def get_index_stats():
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(name)s - %(message)s')
     
-    if not os.getenv("GOOGLE_API_KEY"):
+    if not GOOGLE_API_KEY:
         logger.error("Please set the GOOGLE_API_KEY environment variable to run this example.")
     else:
         # Print out the data path being used

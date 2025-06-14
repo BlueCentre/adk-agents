@@ -2,6 +2,9 @@
 import logging
 import os
 
+# Import agent configuration
+from ...config import GOOGLE_API_KEY
+
 # Attempt to import components from the sibling indexing module
 # This allows sharing the initialized chroma_client and embedding_model_instance
 # when used as part of the larger agent.
@@ -91,7 +94,7 @@ if __name__ == '__main__':
 
 
     # This requires GOOGLE_API_KEY to be set in the environment if .indexing is not found
-    if not os.getenv("GOOGLE_API_KEY") and "indexing" not in globals():
+    if not GOOGLE_API_KEY and "indexing" not in globals():
          logger.error("Please set the GOOGLE_API_KEY environment variable to run this example if .indexing is not found.")
     else:
         logger.info("Attempting to retrieve chunks. Make sure you have indexed some data first (e.g., by running indexing.py example).")
@@ -122,4 +125,3 @@ if __name__ == '__main__':
                     print("Content:\n", chunk_dict['document'])
             else:
                 print(f"No chunks found for query: \"{another_query}\"")
-

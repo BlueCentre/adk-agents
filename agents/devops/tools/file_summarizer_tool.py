@@ -10,7 +10,7 @@ from .. import config as agent_config
 logger = logging.getLogger(__name__)
 
 # Configuration for the summarizer model
-# SUMMARIZER_MODEL_NAME = os.getenv("SUMMARIZER_GEMINI_MODEL", "gemini-1.5-flash-latest")
+# Note: Model configuration is now centralized in config.py
 # MAX_CONTENT_CHARS_FOR_SUMMARIZER_SINGLE_PASS = 200000
 
 
@@ -86,4 +86,3 @@ class FileSummarizerTool(FunctionTool):
         except Exception as e:
             logger.error(f"Error calling summarizer LLM for {filepath}: {e}")
             return {"summary": None, "error": f"An error occurred while calling the summarization model: {str(e)}"}
-

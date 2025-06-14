@@ -19,6 +19,14 @@ except ImportError:
 from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
 
+# Import agent configuration  
+from .config import (
+    OPENLIT_CAPTURE_CONTENT, 
+    TRACE_SAMPLING_RATE,
+    OPENLIT_DISABLE_BATCH,
+    OPENLIT_DISABLED_INSTRUMENTORS
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -59,8 +67,8 @@ class DevOpsAgentTracer:
         self.active_traces: Dict[str, Any] = {}
         
         # Configuration
-        self.capture_content = os.getenv('OPENLIT_CAPTURE_CONTENT', 'true').lower() in ('true', '1', 'yes')
-        self.trace_sampling_rate = float(os.getenv('TRACE_SAMPLING_RATE', '1.0'))
+        self.capture_content = OPENLIT_CAPTURE_CONTENT
+        self.trace_sampling_rate = TRACE_SAMPLING_RATE
         
         logger.info(f"DevOpsAgentTracer initialized - OpenLIT: {'✅' if self.openlit_available else '❌'}")
     
@@ -283,10 +291,10 @@ class DevOpsAgentTracer:
             "sampling_rate": self.trace_sampling_rate,
             "active_traces": len(self.active_traces),
             "configuration": {
-                "OPENLIT_CAPTURE_CONTENT": os.getenv('OPENLIT_CAPTURE_CONTENT', 'true'),
-                "OPENLIT_DISABLE_BATCH": os.getenv('OPENLIT_DISABLE_BATCH', 'false'),
-                "TRACE_SAMPLING_RATE": os.getenv('TRACE_SAMPLING_RATE', '1.0'),
-                "OPENLIT_DISABLED_INSTRUMENTORS": os.getenv('OPENLIT_DISABLED_INSTRUMENTORS', ''),
+                "OPENLIT_CAPTURE_CONTENT": OPENLIT_CAPTURE_CONTENT,
+                "OPENLIT_DISABLE_BATCH": OPENLIT_DISABLE_BATCH,
+                "TRACE_SAMPLING_RATE": TRACE_SAMPLING_RATE,
+                "OPENLIT_DISABLED_INSTRUMENTORS": OPENLIT_DISABLED_INSTRUMENTORS,
             }
         }
 
@@ -366,4 +374,4 @@ def create_grouped_trace(name: str, operations: List[Callable]):
             results.append(op())
         return results
     
-    return grouped_operation() 
+    return grouped_operation()
