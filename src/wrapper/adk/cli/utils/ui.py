@@ -203,7 +203,16 @@ class EnhancedCLI:
         self.theme_config = ThemeConfig.get_theme_config(self.theme)
         self.rich_theme = ThemeConfig.get_rich_theme(self.theme)
         self.status_bar = StatusBar(self.theme)
-        self.console = Console(theme=self.rich_theme)
+        # Configure console to preserve scrollback behavior
+        self.console = Console(
+            theme=self.rich_theme,
+            force_interactive=False,  # Disable animations that might interfere with scrollback
+            legacy_windows=False,     # Use modern terminal features
+            soft_wrap=True,           # Enable soft wrapping to prevent cropping
+            no_color=False,           # Keep colors but ensure compatibility
+            width=None,               # Auto-detect width to avoid fixed sizing issues
+            height=None               # Auto-detect height to avoid fixed sizing issues
+        )
         
     def _detect_theme(self) -> UITheme:
         """Auto-detect theme from environment variables."""
@@ -258,6 +267,8 @@ class EnhancedCLI:
                 'create helm chart for', 'write terraform code for', 'setup CI/CD pipeline',
                 'configure github actions', 'setup monitoring for', 'add logging to',
                 'create health checks', 'setup load balancer', 'configure autoscaling',
+                'list the k8s clusters and indicate the current one',
+                'list all the user applications in the qa- namespaces on the current k8s cluster',
             ],
             '📦 Deployment & Operations': [
                 'deploy to production', 'deploy to staging', 'rollback deployment',
@@ -266,8 +277,8 @@ class EnhancedCLI:
             ],
             '🔧 Development Workflow': [
                 'create new feature branch', 'merge pull request', 'tag new release',
-                'update changelog', 'bump version number', 'run security scan',
-                'run performance tests', 'generate documentation',
+                'update changelog', 'bump version number', 'execute regression tests',
+                'run security scan', 'run performance tests', 'generate documentation',
             ],
             '⚙️ CLI Commands': [
                 'exit', 'quit', 'bye', 'help', 'clear', 'theme toggle', 'theme dark', 'theme light',
@@ -326,12 +337,15 @@ class EnhancedCLI:
             auto_suggest=AutoSuggestFromHistory(),
             history=history,
             multiline=False,
-            mouse_support=True,
+            mouse_support=False,
             wrap_lines=True,
             enable_history_search=True,
             prompt_continuation=lambda width, line_number, is_soft_wrap: "     > " if not is_soft_wrap else "",
             bottom_toolbar=lambda: self._safe_format_toolbar(agent_name, session_id),
             reserve_space_for_menu=4,
+            # Preserve terminal scrollback behavior
+            refresh_interval=0.1,  # Reduce refresh rate to minimize interference
+            input_processors=[],   # Disable input processors that might interfere
         )
     
     def _safe_format_toolbar(self, agent_name: str, session_id: str) -> str:
@@ -348,7 +362,15 @@ class EnhancedCLI:
         self.theme_config = ThemeConfig.get_theme_config(self.theme)
         self.rich_theme = ThemeConfig.get_rich_theme(self.theme)
         self.status_bar.theme = self.theme
-        self.console = Console(theme=self.rich_theme)
+        self.console = Console(
+            theme=self.rich_theme,
+            force_interactive=False,  # Disable animations that might interfere with scrollback
+            legacy_windows=False,     # Use modern terminal features
+            soft_wrap=True,           # Enable soft wrapping to prevent cropping
+            no_color=False,           # Keep colors but ensure compatibility
+            width=None,               # Auto-detect width to avoid fixed sizing issues
+            height=None               # Auto-detect height to avoid fixed sizing issues
+        )
         
         theme_name = "🌒 Dark" if self.theme == UITheme.DARK else "🌞 Light"
         self.console.print(f"[info]Switched to {theme_name} theme[/info]")
@@ -360,7 +382,15 @@ class EnhancedCLI:
             self.theme_config = ThemeConfig.get_theme_config(self.theme)
             self.rich_theme = ThemeConfig.get_rich_theme(self.theme)
             self.status_bar.theme = self.theme
-            self.console = Console(theme=self.rich_theme)
+            self.console = Console(
+                theme=self.rich_theme,
+                force_interactive=False,  # Disable animations that might interfere with scrollback
+                legacy_windows=False,     # Use modern terminal features
+                soft_wrap=True,           # Enable soft wrapping to prevent cropping
+                no_color=False,           # Keep colors but ensure compatibility
+                width=None,               # Auto-detect width to avoid fixed sizing issues
+                height=None               # Auto-detect height to avoid fixed sizing issues
+            )
             
             theme_name = "🌒 Dark" if self.theme == UITheme.DARK else "🌞 Light"
             self.console.print(f"[info]Set theme to {theme_name}[/info]")

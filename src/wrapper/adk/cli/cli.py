@@ -19,8 +19,8 @@ from typing import Optional
 
 import rich_click as click
 from rich.console import Console
-from rich.markdown import Markdown
-from rich.panel import Panel
+# from rich.markdown import Markdown
+# from rich.panel import Panel
 from prompt_toolkit.patch_stdout import patch_stdout
 
 from google.genai import types
@@ -30,6 +30,7 @@ from google.adk.agents.llm_agent import LlmAgent
 from google.adk.agents.base_agent import BaseAgent
 from google.adk.artifacts import BaseArtifactService
 from google.adk.artifacts import InMemoryArtifactService
+from google.adk.events.event import Event
 from google.adk.runners import Runner
 from google.adk.sessions.base_session_service import BaseSessionService
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
@@ -38,7 +39,6 @@ from .utils import envs
 from .utils.agent_loader import AgentLoader
 from .utils.envs import load_dotenv_for_agent
 from .utils.ui import get_cli_instance, UITheme
-from google.adk.events.event import Event
 
 
 class InputFile(BaseModel):
@@ -103,8 +103,13 @@ async def run_interactively(
       session_service=session_service,
   )
   
-  # Initialize basic console for fallback
-  console = Console()
+  # Initialize basic console for fallback with scrollback-friendly settings
+  console = Console(
+      force_interactive=False,  # Disable animations that might interfere with scrollback
+      soft_wrap=True,           # Enable soft wrapping to prevent cropping
+      width=None,               # Auto-detect width to avoid fixed sizing issues
+      height=None               # Auto-detect height to avoid fixed sizing issues
+  )
   
   # Initialize enhanced CLI with theming
   try:
@@ -276,8 +281,13 @@ async def run_cli(
       If not provided, auto-detects from environment.
   """
 
-  # Initialize Rich Console
-  console = Console()
+  # Initialize Rich Console with scrollback-friendly settings
+  console = Console(
+      force_interactive=False,  # Disable animations that might interfere with scrollback
+      soft_wrap=True,           # Enable soft wrapping to prevent cropping
+      width=None,               # Auto-detect width to avoid fixed sizing issues
+      height=None               # Auto-detect height to avoid fixed sizing issues
+  )
 
   artifact_service = InMemoryArtifactService()
   session_service = InMemorySessionService()

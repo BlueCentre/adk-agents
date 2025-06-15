@@ -179,7 +179,7 @@ def validate_exclusive(ctx, param, value):
   return value
 
 
-@main.command("run", cls=HelpfulCommand)
+@main.command("run")
 @click.option(
     "--save_session",
     type=bool,
