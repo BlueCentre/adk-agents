@@ -271,7 +271,8 @@ def _strip_rich_markup(text: str) -> str:
     temp_console = Console(
         file=string_io, 
         force_terminal=False, 
-        # width=120, 
+        # width=120,
+        width=None,
         legacy_windows=False,
         force_jupyter=False,
         _environ={}
@@ -384,6 +385,9 @@ async def run_interactively_with_interruption(
   
     # Initialize the interruptible CLI
     cli = get_interruptible_cli_instance(ui_theme)
+    
+    # Set agent name for status bar display
+    cli.set_agent_name(root_agent.name)
     
     # Display comprehensive welcome message with agent info
     agent_description = getattr(root_agent, 'description', '')

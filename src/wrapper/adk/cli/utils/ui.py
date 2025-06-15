@@ -485,9 +485,52 @@ class EnhancedCLI:
         self.console.print()
 
     def add_agent_output(self, text: str, author: str = "Agent"):
-        """Add agent output with Rich Panel formatting, matching the regular CLI style."""
-        panel = self.format_agent_response(text, author)
-        self.console.print(panel)
+        """Add agent output with the same Rich Panel formatting as EnhancedCLI."""
+        # Use the same formatting logic as EnhancedCLI for consistency
+        markdown_text = Markdown(text)
+        
+        # Use the same panel style as EnhancedCLI
+        if self.theme == UITheme.DARK:
+            border_style = "green"
+            title_style = "bold green"
+        else:
+            border_style = "dark_green" 
+            title_style = "bold dark_green"
+            
+        panel = Panel(
+            markdown_text,
+            title=f"🤖 [{title_style}]{author}[/{title_style}]",
+            border_style=border_style,
+            expand=False,  # Don't expand to avoid extra width issues
+            padding=(0, 1)  # Minimal padding to prevent over-indentation
+        )
+        
+        # Get terminal size and calculate appropriate width for the pane
+        import shutil
+        try:
+            terminal_width = shutil.get_terminal_size().columns
+            # Account for frame borders and padding - leave some margin
+            # panel_width = max(80, terminal_width - 6)  # Minimum 80, subtract for borders/padding
+            panel_width = max(80, terminal_width)  # Minimum 80, subtract for borders/padding
+        except:
+            panel_width = 120  # Fallback width
+        
+        # Render panel to string format that works with prompt_toolkit
+        from io import StringIO
+        string_io = StringIO()
+        temp_console = Console(
+            file=string_io,
+            force_terminal=False,
+            width=panel_width,  # Use calculated width to fit the pane
+            legacy_windows=False,
+        )
+        
+        # Print the panel
+        temp_console.print(panel, crop=False, overflow="ignore")
+        panel_text = string_io.getvalue()
+        
+        # Add the formatted panel to output
+        self._add_to_output(panel_text.rstrip(), style="agent", skip_markdown=True)
 
     def _add_to_output(self, text: str, style: str = "", skip_markdown: bool = False):
         """Add text to the output buffer for interruptible CLI mode."""
@@ -502,12 +545,6 @@ class EnhancedCLI:
         else:
             # Fallback to console print
             self.console.print(text)
-
-    def _update_status(self):
-        """Update the status buffer."""
-        if hasattr(self, 'status_buffer') and self.status_buffer:
-            status_text = f"Agent: {'running' if self.agent_running else 'ready'} | Theme: {self.theme.value}"
-            self.status_buffer.text = status_text
 
     def _clean_input_buffer(self):
         """Clean the input buffer."""
@@ -627,19 +664,12 @@ class EnhancedCLI:
             app.layout.focus(self.input_buffer)
             print(f"DEBUG: Focus set to input buffer: {self.input_buffer}")
         
-        # Start periodic cleanup task
-        self._start_cleanup_task()
-        
-        # Initialize status
-        self._update_status()
-        
         return app
 
     def display_agent_welcome(self, agent_name: str, agent_description: str = "", tools: Optional[list] = None):
         """Display a comprehensive welcome message with agent information and capabilities."""
         theme_indicator = "🌒" if self.theme == UITheme.DARK else "🌞"
         
-        # Welcome ASCII Art Logo
         welcome_msg = f"""
                 ▄▀█ █   ▄▀█ █▀▀ █▀▀ █▄█ ▀█▀
                 █▀█ █   █▀█ █▄█ █▄▄ █░█ ░█░
@@ -657,130 +687,16 @@ Session started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
 Features:
 • Split-pane interface with persistent input
-• Type commands while agent is responding
+• Type commands while agent is responding  
 • Press Ctrl+C to interrupt long-running agent operations
 • Real-time status updates and themed interface
-• Markdown rendering for formatted responses (Ctrl+M to toggle)
-"""
-        
-        # Add comprehensive tools information if available
-        if tools:
-            # Categorize tools for better organization
-            tool_categories = {
-                'filesystem': [],
-                'shell': [],
-                'analysis': [],
-                'search': [],
-                'rag': [],
-                'memory': [],
-                'other': []
-            }
-            
-            for tool in tools:
-                tool_name = getattr(tool, 'name', 'unknown')
-                tool_desc = getattr(tool, 'description', 'No description available')
-                
-                # Categorize based on tool name patterns
-                if any(keyword in tool_name.lower() for keyword in ['file', 'dir', 'read', 'write', 'edit']):
-                    tool_categories['filesystem'].append((tool_name, tool_desc))
-                elif any(keyword in tool_name.lower() for keyword in ['shell', 'command', 'execute']):
-                    tool_categories['shell'].append((tool_name, tool_desc))
-                elif any(keyword in tool_name.lower() for keyword in ['analyze', 'analysis', 'code']):
-                    tool_categories['analysis'].append((tool_name, tool_desc))
-                elif any(keyword in tool_name.lower() for keyword in ['search', 'google', 'grounding']):
-                    tool_categories['search'].append((tool_name, tool_desc))
-                elif any(keyword in tool_name.lower() for keyword in ['rag', 'index', 'retrieve', 'context']):
-                    tool_categories['rag'].append((tool_name, tool_desc))
-                elif any(keyword in tool_name.lower() for keyword in ['memory', 'session', 'save', 'load']):
-                    tool_categories['memory'].append((tool_name, tool_desc))
-                else:
-                    tool_categories['other'].append((tool_name, tool_desc))
-            
-            welcome_msg += f"\n📋 Available Agent Tools ({len(tools)} total):\n"
-            
-            # Display categorized tools
-            category_icons = {
-                'filesystem': '📁',
-                'shell': '🐚',
-                'analysis': '🔍',
-                'search': '🔎',
-                'rag': '🧠',
-                'memory': '💾',
-                'other': '🔧'
-            }
-            
-            category_names = {
-                'filesystem': 'File System Tools',
-                'shell': 'Shell & Command Tools',
-                'analysis': 'Code Analysis Tools',
-                'search': 'Search & Grounding Tools',
-                'rag': 'RAG & Context Tools',
-                'memory': 'Memory & Session Tools',
-                'other': 'Other Tools'
-            }
-            
-            for category, tool_list in tool_categories.items():
-                if tool_list:
-                    icon = category_icons.get(category, '🔧')
-                    cat_name = category_names.get(category, category.title())
-                    welcome_msg += f"\n  {icon} {cat_name} ({len(tool_list)}):\n"
-                    
-                    for tool_name, tool_desc in tool_list[:5]:  # Show first 5 tools per category
-                        # Truncate long descriptions
-                        if tool_desc and len(tool_desc) > 80:
-                            tool_desc = tool_desc[:77] + "..."
-                        welcome_msg += f"    • {tool_name} - {tool_desc}\n"
-                    
-                    if len(tool_list) > 5:
-                        welcome_msg += f"    ... and {len(tool_list) - 5} more {category} tools\n"
-        
-        # Try to get environment capabilities
-        try:
-            # Import the tool discovery from devops agent if available
-            from agents.devops.tools.dynamic_discovery import tool_discovery
-            env_capabilities = tool_discovery.discover_environment_capabilities()
-            
-            available_tools = [t for t in env_capabilities.tools.values() if t.available]
-            if available_tools:
-                welcome_msg += f"\n🌐 Environment Tools ({len(available_tools)} available):\n"
-                for tool in available_tools[:8]:  # Show first 8 environment tools
-                    welcome_msg += f"  ✅ {tool.name} v{tool.version} - {tool.description}\n"
-                
-                if len(available_tools) > 8:
-                    welcome_msg += f"  ... and {len(available_tools) - 8} more available\n"
-            
-            unavailable_count = len([t for t in env_capabilities.tools.values() if not t.available])
-            if unavailable_count > 0:
-                welcome_msg += f"\n💡 Note: {unavailable_count} additional environment tools could be installed\n"
-        
-        except Exception as e:
-            # If we can't get environment capabilities, that's okay
-            pass
-        
-        welcome_msg += """\n
-🎯 Quick Start:
-  • Type your questions or commands naturally
-  • Use 'help' to see available commands
-  • Press Ctrl+C to interrupt long-running operations
-  • Press Ctrl+M to toggle markdown rendering
-  • Press Ctrl+T to switch themes
+• Rich formatted agent responses with panels and markdown
 
 Ready for your DevOps challenges! 🚀
 """
         
         self._add_to_output(welcome_msg, style="welcome")
         self._add_to_output("✅ Interruptible CLI initialized successfully! The agent is ready for your questions.", style="info")
-    
-    def _start_cleanup_task(self):
-        """Start a periodic task to clean the input buffer."""
-        async def cleanup_loop():
-            while True:
-                await asyncio.sleep(0.5)  # Check every 500ms
-                self._clean_input_buffer()
-                self._update_status()
-        
-        # Start the cleanup task
-        asyncio.create_task(cleanup_loop())
     
     def cleanup(self):
         """Clean up resources."""
@@ -805,6 +721,7 @@ Ready for your DevOps challenges! 🚀
                 file=string_io,
                 force_terminal=False,
                 # width=200,  # Much wider to prevent truncation
+                width=None,  # Much wider to prevent truncation
                 # no_color=True,  # No ANSI codes for prompt_toolkit compatibility
                 legacy_windows=False,
             )
@@ -913,6 +830,11 @@ class InterruptibleCLI:
         self.input_callback: Optional[Callable[[str], Awaitable[None]]] = None
         self.interrupt_callback: Optional[Callable[[], Awaitable[None]]] = None
         
+        # Session and agent info
+        import uuid
+        self.session_id = str(uuid.uuid4())
+        self.agent_name = "agent"  # Default agent name
+        
         # Markdown rendering toggle
         self.markdown_enabled = True  # Enable markdown by default
         
@@ -923,6 +845,11 @@ class InterruptibleCLI:
         
         self._setup_layout()
         self._setup_key_bindings()
+
+    def set_agent_name(self, agent_name: str):
+        """Set the agent name for display in status bar."""
+        self.agent_name = agent_name
+        self._update_status()
         
     def _setup_layout(self):
         """Setup the split-pane layout."""
@@ -945,9 +872,12 @@ class InterruptibleCLI:
             wrap_lines=True,
         )
         
-        # Status area (single line at bottom)
+        # Status area with FormattedTextControl for proper styling
         status_window = Window(
-            content=BufferControl(buffer=self.status_buffer),
+            content=FormattedTextControl(
+                text=self._get_formatted_status,
+                focusable=False,
+            ),
             height=1,
             style="class:bottom-toolbar"
         )
@@ -1037,8 +967,30 @@ class InterruptibleCLI:
         self.output_buffer.text = new_text
 
     def _update_status(self):
-        """Update the status buffer."""
-        status_text = f"Agent: {'running' if self.agent_running else 'ready'} | Theme: {self.theme.value}"
+        """Update the status buffer with properly styled formatting matching regular CLI."""
+        # Create formatted status segments like regular CLI
+        from prompt_toolkit.formatted_text import FormattedText
+        
+        now = datetime.now()
+        uptime = now - self.status_bar.session_start_time
+        uptime_str = f"{uptime.seconds // 3600:02d}:{(uptime.seconds % 3600) // 60:02d}:{uptime.seconds % 60:02d}"
+        
+        # Create status segments with proper styling
+        formatted_parts = [
+            ('class:bottom-toolbar.accent', f' 🤖 {self.agent_name} '),
+            ('class:bottom-toolbar', ' | '),
+            ('class:bottom-toolbar.info', f' Session: {self.session_id[:8]}... '),
+            ('class:bottom-toolbar', ' | '),
+            ('class:bottom-toolbar.info', f' Uptime: {uptime_str} '),
+            ('class:bottom-toolbar', ' | '),
+            ('class:bottom-toolbar.accent', f' {now.strftime("%H:%M:%S")} '),
+            ('class:bottom-toolbar', ' | '),
+            ('class:bottom-toolbar', ' 💡 Enter:send | Alt+Enter:multi-line | Ctrl+D:exit | Ctrl+L:clear | Ctrl+C:interrupt'),
+        ]
+        
+        # Convert to text for the buffer (FormattedText won't work in Buffer)
+        # But we'll style the status window separately
+        status_text = self.status_bar.format_toolbar(self.agent_name, self.session_id)
         self.status_buffer.text = status_text
 
     def add_agent_output(self, text: str, author: str = "Agent"):
@@ -1058,8 +1010,18 @@ class InterruptibleCLI:
             markdown_text,
             title=f"🤖 [{title_style}]{author}[/{title_style}]",
             border_style=border_style,
-            expand=True
+            expand=False,  # Don't expand to avoid extra width issues
+            padding=(0, 1)  # Minimal padding to prevent over-indentation
         )
+        
+        # Get terminal size and calculate appropriate width for the pane
+        import shutil
+        try:
+            terminal_width = shutil.get_terminal_size().columns
+            # Account for frame borders and padding - leave some margin
+            panel_width = max(80, terminal_width - 6)  # Minimum 80, subtract for borders/padding
+        except:
+            panel_width = 120  # Fallback width
         
         # Render panel to string format that works with prompt_toolkit
         from io import StringIO
@@ -1067,7 +1029,7 @@ class InterruptibleCLI:
         temp_console = Console(
             file=string_io,
             force_terminal=False,
-            width=120,  # Wider width for better formatting
+            width=panel_width,  # Use calculated width to fit the pane
             legacy_windows=False,
         )
         
@@ -1146,6 +1108,33 @@ Ready for your DevOps challenges! 🚀
         self._add_to_output(welcome_msg, style="welcome")
         self._add_to_output("✅ Interruptible CLI initialized successfully! The agent is ready for your questions.", style="info")
 
+    def cleanup(self):
+        """Clean up CLI resources."""
+        pass  # No specific cleanup needed for InterruptibleCLI
+
+    def _get_formatted_status(self):
+        """Get formatted status for the status bar with proper styling."""
+        from prompt_toolkit.formatted_text import FormattedText
+        
+        now = datetime.now()
+        uptime = now - self.status_bar.session_start_time
+        uptime_str = f"{uptime.seconds // 3600:02d}:{(uptime.seconds % 3600) // 60:02d}:{uptime.seconds % 60:02d}"
+        
+        # Create status segments with proper styling like regular CLI
+        formatted_parts = [
+            ('class:bottom-toolbar.accent', f' 🤖 {self.agent_name} '),
+            ('class:bottom-toolbar', ' | '),
+            ('class:bottom-toolbar.info', f' Session: {self.session_id[:8]}... '),
+            ('class:bottom-toolbar', ' | '),
+            ('class:bottom-toolbar.info', f' Uptime: {uptime_str} '),
+            ('class:bottom-toolbar', ' | '),
+            ('class:bottom-toolbar.accent', f' {now.strftime("%H:%M:%S")} '),
+            ('class:bottom-toolbar', ' | '),
+            ('class:bottom-toolbar', ' 💡 Enter:send | Alt+Enter:multi-line | Ctrl+D:exit | Ctrl+L:clear | Ctrl+C:interrupt'),
+        ]
+        
+        return FormattedText(formatted_parts)
+
 
 def get_interruptible_cli_instance(theme: Optional[str] = None) -> InterruptibleCLI:
     """Factory function to create an InterruptibleCLI instance with enhanced agent response formatting."""
@@ -1167,4 +1156,4 @@ def get_cli_instance(theme: Optional[str] = None) -> EnhancedCLI:
         except ValueError:
             pass  # Use auto-detected theme
     
-    return EnhancedCLI(ui_theme) 
+    return EnhancedCLI(ui_theme)
