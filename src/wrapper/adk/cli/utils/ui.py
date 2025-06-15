@@ -931,6 +931,32 @@ class InterruptibleCLI:
             else:
                 self._add_to_output("💡 Type a message and press Enter to send it to the agent", style="info")
         
+        # Alt+Enter for newline (multi-line input)
+        @self.bindings.add('escape', 'enter')
+        def _(event):
+            """Insert newline for multi-line input."""
+            self.input_buffer.insert_text('\n')
+        
+        # Ctrl+T for theme toggle
+        @self.bindings.add('c-t')
+        def _(event):
+            """Toggle theme with Ctrl+T."""
+            self.toggle_theme()
+            event.app.invalidate()  # Refresh the display
+        
+        # Ctrl+L for clear screen
+        @self.bindings.add('c-l')
+        def _(event):
+            """Clear the output buffer."""
+            self.output_buffer.text = ""
+            self._add_to_output("🧹 Screen cleared", style="info")
+        
+        # Ctrl+D for graceful exit
+        @self.bindings.add('c-d')
+        def _(event):
+            """Exit gracefully with Ctrl+D."""
+            event.app.exit()
+        
         @self.bindings.add('c-c')
         def _(event):
             """Interrupt running agent."""
@@ -1134,6 +1160,21 @@ Ready for your DevOps challenges! 🚀
         ]
         
         return FormattedText(formatted_parts)
+
+    def toggle_theme(self) -> None:
+        """Toggle between light and dark themes."""
+        self.theme = UITheme.LIGHT if self.theme == UITheme.DARK else UITheme.DARK
+        self.theme_config = ThemeConfig.get_theme_config(self.theme)
+        self.rich_theme = ThemeConfig.get_rich_theme(self.theme)
+        self.status_bar.theme = self.theme
+        self.console = Console(theme=self.rich_theme, force_interactive=False)
+        
+        theme_name = "🌒 Dark" if self.theme == UITheme.DARK else "🌞 Light"
+        self._add_to_output(f"🎨 Switched to {theme_name} theme", style="info")
+        
+        # Recreate the application with new theme
+        # Note: In a real implementation, you'd want to update the existing app's style
+        # For now, we'll just show the message
 
 
 def get_interruptible_cli_instance(theme: Optional[str] = None) -> InterruptibleCLI:
