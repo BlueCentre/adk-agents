@@ -182,20 +182,6 @@ class StatusBar:
         return ''.join(toolbar_parts)
 
 
-def get_interruptible_cli_instance(theme: Optional[str] = None):
-    """Factory function to create an InterruptibleCLI instance with enhanced agent response formatting."""
-    from .ui_prompt_toolkit import InterruptibleCLI
-    from .ui_rich import RichRenderer
-    ui_theme: Optional[UITheme] = None
-    if theme:
-        try:
-            ui_theme = UITheme(theme.lower())
-        except ValueError:
-            pass  # Use auto-detected theme
-    
-    rich_renderer = RichRenderer(ui_theme)
-    return InterruptibleCLI(ui_theme, rich_renderer)
-
 def get_cli_instance(theme: Optional[str] = None):
     """Factory function to create a CLI instance with the specified theme."""
     from .ui_prompt_toolkit import EnhancedCLI
@@ -209,3 +195,17 @@ def get_cli_instance(theme: Optional[str] = None):
     
     rich_renderer = RichRenderer(ui_theme)
     return EnhancedCLI(ui_theme, rich_renderer)
+
+def get_interruptible_cli_instance(theme: Optional[str] = None):
+    """Factory function to create an InterruptibleCLI instance with enhanced agent response formatting."""
+    from .ui_prompt_toolkit import InterruptibleCLI
+    from .ui_rich import RichRenderer
+    ui_theme: Optional[UITheme] = None
+    if theme:
+        try:
+            ui_theme = UITheme(theme.lower())
+        except ValueError:
+            pass  # Use auto-detected theme
+    
+    rich_renderer = RichRenderer(ui_theme)
+    return InterruptibleCLI(ui_theme, rich_renderer)
