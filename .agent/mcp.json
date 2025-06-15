@@ -36,7 +36,8 @@
       "env": {
         "DATADOG_API_KEY": "{{env.DATADOG_API_KEY}}",
         "DATADOG_APP_KEY": "{{env.DATADOG_APP_KEY}}"
-      }
+      },
+      "suppress_output": true
     }
   }
 }

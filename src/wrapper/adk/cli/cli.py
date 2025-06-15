@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 from typing import Optional
 
@@ -22,6 +23,7 @@ from rich.console import Console
 # from rich.markdown import Markdown
 # from rich.panel import Panel
 from prompt_toolkit.patch_stdout import patch_stdout
+from contextlib import redirect_stdout, redirect_stderr
 
 from google.genai import types
 from pydantic import BaseModel
@@ -38,7 +40,7 @@ from google.adk.sessions.session import Session
 from .utils import envs
 from .utils.agent_loader import AgentLoader
 from .utils.envs import load_dotenv_for_agent
-from .utils.ui import get_cli_instance, UITheme
+from .utils.ui import get_cli_instance, get_interruptible_cli_instance, UITheme
 
 
 class InputFile(BaseModel):
@@ -257,6 +259,223 @@ def _filter_thought_content(text: str) -> str:
   return '\n'.join(filtered_lines)
 
 
+def _strip_rich_markup(text: str) -> str:
+  """Aggressively strip Rich markup, panels, and ANSI codes from text."""
+  import re
+  from rich.console import Console
+  from io import StringIO
+  
+  try:
+    # Create a console that outputs plain text
+    string_io = StringIO()
+    temp_console = Console(
+        file=string_io, 
+        force_terminal=False, 
+        width=120, 
+        legacy_windows=False,
+        force_jupyter=False,
+        _environ={}
+    )
+    
+    # Print the text and capture plain output
+    temp_console.print(text, markup=False, highlight=False, crop=False, overflow="ignore")
+    rendered_text = string_io.getvalue()
+    
+  except Exception:
+    rendered_text = text
+  
+  # Remove box drawing characters and panel borders (comprehensive set)
+  box_chars = r'[┌┐└┘├┤┬┴┼─│╭╮╰╯╠╣╦╩╬═║╔╗╚╝╠╣╦╩╬▀▄█▌▐░▒▓■□▪▫▬▲►▼◄◊○●◦☼♠♣♥♦♪♫☺☻♂♀]'
+  clean_text = re.sub(box_chars, '', rendered_text)
+  
+  # Remove panel structures completely
+  panel_patterns = [
+      r'╭[─]*.*?─*╮',  # Panel tops
+      r'╰[─]*.*?─*╯',  # Panel bottoms  
+      r'│.*?│',        # Panel sides (but preserve content)
+      r'┌[─]*.*?─*┐',  # Box tops
+      r'└[─]*.*?─*┘',  # Box bottoms
+  ]
+  
+  for pattern in panel_patterns:
+      clean_text = re.sub(pattern, '', clean_text, flags=re.DOTALL)
+  
+  # Remove Rich markup patterns
+  markup_patterns = [
+      r'\[/?bold\]',
+      r'\[/?italic\]', 
+      r'\[/?underline\]',
+      r'\[/?dim\]',
+      r'\[/?bright\]',
+      r'\[/?reverse\]',
+      r'\[/?strike\]',
+      r'\[/?blink\]',
+      r'\[/?conceal\]',
+      r'\[/?[a-z_]+\]',  # Any other markup tags
+      r'\[/?#[0-9a-fA-F]{6}\]',  # Hex colors
+      r'\[/?rgb\(\d+,\d+,\d+\)\]',  # RGB colors
+      r'\[/?on [a-z_]+\]',  # Background colors
+  ]
+  
+  for pattern in markup_patterns:
+      clean_text = re.sub(pattern, '', clean_text, flags=re.IGNORECASE)
+  
+  # Remove ANSI escape sequences
+  ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+  clean_text = ansi_escape.sub('', clean_text)
+  
+  # Extract meaningful content from specific patterns
+  # Handle Token Usage patterns
+  token_match = re.search(r'Token Usage[:\s]*([^│\n\r]*)', clean_text, re.IGNORECASE)
+  if token_match:
+      token_info = token_match.group(1).strip()
+      clean_text = re.sub(r'.*Token Usage.*?(?=\n\n|\n[A-Z]|\Z)', f'Token Usage: {token_info}', clean_text, flags=re.DOTALL | re.IGNORECASE)
+  
+  # Handle Agent Thought/Thinking patterns  
+  thought_match = re.search(r'Agent (?:Thought|Thinking)[:\s]*(.*?)(?=\n\n|\n[A-Z]|\Z)', clean_text, re.DOTALL | re.IGNORECASE)
+  if thought_match:
+      thought_content = thought_match.group(1).strip()
+      clean_text = re.sub(r'.*Agent (?:Thought|Thinking).*?(?=\n\n|\n[A-Z]|\Z)', f'Agent Thought: {thought_content}', clean_text, flags=re.DOTALL | re.IGNORECASE)
+  
+  # Clean up whitespace and normalize
+  clean_text = re.sub(r'[ \t]+', ' ', clean_text)  # Multiple spaces to single
+  clean_text = re.sub(r'\n\s*\n+', '\n', clean_text)  # Multiple newlines to single
+  clean_text = re.sub(r'^\s*\n', '', clean_text)  # Remove leading newlines
+  clean_text = '\n'.join(line.strip() for line in clean_text.split('\n') if line.strip())
+  
+  return clean_text.strip()
+
+
+async def run_interactively_with_interruption(
+    root_agent: BaseAgent,
+    artifact_service: BaseArtifactService,
+    session: Session,
+    session_service: BaseSessionService,
+    ui_theme: Optional[str] = None,
+) -> None:
+  """Run interactively with persistent input and interruption capabilities."""
+  # Disable Rich formatting to prevent conflicts with prompt_toolkit
+  import os
+  import sys
+  from io import StringIO
+  
+  original_env = {}
+  rich_disable_vars = {
+      'NO_COLOR': '1',
+      'TERM': 'dumb',
+      'FORCE_COLOR': '0',
+      'RICH_FORCE_TERMINAL': 'false',
+  }
+  
+  # Store original values and set new ones
+  for key, value in rich_disable_vars.items():
+      original_env[key] = os.environ.get(key)
+      os.environ[key] = value
+  
+  try:
+    # Suppress MCP server output during Runner initialization
+    with redirect_stdout(StringIO()), redirect_stderr(StringIO()):
+        runner = Runner(
+            app_name=session.app_name,
+            agent=root_agent,
+            artifact_service=artifact_service,
+            session_service=session_service,
+        )
+  
+    # Initialize the interruptible CLI
+    cli = get_interruptible_cli_instance(ui_theme)
+    
+    # Set up callbacks for agent interaction
+    async def handle_user_input(query: str):
+      """Handle user input and run agent."""
+      current_task = None
+      try:
+        # Create async generator for agent responses
+        agent_gen = runner.run_async(
+            user_id=session.user_id,
+            session_id=session.id,
+            new_message=types.Content(role='user', parts=[types.Part(text=query)]),
+        )
+        
+        # Create task for agent execution
+        current_task = asyncio.create_task(_process_agent_responses(agent_gen, cli))
+        cli.set_agent_task(current_task)
+        
+        # Wait for completion
+        await current_task
+        
+      except asyncio.CancelledError:
+        cli.add_agent_output("⚠️ Agent execution was interrupted", "System")
+      except Exception as e:
+        cli.add_agent_output(f"❌ Error: {str(e)}", "System")
+    
+    async def handle_interrupt():
+      """Handle agent interruption."""
+      # Additional cleanup can be added here
+      cli.add_agent_output("🛑 Agent interrupted - you can continue with a new query", "System")
+    
+    # Register callbacks
+    cli.register_input_callback(handle_user_input)
+    cli.register_interrupt_callback(handle_interrupt)
+    
+    # Create and run the application with output patching
+    app = cli.create_application()
+    with patch_stdout():
+        await app.run_async()
+    
+  except Exception as e:
+    # Fallback to regular CLI if InterruptibleCLI fails
+    console = Console()
+    console.print(f"[warning]⚠️  InterruptibleCLI failed: {str(e)}[/warning]")
+    console.print("[info]Falling back to regular CLI...[/info]")
+    await run_interactively(root_agent, artifact_service, session, session_service, ui_theme)
+  
+  finally:
+    # Clean up CLI resources
+    if 'cli' in locals():
+        cli.cleanup()
+    
+    # Restore original environment variables
+    for key, original_value in original_env.items():
+        if original_value is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = original_value
+  
+  # Use graceful cleanup to handle MCP session cleanup errors
+  from .utils.cleanup import close_runner_gracefully
+  await close_runner_gracefully(runner)
+
+
+async def _process_agent_responses(agent_gen, cli):
+  """Process agent responses and add them to the CLI output."""
+  from io import StringIO
+  from contextlib import redirect_stdout, redirect_stderr
+  
+  # Use output redirection to intercept any Rich console output from the agent
+  with redirect_stdout(StringIO()), redirect_stderr(StringIO()):
+    async for event in agent_gen:
+      if event.content and event.content.parts:
+        if text := ''.join(part.text or '' for part in event.content.parts):
+          # Filter out thought content to prevent duplication
+          filtered_text = _filter_thought_content(text)
+          if filtered_text.strip():  # Only display if there's non-thought content
+            # Strip any Rich markup/ANSI codes for clean prompt_toolkit display
+            clean_text = _strip_rich_markup(filtered_text)
+            cli.add_agent_output(clean_text, event.author)
+      
+      # Also check if the event itself contains Rich objects or formatted content
+      # This handles cases where the agent generates Rich panels directly
+      if hasattr(event, '__dict__'):
+        for attr_name, attr_value in event.__dict__.items():
+          if attr_name not in ['content', 'author', 'timestamp'] and attr_value:
+            # Check if this attribute contains Rich content
+            if hasattr(attr_value, '__rich__') or hasattr(attr_value, '__rich_console__'):
+              clean_attr_text = _strip_rich_markup(str(attr_value))
+              if clean_attr_text.strip():
+                cli.add_agent_output(clean_attr_text, f"{event.author} ({attr_name})")
+
+
 async def run_cli(
     *,
     agent_module_name: str,
@@ -265,6 +484,7 @@ async def run_cli(
     save_session: bool,
     session_id: Optional[str] = None,
     ui_theme: Optional[str] = None,
+    interruptible: bool = False,
 ) -> None:
   """Runs an interactive CLI for a certain agent.
 
@@ -279,6 +499,8 @@ async def run_cli(
     session_id: Optional[str], the session ID to save the session to on exit.
     ui_theme: Optional[str], the UI theme to use ('light' or 'dark'). 
       If not provided, auto-detects from environment.
+    interruptible: bool, whether to use the interruptible CLI with persistent
+      input and agent interruption capabilities.
   """
 
   # Initialize Rich Console with scrollback-friendly settings
@@ -331,25 +553,44 @@ async def run_cli(
         else:
           console.print(f'[{event.author}]: {content.parts[0].text}')
 
-    await run_interactively(
-        root_agent,
-        artifact_service,
-        session,
-        session_service,
-        ui_theme,
-    )
+    if interruptible:
+      await run_interactively_with_interruption(
+          root_agent,
+          artifact_service,
+          session,
+          session_service,
+          ui_theme,
+      )
+    else:
+      await run_interactively(
+          root_agent,
+          artifact_service,
+          session,
+          session_service,
+          ui_theme,
+      )
   else:
     # Use enhanced CLI for startup message too
-    cli = get_cli_instance(ui_theme)
-    cli.console.print(f'[accent]🚀 Starting interactive session with agent [agent]{root_agent.name}[/agent][/accent]')
-    cli.console.print(f'[muted]Type [user]help[/user] for commands or [user]exit[/user] to quit[/muted]')
-    await run_interactively(
-        root_agent,
-        artifact_service,
-        session,
-        session_service,
-        ui_theme,
-    )
+    if interruptible:
+      # InterruptibleCLI handles its own welcome message
+      await run_interactively_with_interruption(
+          root_agent,
+          artifact_service,
+          session,
+          session_service,
+          ui_theme,
+      )
+    else:
+      cli = get_cli_instance(ui_theme)
+      cli.console.print(f'[accent]🚀 Starting interactive session with agent [agent]{root_agent.name}[/agent][/accent]')
+      cli.console.print(f'[muted]Type [user]help[/user] for commands or [user]exit[/user] to quit[/muted]')
+      await run_interactively(
+          root_agent,
+          artifact_service,
+          session,
+          session_service,
+          ui_theme,
+      )
 
   if save_session:
     session_id = session_id or input('Session ID to save: ')
@@ -358,3 +599,30 @@ async def run_cli(
     # )
     # TODO(b/341398863): Save session into artifact service or use XDG_STATE_HOME
     print('Session saving is not implemented for installed agents yet.')
+
+
+@click.command()
+@click.option('--agent', '-a', required=True, help='Agent module name (e.g., agents.devops)')
+@click.option('--input-file', '-i', help='Input file with queries')
+@click.option('--saved-session', '-s', help='Saved session file to resume')
+@click.option('--save-session', is_flag=True, help='Save session on exit')
+@click.option('--session-id', help='Session ID for saving')
+@click.option('--theme', type=click.Choice(['light', 'dark']), help='UI theme')
+@click.option('--interruptible', is_flag=True, help='Use interruptible CLI with persistent input pane')
+def main(agent: str, input_file: Optional[str], saved_session: Optional[str], 
+         save_session: bool, session_id: Optional[str], theme: Optional[str], interruptible: bool):
+    """ADK Agent CLI with optional interruptible interface."""
+    import asyncio
+    
+    asyncio.run(run_cli(
+        agent_module_name=agent,
+        input_file=input_file,
+        saved_session_file=saved_session,
+        save_session=save_session,
+        session_id=session_id,
+        ui_theme=theme,
+        interruptible=interruptible,
+    ))
+
+if __name__ == '__main__':
+    main()

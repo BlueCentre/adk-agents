@@ -103,8 +103,12 @@ def load_core_tools_and_toolsets():
 async def load_user_tools_and_toolsets_async():
     """Loads and initializes user-defined MCP toolsets using the best available pattern.
     
-    Tries the proper async pattern first (MCPToolset.from_server) and falls back
-    to the simple pattern if not available.
+    Automatically suppresses startup output from MCP servers to prevent noise in CLI.
+    Output suppression is applied to:
+    - Known noisy servers: filesystem, memory
+    - All npx-based servers (which often output startup messages)
+    - Servers with filesystem/memory patterns in their arguments
+    - Servers explicitly marked with "suppress_output": true in mcp.json
     
     Returns:
         tuple: (user_mcp_tools_list, exit_stack_or_none)
@@ -197,16 +201,63 @@ async def load_user_tools_and_toolsets_async():
                 if processed_args is None:
                     continue
 
+                # Check if this MCP server should have output suppressed
+                # This handles servers that output startup messages to stderr/stdout
+                should_suppress_output = (
+                    # Known noisy servers
+                    server_name in ['filesystem', 'memory'] or
+                    # Servers using npx (often output startup messages)
+                    processed_config["command"] == "npx" or
+                    # Servers with specific patterns in their args that tend to be noisy
+                    any('server-filesystem' in str(arg) for arg in processed_args) or
+                    any('server-memory' in str(arg) for arg in processed_args) or
+                    # Allow user to explicitly mark servers as quiet in config
+                    processed_config.get("suppress_output", False)
+                )
+                
+                if should_suppress_output:
+                    # Add shell redirection to suppress startup messages
+                    original_command = processed_config["command"]
+                    original_args = processed_args
+                    
+                    # Use shell redirection to suppress stderr (where most startup messages go)
+                    processed_config["command"] = "sh"
+                    processed_args = [
+                        "-c", 
+                        f"{original_command} {' '.join(original_args)} 2>/dev/null"
+                    ]
+
                 processed_env = processed_config.get("env", {})
                 for key, value in processed_env.items():
                     if not isinstance(value, str):
                         logger.warning(f"Failed to load MCP Toolset '{server_name}': Environment variable value for '{key}' is not a string after env var substitution. Converting to string.")
                         processed_env[key] = str(value)
 
+                # Add environment variables to suppress MCP server startup messages
+                mcp_quiet_env = {
+                    # General output suppression
+                    'QUIET': '1',
+                    'SILENT': '1',
+                    'NO_BANNER': '1',
+                    'NO_STARTUP_MESSAGE': '1',
+                    # Logging suppression
+                    'LOG_LEVEL': 'ERROR',
+                    'MCP_LOG_LEVEL': 'ERROR',
+                    'RUST_LOG': 'error',
+                    'NODE_ENV': 'production',
+                    # Disable colors and formatting
+                    'NO_COLOR': '1',
+                    'FORCE_COLOR': '0',
+                    # Python specific
+                    'PYTHONIOENCODING': 'utf-8',
+                    'PYTHONUNBUFFERED': '0',
+                    **processed_env  # User env vars override our defaults
+                }
+
                 connection_params = StdioServerParameters(
                     command=processed_config["command"],
                     args=processed_args,
-                    env=processed_env,
+                    env=mcp_quiet_env,
                 )
             else:
                 logger.warning(f"Failed to load MCP Toolset '{server_name}': Configuration must contain either 'url' or 'command' and 'args'.")
@@ -322,88 +373,3 @@ def load_all_tools_and_toolsets():
         _global_mcp_exit_stack = exit_stack
         logger.info(f"All tools loaded synchronously. Total: {len(tools)} tools.")
         return tools
-
-# IMPORTANT NOTE ON CLEANUP:
-# The `cleanup_mcp_toolsets` coroutine below is designed to properly close
-# the resources (like subprocesses and network connections) used by MCP toolsets.
-# This follows the ADK documentation pattern for proper async lifecycle management.
-# 
-# DISABLED: Let ADK framework handle MCP cleanup naturally to avoid race conditions
-# 
-# async def cleanup_mcp_toolsets():
-#     global _loaded_mcp_toolsets, _global_mcp_exit_stack
-#     logger.info("atexit: Starting cleanup of MCP toolsets...")
-#     cleanup_errors = []
-# 
-#     # 1. Close the global exit stack (handles newer ADK pattern toolsets)
-#     # This is idempotent and safe to call.
-#     if _global_mcp_exit_stack is not None:
-#         logger.info("atexit: Closing global MCP exit stack...")
-#         try:
-#             await _global_mcp_exit_stack.aclose()
-#             logger.info("atexit: Successfully closed global MCP exit stack.")
-#         except Exception as e:
-#             error_msg = f"atexit: Error closing global MCP exit stack: {e}"
-#             logger.error(error_msg, exc_info=True)
-#             cleanup_errors.append(error_msg)
-#         # Set to None regardless, to prevent re-attempts if atexit were somehow called multiple times
-#         _global_mcp_exit_stack = None
-# 
-#     # 2. Close individual MCPToolset instances (older ADK pattern or direct instantiations)
-#     if _loaded_mcp_toolsets:
-#         logger.info("atexit: Processing _loaded_mcp_toolsets...")
-#         for toolset_name, toolset_obj in list(_loaded_mcp_toolsets.items()): # Use list() for safe iteration if modifying dict
-#             if toolset_obj is None:
-#                 logger.info(f"atexit: Toolset {toolset_name} is already None. Skipping.")
-#                 continue
-# 
-#             if isinstance(toolset_obj, MCPToolset): # Check if it's the toolset itself
-#                 logger.info(f"atexit: Attempting to close MCPToolset instance: {toolset_name}")
-#                 if hasattr(toolset_obj, 'close') and callable(toolset_obj.close):
-#                     try:
-#                         if asyncio.iscoroutinefunction(toolset_obj.close):
-#                             logger.info(f"atexit: Asynchronously closing MCPToolset: {toolset_name}")
-#                             await asyncio.wait_for(toolset_obj.close(), timeout=15.0) # Increased timeout for proper MCP cleanup
-#                         else:
-#                             logger.info(f"atexit: Synchronously closing MCPToolset: {toolset_name} (unexpected for ADK MCPToolset)")
-#                             toolset_obj.close()
-#                         logger.info(f"atexit: Successfully initiated close for MCPToolset: {toolset_name}")
-#                     except asyncio.TimeoutError:
-#                         error_msg = f"atexit: Timeout (15s) while closing MCPToolset {toolset_name}. It might have been stuck or already handled."
-#                         logger.warning(error_msg)
-#                         cleanup_errors.append(error_msg)
-#                     except asyncio.CancelledError:
-#                         error_msg = f"atexit: MCPToolset {toolset_name} close operation was cancelled. Likely already handled/cancelled by ADK."
-#                         logger.warning(error_msg)
-#                         cleanup_errors.append(error_msg)
-#                     except RuntimeError as e:
-#                         error_msg = f"atexit: RuntimeError while closing MCPToolset {toolset_name} (e.g. event loop closed): {e}"
-#                         logger.warning(error_msg)
-#                         cleanup_errors.append(error_msg)
-#                     except Exception as e:
-#                         error_msg = f"atexit: Error closing MCPToolset {toolset_name}: {e}"
-#                         logger.error(error_msg, exc_info=True)
-#                         cleanup_errors.append(error_msg)
-#                 else:
-#                     logger.warning(f"atexit: MCPToolset instance {toolset_name} does not have a callable 'close' method.")
-#             elif isinstance(toolset_obj, list):
-#                 logger.info(f"atexit: Toolset {toolset_name} is a list (new ADK pattern tools). Cleanup assumed handled by global exit stack. Skipping individual close here.")
-#             else:
-#                 logger.warning(f"atexit: Toolset {toolset_name} is of unexpected type: {type(toolset_obj)}. Skipping.")
-#             
-#             _loaded_mcp_toolsets[toolset_name] = None
-#     
-#     if _loaded_mcp_toolsets: # Check before clearing, mainly for logging
-#         _loaded_mcp_toolsets.clear()
-#         logger.info("atexit: Cleared _loaded_mcp_toolsets registry.")
-# 
-#     if cleanup_errors:
-#         logger.warning(f"atexit: Finished cleanup of MCP toolsets with {len(cleanup_errors)} errors/warnings.")
-#     else:
-#         logger.info("atexit: Finished cleanup of MCP toolsets (according to atexit handler).")
-
-# Ensure MCPToolset is imported if not already (it should be).
-# from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset
-
-# DISABLED: Let ADK framework handle MCP cleanup naturally to avoid race conditions
-# atexit.register(lambda: asyncio.run(cleanup_mcp_toolsets()))

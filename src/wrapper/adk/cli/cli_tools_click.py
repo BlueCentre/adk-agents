@@ -230,6 +230,16 @@ def validate_exclusive(ctx, param, value):
         "If not provided, auto-detects from environment (ADK_CLI_THEME) or defaults to dark."
     ),
 )
+@click.option(
+    "--interruptible",
+    is_flag=True,
+    show_default=True,
+    default=False,
+    help=(
+        "Optional. Use interruptible CLI with persistent input pane and agent interruption capabilities. "
+        "Allows typing while agent is responding and interrupting with Ctrl+C."
+    ),
+)
 @click.argument(
     "agent_module_name",
     type=str,
@@ -241,6 +251,7 @@ def cli_run(
     replay: Optional[str],
     resume: Optional[str],
     ui_theme: Optional[str],
+    interruptible: bool,
 ):
   """Runs an interactive CLI for a certain agent.
 
@@ -259,6 +270,7 @@ def cli_run(
           save_session=save_session,
           session_id=session_id,
           ui_theme=ui_theme,
+          interruptible=interruptible,
       )
   )
 

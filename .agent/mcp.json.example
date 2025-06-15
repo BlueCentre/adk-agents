@@ -58,6 +58,11 @@
         "GRAFANA_URL": "http://localhost:3000",
         "GRAFANA_API_KEY": "<your service account token>"
       }
+    },
+    "custom-noisy-server": {
+      "command": "my-custom-mcp-server",
+      "args": ["--verbose"],
+      "suppress_output": true
     }
   }
 }
