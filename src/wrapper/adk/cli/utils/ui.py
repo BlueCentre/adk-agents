@@ -254,10 +254,10 @@ class EnhancedCLI:
         # Create custom key bindings
         bindings = KeyBindings()
 
-        # Alt+Enter for multi-line input submission
+        # Alt+Enter for newline
         @bindings.add('escape', 'enter')
         def _(event):
-            """Insert newline for multi-line input with Alt+Enter."""
+            """Insert newline."""
             event.current_buffer.insert_text('\n')
 
         # Ctrl+T for theme toggle
@@ -488,6 +488,9 @@ class InterruptibleCLI:
         self.input_callback: Optional[Callable[[str], Awaitable[None]]] = None
         self.interrupt_callback: Optional[Callable[[], Awaitable[None]]] = None
         
+        # Markdown rendering toggle
+        self.markdown_enabled = True  # Enable markdown by default
+        
         # Content deduplication tracking
         self.last_token_usage = ""
         self.last_agent_thought = ""
@@ -569,13 +572,34 @@ class InterruptibleCLI:
         """Setup custom key bindings."""
         self.bindings = KeyBindings()
         
-        # Enter to submit (only when agent not running and input buffer has focus)
-        @self.bindings.add('enter', filter=Condition(lambda: not self.agent_running))
+        # Enter to submit - use a more specific approach
+        @self.bindings.add('enter', eager=True)
         def _(event):
-            """Submit user input."""
+            """Submit user input when Enter is pressed."""
             content = self.input_buffer.text.strip()
             if content:
+                self._add_to_output(f"🔄 Processing: {content}", style="info")
                 asyncio.create_task(self._handle_user_input(content))
+            else:
+                self._add_to_output("💡 Type a message and press Enter to send it to the agent", style="info")
+        
+        # Test key binding - F1 should definitely work
+        @self.bindings.add('f1')
+        def _(event):
+            """Test key binding."""
+            print("DEBUG: F1 key pressed! Key bindings are working!")
+            self._add_to_output("🔧 F1 pressed - key bindings are working!", style="info")
+        
+        # Alternative submit with Ctrl+J (which is a valid key binding)
+        @self.bindings.add('c-j')
+        def _(event):
+            """Submit input with Ctrl+J."""
+            content = self.input_buffer.text.strip()
+            if content:
+                self._add_to_output(f"🔄 Processing (Ctrl+J): {content}", style="info")
+                asyncio.create_task(self._handle_user_input(content))
+            else:
+                self._add_to_output("💡 Type a message and press Ctrl+J to send it to the agent", style="info")
         
         # Make sure normal typing works by allowing all printable characters
         # This ensures users can actually type in the input buffer
@@ -584,12 +608,12 @@ class InterruptibleCLI:
             """Handle tab - keep focus on input."""
             # Keep focus on input buffer
             event.app.layout.focus(self.input_buffer)
-                
-        # Alt+Enter for newline
-        @self.bindings.add('escape', 'enter')
+            
+        # Alt+Enter for multi-line input - use a different key to avoid conflicts
+        @self.bindings.add('escape', 'n')
         def _(event):
-            """Insert newline."""
-            self.input_buffer.insert_text('\n')
+            """Insert newline with Alt+N."""
+            event.current_buffer.insert_text('\n')
             
         # Ctrl+C to interrupt agent
         @self.bindings.add('c-c')
@@ -613,13 +637,22 @@ class InterruptibleCLI:
             """Clear output buffer."""
             self.output_buffer.text = ""
             
-        # Ctrl+T to toggle theme
+        # Ctrl+T for theme toggle
         @self.bindings.add('c-t')
         def _(event):
             """Toggle theme."""
             self.toggle_theme()
             self._update_status()
             
+        # Ctrl+M to toggle markdown rendering
+        @self.bindings.add('c-m')
+        def _(event):
+            """Toggle markdown rendering."""
+            self.markdown_enabled = not self.markdown_enabled
+            status = "enabled" if self.markdown_enabled else "disabled"
+            self._add_to_output(f"📝 Markdown rendering {status}", style="info")
+            self._update_status()
+        
     async def _handle_user_input(self, content: str):
         """Handle user input submission."""
         # Clear input buffer
@@ -654,6 +687,10 @@ class InterruptibleCLI:
             finally:
                 self.agent_running = False
                 self._update_status()
+        else:
+            # No callback registered - this is a problem
+            self._add_to_output("❌ No input callback registered! The agent connection may not be working.", style="error")
+            self._add_to_output("🔧 Try restarting the CLI or check the agent configuration.", style="info")
                 
     async def _interrupt_agent(self):
         """Interrupt the currently running agent."""
@@ -668,9 +705,46 @@ class InterruptibleCLI:
         self._update_status()
         
     def _add_to_output(self, text, style: str = ""):
-        """Add text to the output buffer with deduplication and Rich formatting cleanup."""
-        # Handle any type of input - Rich objects, strings, etc.
-        clean_text = self._strip_all_rich_formatting(text)
+        """Add text to the output buffer with markdown rendering, deduplication and Rich formatting cleanup."""
+        # Convert to string if it's not already
+        text = str(text)
+        
+        # Apply Rich markdown rendering FIRST if enabled
+        if self.markdown_enabled:
+            try:
+                from rich.markdown import Markdown
+                from rich.console import Console
+                from io import StringIO
+                
+                # Create a markdown object
+                markdown_obj = Markdown(text)
+                
+                # Render it with Rich to get properly formatted output
+                string_io = StringIO()
+                temp_console = Console(
+                    file=string_io, 
+                    force_terminal=True,  # Enable colors and formatting
+                    width=100,
+                    legacy_windows=False,
+                    color_system="auto"
+                )
+                temp_console.print(markdown_obj)
+                rendered_text = string_io.getvalue()
+                
+                # Use the Rich-rendered markdown
+                text = rendered_text
+                
+            except Exception as e:
+                # Fallback to plain text if Rich markdown fails
+                pass
+        
+        # Apply minimal cleanup (but preserve Rich formatting if markdown was applied)
+        if self.markdown_enabled:
+            # For markdown, do minimal cleanup to preserve Rich formatting
+            clean_text = text
+        else:
+            # For non-markdown, apply full Rich stripping
+            clean_text = self._strip_all_rich_formatting(text)
         
         # Skip empty or whitespace-only content
         if not clean_text or not clean_text.strip():
@@ -950,11 +1024,13 @@ class InterruptibleCLI:
         """Update the status bar and clean input buffer if needed."""
         theme_indicator = "🌒" if self.theme == UITheme.DARK else "🌞"
         agent_status = "🟡 Thinking..." if self.agent_running else "🟢 Ready"
+        markdown_status = "📝" if self.markdown_enabled else "📄"
         
         status_text = (
             f" {agent_status} | Theme: {theme_indicator} {self.theme.value.title()} | "
+            f"Markdown: {markdown_status} | "
             f"Time: {datetime.now().strftime('%H:%M:%S')} | "
-            f"💡 Enter:send Alt+Enter:newline Ctrl+C:interrupt Ctrl+D:exit "
+            f"💡 Enter:send Alt+Enter:newline Ctrl+C:interrupt Ctrl+M:markdown Ctrl+D:exit "
         )
         
         # Only update if the status has actually changed
@@ -974,28 +1050,24 @@ class InterruptibleCLI:
                 self.input_buffer.cursor_position = 0
     
     def _show_help(self):
-        """Show help message."""
-        help_text = """
-Available Commands:
-• exit, quit, bye - Exit the CLI
-• clear - Clear the output pane
-• help - Show this help message
-• theme toggle - Toggle between light/dark themes
-• theme dark/light - Set specific theme
+        """Show help information."""
+        help_text = """🤖 Interruptible CLI Help
 
 Keyboard Shortcuts:
-• Enter - Submit input (when agent not running)
+• Enter - Send message (when agent is not running)
 • Alt+Enter - Insert newline in input
 • Ctrl+C - Interrupt running agent
 • Ctrl+D - Exit application
 • Ctrl+L - Clear output pane
 • Ctrl+T - Toggle theme
+• Ctrl+M - Toggle markdown rendering
 
 Features:
 • Persistent input pane - type while agent is responding
 • Agent interruption - Ctrl+C to stop long-running operations
 • Split-pane interface - output above, input below
 • Real-time status updates
+• Markdown rendering for formatted agent responses
         """
         self._add_to_output(help_text.strip(), style="info")
         
@@ -1072,6 +1144,8 @@ Features:
         
         style = Style.from_dict(enhanced_theme_config)
         
+        # Removed problematic <any> key binding that was interfering
+        
         app = Application(
             layout=self.layout,
             key_bindings=self.bindings,
@@ -1081,14 +1155,23 @@ Features:
             editing_mode=EditingMode.EMACS,  # Enable editing mode
         )
         
+        # Debug: Print application info
+        print(f"DEBUG: Application created successfully")
+        print(f"DEBUG: Layout: {self.layout}")
+        print(f"DEBUG: Key bindings count: {len(self.bindings.bindings)}")
+        
         # Set focus to input buffer so user can type
         app.layout.focus(self.input_buffer)
+        print(f"DEBUG: Focus set to input buffer: {self.input_buffer}")
         
         # Start periodic cleanup task
         self._start_cleanup_task()
         
         # Initialize status
         self._update_status()
+        
+        # Add a test message to verify the UI is working
+        self._add_to_output("✅ Interruptible CLI initialized successfully! Type a message and press Enter.", style="info")
         
         # Welcome message
         welcome_msg = """🤖 Advanced AI Agent Development Kit - Interruptible CLI
@@ -1098,8 +1181,11 @@ Features:
 • Type commands while agent is responding  
 • Press Ctrl+C to interrupt long-running agent operations
 • Real-time status updates and themed interface
+• Markdown rendering for formatted responses (Ctrl+M to toggle)
 
-Type 'help' for commands or start chatting with your agent!"""
+Type 'help' for commands or start chatting with your agent!
+
+DEBUG: Try typing something and pressing Enter. If you see key debug messages, the app is working."""
         self._add_to_output(welcome_msg, style="welcome")
         
         # Note: Cleanup will be handled by the CLI runner
@@ -1120,6 +1206,54 @@ Type 'help' for commands or start chatting with your agent!"""
     def cleanup(self):
         """Clean up resources."""
         pass  # No cleanup needed since we fixed MCP noise at source
+
+    def _render_markdown(self, text: str) -> str:
+        """Convert markdown text to clean, readable formatted text."""
+        if not self.markdown_enabled:
+            return text
+            
+        import re
+        
+        # Convert markdown to clean formatting
+        formatted_text = text
+        
+        # Headers - simple and clean
+        formatted_text = re.sub(r'^# (.+)$', r'🔷 \1', formatted_text, flags=re.MULTILINE)
+        formatted_text = re.sub(r'^## (.+)$', r'🔸 \1', formatted_text, flags=re.MULTILINE)
+        formatted_text = re.sub(r'^### (.+)$', r'▪️ \1', formatted_text, flags=re.MULTILINE)
+        
+        # Bold text - just add emphasis without clutter
+        formatted_text = re.sub(r'\*\*(.+?)\*\*', r'*\1*', formatted_text)
+        formatted_text = re.sub(r'__(.+?)__', r'*\1*', formatted_text)
+        
+        # Italic text - keep simple
+        formatted_text = re.sub(r'\*([^*]+?)\*', r'_\1_', formatted_text)
+        formatted_text = re.sub(r'_([^_]+?)_', r'_\1_', formatted_text)
+        
+        # Code blocks - clean format
+        formatted_text = re.sub(r'```(\w+)?\n(.*?)\n```', r'💻 \2', formatted_text, flags=re.DOTALL)
+        
+        # Inline code - minimal formatting
+        formatted_text = re.sub(r'`([^`]+?)`', r'\1', formatted_text)
+        
+        # Lists - clean bullets
+        formatted_text = re.sub(r'^- (.+)$', r'• \1', formatted_text, flags=re.MULTILINE)
+        formatted_text = re.sub(r'^\* (.+)$', r'• \1', formatted_text, flags=re.MULTILINE)
+        formatted_text = re.sub(r'^\+ (.+)$', r'• \1', formatted_text, flags=re.MULTILINE)
+        
+        # Numbered lists
+        formatted_text = re.sub(r'^(\d+)\. (.+)$', r'\1. \2', formatted_text, flags=re.MULTILINE)
+        
+        # Links - show just the text, keep URLs subtle
+        formatted_text = re.sub(r'\[(.+?)\]\((.+?)\)', r'\1', formatted_text)
+        
+        # Blockquotes - simple format
+        formatted_text = re.sub(r'^> (.+)$', r'💬 \1', formatted_text, flags=re.MULTILINE)
+        
+        # Horizontal rules - simple line
+        formatted_text = re.sub(r'^---+$', r'─' * 40, formatted_text, flags=re.MULTILINE)
+        
+        return formatted_text
 
 
 def get_interruptible_cli_instance(theme: Optional[str] = None) -> InterruptibleCLI:
