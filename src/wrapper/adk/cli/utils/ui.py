@@ -327,7 +327,7 @@ class EnhancedCLI:
                     self.all_commands.extend(commands)
             
             def get_completions(self, document, complete_event):
-                text = document.get_word_before_cursor(WORD=True)
+                text = document.get_word_before_cursor()
                 text_lower = text.lower()
                 
                 # Group completions by category
@@ -546,161 +546,7 @@ class EnhancedCLI:
             # Fallback to console print
             self.console.print(text)
 
-    def _clean_input_buffer(self):
-        """Clean the input buffer."""
-        if hasattr(self, 'input_buffer') and self.input_buffer:
-            # Only clear if there's no user input
-            if not self.input_buffer.text.strip():
-                self.input_buffer.reset()
 
-    def _setup_layout(self):
-        """Setup the interruptible CLI layout."""
-        if not hasattr(self, 'input_buffer'):
-            return
-            
-        # Input area (bottom pane)
-        input_window = Window(
-            content=BufferControl(buffer=self.input_buffer),
-            height=5,
-            wrap_lines=True,
-        )
-        
-        # Output area (top pane)
-        output_window = Window(
-            content=BufferControl(buffer=self.output_buffer),
-            wrap_lines=True,
-        )
-        
-        # Status area (single line at bottom)
-        status_window = Window(
-            content=BufferControl(buffer=self.status_buffer),
-            height=1,
-            style="class:bottom-toolbar"
-        )
-        
-        # Frame the input area
-        input_frame = Frame(
-            body=input_window,
-            title="User Input",
-            style="class:frame.input"
-        )
-        
-        # Frame the output area  
-        output_frame = Frame(
-            body=output_window,
-            title="Agent Output",
-            style="class:frame.output"
-        )
-        
-        # Main layout with horizontal split
-        self.layout = Layout(
-            HSplit([
-                output_frame,  # Top: Agent output (flexible height)
-                input_frame,   # Middle: User input (fixed height)
-                status_window, # Bottom: Status bar (fixed height)
-            ])
-        )
-
-    def _setup_key_bindings(self):
-        """Setup key bindings for interruptible mode."""
-        self.bindings = KeyBindings()
-        
-        @self.bindings.add('enter', eager=True)
-        def _(event):
-            """Submit user input when Enter is pressed."""
-            if hasattr(self, 'input_buffer') and self.input_buffer:
-                content = self.input_buffer.text.strip()
-                if content and self.input_callback:
-                    # Create task from the callback
-                    asyncio.create_task(self.input_callback(content))
-                    self.input_buffer.text = ""
-
-    def set_agent_task(self, task: asyncio.Task):
-        """Set the current agent task for interruption."""
-        self.current_agent_task = task
-        
-    def register_input_callback(self, callback: Callable[[str], Awaitable[None]]):
-        """Register callback for user input."""
-        self.input_callback = callback
-        
-    def register_interrupt_callback(self, callback: Callable[[], Awaitable[None]]):
-        """Register callback for agent interruption."""
-        self.interrupt_callback = callback
-        
-    def create_application(self) -> Application:
-        """Create the prompt_toolkit Application."""
-        # Initialize layout and bindings if not already done (for interruptible mode)
-        if self.layout is None:
-            self._setup_layout()
-        if self.bindings is None:
-            self._setup_key_bindings()
-            
-        # Update theme styles for the layout
-        enhanced_theme_config = {
-            **self.theme_config,
-            'frame.input': 'bg:#2d4a2d' if self.theme == UITheme.DARK else 'bg:#e8f5e8',
-            'frame.output': 'bg:#2d2d4a' if self.theme == UITheme.DARK else 'bg:#e8e8f5',
-        }
-        
-        style = Style.from_dict(enhanced_theme_config)
-        
-        app = Application(
-            layout=self.layout,
-            key_bindings=self.bindings,
-            style=style,
-            full_screen=True,
-            mouse_support=True,
-            editing_mode=EditingMode.EMACS,  # Enable editing mode
-        )
-        
-        # Debug: Print application info
-        print(f"DEBUG: Application created successfully")
-        print(f"DEBUG: Layout: {self.layout}")
-        if self.bindings:
-            print(f"DEBUG: Key bindings count: {len(self.bindings.bindings)}")
-        
-        # Set focus to input buffer so user can type
-        if hasattr(self, 'input_buffer') and self.input_buffer:
-            app.layout.focus(self.input_buffer)
-            print(f"DEBUG: Focus set to input buffer: {self.input_buffer}")
-        
-        return app
-
-    def display_agent_welcome(self, agent_name: str, agent_description: str = "", tools: Optional[list] = None):
-        """Display a comprehensive welcome message with agent information and capabilities."""
-        theme_indicator = "🌒" if self.theme == UITheme.DARK else "🌞"
-        
-        welcome_msg = f"""
-                ▄▀█ █   ▄▀█ █▀▀ █▀▀ █▄█ ▀█▀
-                █▀█ █   █▀█ █▄█ █▄▄ █░█ ░█░
-
-🤖 Advanced AI Agent Development Kit - Interruptible CLI
-
-Agent: {agent_name}"""
-        
-        if agent_description:
-            welcome_msg += f"\nDescription: {agent_description[:150]}{'...' if len(agent_description) > 150 else ''}"
-        
-        welcome_msg += f"""
-Theme: {theme_indicator} {self.theme.value.title()}
-Session started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-
-Features:
-• Split-pane interface with persistent input
-• Type commands while agent is responding  
-• Press Ctrl+C to interrupt long-running agent operations
-• Real-time status updates and themed interface
-• Rich formatted agent responses with panels and markdown
-
-Ready for your DevOps challenges! 🚀
-"""
-        
-        self._add_to_output(welcome_msg, style="welcome")
-        self._add_to_output("✅ Interruptible CLI initialized successfully! The agent is ready for your questions.", style="info")
-    
-    def cleanup(self):
-        """Clean up resources."""
-        pass  # No cleanup needed since we fixed MCP noise at source
 
     def _render_markdown(self, text: str) -> str:
         """Render markdown using Rich's Markdown directly, without Panel wrapper."""
@@ -838,13 +684,94 @@ class InterruptibleCLI:
         # Markdown rendering toggle
         self.markdown_enabled = True  # Enable markdown by default
         
-        # UI Components
-        self.input_buffer = Buffer(multiline=True)
+        # UI Components with completion support
+        self.input_buffer = Buffer(
+            multiline=True,
+            completer=self._create_completer(),
+            auto_suggest=AutoSuggestFromHistory(),
+            history=InMemoryHistory(),
+        )
         self.output_buffer = Buffer()
         self.status_buffer = Buffer()
         
         self._setup_layout()
         self._setup_key_bindings()
+
+    def _create_completer(self):
+        """Create the same categorized completer as regular CLI."""
+        from prompt_toolkit.completion import Completer, Completion
+        
+        # Same categorized commands as regular CLI
+        categorized_commands = {
+            '🔍 Code Analysis': [
+                'analyze this code', 'review the codebase', 'find security vulnerabilities', 
+                'optimize performance of', 'refactor this function', 'add error handling to',
+                'add type hints to', 'add documentation for', 'write unit tests for',
+                'write integration tests for', 'fix the bug in', 'debug this issue',
+            ],
+            '🚀 Infrastructure & DevOps': [
+                'create a dockerfile', 'create docker-compose.yml', 'write kubernetes manifests',
+                'create helm chart for', 'write terraform code for', 'setup CI/CD pipeline',
+                'configure github actions', 'setup monitoring for', 'add logging to',
+                'create health checks', 'setup load balancer', 'configure autoscaling',
+                'list the k8s clusters and indicate the current one',
+                'list all the user applications in the qa- namespaces on the current k8s cluster',
+            ],
+            '📦 Deployment & Operations': [
+                'deploy to production', 'deploy to staging', 'rollback deployment',
+                'check service status', 'troubleshoot deployment', 'scale the service',
+                'update dependencies', 'backup the database', 'restore from backup',
+            ],
+            '🔧 Development Workflow': [
+                'create new feature branch', 'merge pull request', 'tag new release',
+                'update changelog', 'bump version number', 'execute regression tests',
+                'run security scan', 'run performance tests', 'generate documentation',
+            ],
+            '⚙️ CLI Commands': [
+                'exit', 'quit', 'bye', 'help', 'clear', 'theme toggle', 'theme dark', 'theme light',
+            ],
+        }
+        
+        class CategorizedCompleter(Completer):
+            def __init__(self, categorized_commands):
+                self.categorized_commands = categorized_commands
+                # Flatten all commands for matching
+                self.all_commands = []
+                for category, commands in categorized_commands.items():
+                    self.all_commands.extend(commands)
+            
+            def get_completions(self, document, complete_event):
+                text = document.get_word_before_cursor()
+                text_lower = text.lower()
+                
+                # Group completions by category
+                for category, commands in self.categorized_commands.items():
+                    category_matches = []
+                    for command in commands:
+                        if text_lower in command.lower():
+                            category_matches.append(command)
+                    
+                    # If we have matches in this category, yield them with category header
+                    if category_matches:
+                        # Add category separator (only visible in completion menu)
+                        yield Completion(
+                            '',
+                            start_position=0,
+                            display=f'{category}',
+                            style='class:completion-menu.category'
+                        )
+                        
+                        # Add the actual completions
+                        for command in category_matches:
+                            start_pos = -len(text) if text else 0
+                            yield Completion(
+                                command,
+                                start_position=start_pos,
+                                display=f'  {command}',
+                                style='class:completion-menu.completion'
+                            )
+        
+        return CategorizedCompleter(categorized_commands)
 
     def set_agent_name(self, agent_name: str):
         """Set the agent name for display in status bar."""
@@ -852,9 +779,10 @@ class InterruptibleCLI:
         self._update_status()
         
     def _setup_layout(self):
-        """Setup the split-pane layout."""
+        """Setup the split-pane layout with floating completion menu."""
+        from prompt_toolkit.layout.menus import CompletionsMenu
         
-        # Input area (bottom pane)
+        # Input area (bottom pane) with completion support
         input_window = Window(
             content=BufferControl(
                 buffer=self.input_buffer,
@@ -897,14 +825,28 @@ class InterruptibleCLI:
         )
         
         # Main layout with horizontal split
-        self.layout = Layout(
-            HSplit([
-                output_frame,  # Top: Agent output (flexible height)
-                input_frame,   # Middle: User input (fixed height)
-                status_window, # Bottom: Status bar (fixed height)
-            ])
-        )
+        main_layout = HSplit([
+            output_frame,  # Top: Agent output (flexible height)
+            input_frame,   # Middle: User input (fixed height)
+            status_window, # Bottom: Status bar (fixed height)
+        ])
         
+        # Wrap in FloatContainer to support floating completion menu
+        self.layout = Layout(
+            FloatContainer(
+                content=main_layout,
+                floats=[
+                    Float(
+                        content=CompletionsMenu(
+                            max_height=16,
+                            scroll_offset=1,
+                        ),
+                        transparent=True,
+                    ),
+                ]
+            )
+        )
+
     def _get_input_title(self) -> str:
         """Dynamic title for input pane."""
         if self.agent_running:
@@ -956,6 +898,16 @@ class InterruptibleCLI:
         def _(event):
             """Exit gracefully with Ctrl+D."""
             event.app.exit()
+        
+        # Tab for completion menu
+        @self.bindings.add('tab')
+        def _(event):
+            """Show completion menu with Tab."""
+            buffer = event.current_buffer
+            if buffer.complete_state:
+                buffer.complete_next()
+            else:
+                buffer.start_completion(select_first=False)
         
         @self.bindings.add('c-c')
         def _(event):
