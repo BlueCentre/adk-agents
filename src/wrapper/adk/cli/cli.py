@@ -20,8 +20,6 @@ from typing import Optional
 
 import rich_click as click
 from rich.console import Console
-# from rich.markdown import Markdown
-# from rich.panel import Panel
 from prompt_toolkit.patch_stdout import patch_stdout
 from contextlib import redirect_stdout, redirect_stderr
 
@@ -40,7 +38,8 @@ from google.adk.sessions.session import Session
 from .utils import envs
 from .utils.agent_loader import AgentLoader
 from .utils.envs import load_dotenv_for_agent
-from .utils.ui import get_cli_instance, get_interruptible_cli_instance, UITheme
+from .utils.ui import get_cli_instance, get_interruptible_cli_instance
+from .utils.ui_common import UITheme
 
 
 class InputFile(BaseModel):
