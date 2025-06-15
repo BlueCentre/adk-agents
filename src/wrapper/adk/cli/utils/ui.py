@@ -755,8 +755,7 @@ class InterruptibleCLI:
         if not processed_text:
             return  # Content was filtered out as duplicate
             
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        formatted_text = f"[{timestamp}] {processed_text}\n"
+        formatted_text = f"{processed_text}\n"
         
         current_text = self.output_buffer.text
         self.output_buffer.text = current_text + formatted_text
@@ -1174,7 +1173,11 @@ Features:
         self._add_to_output("✅ Interruptible CLI initialized successfully! Type a message and press Enter.", style="info")
         
         # Welcome message
-        welcome_msg = """🤖 Advanced AI Agent Development Kit - Interruptible CLI
+        welcome_msg = """
+                ▄▀█ █   ▄▀█ █▀▀ █▀▀ █▄█ ▀█▀
+                █▀█ █   █▀█ █▄█ █▄▄ █░█ ░█░
+
+🤖 Advanced AI Agent Development Kit - Interruptible CLI
 
 Features:
 • Split-pane interface with persistent input
@@ -1185,7 +1188,8 @@ Features:
 
 Type 'help' for commands or start chatting with your agent!
 
-DEBUG: Try typing something and pressing Enter. If you see key debug messages, the app is working."""
+DEBUG: Try typing something and pressing Enter. If you see key debug messages, the app is working.
+        """
         self._add_to_output(welcome_msg, style="welcome")
         
         # Note: Cleanup will be handled by the CLI runner
