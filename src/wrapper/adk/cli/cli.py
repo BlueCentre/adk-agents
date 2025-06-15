@@ -271,7 +271,7 @@ def _strip_rich_markup(text: str) -> str:
     temp_console = Console(
         file=string_io, 
         force_terminal=False, 
-        width=120, 
+        # width=120, 
         legacy_windows=False,
         force_jupyter=False,
         _environ={}
@@ -385,6 +385,11 @@ async def run_interactively_with_interruption(
     # Initialize the interruptible CLI
     cli = get_interruptible_cli_instance(ui_theme)
     
+    # Display comprehensive welcome message with agent info
+    agent_description = getattr(root_agent, 'description', '')
+    agent_tools = getattr(root_agent, 'tools', [])
+    cli.display_agent_welcome(root_agent.name, agent_description, agent_tools)
+    
     # Set up callbacks for agent interaction
     async def handle_user_input(query: str):
       """Handle user input and run agent."""
@@ -427,6 +432,9 @@ async def run_interactively_with_interruption(
     # Fallback to regular CLI if InterruptibleCLI fails
     console = Console()
     console.print(f"[warning]⚠️  InterruptibleCLI failed: {str(e)}[/warning]")
+    console.print(f"[red]Error details: {type(e).__name__}: {e}[/red]")
+    import traceback
+    console.print(f"[dim]Traceback: {traceback.format_exc()}[/dim]")
     console.print("[info]Falling back to regular CLI...[/info]")
     await run_interactively(root_agent, artifact_service, session, session_service, ui_theme)
   
@@ -460,9 +468,10 @@ async def _process_agent_responses(agent_gen, cli):
           # Filter out thought content to prevent duplication
           filtered_text = _filter_thought_content(text)
           if filtered_text.strip():  # Only display if there's non-thought content
-            # Strip any Rich markup/ANSI codes for clean prompt_toolkit display
-            clean_text = _strip_rich_markup(filtered_text)
-            cli.add_agent_output(clean_text, event.author)
+            # Both CLIs should get the same processed text
+            # The InterruptibleCLI will handle markdown rendering in add_agent_output
+            # The regular CLI will use its own formatting in add_agent_output
+            cli.add_agent_output(filtered_text, event.author)
       
       # Also check if the event itself contains Rich objects or formatted content
       # This handles cases where the agent generates Rich panels directly
@@ -471,9 +480,8 @@ async def _process_agent_responses(agent_gen, cli):
           if attr_name not in ['content', 'author', 'timestamp'] and attr_value:
             # Check if this attribute contains Rich content
             if hasattr(attr_value, '__rich__') or hasattr(attr_value, '__rich_console__'):
-              clean_attr_text = _strip_rich_markup(str(attr_value))
-              if clean_attr_text.strip():
-                cli.add_agent_output(clean_attr_text, f"{event.author} ({attr_name})")
+              # Both CLIs handle Rich content in their add_agent_output methods
+              cli.add_agent_output(str(attr_value), f"{event.author} ({attr_name})")
 
 
 async def run_cli(

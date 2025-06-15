@@ -225,10 +225,24 @@ class EnhancedCLI:
             force_interactive=False,  # Disable animations that might interfere with scrollback
             legacy_windows=False,     # Use modern terminal features
             soft_wrap=True,           # Enable soft wrapping to prevent cropping
-            no_color=False,           # Keep colors but ensure compatibility
+            # no_color=False,           # Keep colors but ensure compatibility
             width=None,               # Auto-detect width to avoid fixed sizing issues
             height=None               # Auto-detect height to avoid fixed sizing issues
         )
+        
+        # Interruptible CLI attributes
+        self.markdown_enabled = True  # Enable markdown by default
+        self.agent_running = False
+        self.current_agent_task: Optional[asyncio.Task] = None
+        self.input_callback: Optional[Callable[[str], Awaitable[None]]] = None
+        self.interrupt_callback: Optional[Callable[[], Awaitable[None]]] = None
+        
+        # UI Components for interruptible mode
+        self.input_buffer = Buffer(multiline=True)
+        self.output_buffer = Buffer()
+        self.status_buffer = Buffer()
+        self.layout = None  # Will be set when needed
+        self.bindings = None  # Will be set when needed
         
     def _detect_theme(self) -> UITheme:
         """Auto-detect theme from environment variables."""
@@ -383,7 +397,7 @@ class EnhancedCLI:
             force_interactive=False,  # Disable animations that might interfere with scrollback
             legacy_windows=False,     # Use modern terminal features
             soft_wrap=True,           # Enable soft wrapping to prevent cropping
-            no_color=False,           # Keep colors but ensure compatibility
+            # no_color=False,           # Keep colors but ensure compatibility
             width=None,               # Auto-detect width to avoid fixed sizing issues
             height=None               # Auto-detect height to avoid fixed sizing issues
         )
@@ -403,7 +417,7 @@ class EnhancedCLI:
                 force_interactive=False,  # Disable animations that might interfere with scrollback
                 legacy_windows=False,     # Use modern terminal features
                 soft_wrap=True,           # Enable soft wrapping to prevent cropping
-                no_color=False,           # Keep colors but ensure compatibility
+                # no_color=False,           # Keep colors but ensure compatibility
                 width=None,               # Auto-detect width to avoid fixed sizing issues
                 height=None               # Auto-detect height to avoid fixed sizing issues
             )
@@ -470,6 +484,417 @@ class EnhancedCLI:
         self.console.print("[accent]└──────────────────────────────────────────────────────────┘[/accent]")
         self.console.print()
 
+    def add_agent_output(self, text: str, author: str = "Agent"):
+        """Add agent output with Rich Panel formatting, matching the regular CLI style."""
+        panel = self.format_agent_response(text, author)
+        self.console.print(panel)
+
+    def _add_to_output(self, text: str, style: str = "", skip_markdown: bool = False):
+        """Add text to the output buffer for interruptible CLI mode."""
+        if hasattr(self, 'output_buffer') and self.output_buffer:
+            # Add text to the output buffer
+            current_text = self.output_buffer.text
+            if current_text:
+                new_text = current_text + "\n" + text
+            else:
+                new_text = text
+            self.output_buffer.text = new_text
+        else:
+            # Fallback to console print
+            self.console.print(text)
+
+    def _update_status(self):
+        """Update the status buffer."""
+        if hasattr(self, 'status_buffer') and self.status_buffer:
+            status_text = f"Agent: {'running' if self.agent_running else 'ready'} | Theme: {self.theme.value}"
+            self.status_buffer.text = status_text
+
+    def _clean_input_buffer(self):
+        """Clean the input buffer."""
+        if hasattr(self, 'input_buffer') and self.input_buffer:
+            # Only clear if there's no user input
+            if not self.input_buffer.text.strip():
+                self.input_buffer.reset()
+
+    def _setup_layout(self):
+        """Setup the interruptible CLI layout."""
+        if not hasattr(self, 'input_buffer'):
+            return
+            
+        # Input area (bottom pane)
+        input_window = Window(
+            content=BufferControl(buffer=self.input_buffer),
+            height=5,
+            wrap_lines=True,
+        )
+        
+        # Output area (top pane)
+        output_window = Window(
+            content=BufferControl(buffer=self.output_buffer),
+            wrap_lines=True,
+        )
+        
+        # Status area (single line at bottom)
+        status_window = Window(
+            content=BufferControl(buffer=self.status_buffer),
+            height=1,
+            style="class:bottom-toolbar"
+        )
+        
+        # Frame the input area
+        input_frame = Frame(
+            body=input_window,
+            title="User Input",
+            style="class:frame.input"
+        )
+        
+        # Frame the output area  
+        output_frame = Frame(
+            body=output_window,
+            title="Agent Output",
+            style="class:frame.output"
+        )
+        
+        # Main layout with horizontal split
+        self.layout = Layout(
+            HSplit([
+                output_frame,  # Top: Agent output (flexible height)
+                input_frame,   # Middle: User input (fixed height)
+                status_window, # Bottom: Status bar (fixed height)
+            ])
+        )
+
+    def _setup_key_bindings(self):
+        """Setup key bindings for interruptible mode."""
+        self.bindings = KeyBindings()
+        
+        @self.bindings.add('enter', eager=True)
+        def _(event):
+            """Submit user input when Enter is pressed."""
+            if hasattr(self, 'input_buffer') and self.input_buffer:
+                content = self.input_buffer.text.strip()
+                if content and self.input_callback:
+                    # Create task from the callback
+                    asyncio.create_task(self.input_callback(content))
+                    self.input_buffer.text = ""
+
+    def set_agent_task(self, task: asyncio.Task):
+        """Set the current agent task for interruption."""
+        self.current_agent_task = task
+        
+    def register_input_callback(self, callback: Callable[[str], Awaitable[None]]):
+        """Register callback for user input."""
+        self.input_callback = callback
+        
+    def register_interrupt_callback(self, callback: Callable[[], Awaitable[None]]):
+        """Register callback for agent interruption."""
+        self.interrupt_callback = callback
+        
+    def create_application(self) -> Application:
+        """Create the prompt_toolkit Application."""
+        # Initialize layout and bindings if not already done (for interruptible mode)
+        if self.layout is None:
+            self._setup_layout()
+        if self.bindings is None:
+            self._setup_key_bindings()
+            
+        # Update theme styles for the layout
+        enhanced_theme_config = {
+            **self.theme_config,
+            'frame.input': 'bg:#2d4a2d' if self.theme == UITheme.DARK else 'bg:#e8f5e8',
+            'frame.output': 'bg:#2d2d4a' if self.theme == UITheme.DARK else 'bg:#e8e8f5',
+        }
+        
+        style = Style.from_dict(enhanced_theme_config)
+        
+        app = Application(
+            layout=self.layout,
+            key_bindings=self.bindings,
+            style=style,
+            full_screen=True,
+            mouse_support=True,
+            editing_mode=EditingMode.EMACS,  # Enable editing mode
+        )
+        
+        # Debug: Print application info
+        print(f"DEBUG: Application created successfully")
+        print(f"DEBUG: Layout: {self.layout}")
+        if self.bindings:
+            print(f"DEBUG: Key bindings count: {len(self.bindings.bindings)}")
+        
+        # Set focus to input buffer so user can type
+        if hasattr(self, 'input_buffer') and self.input_buffer:
+            app.layout.focus(self.input_buffer)
+            print(f"DEBUG: Focus set to input buffer: {self.input_buffer}")
+        
+        # Start periodic cleanup task
+        self._start_cleanup_task()
+        
+        # Initialize status
+        self._update_status()
+        
+        return app
+
+    def display_agent_welcome(self, agent_name: str, agent_description: str = "", tools: Optional[list] = None):
+        """Display a comprehensive welcome message with agent information and capabilities."""
+        theme_indicator = "🌒" if self.theme == UITheme.DARK else "🌞"
+        
+        # Welcome ASCII Art Logo
+        welcome_msg = f"""
+                ▄▀█ █   ▄▀█ █▀▀ █▀▀ █▄█ ▀█▀
+                █▀█ █   █▀█ █▄█ █▄▄ █░█ ░█░
+
+🤖 Advanced AI Agent Development Kit - Interruptible CLI
+
+Agent: {agent_name}"""
+        
+        if agent_description:
+            welcome_msg += f"\nDescription: {agent_description[:150]}{'...' if len(agent_description) > 150 else ''}"
+        
+        welcome_msg += f"""
+Theme: {theme_indicator} {self.theme.value.title()}
+Session started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+Features:
+• Split-pane interface with persistent input
+• Type commands while agent is responding
+• Press Ctrl+C to interrupt long-running agent operations
+• Real-time status updates and themed interface
+• Markdown rendering for formatted responses (Ctrl+M to toggle)
+"""
+        
+        # Add comprehensive tools information if available
+        if tools:
+            # Categorize tools for better organization
+            tool_categories = {
+                'filesystem': [],
+                'shell': [],
+                'analysis': [],
+                'search': [],
+                'rag': [],
+                'memory': [],
+                'other': []
+            }
+            
+            for tool in tools:
+                tool_name = getattr(tool, 'name', 'unknown')
+                tool_desc = getattr(tool, 'description', 'No description available')
+                
+                # Categorize based on tool name patterns
+                if any(keyword in tool_name.lower() for keyword in ['file', 'dir', 'read', 'write', 'edit']):
+                    tool_categories['filesystem'].append((tool_name, tool_desc))
+                elif any(keyword in tool_name.lower() for keyword in ['shell', 'command', 'execute']):
+                    tool_categories['shell'].append((tool_name, tool_desc))
+                elif any(keyword in tool_name.lower() for keyword in ['analyze', 'analysis', 'code']):
+                    tool_categories['analysis'].append((tool_name, tool_desc))
+                elif any(keyword in tool_name.lower() for keyword in ['search', 'google', 'grounding']):
+                    tool_categories['search'].append((tool_name, tool_desc))
+                elif any(keyword in tool_name.lower() for keyword in ['rag', 'index', 'retrieve', 'context']):
+                    tool_categories['rag'].append((tool_name, tool_desc))
+                elif any(keyword in tool_name.lower() for keyword in ['memory', 'session', 'save', 'load']):
+                    tool_categories['memory'].append((tool_name, tool_desc))
+                else:
+                    tool_categories['other'].append((tool_name, tool_desc))
+            
+            welcome_msg += f"\n📋 Available Agent Tools ({len(tools)} total):\n"
+            
+            # Display categorized tools
+            category_icons = {
+                'filesystem': '📁',
+                'shell': '🐚',
+                'analysis': '🔍',
+                'search': '🔎',
+                'rag': '🧠',
+                'memory': '💾',
+                'other': '🔧'
+            }
+            
+            category_names = {
+                'filesystem': 'File System Tools',
+                'shell': 'Shell & Command Tools',
+                'analysis': 'Code Analysis Tools',
+                'search': 'Search & Grounding Tools',
+                'rag': 'RAG & Context Tools',
+                'memory': 'Memory & Session Tools',
+                'other': 'Other Tools'
+            }
+            
+            for category, tool_list in tool_categories.items():
+                if tool_list:
+                    icon = category_icons.get(category, '🔧')
+                    cat_name = category_names.get(category, category.title())
+                    welcome_msg += f"\n  {icon} {cat_name} ({len(tool_list)}):\n"
+                    
+                    for tool_name, tool_desc in tool_list[:5]:  # Show first 5 tools per category
+                        # Truncate long descriptions
+                        if tool_desc and len(tool_desc) > 80:
+                            tool_desc = tool_desc[:77] + "..."
+                        welcome_msg += f"    • {tool_name} - {tool_desc}\n"
+                    
+                    if len(tool_list) > 5:
+                        welcome_msg += f"    ... and {len(tool_list) - 5} more {category} tools\n"
+        
+        # Try to get environment capabilities
+        try:
+            # Import the tool discovery from devops agent if available
+            from agents.devops.tools.dynamic_discovery import tool_discovery
+            env_capabilities = tool_discovery.discover_environment_capabilities()
+            
+            available_tools = [t for t in env_capabilities.tools.values() if t.available]
+            if available_tools:
+                welcome_msg += f"\n🌐 Environment Tools ({len(available_tools)} available):\n"
+                for tool in available_tools[:8]:  # Show first 8 environment tools
+                    welcome_msg += f"  ✅ {tool.name} v{tool.version} - {tool.description}\n"
+                
+                if len(available_tools) > 8:
+                    welcome_msg += f"  ... and {len(available_tools) - 8} more available\n"
+            
+            unavailable_count = len([t for t in env_capabilities.tools.values() if not t.available])
+            if unavailable_count > 0:
+                welcome_msg += f"\n💡 Note: {unavailable_count} additional environment tools could be installed\n"
+        
+        except Exception as e:
+            # If we can't get environment capabilities, that's okay
+            pass
+        
+        welcome_msg += """\n
+🎯 Quick Start:
+  • Type your questions or commands naturally
+  • Use 'help' to see available commands
+  • Press Ctrl+C to interrupt long-running operations
+  • Press Ctrl+M to toggle markdown rendering
+  • Press Ctrl+T to switch themes
+
+Ready for your DevOps challenges! 🚀
+"""
+        
+        self._add_to_output(welcome_msg, style="welcome")
+        self._add_to_output("✅ Interruptible CLI initialized successfully! The agent is ready for your questions.", style="info")
+    
+    def _start_cleanup_task(self):
+        """Start a periodic task to clean the input buffer."""
+        async def cleanup_loop():
+            while True:
+                await asyncio.sleep(0.5)  # Check every 500ms
+                self._clean_input_buffer()
+                self._update_status()
+        
+        # Start the cleanup task
+        asyncio.create_task(cleanup_loop())
+    
+    def cleanup(self):
+        """Clean up resources."""
+        pass  # No cleanup needed since we fixed MCP noise at source
+
+    def _render_markdown(self, text: str) -> str:
+        """Render markdown using Rich's Markdown directly, without Panel wrapper."""
+        if not self.markdown_enabled:
+            return text
+            
+        try:
+            from rich.markdown import Markdown
+            from rich.console import Console
+            from io import StringIO
+            
+            # Use Rich's Markdown directly (same as regular CLI but without Panel)
+            markdown_obj = Markdown(text)
+            
+            # Render to plain text that works in prompt_toolkit
+            string_io = StringIO()
+            temp_console = Console(
+                file=string_io,
+                force_terminal=False,
+                # width=200,  # Much wider to prevent truncation
+                # no_color=True,  # No ANSI codes for prompt_toolkit compatibility
+                legacy_windows=False,
+            )
+            
+            # Print the markdown object directly (no Panel wrapper)
+            temp_console.print(markdown_obj, crop=False, overflow="ignore", soft_wrap=False)
+            rendered_output = string_io.getvalue()
+            
+            return rendered_output.rstrip()
+            
+        except ImportError:
+            # Fallback to basic markdown if Rich is not available
+            return self._basic_markdown_fallback(text)
+        except Exception as e:
+            # If Rich markdown fails, fall back to basic rendering
+            return self._basic_markdown_fallback(text)
+
+    def _basic_markdown_fallback(self, text: str) -> str:
+        """Basic markdown rendering fallback if Rich fails."""
+        import re
+        
+        formatted_text = text
+        
+        # Headers with better styling
+        formatted_text = re.sub(r'^# (.+)$', r'🔷 \1', formatted_text, flags=re.MULTILINE)
+        formatted_text = re.sub(r'^## (.+)$', r'🔸 \1', formatted_text, flags=re.MULTILINE)
+        formatted_text = re.sub(r'^### (.+)$', r'▪️ \1', formatted_text, flags=re.MULTILINE)
+        
+        # Basic bold and italic (simplified)
+        formatted_text = re.sub(r'\*\*([^*]+)\*\*', r'**\1**', formatted_text)  # Keep bold markers
+        formatted_text = re.sub(r'\*([^*]+)\*', r'*\1*', formatted_text)  # Keep italic markers
+        
+        # Lists
+        formatted_text = re.sub(r'^\* ', '• ', formatted_text, flags=re.MULTILINE)
+        formatted_text = re.sub(r'^\+ ', '• ', formatted_text, flags=re.MULTILINE)
+        formatted_text = re.sub(r'^- ', '• ', formatted_text, flags=re.MULTILINE)
+        
+        # Blockquotes
+        formatted_text = re.sub(r'^> (.+)$', r'┃ \1', formatted_text, flags=re.MULTILINE)
+        
+        # Code (simplified)
+        formatted_text = re.sub(r'`([^`]+)`', r'`\1`', formatted_text)  # Keep code markers
+        formatted_text = re.sub(r'^#### (.+)$', r'  • \1', formatted_text, flags=re.MULTILINE)
+        
+        # Bold and italic - preserve some emphasis
+        formatted_text = re.sub(r'\*\*(.+?)\*\*', r'[\1]', formatted_text)  # Bold in brackets
+        formatted_text = re.sub(r'__(.+?)__', r'[\1]', formatted_text)
+        formatted_text = re.sub(r'\*([^*]+?)\*', r'(\1)', formatted_text)  # Italic in parentheses
+        formatted_text = re.sub(r'_([^_]+?)_', r'(\1)', formatted_text)
+        
+        # Code blocks with language detection
+        def format_code_block(match):
+            lang = match.group(1) or 'text'
+            code = match.group(2).strip()
+            return f'💻 {lang.upper()} Code:\n{code}\n'
+        
+        formatted_text = re.sub(r'```(\w+)?\n(.*?)\n```', format_code_block, formatted_text, flags=re.DOTALL)
+        
+        # Inline code with backticks
+        formatted_text = re.sub(r'`([^`]+?)`', r'`\1`', formatted_text)
+        
+        # Lists with better bullets
+        formatted_text = re.sub(r'^- (.+)$', r'• \1', formatted_text, flags=re.MULTILINE)
+        formatted_text = re.sub(r'^\* (.+)$', r'• \1', formatted_text, flags=re.MULTILINE)
+        formatted_text = re.sub(r'^\+ (.+)$', r'• \1', formatted_text, flags=re.MULTILINE)
+        
+        # Numbered lists with emojis
+        formatted_text = re.sub(r'^1\. (.+)$', r'1️⃣ \1', formatted_text, flags=re.MULTILINE)
+        formatted_text = re.sub(r'^2\. (.+)$', r'2️⃣ \1', formatted_text, flags=re.MULTILINE)
+        formatted_text = re.sub(r'^3\. (.+)$', r'3️⃣ \1', formatted_text, flags=re.MULTILINE)
+        formatted_text = re.sub(r'^(\d+)\. (.+)$', r'\1. \2', formatted_text, flags=re.MULTILINE)
+        
+        # Links - show both text and URL
+        formatted_text = re.sub(r'\[(.+?)\]\((.+?)\)', r'\1 (\2)', formatted_text)
+        
+        # Blockquotes with better styling
+        formatted_text = re.sub(r'^> (.+)$', r'💬 \1', formatted_text, flags=re.MULTILINE)
+        
+        # Horizontal rules
+        formatted_text = re.sub(r'^---+$', r'─' * 50, formatted_text, flags=re.MULTILINE)
+        
+        # Tables - basic support
+        def format_table_row(match):
+            cells = [cell.strip() for cell in match.group(0).split('|')[1:-1]]
+            return ' │ '.join(cells)
+        
+        formatted_text = re.sub(r'^\|(.+)\|$', format_table_row, formatted_text, flags=re.MULTILINE)
+        
+        return formatted_text
+
 
 class InterruptibleCLI:
     """CLI with persistent input pane and agent interruption capabilities."""
@@ -491,16 +916,10 @@ class InterruptibleCLI:
         # Markdown rendering toggle
         self.markdown_enabled = True  # Enable markdown by default
         
-        # Content deduplication tracking
-        self.last_token_usage = ""
-        self.last_agent_thought = ""
-        self.seen_content = set()
-        self.current_response_id = 0
-        
         # UI Components
         self.input_buffer = Buffer(multiline=True)
-        self.output_buffer = Buffer()  # Don't make read-only since we need to add agent output
-        self.status_buffer = Buffer()  # Don't make read-only since we need to update it
+        self.output_buffer = Buffer()
+        self.status_buffer = Buffer()
         
         self._setup_layout()
         self._setup_key_bindings()
@@ -572,7 +991,6 @@ class InterruptibleCLI:
         """Setup custom key bindings."""
         self.bindings = KeyBindings()
         
-        # Enter to submit - use a more specific approach
         @self.bindings.add('enter', eager=True)
         def _(event):
             """Submit user input when Enter is pressed."""
@@ -583,39 +1001,6 @@ class InterruptibleCLI:
             else:
                 self._add_to_output("💡 Type a message and press Enter to send it to the agent", style="info")
         
-        # Test key binding - F1 should definitely work
-        @self.bindings.add('f1')
-        def _(event):
-            """Test key binding."""
-            print("DEBUG: F1 key pressed! Key bindings are working!")
-            self._add_to_output("🔧 F1 pressed - key bindings are working!", style="info")
-        
-        # Alternative submit with Ctrl+J (which is a valid key binding)
-        @self.bindings.add('c-j')
-        def _(event):
-            """Submit input with Ctrl+J."""
-            content = self.input_buffer.text.strip()
-            if content:
-                self._add_to_output(f"🔄 Processing (Ctrl+J): {content}", style="info")
-                asyncio.create_task(self._handle_user_input(content))
-            else:
-                self._add_to_output("💡 Type a message and press Ctrl+J to send it to the agent", style="info")
-        
-        # Make sure normal typing works by allowing all printable characters
-        # This ensures users can actually type in the input buffer
-        @self.bindings.add('c-i')  # Tab key - focus management
-        def _(event):
-            """Handle tab - keep focus on input."""
-            # Keep focus on input buffer
-            event.app.layout.focus(self.input_buffer)
-            
-        # Alt+Enter for multi-line input - use a different key to avoid conflicts
-        @self.bindings.add('escape', 'n')
-        def _(event):
-            """Insert newline with Alt+N."""
-            event.current_buffer.insert_text('\n')
-            
-        # Ctrl+C to interrupt agent
         @self.bindings.add('c-c')
         def _(event):
             """Interrupt running agent."""
@@ -624,502 +1009,75 @@ class InterruptibleCLI:
             else:
                 # Standard Ctrl+C behavior when agent not running
                 event.app.exit(exception=KeyboardInterrupt)
-                
-        # Ctrl+D to exit
-        @self.bindings.add('c-d')
-        def _(event):
-            """Exit application."""
-            event.app.exit()
-            
-        # Ctrl+L to clear output
-        @self.bindings.add('c-l')
-        def _(event):
-            """Clear output buffer."""
-            self.output_buffer.text = ""
-            
-        # Ctrl+T for theme toggle
-        @self.bindings.add('c-t')
-        def _(event):
-            """Toggle theme."""
-            self.toggle_theme()
-            self._update_status()
-            
-        # Ctrl+M to toggle markdown rendering
-        @self.bindings.add('c-m')
-        def _(event):
-            """Toggle markdown rendering."""
-            self.markdown_enabled = not self.markdown_enabled
-            status = "enabled" if self.markdown_enabled else "disabled"
-            self._add_to_output(f"📝 Markdown rendering {status}", style="info")
-            self._update_status()
-        
+
     async def _handle_user_input(self, content: str):
-        """Handle user input submission."""
-        # Clear input buffer
-        self.input_buffer.text = ""
-        
-        # Reset deduplication state for new query
-        self._reset_deduplication_state()
-        
-        # Add user input to output
-        self._add_to_output(f"😎 User: {content}", style="user")
-        
-        # Handle special commands
-        if content.lower() in ['exit', 'quit', 'bye']:
-            get_app().exit()
-            return
-        elif content.lower() == 'clear':
-            self.output_buffer.text = ""
-            return
-        elif content.lower() == 'help':
-            self._show_help()
-            return
-        elif content.lower().startswith('theme'):
-            self._handle_theme_command(content)
-            return
-            
-        # Call the registered input callback
+        """Handle user input by calling the registered callback."""
         if self.input_callback:
-            self.agent_running = True
-            self._update_status()
-            try:
-                await self.input_callback(content)
-            finally:
-                self.agent_running = False
-                self._update_status()
-        else:
-            # No callback registered - this is a problem
-            self._add_to_output("❌ No input callback registered! The agent connection may not be working.", style="error")
-            self._add_to_output("🔧 Try restarting the CLI or check the agent configuration.", style="info")
-                
+            await self.input_callback(content)
+        self.input_buffer.text = ""
+
     async def _interrupt_agent(self):
-        """Interrupt the currently running agent."""
+        """Interrupt the running agent."""
         if self.current_agent_task and not self.current_agent_task.done():
             self.current_agent_task.cancel()
-            self._add_to_output("⚠️ Agent interrupted by user", style="warning")
-            
+            self._add_to_output("⏹️ Agent interrupted by user", style="warning")
+        
         if self.interrupt_callback:
             await self.interrupt_callback()
-            
+        
         self.agent_running = False
-        self._update_status()
-        
-    def _add_to_output(self, text, style: str = ""):
-        """Add text to the output buffer with markdown rendering, deduplication and Rich formatting cleanup."""
-        # Convert to string if it's not already
-        text = str(text)
-        
-        # Apply Rich markdown rendering FIRST if enabled
-        if self.markdown_enabled:
-            try:
-                from rich.markdown import Markdown
-                from rich.console import Console
-                from io import StringIO
-                
-                # Create a markdown object
-                markdown_obj = Markdown(text)
-                
-                # Render it with Rich to get properly formatted output
-                string_io = StringIO()
-                temp_console = Console(
-                    file=string_io, 
-                    force_terminal=True,  # Enable colors and formatting
-                    width=100,
-                    legacy_windows=False,
-                    color_system="auto"
-                )
-                temp_console.print(markdown_obj)
-                rendered_text = string_io.getvalue()
-                
-                # Use the Rich-rendered markdown
-                text = rendered_text
-                
-            except Exception as e:
-                # Fallback to plain text if Rich markdown fails
-                pass
-        
-        # Apply minimal cleanup (but preserve Rich formatting if markdown was applied)
-        if self.markdown_enabled:
-            # For markdown, do minimal cleanup to preserve Rich formatting
-            clean_text = text
-        else:
-            # For non-markdown, apply full Rich stripping
-            clean_text = self._strip_all_rich_formatting(text)
-        
-        # Skip empty or whitespace-only content
-        if not clean_text or not clean_text.strip():
-            return
-        
-        # Apply deduplication logic
-        processed_text = self._deduplicate_content(clean_text)
-        if not processed_text:
-            return  # Content was filtered out as duplicate
-            
-        formatted_text = f"{processed_text}\n"
-        
+
+    def _add_to_output(self, text, style: str = "", skip_markdown: bool = False):
+        """Add text to the output buffer."""
         current_text = self.output_buffer.text
-        self.output_buffer.text = current_text + formatted_text
-        
-        # Auto-scroll to bottom
-        self.output_buffer.cursor_position = len(self.output_buffer.text)
-    
-    def _deduplicate_content(self, text: str) -> str:
-        """Deduplicate and consolidate repetitive content."""
-        import re
-        
-        # Normalize the text for comparison
-        normalized = re.sub(r'\s+', ' ', text.strip().lower())
-        
-        # Check for exact duplicates
-        if normalized in self.seen_content:
-            return ""  # Skip exact duplicates
-        
-        # Handle Token Usage consolidation - catch various formats
-        token_patterns = [
-            r'token usage[:\s]*(.+)',
-            r'prompt[:\s]*\d+.*?total[:\s]*\d+',
-            r'\d+.*?output[:\s]*\d+.*?total[:\s]*\d+'
-        ]
-        
-        for pattern in token_patterns:
-            token_match = re.search(pattern, text, re.IGNORECASE)
-            if token_match:
-                token_info = token_match.group(0).strip()
-                # Normalize token info for comparison
-                normalized_token = re.sub(r'\s+', ' ', token_info.lower())
-                if normalized_token == self.last_token_usage:
-                    return ""  # Skip duplicate token usage
-                self.last_token_usage = normalized_token
-                self.seen_content.add(normalized)
-                return f"📊 {token_info}"
-        
-        # Handle Agent Thought consolidation
-        thought_match = re.search(r'agent thought[:\s]*(.+)', text, re.IGNORECASE)
-        if thought_match:
-            thought_content = thought_match.group(1).strip()
-            # Only show substantial thoughts, skip very similar ones
-            if len(thought_content) > 20 and thought_content != self.last_agent_thought:
-                self.last_agent_thought = thought_content
-                self.seen_content.add(normalized)
-                return f"🧠 Agent Thought: {thought_content}"
-            return ""
-        
-        # Handle repetitive "thinking" or processing messages
-        if any(phrase in normalized for phrase in [
-            'thinking through', 'current time acquisition', 'time is at hand',
-            'responding to a simple', 'time acquisition process'
-        ]):
-            # Only show the first occurrence of thinking messages
-            thinking_key = 'thinking_message'
-            if thinking_key in self.seen_content:
-                return ""
-            self.seen_content.add(thinking_key)
-            return "🤔 Agent is processing your request..."
-        
-        # Filter out system/server status messages that shouldn't be shown
-        system_noise_patterns = [
-            r'secure mcp filesystem server',
-            r'allowed directories',
-            r'knowledge graph mcp server',
-            r'running on stdio',
-            r'userinput.*enter.*send.*alt.*enter',
-            r'theme.*dark.*time.*enter.*send'
-        ]
-        
-        for pattern in system_noise_patterns:
-            if re.search(pattern, normalized):
-                return ""  # Filter out system noise
-        
-        # For other content, check for substantial similarity
-        words = set(normalized.split())
-        for seen in self.seen_content:
-            seen_words = set(seen.split())
-            # If more than 70% of words overlap, consider it similar
-            if len(words & seen_words) / max(len(words), len(seen_words)) > 0.7:
-                return ""
-        
-        # Add to seen content and return
-        self.seen_content.add(normalized)
-        return text
-    
-    def _reset_deduplication_state(self):
-        """Reset deduplication tracking for a new query."""
-        self.seen_content.clear()
-        self.last_token_usage = ""
-        self.last_agent_thought = ""
-        self.current_response_id += 1
-    
-    def _strip_all_rich_formatting(self, text: str) -> str:
-        """Aggressively strip all Rich formatting, panels, boxes, and markup."""
-        import re
-        from rich.console import Console
-        from rich.panel import Panel
-        from rich.text import Text
-        from io import StringIO
-        
-        # Handle Rich objects directly if they're passed in
-        if hasattr(text, '__rich__') or hasattr(text, '__rich_console__'):
-            try:
-                # It's a Rich object, extract plain text
-                string_io = StringIO()
-                temp_console = Console(file=string_io, force_terminal=False, width=120)
-                temp_console.print(text, markup=False, highlight=False)
-                text = string_io.getvalue()
-            except:
-                text = str(text)
-        
-        # Convert to string if it's not already
-        text = str(text)
-        
-        try:
-            # Render with Rich to get clean text output
-            string_io = StringIO()
-            temp_console = Console(
-                file=string_io, 
-                force_terminal=False, 
-                width=120,
-                legacy_windows=False,
-                force_jupyter=False,
-                _environ={},
-                no_color=True,
-                color_system=None
-            )
-            
-            # Print without any Rich features
-            temp_console.print(text, markup=False, highlight=False, crop=False, overflow="ignore", soft_wrap=True)
-            rendered_text = string_io.getvalue()
-            
-        except Exception:
-            rendered_text = text
-        
-        # Apply aggressive text cleaning
-        clean_text = self._aggressive_text_clean(rendered_text)
-        
-        return clean_text
-    
-    def _aggressive_text_clean(self, text: str) -> str:
-        """Apply aggressive text cleaning to remove all Rich artifacts."""
-        import re
-        
-        # Remove ANSI escape sequences first
-        ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
-        text = ansi_escape.sub('', text)
-        
-        # Remove all Unicode box drawing and special characters
-        box_chars = r'[┌┐└┘├┤┬┴┼─│╭╮╰╯╠╣╦╩╬═║╔╗╚╝╠╣╦╩╬▀▄█▌▐░▒▓■□▪▫▬▲►▼◄◊○●◦☼♠♣♥♦♪♫☺☻♂♀]'
-        text = re.sub(box_chars, '', text)
-        
-        # Remove Rich panel patterns completely
-        panel_removal_patterns = [
-            r'╭[─\s]*.*?[─\s]*╮',  # Panel tops
-            r'╰[─\s]*.*?[─\s]*╯',  # Panel bottoms
-            r'│[^│]*│',             # Panel content lines
-            r'┌[─\s]*.*?[─\s]*┐',  # Box tops
-            r'└[─\s]*.*?[─\s]*┘',  # Box bottoms
-        ]
-        
-        for pattern in panel_removal_patterns:
-            text = re.sub(pattern, '', text, flags=re.DOTALL | re.MULTILINE)
-        
-        # Extract meaningful content from known patterns
-        meaningful_content = []
-        
-        # Extract token usage info
-        token_matches = re.findall(r'Token Usage[:\s]*([^│\n\r]*(?:Prompt|Thinking|Output|Total)[^│\n\r]*)', text, re.IGNORECASE)
-        if token_matches:
-            meaningful_content.append(f"Token Usage: {' '.join(token_matches).strip()}")
-        
-        # Extract agent thoughts/responses
-        thought_matches = re.findall(r'(?:Agent Thought|Thinking|Response)[:\s]*([^│\n\r]{20,})', text, re.IGNORECASE | re.DOTALL)
-        if thought_matches:
-            for thought in thought_matches:
-                clean_thought = re.sub(r'[│─┌┐└┘╭╮╰╯]', '', thought).strip()
-                if len(clean_thought) > 10:  # Only include substantial content
-                    meaningful_content.append(f"Agent Thought: {clean_thought}")
-        
-        # If we extracted meaningful content, use that
-        if meaningful_content:
-            return '\n'.join(meaningful_content)
-        
-        # Otherwise, clean up the original text
-        # Remove empty lines and excessive whitespace
-        lines = [line.strip() for line in text.split('\n') if line.strip()]
-        clean_lines = []
-        
-        for line in lines:
-            # Skip lines that are just formatting artifacts
-            if re.match(r'^[│─┌┐└┘╭╮╰╯\s]*$', line):
-                continue
-            # Skip very short lines that are likely artifacts
-            if len(line.strip()) < 3:
-                continue
-            clean_lines.append(line)
-        
-        return '\n'.join(clean_lines)
-    
-    def _remove_rich_patterns(self, text: str) -> str:
-        """Remove Rich-specific patterns like panels, boxes, etc."""
-        import re
-        
-        # Remove box drawing characters and panel borders (comprehensive set)
-        box_chars = r'[┌┐└┘├┤┬┴┼─│╭╮╰╯╠╣╦╩╬═║╔╗╚╝╠╣╦╩╬▀▄█▌▐░▒▓■□▪▫▬▲►▼◄◊○●◦☼♠♣♥♦♪♫☺☻♂♀♪♫☺☻]'
-        text = re.sub(box_chars, '', text)
-        
-        # Remove panel titles and content patterns
-        panel_patterns = [
-            r'╭[─]*.*?─*╮',  # Panel tops
-            r'╰[─]*.*?─*╯',  # Panel bottoms  
-            r'│.*?│',        # Panel sides
-            r'┌[─]*.*?─*┐',  # Box tops
-            r'└[─]*.*?─*┘',  # Box bottoms
-        ]
-        
-        for pattern in panel_patterns:
-            text = re.sub(pattern, '', text, flags=re.DOTALL)
-        
-        # Remove Rich markup patterns
-        markup_patterns = [
-            r'\[/?bold\]',
-            r'\[/?italic\]', 
-            r'\[/?underline\]',
-            r'\[/?dim\]',
-            r'\[/?bright\]',
-            r'\[/?reverse\]',
-            r'\[/?strike\]',
-            r'\[/?blink\]',
-            r'\[/?conceal\]',
-            r'\[/?[a-z_]+\]',  # Any other markup tags
-            r'\[/?#[0-9a-fA-F]{6}\]',  # Hex colors
-            r'\[/?rgb\(\d+,\d+,\d+\)\]',  # RGB colors
-            r'\[/?on [a-z_]+\]',  # Background colors
-        ]
-        
-        for pattern in markup_patterns:
-            text = re.sub(pattern, '', text, flags=re.IGNORECASE)
-        
-        # Extract just the meaningful content from common Rich patterns
-        # Look for "Token Usage:" patterns and extract just the content
-        token_usage_match = re.search(r'Token Usage[:\s]*([^│\n]*)', text, re.IGNORECASE)
-        if token_usage_match:
-            token_info = token_usage_match.group(1).strip()
-            # Replace the entire token usage section with just the clean info
-            text = re.sub(r'.*Token Usage.*?(?=\n\n|\Z)', f'Token Usage: {token_info}', text, flags=re.DOTALL | re.IGNORECASE)
-        
-        # Look for agent thought patterns and clean them
-        thought_match = re.search(r'\*\*.*?(?:Thinking|Thought|Response).*?\*\*(.*?)(?=\n\*\*|\Z)', text, re.DOTALL | re.IGNORECASE)
-        if thought_match:
-            thought_content = thought_match.group(1).strip()
-            # Replace with clean thought content
-            text = re.sub(r'\*\*.*?(?:Thinking|Thought|Response).*?\*\*.*?(?=\n\n|\Z)', f'Agent Thought: {thought_content}', text, flags=re.DOTALL | re.IGNORECASE)
-        
-        # Remove excessive spaces and empty lines
-        text = re.sub(r'[ \t]+', ' ', text)  # Multiple spaces to single
-        text = re.sub(r'\n\s*\n+', '\n', text)  # Multiple newlines to single
-        text = re.sub(r'^\s*\n', '', text)  # Remove leading newlines
-        
-        return text.strip()
-        
+        if current_text:
+            new_text = current_text + "\n" + text
+        else:
+            new_text = text
+        self.output_buffer.text = new_text
+
     def _update_status(self):
-        """Update the status bar and clean input buffer if needed."""
-        theme_indicator = "🌒" if self.theme == UITheme.DARK else "🌞"
-        agent_status = "🟡 Thinking..." if self.agent_running else "🟢 Ready"
-        markdown_status = "📝" if self.markdown_enabled else "📄"
+        """Update the status buffer."""
+        status_text = f"Agent: {'running' if self.agent_running else 'ready'} | Theme: {self.theme.value}"
+        self.status_buffer.text = status_text
+
+    def add_agent_output(self, text: str, author: str = "Agent"):
+        """Add agent output with the same Rich Panel formatting as EnhancedCLI."""
+        # Use the same formatting logic as EnhancedCLI for consistency
+        markdown_text = Markdown(text)
         
-        status_text = (
-            f" {agent_status} | Theme: {theme_indicator} {self.theme.value.title()} | "
-            f"Markdown: {markdown_status} | "
-            f"Time: {datetime.now().strftime('%H:%M:%S')} | "
-            f"💡 Enter:send Alt+Enter:newline Ctrl+C:interrupt Ctrl+M:markdown Ctrl+D:exit "
+        # Use the same panel style as EnhancedCLI
+        if self.theme == UITheme.DARK:
+            border_style = "green"
+            title_style = "bold green"
+        else:
+            border_style = "dark_green" 
+            title_style = "bold dark_green"
+            
+        panel = Panel(
+            markdown_text,
+            title=f"🤖 [{title_style}]{author}[/{title_style}]",
+            border_style=border_style,
+            expand=True
         )
         
-        # Only update if the status has actually changed
-        if self.status_buffer.text != status_text:
-            self.status_buffer.text = status_text
-            
-        # Clean input buffer if it contains MCP noise
-        self._clean_input_buffer()
-    
-    def _clean_input_buffer(self):
-        """Clean the input buffer if it contains MCP server noise."""
-        if hasattr(self.input_buffer, 'text') and self.input_buffer.text:
-            # Check if input buffer contains MCP noise
-            if self._is_system_noise(self.input_buffer.text):
-                # Clear the contaminated input
-                self.input_buffer.text = ""
-                self.input_buffer.cursor_position = 0
-    
-    def _show_help(self):
-        """Show help information."""
-        help_text = """🤖 Interruptible CLI Help
+        # Render panel to string format that works with prompt_toolkit
+        from io import StringIO
+        string_io = StringIO()
+        temp_console = Console(
+            file=string_io,
+            force_terminal=False,
+            width=120,  # Wider width for better formatting
+            legacy_windows=False,
+        )
+        
+        # Print the panel
+        temp_console.print(panel, crop=False, overflow="ignore")
+        panel_text = string_io.getvalue()
+        
+        # Add the formatted panel to output
+        self._add_to_output(panel_text.rstrip(), style="agent", skip_markdown=True)
 
-Keyboard Shortcuts:
-• Enter - Send message (when agent is not running)
-• Alt+Enter - Insert newline in input
-• Ctrl+C - Interrupt running agent
-• Ctrl+D - Exit application
-• Ctrl+L - Clear output pane
-• Ctrl+T - Toggle theme
-• Ctrl+M - Toggle markdown rendering
-
-Features:
-• Persistent input pane - type while agent is responding
-• Agent interruption - Ctrl+C to stop long-running operations
-• Split-pane interface - output above, input below
-• Real-time status updates
-• Markdown rendering for formatted agent responses
-        """
-        self._add_to_output(help_text.strip(), style="info")
-        
-    def _handle_theme_command(self, command: str):
-        """Handle theme change commands."""
-        parts = command.lower().split()
-        if len(parts) == 1 or parts[1] == 'toggle':
-            self.toggle_theme()
-        elif len(parts) == 2 and parts[1] in ['dark', 'light']:
-            new_theme = UITheme(parts[1])
-            self.set_theme(new_theme)
-            
-    def toggle_theme(self):
-        """Toggle between light and dark themes."""
-        new_theme = UITheme.LIGHT if self.theme == UITheme.DARK else UITheme.DARK
-        self.set_theme(new_theme)
-        
-    def set_theme(self, theme: UITheme):
-        """Set a specific theme."""
-        self.theme = theme
-        self.theme_config = ThemeConfig.get_theme_config(self.theme)
-        self.rich_theme = ThemeConfig.get_rich_theme(self.theme)
-        self.status_bar.theme = self.theme
-        self.console = Console(theme=self.rich_theme, force_interactive=False)
-        
-        theme_name = "🌒 Dark" if self.theme == UITheme.DARK else "🌞 Light"
-        self._add_to_output(f"Switched to {theme_name} theme", style="info")
-        
-    def add_agent_output(self, text: str, author: str = "Agent"):
-        """Add agent output to the display."""
-        # Filter out system messages that shouldn't be displayed
-        if self._is_system_noise(text):
-            return
-        self._add_to_output(f"🤖 {author}: {text}", style="agent")
-    
-    def _is_system_noise(self, text: str) -> bool:
-        """Check if text is system noise that shouldn't be displayed."""
-        import re
-        
-        noise_patterns = [
-            r'secure mcp filesystem server running on stdio',
-            r'allowed directories:.*workspace',
-            r'knowledge graph mcp server running on stdio',
-            r'userinput.*enter.*send.*alt.*enter.*newline',
-            r'theme:.*dark.*time:.*enter:send'
-        ]
-        
-        text_lower = text.lower()
-        for pattern in noise_patterns:
-            if re.search(pattern, text_lower):
-                return True
-        return False
-        
     def set_agent_task(self, task: asyncio.Task):
         """Set the current agent task for interruption."""
         self.current_agent_task = task
@@ -1134,7 +1092,6 @@ Features:
         
     def create_application(self) -> Application:
         """Create the prompt_toolkit Application."""
-        # Update theme styles for the layout
         enhanced_theme_config = {
             **self.theme_config,
             'frame.input': 'bg:#2d4a2d' if self.theme == UITheme.DARK else 'bg:#e8f5e8',
@@ -1143,125 +1100,55 @@ Features:
         
         style = Style.from_dict(enhanced_theme_config)
         
-        # Removed problematic <any> key binding that was interfering
-        
         app = Application(
             layout=self.layout,
             key_bindings=self.bindings,
             style=style,
             full_screen=True,
             mouse_support=True,
-            editing_mode=EditingMode.EMACS,  # Enable editing mode
+            editing_mode=EditingMode.EMACS,
         )
         
-        # Debug: Print application info
-        print(f"DEBUG: Application created successfully")
-        print(f"DEBUG: Layout: {self.layout}")
-        print(f"DEBUG: Key bindings count: {len(self.bindings.bindings)}")
-        
-        # Set focus to input buffer so user can type
         app.layout.focus(self.input_buffer)
-        print(f"DEBUG: Focus set to input buffer: {self.input_buffer}")
-        
-        # Start periodic cleanup task
-        self._start_cleanup_task()
-        
-        # Initialize status
         self._update_status()
         
-        # Add a test message to verify the UI is working
-        self._add_to_output("✅ Interruptible CLI initialized successfully! Type a message and press Enter.", style="info")
+        return app
+
+    def display_agent_welcome(self, agent_name: str, agent_description: str = "", tools: Optional[list] = None):
+        """Display a comprehensive welcome message with agent information and capabilities."""
+        theme_indicator = "🌒" if self.theme == UITheme.DARK else "🌞"
         
-        # Welcome message
-        welcome_msg = """
+        welcome_msg = f"""
                 ▄▀█ █   ▄▀█ █▀▀ █▀▀ █▄█ ▀█▀
                 █▀█ █   █▀█ █▄█ █▄▄ █░█ ░█░
 
 🤖 Advanced AI Agent Development Kit - Interruptible CLI
+
+Agent: {agent_name}"""
+        
+        if agent_description:
+            welcome_msg += f"\nDescription: {agent_description[:150]}{'...' if len(agent_description) > 150 else ''}"
+        
+        welcome_msg += f"""
+Theme: {theme_indicator} {self.theme.value.title()}
+Session started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
 Features:
 • Split-pane interface with persistent input
 • Type commands while agent is responding  
 • Press Ctrl+C to interrupt long-running agent operations
 • Real-time status updates and themed interface
-• Markdown rendering for formatted responses (Ctrl+M to toggle)
+• Rich formatted agent responses with panels and markdown
 
-Type 'help' for commands or start chatting with your agent!
-
-DEBUG: Try typing something and pressing Enter. If you see key debug messages, the app is working.
-        """
+Ready for your DevOps challenges! 🚀
+"""
+        
         self._add_to_output(welcome_msg, style="welcome")
-        
-        # Note: Cleanup will be handled by the CLI runner
-        
-        return app
-    
-    def _start_cleanup_task(self):
-        """Start a periodic task to clean the input buffer."""
-        async def cleanup_loop():
-            while True:
-                await asyncio.sleep(0.5)  # Check every 500ms
-                self._clean_input_buffer()
-                self._update_status()
-        
-        # Start the cleanup task
-        asyncio.create_task(cleanup_loop())
-    
-    def cleanup(self):
-        """Clean up resources."""
-        pass  # No cleanup needed since we fixed MCP noise at source
-
-    def _render_markdown(self, text: str) -> str:
-        """Convert markdown text to clean, readable formatted text."""
-        if not self.markdown_enabled:
-            return text
-            
-        import re
-        
-        # Convert markdown to clean formatting
-        formatted_text = text
-        
-        # Headers - simple and clean
-        formatted_text = re.sub(r'^# (.+)$', r'🔷 \1', formatted_text, flags=re.MULTILINE)
-        formatted_text = re.sub(r'^## (.+)$', r'🔸 \1', formatted_text, flags=re.MULTILINE)
-        formatted_text = re.sub(r'^### (.+)$', r'▪️ \1', formatted_text, flags=re.MULTILINE)
-        
-        # Bold text - just add emphasis without clutter
-        formatted_text = re.sub(r'\*\*(.+?)\*\*', r'*\1*', formatted_text)
-        formatted_text = re.sub(r'__(.+?)__', r'*\1*', formatted_text)
-        
-        # Italic text - keep simple
-        formatted_text = re.sub(r'\*([^*]+?)\*', r'_\1_', formatted_text)
-        formatted_text = re.sub(r'_([^_]+?)_', r'_\1_', formatted_text)
-        
-        # Code blocks - clean format
-        formatted_text = re.sub(r'```(\w+)?\n(.*?)\n```', r'💻 \2', formatted_text, flags=re.DOTALL)
-        
-        # Inline code - minimal formatting
-        formatted_text = re.sub(r'`([^`]+?)`', r'\1', formatted_text)
-        
-        # Lists - clean bullets
-        formatted_text = re.sub(r'^- (.+)$', r'• \1', formatted_text, flags=re.MULTILINE)
-        formatted_text = re.sub(r'^\* (.+)$', r'• \1', formatted_text, flags=re.MULTILINE)
-        formatted_text = re.sub(r'^\+ (.+)$', r'• \1', formatted_text, flags=re.MULTILINE)
-        
-        # Numbered lists
-        formatted_text = re.sub(r'^(\d+)\. (.+)$', r'\1. \2', formatted_text, flags=re.MULTILINE)
-        
-        # Links - show just the text, keep URLs subtle
-        formatted_text = re.sub(r'\[(.+?)\]\((.+?)\)', r'\1', formatted_text)
-        
-        # Blockquotes - simple format
-        formatted_text = re.sub(r'^> (.+)$', r'💬 \1', formatted_text, flags=re.MULTILINE)
-        
-        # Horizontal rules - simple line
-        formatted_text = re.sub(r'^---+$', r'─' * 40, formatted_text, flags=re.MULTILINE)
-        
-        return formatted_text
+        self._add_to_output("✅ Interruptible CLI initialized successfully! The agent is ready for your questions.", style="info")
 
 
 def get_interruptible_cli_instance(theme: Optional[str] = None) -> InterruptibleCLI:
-    """Factory function to create an InterruptibleCLI instance."""
+    """Factory function to create an InterruptibleCLI instance with enhanced agent response formatting."""
     ui_theme: Optional[UITheme] = None
     if theme:
         try:
