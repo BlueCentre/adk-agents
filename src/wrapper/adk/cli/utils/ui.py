@@ -694,6 +694,10 @@ class InterruptibleCLI:
         self.output_buffer = Buffer()
         self.status_buffer = Buffer()
         
+        # Manual history tracking for reliable navigation
+        self.command_history = []
+        self.history_index = -1
+        
         self._setup_layout()
         self._setup_key_bindings()
 
@@ -909,6 +913,81 @@ class InterruptibleCLI:
             else:
                 buffer.start_completion(select_first=False)
         
+        # Up arrow for history navigation (only when at first line and no completion menu)
+        @self.bindings.add('up')
+        def _(event):
+            """Navigate to previous command in history or move cursor up."""
+            buffer = event.current_buffer
+            
+            # If completion menu is active, let it handle up/down navigation
+            if buffer.complete_state:
+                buffer.complete_previous()
+                return
+            
+            # Only navigate history if we're at the first line
+            if buffer.document.cursor_position_row == 0:
+                if self.command_history and self.history_index > 0:
+                    self.history_index -= 1
+                    buffer.text = self.command_history[self.history_index]
+                    buffer.cursor_position = len(buffer.text)
+            else:
+                # Default behavior: move cursor up
+                buffer.cursor_up()
+        
+        # Down arrow for history navigation (only when at last line and no completion menu)
+        @self.bindings.add('down')
+        def _(event):
+            """Navigate to next command in history or move cursor down."""
+            buffer = event.current_buffer
+            
+            # If completion menu is active, let it handle up/down navigation
+            if buffer.complete_state:
+                buffer.complete_next()
+                return
+            
+            # Only navigate history if we're at the last line
+            if buffer.document.cursor_position_row == buffer.document.line_count - 1:
+                if self.command_history:
+                    if self.history_index < len(self.command_history) - 1:
+                        self.history_index += 1
+                        buffer.text = self.command_history[self.history_index]
+                        buffer.cursor_position = len(buffer.text)
+                    elif self.history_index == len(self.command_history) - 1:
+                        # Move past last entry to clear buffer
+                        self.history_index = len(self.command_history)
+                        buffer.text = ""
+                        buffer.cursor_position = 0
+            else:
+                # Default behavior: move cursor down
+                buffer.cursor_down()
+        
+
+        # Ctrl+P for previous history (alternative to up arrow)
+        @self.bindings.add('c-p')
+        def _(event):
+            """Navigate to previous command in history."""
+            buffer = event.current_buffer
+            if self.command_history and self.history_index > 0:
+                self.history_index -= 1
+                buffer.text = self.command_history[self.history_index]
+                buffer.cursor_position = len(buffer.text)
+        
+        # Ctrl+N for next history (alternative to down arrow)
+        @self.bindings.add('c-n')
+        def _(event):
+            """Navigate to next command in history."""
+            buffer = event.current_buffer
+            if self.command_history:
+                if self.history_index < len(self.command_history) - 1:
+                    self.history_index += 1
+                    buffer.text = self.command_history[self.history_index]
+                    buffer.cursor_position = len(buffer.text)
+                elif self.history_index == len(self.command_history) - 1:
+                    # Move past last entry to clear buffer
+                    self.history_index = len(self.command_history)
+                    buffer.text = ""
+                    buffer.cursor_position = 0
+
         @self.bindings.add('c-c')
         def _(event):
             """Interrupt running agent."""
@@ -920,6 +999,16 @@ class InterruptibleCLI:
 
     async def _handle_user_input(self, content: str):
         """Handle user input by calling the registered callback."""
+        # Add command to both histories
+        if content.strip():
+            # Add to prompt_toolkit history
+            if self.input_buffer.history:
+                self.input_buffer.history.append_string(content.strip())
+            
+            # Add to our manual history for reliable navigation
+            self.command_history.append(content.strip())
+            self.history_index = len(self.command_history)  # Reset to end
+            
         if self.input_callback:
             await self.input_callback(content)
         self.input_buffer.text = ""
