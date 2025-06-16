@@ -39,6 +39,7 @@ async def demo_interruptible_cli():
     print("• While the agent is responding, you can type another query")
     print("• Press Ctrl+C to interrupt long-running operations")
     print("• Use Ctrl+T to toggle themes")
+    print("• Use Ctrl+Y to toggle agent thought display")
     print("• Type 'help' for more commands")
     print()
     print("Starting the interruptible CLI...")

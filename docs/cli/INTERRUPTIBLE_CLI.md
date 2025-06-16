@@ -19,6 +19,7 @@ The ADK now supports an enhanced **Interruptible CLI** that provides persistent 
 - **Status indicators**: Real-time display of agent state
 - **Visual feedback**: Clear indication when agent is thinking vs. ready
 - **Keyboard shortcuts**: Comprehensive hotkey support
+- **Agent thought display**: Optional side pane showing agent's reasoning process
 
 ## Usage
 
@@ -55,27 +56,28 @@ uv run python -m src.wrapper.adk.cli.cli --agent agents.devops
 | `Ctrl+D` | Exit application |
 | `Ctrl+L` | Clear output pane |
 | `Ctrl+T` | Toggle theme |
+| `Ctrl+Y` | Toggle agent thought display |
 
 ## Technical Architecture
 
 ### Split-Pane Layout
 
 ```
-┌─────────────────────────────────────────┐
-│          🤖 Agent Output                │
-│                                         │
-│  Agent responses appear here in         │
-│  real-time as they're generated         │
-│                                         │
-│                                         │
-├─────────────────────────────────────────┤
-│          😎 User Input                  │
-│                                         │
-│  > Type your commands here...           │
-│                                         │
-├─────────────────────────────────────────┤
-│ 🟢 Ready | Theme: 🌒 Dark | 10:30:45   │
-└─────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│  🤖 Agent Output                  │  🧠 Agent Thought             │
+│                                   │                               │
+│  Agent responses appear here in   │  Agent's thinking process     │
+│  real-time as they're generated   │  shows here when enabled      │
+│                                   │  (toggle with Ctrl+Y)        │
+│                                   │                               │
+├───────────────────────────────────┴───────────────────────────────┤
+│                    😎 User Input                                  │
+│                                                                   │
+│  > Type your commands here...                                     │
+│                                                                   │
+├───────────────────────────────────────────────────────────────────┤
+│  🟢 Ready | 🧠ON | Theme: 🌒 Dark | 10:30:45                    │
+└───────────────────────────────────────────────────────────────────┘
 ```
 
 ### Async Task Management

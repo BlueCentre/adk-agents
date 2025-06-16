@@ -121,7 +121,7 @@ class EnhancedCLI:
             """Toggle theme with Ctrl+T."""
             self.toggle_theme()
             event.app.invalidate()  # Refresh the display
-
+            
         # Create style from theme config
         style = Style.from_dict(self.theme_config)
         
@@ -370,6 +370,10 @@ class InterruptibleCLI:
         # Markdown rendering toggle
         self.markdown_enabled = True  # Enable markdown by default
         
+        # Agent thought display toggle
+        self.agent_thought_enabled = True  # Enable agent thought display by default
+        self.agent_thought_buffer = []  # Store agent thoughts
+        
         # UI Components with completion support
         self.input_buffer = Buffer(
             multiline=True,
@@ -379,6 +383,7 @@ class InterruptibleCLI:
         )
         self.output_buffer = Buffer()
         self.status_buffer = Buffer()
+        self.thought_buffer = Buffer()  # Buffer for agent thoughts
         
         # Manual history tracking for reliable navigation
         self.command_history = []
@@ -488,6 +493,15 @@ class InterruptibleCLI:
             wrap_lines=True,
         )
         
+        # Agent thought area (side pane) - conditionally shown
+        thought_window = Window(
+            content=BufferControl(
+                buffer=self.thought_buffer
+            ),
+            width=40,  # Fixed width for thought pane
+            wrap_lines=True,
+        )
+        
         # Status area with FormattedTextControl for proper styling
         status_window = Window(
             content=FormattedTextControl(
@@ -512,10 +526,33 @@ class InterruptibleCLI:
             style="class:frame.output"
         )
         
-        # Main layout with horizontal split
+        # Frame the thought area
+        thought_frame = Frame(
+            body=thought_window,
+            title=self._get_thought_title,
+            style="class:frame.thought"
+        )
+        
+        # Create main content area with conditional thought pane
+        if self.agent_thought_enabled:
+            # Three-pane layout: Output + Thought side-by-side
+            content_area = HSplit([
+                VSplit([
+                    output_frame,  # Left: Agent output (flexible width)
+                    thought_frame,  # Right: Agent thought (fixed width)
+                ]),
+                input_frame,   # Bottom: User input (fixed height)
+            ])
+        else:
+            # Two-pane layout: Just Output + Input
+            content_area = HSplit([
+                output_frame,  # Top: Agent output (flexible height)
+                input_frame,   # Bottom: User input (fixed height)
+            ])
+        
+        # Main layout with status bar
         main_layout = HSplit([
-            output_frame,  # Top: Agent output (flexible height)
-            input_frame,   # Middle: User input (fixed height)
+            content_area,  # Main content area
             status_window, # Bottom: Status bar (fixed height)
         ])
         
@@ -547,6 +584,12 @@ class InterruptibleCLI:
             return "🤖 Agent Output (thinking...)"
         return "🤖 Agent Output"
         
+    def _get_thought_title(self) -> str:
+        """Dynamic title for thought pane."""
+        if self.agent_thought_enabled:
+            return "🤖 Agent Thought"
+        return ""
+        
     def _setup_key_bindings(self):
         """Setup custom key bindings."""
         self.bindings = KeyBindings()
@@ -572,6 +615,17 @@ class InterruptibleCLI:
         def _(event):
             """Toggle theme with Ctrl+T."""
             self.toggle_theme()
+            event.app.invalidate()  # Refresh the display
+        
+        # Ctrl+Y for agent thought toggle
+        @self.bindings.add('c-y')
+        def _(event):
+            """Toggle agent thought display with Ctrl+Y."""
+            self.toggle_agent_thought()
+            # Recreate layout with new thought display setting
+            self._setup_layout()
+            # Update the application layout
+            event.app.layout = self.layout
             event.app.invalidate()  # Refresh the display
         
         # Ctrl+L for clear screen
@@ -724,7 +778,10 @@ class InterruptibleCLI:
         uptime = now - self.status_bar.session_start_time
         uptime_str = f"{uptime.seconds // 3600:02d}:{(uptime.seconds % 3600) // 60:02d}:{uptime.seconds % 60:02d}"
         
-        # Create status segments with proper styling
+        # Add agent thought status indicator
+        thought_indicator = "🧠ON" if self.agent_thought_enabled else "🧠OFF"
+        
+        # Create status segments with proper styling like regular CLI
         formatted_parts = [
             ("class:bottom-toolbar.accent", f" 🤖 {self.agent_name} "),
             ("class:bottom-toolbar", " | "),
@@ -734,7 +791,9 @@ class InterruptibleCLI:
             ("class:bottom-toolbar", " | "),
             ("class:bottom-toolbar.accent", f" {now.strftime('%H:%M:%S')} "),
             ("class:bottom-toolbar", " | "),
-            ("class:bottom-toolbar", " Enter:send | Alt+Enter:multi-line | Ctrl+D:exit | Ctrl+L:clear | Ctrl+C:interrupt"),
+            ("class:bottom-toolbar.info", f" {thought_indicator} "),
+            ("class:bottom-toolbar", " | "),
+            ("class:bottom-toolbar", " Enter:send | Alt+Enter:multi-line | Ctrl+D:exit | Ctrl+L:clear | Ctrl+C:interrupt | Ctrl+Y:thought"),
         ]
         
         return FormattedText(formatted_parts)
@@ -826,6 +885,9 @@ Ready for your DevOps challenges! 🚀
         uptime = now - self.status_bar.session_start_time
         uptime_str = f"{uptime.seconds // 3600:02d}:{(uptime.seconds % 3600) // 60:02d}:{uptime.seconds % 60:02d}"
         
+        # Add agent thought status indicator
+        thought_indicator = "🧠ON" if self.agent_thought_enabled else "🧠OFF"
+        
         # Create status segments with proper styling like regular CLI
         formatted_parts = [
             ("class:bottom-toolbar.accent", f" 🤖 {self.agent_name} "),
@@ -836,7 +898,9 @@ Ready for your DevOps challenges! 🚀
             ("class:bottom-toolbar", " | "),
             ("class:bottom-toolbar.accent", f" {now.strftime('%H:%M:%S')} "),
             ("class:bottom-toolbar", " | "),
-            ("class:bottom-toolbar", " Enter:send | Alt+Enter:multi-line | Ctrl+D:exit | Ctrl+L:clear | Ctrl+C:interrupt"),
+            ("class:bottom-toolbar.info", f" {thought_indicator} "),
+            ("class:bottom-toolbar", " | "),
+            ("class:bottom-toolbar", " Enter:send | Alt+Enter:multi-line | Ctrl+D:exit | Ctrl+L:clear | Ctrl+C:interrupt | Ctrl+Y:thought"),
         ]
         
         return FormattedText(formatted_parts)
@@ -857,3 +921,37 @@ Ready for your DevOps challenges! 🚀
         # Recreate the application with new theme
         # Note: In a real implementation, you'd want to update the existing app's style
         # For now, we'll just show the message
+
+    def toggle_agent_thought(self) -> None:
+        """Toggle agent thought display on/off."""
+        self.agent_thought_enabled = not self.agent_thought_enabled
+        thought_status = "enabled" if self.agent_thought_enabled else "disabled"
+        self._add_to_output(f"🧠 Agent thought display {thought_status}", style="info")
+        
+        # Clear thought buffer when disabling
+        if not self.agent_thought_enabled:
+            self.thought_buffer.text = ""
+
+    def add_agent_thought(self, thought_summaries: list):
+        """Add agent thought summaries to the thought display."""
+        if not self.agent_thought_enabled or not thought_summaries:
+            return
+            
+        # Combine multiple thought summaries if present
+        combined_thoughts = "\n\n".join(thought_summaries)
+        
+        # Truncate very long thoughts for display
+        max_display_length = 800
+        if len(combined_thoughts) > max_display_length:
+            display_text = combined_thoughts[:max_display_length] + "..."
+        else:
+            display_text = combined_thoughts
+        
+        # Add to thought buffer
+        current_thought_text = self.thought_buffer.text
+        if current_thought_text:
+            new_thought_text = current_thought_text + "\n\n" + f"🧠 Agent Thought:\n{display_text}"
+        else:
+            new_thought_text = f"🧠 Agent Thought:\n{display_text}"
+        
+        self.thought_buffer.text = new_thought_text

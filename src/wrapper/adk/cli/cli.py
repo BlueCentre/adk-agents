@@ -200,7 +200,7 @@ async def run_interactively(
       if event.content and event.content.parts:
         if text := ''.join(part.text or '' for part in event.content.parts):
           # Filter out thought content to prevent duplication
-          filtered_text = _filter_thought_content(text)
+          filtered_text, extracted_thoughts = _filter_thought_content(text)
           if filtered_text.strip():  # Only display if there's non-thought content
             if not fallback_mode and cli:
               panel = cli.format_agent_response(filtered_text, event.author)
@@ -208,19 +208,22 @@ async def run_interactively(
             else:
               # Simple output for fallback mode
               console.print(f"[green]{event.author}[/green]: {filtered_text}")
+  
   # Use graceful cleanup to handle MCP session cleanup errors
   from .utils.cleanup import close_runner_gracefully
   await close_runner_gracefully(runner)
 
 
-def _filter_thought_content(text: str) -> str:
-  """Filter out thought content patterns from agent responses."""
+def _filter_thought_content(text: str) -> tuple[str, list[str]]:
+  """Filter out thought content patterns from agent responses and return both filtered text and extracted thoughts."""
   if not text or not text.strip():
-    return text
+    return text, []
     
   lines = text.split('\n')
   filtered_lines = []
+  extracted_thoughts = []
   skip_section = False
+  current_thought = []
   
   for line in lines:
     line_lower = line.lower().strip()
@@ -231,18 +234,23 @@ def _filter_thought_content(text: str) -> str:
       'navigating', 'finding', 'current time', 'my approach'
     ]):
       skip_section = True
+      current_thought = [line]  # Start collecting thought content
       continue
     
     # Check for end of thought section (empty line or new content)
     if skip_section and (not line.strip() or line.startswith('#') or 
                         line.startswith('The ') or line.startswith('I ')):
+      if current_thought:
+        extracted_thoughts.append('\n'.join(current_thought))
+        current_thought = []
       if line.startswith('The ') or line.startswith('I '):
         skip_section = False
         filtered_lines.append(line)
       continue
     
-    # Skip lines that are part of thought content
+    # Skip lines that are part of thought content but collect them
     if skip_section:
+      current_thought.append(line)
       continue
       
     # Check for standalone thought patterns
@@ -250,12 +258,17 @@ def _filter_thought_content(text: str) -> str:
       'okay, so the user wants', 'let me think about', 'my best bet is to',
       'first step is to', 'given my understanding', 'i recognize that'
     ]):
+      extracted_thoughts.append(line)
       continue
     
     # Keep the line if it's not thought content
     filtered_lines.append(line)
   
-  return '\n'.join(filtered_lines)
+  # Add any remaining thought content
+  if current_thought:
+    extracted_thoughts.append('\n'.join(current_thought))
+  
+  return '\n'.join(filtered_lines), extracted_thoughts
 
 
 def _strip_rich_markup(text: str) -> str:
@@ -468,19 +481,27 @@ async def _process_agent_responses(agent_gen, cli):
     async for event in agent_gen:
       if event.content and event.content.parts:
         if text := ''.join(part.text or '' for part in event.content.parts):
-          # Filter out thought content to prevent duplication
-          filtered_text = _filter_thought_content(text)
+          # Filter out thought content to prevent duplication and extract thoughts
+          filtered_text, extracted_thoughts = _filter_thought_content(text)
           if filtered_text.strip():  # Only display if there's non-thought content
             # Both CLIs should get the same processed text
             # The InterruptibleCLI will handle markdown rendering in add_agent_output
             # The regular CLI will use its own formatting in add_agent_output
             cli.add_agent_output(filtered_text, event.author)
+          
+          # Add extracted thoughts to the InterruptibleCLI if it supports it
+          if extracted_thoughts and hasattr(cli, 'add_agent_thought'):
+            cli.add_agent_thought(extracted_thoughts)
+      
+      # Handle agent thoughts if the CLI supports it (InterruptibleCLI)
+      if hasattr(cli, 'add_agent_thought') and hasattr(event, 'thoughts') and event.thoughts:
+        cli.add_agent_thought(event.thoughts)
       
       # Also check if the event itself contains Rich objects or formatted content
       # This handles cases where the agent generates Rich panels directly
       if hasattr(event, '__dict__'):
         for attr_name, attr_value in event.__dict__.items():
-          if attr_name not in ['content', 'author', 'timestamp'] and attr_value:
+          if attr_name not in ['content', 'author', 'timestamp', 'thoughts'] and attr_value:
             # Check if this attribute contains Rich content
             if hasattr(attr_value, '__rich__') or hasattr(attr_value, '__rich_console__'):
               # Both CLIs handle Rich content in their add_agent_output methods
