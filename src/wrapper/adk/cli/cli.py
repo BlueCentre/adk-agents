@@ -431,7 +431,7 @@ async def run_interactively_with_interruption(
                 
             # Display main agent output in the output pane
             if filtered_text.strip():  # Only display if there's non-thought content
-              app_tui.add_output(filtered_text, event.author, rich_format=True)
+              app_tui.add_agent_output(filtered_text, event.author)
         
         # Handle token usage from LLM responses
         if hasattr(event, 'usage_metadata') and event.usage_metadata:

@@ -357,13 +357,19 @@ class AgentTUI(App):
         if rich_format:
             if isinstance(text, Panel) or isinstance(text, Text):
                 output_log.write(text)
-            elif author == "Agent":
+            elif author in ["Agent", "agent"] or "Agent" in author:  # More flexible agent detection
                 panel_text = self.rich_renderer.format_agent_response(text, author)
                 output_log.write(panel_text)
             else:
                 output_log.write(Text(text, style=style))
         else:
             output_log.write(text)
+
+    def add_agent_output(self, text: str, author: str = "Agent"):
+        """Add agent output with proper markdown rendering."""
+        output_log = self.query_one("#output-log", RichLog)
+        panel_text = self.rich_renderer.format_agent_response(text, author)
+        output_log.write(panel_text)
 
     def add_thought(self, text: str):
         """Add text to the agent thought log."""
