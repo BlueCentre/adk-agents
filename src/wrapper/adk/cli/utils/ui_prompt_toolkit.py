@@ -472,6 +472,14 @@ class InterruptibleCLI:
         self.agent_name = agent_name
         self._update_status()
         
+    def _get_terminal_width(self) -> int:
+        """Get the current terminal width."""
+        try:
+            import shutil
+            return shutil.get_terminal_size().columns
+        except:
+            return 80  # Fallback to 80 columns if unable to detect
+        
     def _setup_layout(self):
         """Setup the split-pane layout with floating completion menu."""
         
@@ -485,20 +493,31 @@ class InterruptibleCLI:
             wrap_lines=True,
         )
         
-        # Output area (top pane)
-        output_window = Window(
-            content=BufferControl(
-                buffer=self.output_buffer
-            ),
-            wrap_lines=True,
-        )
+        # Output area (top pane) - width depends on whether thought pane is enabled
+        if self.agent_thought_enabled:
+            # When thought pane is enabled, constrain output width to 60% of available space
+            output_window = Window(
+                content=BufferControl(
+                    buffer=self.output_buffer
+                ),
+                wrap_lines=True,
+                width=lambda: max(40, int(self._get_terminal_width() * 0.6))  # 60% of terminal width, minimum 40
+            )
+        else:
+            # When thought pane is disabled, output takes full width
+            output_window = Window(
+                content=BufferControl(
+                    buffer=self.output_buffer
+                ),
+                wrap_lines=True,
+            )
         
         # Agent thought area (side pane) - conditionally shown
         thought_window = Window(
             content=BufferControl(
                 buffer=self.thought_buffer
             ),
-            width=40,  # Fixed width for thought pane
+            width=lambda: max(30, int(self._get_terminal_width() * 0.35)),  # 35% of terminal width, minimum 30
             wrap_lines=True,
         )
         
@@ -538,8 +557,8 @@ class InterruptibleCLI:
             # Three-pane layout: Output + Thought side-by-side
             content_area = HSplit([
                 VSplit([
-                    output_frame,  # Left: Agent output (flexible width)
-                    thought_frame,  # Right: Agent thought (fixed width)
+                    output_frame,  # Left: Agent output (60% width)
+                    thought_frame,  # Right: Agent thought (35% width, 5% for borders/padding)
                 ]),
                 input_frame,   # Bottom: User input (fixed height)
             ])
@@ -626,6 +645,8 @@ class InterruptibleCLI:
             self._setup_layout()
             # Update the application layout
             event.app.layout = self.layout
+            # Restore focus to the input buffer
+            event.app.layout.focus(self.input_buffer)
             event.app.invalidate()  # Refresh the display
         
         # Ctrl+L for clear screen

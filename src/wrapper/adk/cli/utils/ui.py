@@ -19,6 +19,7 @@ from typing import Optional
 from .ui_common import UITheme
 from .ui_rich import RichRenderer
 from .ui_prompt_toolkit import EnhancedCLI, InterruptibleCLI
+from .ui_textual import AgentTUI
 
 
 def get_cli_instance(theme: Optional[str] = None) -> EnhancedCLI:
@@ -37,8 +38,8 @@ def get_cli_instance(theme: Optional[str] = None) -> EnhancedCLI:
     return EnhancedCLI(theme=ui_theme, rich_renderer=rich_renderer)
 
 
-def get_interruptible_cli_instance(theme: Optional[str] = None) -> InterruptibleCLI:
-    """Factory function to create an InterruptibleCLI instance with optional theme."""
+def get_interruptible_cli_instance(theme: Optional[str] = None) -> AgentTUI:
+    """Factory function to create an AgentTUI (Textual) instance with optional theme."""
     ui_theme = None
     if theme:
         try:
@@ -50,4 +51,4 @@ def get_interruptible_cli_instance(theme: Optional[str] = None) -> Interruptible
     # Create RichRenderer with the theme
     rich_renderer = RichRenderer(ui_theme) if ui_theme else None
     
-    return InterruptibleCLI(theme=ui_theme, rich_renderer=rich_renderer)
+    return AgentTUI(theme=ui_theme, rich_renderer=rich_renderer)

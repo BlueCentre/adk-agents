@@ -103,35 +103,47 @@ class ThemeConfig:
         else:
             return cls.LIGHT_THEME
 
-    @classmethod
-    def get_rich_theme(cls, theme: UITheme) -> Theme:
-        """Get Rich theme configuration."""
+    @staticmethod
+    def get_rich_theme(theme: UITheme) -> Theme:
+        """Get a Rich Theme based on the UI theme."""
         if theme == UITheme.DARK:
-            return Theme({
-                "user": "bold cyan",
-                "agent": "bold green",
-                "system": "bold yellow",
-                "error": "bold red",
-                "success": "bold green",
-                "info": "bold blue",
-                "warning": "bold yellow",
-                "muted": "dim white",
-                "highlight": "bold magenta",
-                "accent": "bold cyan",
-            })
-        else:
-            return Theme({
-                "user": "bold blue",
-                "agent": "bold dark_green",
-                "system": "bold orange3",
-                "error": "bold red",
-                "success": "bold green",
-                "info": "bold blue",
-                "warning": "bold yellow",
-                "muted": "dim black",
-                "highlight": "bold purple",
-                "accent": "bold blue",
-            })
+            return Theme(
+                {
+                    "info": "green",
+                    "warning": "yellow",
+                    "error": "bold red",
+                    "success": "green",
+                    "accent": "yellow",
+                    "highlight": "cyan",
+                    "user": "cyan italic",
+                    "agent": "yellow",
+                    "welcome": "bold magenta",
+                    "agent.border_color": "blue",
+                    "thought.border_color": "magenta",
+                    "bottom-toolbar": "#cccccc on #004488",
+                    "bottom-toolbar.accent": "#FFD700 on #004488",
+                    "bottom-toolbar.info": "#ADD8E6 on #004488",
+                }
+            )
+        else: # UITheme.LIGHT
+            return Theme(
+                {
+                    "info": "green",
+                    "warning": "yellow",
+                    "error": "bold red",
+                    "success": "green",
+                    "accent": "yellow",
+                    "highlight": "blue",
+                    "user": "cyan italic",
+                    "agent": "red",
+                    "welcome": "bold magenta",
+                    "agent.border_color": "blue",
+                    "thought.border_color": "magenta",
+                    "bottom-toolbar": "#111111 on #bbbbbb",
+                    "bottom-toolbar.accent": "#CD853F on #bbbbbb",
+                    "bottom-toolbar.info": "#4682B4 on #bbbbbb",
+                }
+            )
 
 
 class StatusBar:

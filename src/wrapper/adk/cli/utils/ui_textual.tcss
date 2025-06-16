@@ -1,0 +1,123 @@
+Screen {
+    background: #1e1e1e;
+}
+
+.light {
+    background: #f5f5f5;
+    color: #333333;
+}
+
+.dark {
+    background: #1e1e1e;
+    color: #cccccc;
+}
+
+#main-content {
+    height: 1fr;
+}
+
+.output-pane {
+    width: 2fr;
+    border: thick #6a6aff;
+    margin: 1;
+    padding: 0 1;
+    background: #2d2d4a;
+    height: 1fr;
+    overflow-y: scroll;
+}
+
+.thought-pane {
+    width: 1fr;
+    border: thick #ff6aff;
+    margin: 1;
+    padding: 0 1;
+    background: #2d2d4a;
+    height: 1fr;
+    overflow-y: scroll;
+}
+
+#input-area {
+    height: 5;
+    border: thick #6a6aff;
+    margin: 1;
+    padding: 0 1;
+    background: #2d2d4a;
+}
+
+.light .output-pane {
+    background: #e8e8f5;
+    border: thick #a0a0ff;
+}
+
+.dark .output-pane {
+    background: #2d2d4a;
+    border: thick #6a6aff;
+}
+
+.light .input-pane {
+    background: #e8f5e8;
+    border: thick #a0ffb0;
+}
+
+.dark .input-pane {
+    background: #2d4a2d;
+    border: thick #6aff7a;
+}
+
+.light .thought-pane {
+    background: #e8f0f0;
+    border: thick #a0b0b0;
+}
+
+.dark .thought-pane {
+    background: #2a3a3a;
+    border: thick #6a7a7a;
+}
+
+Footer {
+    height: 1;
+    dock: bottom;
+    background: #004488;
+    color: #dddddd;
+    text-align: center;
+}
+
+.light Footer {
+    background: #bbbbbb;
+    color: #111111;
+}
+
+.dark Footer {
+    background: #004488;
+    color: #dddddd;
+}
+
+.info {
+    color: green;
+}
+.warning {
+    color: yellow;
+}
+.error {
+    color: red;
+}
+.success {
+    color: lightgreen;
+}
+.accent {
+    color: #FFD700;
+}
+.highlight {
+    color: #ADD8E6;
+}
+.user {
+    color: #87CEEB;
+    text-style: italic;
+}
+.agent {
+    color: #FFA500;
+}
+.welcome {
+    color: #FF69B4;
+    text-style: bold;
+}

@@ -17,11 +17,12 @@ from __future__ import annotations
 import re
 import shutil
 from io import StringIO
-from typing import Optional
+from typing import Optional, Any
 
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
+from rich.text import Text
 
 from .ui_common import UITheme, ThemeConfig
 
@@ -29,18 +30,40 @@ from .ui_common import UITheme, ThemeConfig
 class RichRenderer:
     """Handles rendering of Rich components and markdown."""
 
-    def __init__(self, theme: UITheme = UITheme.DARK):
-        self.theme = theme
+    def __init__(self, theme: Optional[UITheme] = None):
+        self.theme = theme or UITheme.DARK
         self.rich_theme = ThemeConfig.get_rich_theme(self.theme)
-        self.console = Console(
-            theme=self.rich_theme,
-            force_interactive=False,
-            legacy_windows=False,
-            soft_wrap=True,
-            width=None,
-            height=None
-        )
+        self.console = Console(theme=self.rich_theme, force_interactive=True)
         self.markdown_enabled = True
+
+    def format_agent_response(self, text: str, author: str = "Agent") -> Panel:
+        markdown = Markdown(text, style="agent")
+        return Panel(
+            markdown,
+            title=f"[bold {self.rich_theme.styles.get('agent.border_color', 'blue')}]🤖 {author} Response[/bold {self.rich_theme.styles.get('agent.border_color', 'blue')}]",
+            border_style=self.rich_theme.styles.get("agent.border_color", "blue"),
+            expand=True,
+            highlight=True,
+        )
+
+    def format_agent_thought(self, text: str) -> Panel:
+        markdown = Markdown(text, style="thought")
+        return Panel(
+            markdown,
+            title=f"[bold {self.rich_theme.styles.get('thought.border_color', 'magenta')}]🧠 Agent Thought[/bold {self.rich_theme.styles.get('thought.border_color', 'magenta')}]",
+            border_style=self.rich_theme.styles.get("thought.border_color", "magenta"),
+            expand=True,
+            highlight=True,
+        )
+
+    def print_markdown(self, markdown_text: str, style: Optional[str] = None):
+        self.console.print(Markdown(markdown_text, style=style))
+
+    def print_panel(self, content: Any, title: Optional[str] = None, border_style: Optional[str] = None):
+        self.console.print(Panel(content, title=title, border_style=border_style))
+
+    def print_text(self, text: str, style: Optional[str] = None):
+        self.console.print(Text(text, style=style))
 
     def format_agent_response_panel(self, text: str, author: str) -> Panel:
         """Format agent response with themed panel and return Panel object."""
@@ -61,7 +84,7 @@ class RichRenderer:
             padding=(0, 1)  # Minimal padding to prevent over-indentation
         )
 
-    def format_agent_response(self, text: str, author: str) -> str:
+    def format_agent_response_str(self, text: str, author: str) -> str:
         """Format agent response with themed panel and render to string."""
         panel = self.format_agent_response_panel(text, author)
 
