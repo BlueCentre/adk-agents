@@ -116,7 +116,7 @@ class ThemeConfig:
                     "accent": "yellow",
                     "highlight": "cyan",
                     "user": "cyan italic",
-                    "agent": "yellow",
+                    "agent": "white",
                     "welcome": "bold magenta",
                     "agent.border_color": "blue",
                     "thought.border_color": "magenta",

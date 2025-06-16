@@ -1,5 +1,5 @@
 Screen {
-    background: #1e1e1e;
+    background: transparent;
 }
 
 .light {
@@ -8,7 +8,7 @@ Screen {
 }
 
 .dark {
-    background: #1e1e1e;
+    background: transparent;
     color: #cccccc;
 }
 
@@ -43,7 +43,7 @@ Screen {
     border: solid white;
     margin: 1;
     padding: 0 1;
-    background: #2d2d4a;
+    background: #2a2a2a;
 }
 
 .light .output-pane {
@@ -52,7 +52,7 @@ Screen {
 }
 
 .dark .output-pane {
-    background: #2d2d4a;
+    background: transparent;
     border: solid #6a6aff;
 }
 
@@ -62,7 +62,7 @@ Screen {
 }
 
 .dark .input-pane {
-    background: #2d4a2d;
+    background: transparent;
     border: solid white;
 }
 
@@ -72,14 +72,14 @@ Screen {
 }
 
 .dark .thought-pane {
-    background: #2a3a3a;
+    background: transparent;
     border: solid #6a7a7a;
 }
 
 Footer {
     height: 1;
     dock: bottom;
-    background: #004488;
+    background: #2a2a2a;
     color: #dddddd;
     text-align: center;
 }
@@ -90,7 +90,7 @@ Footer {
 }
 
 .dark Footer {
-    background: #004488;
+    background: #2a2a2a;
     color: #dddddd;
 }
 
@@ -117,7 +117,7 @@ Footer {
     text-style: italic;
 }
 .agent {
-    color: #FFA500;
+    color: white;
 }
 .welcome {
     color: #FF69B4;
