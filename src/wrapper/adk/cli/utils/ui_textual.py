@@ -29,14 +29,23 @@ class CategorizedInput(Input):
         self.completion_index = -1
         self.current_completions = []
         self.original_text = ""
+        # History navigation support
+        self.command_history = []
+        self.history_index = -1
 
     def on_key(self, event: Key) -> None:
-        """Handle key events for tab completion."""
+        """Handle key events for tab completion and history navigation."""
         if event.key == "tab":
             self._handle_tab_completion()
             event.prevent_default()
         elif event.key == "escape":
             self._cancel_completion()
+            event.prevent_default()
+        elif event.key == "up":
+            self._navigate_history(-1)
+            event.prevent_default()
+        elif event.key == "down":
+            self._navigate_history(1)
             event.prevent_default()
         else:
             # Reset completion on any other key
@@ -83,6 +92,36 @@ class CategorizedInput(Input):
             self.current_completions = []
             self.original_text = ""
 
+    def _navigate_history(self, direction: int) -> None:
+        """Navigate command history."""
+        if not self.command_history:
+            return
+
+        if direction == -1:  # Up arrow - previous command
+            if self.history_index > 0:
+                self.history_index -= 1
+                self.value = self.command_history[self.history_index]
+            elif self.history_index == 0:
+                pass  # Already at first item
+            else:
+                # Initialize to last item
+                self.history_index = len(self.command_history) - 1
+                self.value = self.command_history[self.history_index]
+        elif direction == 1:  # Down arrow - next command
+            if self.history_index < len(self.command_history) - 1:
+                self.history_index += 1
+                self.value = self.command_history[self.history_index]
+            else:
+                # Clear input when going past last item
+                self.history_index = len(self.command_history)
+                self.value = ""
+
+    def add_to_history(self, command: str):
+        """Add a command to the history."""
+        if command.strip():
+            self.command_history.append(command.strip())
+            self.history_index = len(self.command_history)
+
 class AgentTUI(App):
     """Textual UI for the ADK Agent."""
 
@@ -96,6 +135,10 @@ class AgentTUI(App):
         Binding("ctrl+d", "quit", "Quit", show=False),
         Binding("ctrl+c", "interrupt_agent", "Interrupt Agent", show=False),
         Binding("tab", "trigger_completion", "Tab Completion", show=False),
+        Binding("up", "history_previous", "Previous Command", show=False),
+        Binding("down", "history_next", "Next Command", show=False),
+        Binding("ctrl+p", "history_previous", "Previous Command", show=False),
+        Binding("ctrl+n", "history_next", "Next Command", show=False),
     ]
 
     agent_running: reactive[bool] = reactive(False)
@@ -293,9 +336,10 @@ class AgentTUI(App):
                     self.add_output("🌞 Switched to light theme", rich_format=True, style="info")
                 return
             
-            # Add to history
+            # Add to history (both app and input widget)
             self.command_history.append(content)
             self.history_index = len(self.command_history)
+            input_widget.add_to_history(content)
 
             # Process user input through callback
             if self.input_callback:
@@ -425,41 +469,7 @@ class AgentTUI(App):
         """Register callback for agent interruption."""
         self.interrupt_callback = callback
 
-    def on_key(self, event) -> None:
-        """Handle key events for the main app."""
-        # Check if the event has a key attribute
-        if hasattr(event, 'key'):
-            if event.key == "up":
-                self._navigate_history(-1)
-                event.prevent_default()
-            elif event.key == "down":
-                self._navigate_history(1)
-                event.prevent_default()
 
-    async def _navigate_history(self, direction: int) -> None:
-        """Navigate command history."""
-        if not self.command_history:
-            return
-
-        input_widget = self.query_one("#input-area", CategorizedInput)
-
-        if direction == -1:
-            if self.history_index > 0:
-                self.history_index -= 1
-                input_widget.value = self.command_history[self.history_index]
-            elif self.history_index == 0:
-                pass
-            else:
-                self.history_index = len(self.command_history) - 1
-                input_widget.value = self.command_history[self.history_index]
-
-        elif direction == 1:
-            if self.history_index < len(self.command_history) - 1:
-                self.history_index += 1
-                input_widget.value = self.command_history[self.history_index]
-            else:
-                self.history_index = len(self.command_history)
-                input_widget.value = ""
 
     def watch_agent_running(self, running: bool) -> None:
         """Update footer when agent running status changes."""
@@ -614,6 +624,38 @@ class AgentTUI(App):
         """Trigger tab completion in the input area."""
         input_widget = self.query_one("#input-area", CategorizedInput)
         input_widget._handle_tab_completion()
+
+    def action_history_previous(self) -> None:
+        """Navigate to previous command in history."""
+        if not self.command_history:
+            return
+        
+        input_widget = self.query_one("#input-area", CategorizedInput)
+        
+        if self.history_index > 0:
+            self.history_index -= 1
+            input_widget.value = self.command_history[self.history_index]
+        elif self.history_index == 0:
+            pass  # Already at first item
+        else:
+            # Initialize to last item
+            self.history_index = len(self.command_history) - 1
+            input_widget.value = self.command_history[self.history_index]
+
+    def action_history_next(self) -> None:
+        """Navigate to next command in history."""
+        if not self.command_history:
+            return
+            
+        input_widget = self.query_one("#input-area", CategorizedInput)
+        
+        if self.history_index < len(self.command_history) - 1:
+            self.history_index += 1
+            input_widget.value = self.command_history[self.history_index]
+        else:
+            # Clear input when going past last item
+            self.history_index = len(self.command_history)
+            input_widget.value = ""
 
     def action_insert_newline(self) -> None:
         """Action to insert a newline in the input area."""
