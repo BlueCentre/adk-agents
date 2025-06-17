@@ -579,95 +579,107 @@ async def run_cli(
       )
 
   if save_session:
-    # This part remains a placeholder as InMemorySessionService does not support direct file saving.
-    # Future implementations might use a different SessionService or a custom saving mechanism.
-    print("Session saving is not implemented for InMemorySessionService.")
-    print("To enable session saving, configure a persistent session service (e.g., database or Vertex AI).")
+    session_id = session_id or input('📝 Session ID to save: ')
+    session_path = (
+        # f'{agent_parent_dir}/{agent_folder_name}/{session_id}.session.json'
+        f'{session_id}.session.json'
+    )
+
+    # Fetch the session again to get all the details.
+    session = await session_service.get_session(
+        app_name=session.app_name,
+        user_id=session.user_id,
+        session_id=session.id,
+    )
+    with open(session_path, 'w', encoding='utf-8') as f:
+      f.write(session.model_dump_json(indent=2, exclude_none=True))
+
+    print('Session saved to', session_path)
 
 
-@click.group()
-def cli():
-  pass
+# @click.group()
+# def cli():
+#   pass
 
 
-@cli.command()
-@click.option('--agent', '-a', required=True, help='Agent module name (e.g., agents.devops)')
-@click.option('--input-file', '-i', help='Input file with queries')
-@click.option('--saved-session', '-s', help='Saved session file to resume')
-@click.option('--save-session', is_flag=True, help='Save session on exit')
-@click.option('--session-id', help='Session ID for saving')
-@click.option('--theme', type=click.Choice(['light', 'dark']), help='UI theme')
-@click.option('--interruptible', is_flag=True, help='Use interruptible CLI with persistent input pane')
-def main(agent: str, input_file: Optional[str], saved_session: Optional[str], 
-         save_session: bool, session_id: Optional[str], theme: Optional[str], interruptible: bool):
-  # Load environment variables specific to the agent
-  load_dotenv_for_agent(agent)
+# @cli.command()
+# @click.option('--agent', '-a', required=True, help='Agent module name (e.g., agents.devops)')
+# @click.option('--input-file', '-i', help='Input file with queries')
+# @click.option('--saved-session', '-s', help='Saved session file to resume')
+# @click.option('--save-session', is_flag=True, help='Save session on exit')
+# @click.option('--session-id', help='Session ID for saving')
+# @click.option('--theme', type=click.Choice(['light', 'dark']), help='UI theme')
+# @click.option('--interruptible', is_flag=True, help='Use interruptible CLI with persistent input pane')
+# def main(agent: str, input_file: Optional[str], saved_session: Optional[str], 
+#          save_session: bool, session_id: Optional[str], theme: Optional[str], interruptible: bool):
+#   # Load environment variables specific to the agent
+#   load_dotenv_for_agent(agent)
 
-  if input_file and saved_session:
-    print("Error: Cannot specify both --input-file and --saved-session.")
-    sys.exit(1)
+#   if input_file and saved_session:
+#     print("Error: Cannot specify both --input-file and --saved-session.")
+#     sys.exit(1)
 
-  # Use AgentLoader instance to load the agent
-  agent_loader = AgentLoader()
-  root_agent = agent_loader.load_agent(agent)
+#   # Use AgentLoader instance to load the agent
+#   agent_loader = AgentLoader()
+#   root_agent = agent_loader.load_agent(agent)
   
-  artifact_service = InMemoryArtifactService()
-  session_service = InMemorySessionService()
+#   artifact_service = InMemoryArtifactService()
+#   session_service = InMemorySessionService()
 
-  if input_file:
-    asyncio.run(
-        run_input_file(
-            app_name=agent,
-            user_id="default-user",
-            root_agent=root_agent,
-            artifact_service=artifact_service,
-            session_service=session_service,
-            input_path=input_file,
-        )
-    )
-  elif saved_session:
-    session = asyncio.run(session_service.get_session(session_id=saved_session, app_name=agent))
-    if not session:
-      print(f"Error: Session with ID {saved_session} not found.")
-      sys.exit(1)
-    asyncio.run(
-        run_interactively(
-            root_agent=root_agent,
-            artifact_service=artifact_service,
-            session=session,
-            session_service=session_service,
-            ui_theme=theme,
-        )
-    )
-  else:
-    session = asyncio.run(session_service.create_session(app_name=agent, user_id="default-user"))
-    if interruptible:
-      asyncio.run(
-          run_interactively_with_interruption(
-              root_agent=root_agent,
-              artifact_service=artifact_service,
-              session=session,
-              session_service=session_service,
-              ui_theme=theme,
-          )
-      )
-    else:
-      asyncio.run(
-          run_interactively(
-              root_agent=root_agent,
-              artifact_service=artifact_service,
-              session=session,
-              session_service=session_service,
-              ui_theme=theme,
-          )
-      )
+#   if input_file:
+#     asyncio.run(
+#         run_input_file(
+#             app_name=agent,
+#             user_id="default-user",
+#             root_agent=root_agent,
+#             artifact_service=artifact_service,
+#             session_service=session_service,
+#             input_path=input_file,
+#         )
+#     )
+#   elif saved_session:
+#     session = asyncio.run(session_service.get_session(session_id=saved_session, app_name=agent))
+#     if not session:
+#       print(f"Error: Session with ID {saved_session} not found.")
+#       sys.exit(1)
+#     asyncio.run(
+#         run_interactively(
+#             root_agent=root_agent,
+#             artifact_service=artifact_service,
+#             session=session,
+#             session_service=session_service,
+#             ui_theme=theme,
+#         )
+#     )
+#   else:
+#     session = asyncio.run(session_service.create_session(app_name=agent, user_id="default-user"))
+#     if interruptible:
+#       asyncio.run(
+#           run_interactively_with_interruption(
+#               root_agent=root_agent,
+#               artifact_service=artifact_service,
+#               session=session,
+#               session_service=session_service,
+#               ui_theme=theme,
+#           )
+#       )
+#     else:
+#       asyncio.run(
+#           run_interactively(
+#               root_agent=root_agent,
+#               artifact_service=artifact_service,
+#               session=session,
+#               session_service=session_service,
+#               ui_theme=theme,
+#           )
+#       )
 
-  if save_session:
-    # This part remains a placeholder as InMemorySessionService does not support direct file saving.
-    # Future implementations might use a different SessionService or a custom saving mechanism.
-    print("Session saving is not implemented for InMemorySessionService.")
-    print("To enable session saving, configure a persistent session service (e.g., database or Vertex AI).")
+#   if save_session:
+#     # This part remains a placeholder as InMemorySessionService does not support direct file saving.
+#     # Future implementations might use a different SessionService or a custom saving mechanism.
+#     print("Session saving is not implemented for InMemorySessionService.")
+#     print("To enable session saving, configure a persistent session service (e.g., database or Vertex AI).")
 
 
-if __name__ == '__main__':
-  main()
+# if __name__ == '__main__':
+#   main()
