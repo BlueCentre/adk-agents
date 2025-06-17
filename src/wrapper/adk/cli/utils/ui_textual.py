@@ -315,22 +315,22 @@ class AgentTUI(App):
     def action_toggle_agent_thought(self) -> None:
         """Toggle agent thought display."""
         self.agent_thought_enabled = not self.agent_thought_enabled
-        self.query_one("#main-content").remove()
-        if self.agent_thought_enabled:
-            self.query_one(Vertical).mount(
-                Horizontal(
-                    RichLog(id="output-log", classes="output-pane"),
-                    RichLog(id="thought-log", classes="thought-pane"),
-                    id="main-content"
-                )
-            )
-        else:
-            self.query_one(Vertical).mount(
-                Horizontal(
-                    RichLog(id="output-log", classes="output-pane"),
-                    id="main-content"
-                )
-            )
+        
+        # Check if thought log already exists
+        try:
+            thought_log = self.query_one("#thought-log", RichLog)
+            if self.agent_thought_enabled:
+                # Show the thought log if it's hidden
+                thought_log.display = True
+            else:
+                # Hide the thought log
+                thought_log.display = False
+        except:
+            # Thought log doesn't exist, create it if needed
+            if self.agent_thought_enabled:
+                main_content = self.query_one("#main-content")
+                main_content.mount(RichLog(id="thought-log", classes="thought-pane"))
+        
         self.add_output(f"[info]Agent thought display: {'ON' if self.agent_thought_enabled else 'OFF'}[/info]", rich_format=True)
 
     def action_clear_output(self) -> None:
