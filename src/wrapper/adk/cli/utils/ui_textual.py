@@ -435,21 +435,28 @@ class AgentTUI(App):
         thought_status = "ON" if self.agent_thought_enabled else "OFF"
 
         welcome_msg_rich = Text.from_markup(f"""
+[agent]▄▀█ █   ▄▀█ █▀▀ █▀▀ █▄█ ▀█▀[/agent]
+[agent]█▀█ █   █▀█ █▄█ █▄▄ █░█ ░█░[/agent]
+
 [bold cyan]🤖 Welcome to {agent_name}![/bold cyan]
 
 [bold]Description:[/bold] {agent_description or "AI Assistant"}
 [bold]Tools Available:[/bold] {len(tools) if tools else 0} tools loaded
 [bold]Session ID:[/bold] {self.session_id}
 [bold]Agent Thoughts:[/bold] {thought_status} (Ctrl+Y to toggle)
-""")
-
-        welcome_msg_rich.append(f"""
 [bold]Theme:[/bold] {theme_indicator} {self._current_ui_theme.value.title()}
-[bold]Session started:[/bold] {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
 [bold green]🚀 Ready to assist! Type your message below and press Enter.[/bold green]
 [dim]💡 Use 'help' command or Ctrl+T (theme), Ctrl+Y (thoughts), Ctrl+L (clear), Ctrl+D (quit)[/dim]
 """)
+
+#         welcome_msg_rich.append(f"""
+# [bold]Theme:[/bold] {theme_indicator} {self._current_ui_theme.value.title()}
+# [bold]Session started:[/bold] {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+# [bold green]🚀 Ready to assist! Type your message below and press Enter.[/bold green]
+# [dim]💡 Use 'help' command or Ctrl+T (theme), Ctrl+Y (thoughts), Ctrl+L (clear), Ctrl+D (quit)[/dim]
+# """)
 
         self.add_output(welcome_msg_rich, rich_format=True)
         

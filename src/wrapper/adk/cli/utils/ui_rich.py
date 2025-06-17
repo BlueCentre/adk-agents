@@ -92,7 +92,7 @@ class RichRenderer:
         try:
             terminal_width = shutil.get_terminal_size().columns
             # Account for frame borders and padding - leave some margin
-            panel_width = max(80, terminal_width - 6)  # Minimum 80, subtract for borders/padding
+            panel_width = max(80, terminal_width - 3)  # Minimum 80, subtract for borders/padding
         except:
             panel_width = 120  # Fallback width
 
@@ -128,8 +128,8 @@ class RichRenderer:
                 legacy_windows=False,
             )
             
-            # Print the markdown object directly (no Panel wrapper)
-            temp_console.print(markdown_obj, crop=False, overflow="ignore", soft_wrap=False)
+            # Print the markdown object directly (with Panel wrapper)
+            temp_console.print(markdown_obj, crop=False, overflow="ignore", soft_wrap=True)
             rendered_output = string_io.getvalue()
             
             return rendered_output.rstrip()
