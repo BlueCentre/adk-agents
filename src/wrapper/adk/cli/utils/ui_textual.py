@@ -8,10 +8,11 @@ from typing import Optional, Callable, Any, Awaitable, List, Union
 
 from textual.app import App, ComposeResult
 from textual.containers import Container, Vertical, Horizontal
-from textual.widgets import Header, Footer, Input, RichLog, Label, TextArea
+from textual.widgets import Header, Footer, Input, RichLog, Label, TextArea, Static
 from textual.binding import Binding
 from textual.events import Event, Key
 from textual.reactive import reactive
+from textual import work
 
 from rich.console import Console
 from rich.markdown import Markdown
@@ -167,8 +168,8 @@ class AgentTUI(App):
         self.status_bar = StatusBar(self._current_ui_theme)
         self.console = Console(theme=self.rich_renderer.rich_theme, force_interactive=True)
         self.current_agent_task: Optional[asyncio.Task] = None
-        self.input_callback: Optional[Callable[[str], Awaitable[None]]] = None
-        self.interrupt_callback: Optional[Callable[[], Awaitable[None]]] = None
+        self.input_callback: Optional[Callable[[str], Awaitable[Any]]] = None
+        self.interrupt_callback: Optional[Callable[[], Awaitable[Any]]] = None
         self.command_history: list[str] = []
         self.history_index: int = -1
 
@@ -217,7 +218,7 @@ class AgentTUI(App):
                 id="input-area",
                 classes="input-pane",
             )
-            yield Footer()
+            yield Static("", id="status-bar")
 
     def on_mount(self) -> None:
         """Called when app is mounted."""
@@ -234,14 +235,65 @@ class AgentTUI(App):
             delattr(self, '_pending_welcome_info')
             
         # Schedule footer update after mount is complete
-        self.call_after_refresh(self._update_footer)
+        self.call_after_refresh(self._update_status)
 
     def _update_status(self) -> None:
         """Update the status bar."""
+        # Only update if the app is mounted and screen is available
+        if not self.is_mounted:
+            return
+
         now = datetime.now()
         uptime = now - self.status_bar.session_start_time
         self._uptime = f"{uptime.seconds // 3600:02d}:{(uptime.seconds % 3600) // 60:02d}:{uptime.seconds % 60:02d}"
         self._current_time = now.strftime('%H:%M:%S')
+
+        try:
+            status = "🟢 Running" if self.agent_running else "⚪ Ready"
+            thought_indicator = "🧠ON" if self.agent_thought_enabled else "🧠OFF"
+            
+            # Build comprehensive status like basic CLI
+            status_parts = [
+                f"🤖 {self.agent_name}",
+                f"Session: {self.session_id}",
+                f"Uptime: {self._uptime}",
+                f"{self._current_time}",
+                f"{status}",
+                f"{thought_indicator}",
+            ]
+            
+            # Add token usage if available
+            if self._total_tokens > 0:
+                token_parts = []
+                if self._prompt_tokens > 0:
+                    token_parts.append(f"P:{self._prompt_tokens}")
+                if self._thinking_tokens > 0:
+                    token_parts.append(f"T:{self._thinking_tokens}")
+                if self._output_tokens > 0:
+                    token_parts.append(f"O:{self._output_tokens}")
+                token_parts.append(f"Total:{self._total_tokens}")
+                status_parts.append(f"Tokens: {', '.join(token_parts)}")
+            
+            # Add tool usage if available
+            if self._tools_used > 0:
+                tool_status = f"Tools: {self._tools_used}"
+                if self._last_tool:
+                    tool_status += f", Last: {self._last_tool}"
+                status_parts.append(tool_status)
+            
+            # Add model info if available
+            if self._model_name != "Unknown":
+                status_parts.append(f"Model: {self._model_name}")
+            
+            status_text = " | ".join(status_parts)
+            
+            # Update the custom status bar
+            status_bar_widget = self.query_one("#status-bar", Static)
+            status_bar_widget.update(status_text)
+            
+        except Exception as e:
+            # Silently fail footer updates to avoid disrupting the UI
+            pass
 
     def action_insert_newline(self) -> None:
         """Action to insert a newline in the input area."""
@@ -291,14 +343,15 @@ class AgentTUI(App):
         """Quit the application."""
         self.exit()
 
-    def action_interrupt_agent(self) -> None:
+    @work
+    async def action_interrupt_agent(self) -> None:
         """Interrupt the running agent."""
         if self.agent_running and self.current_agent_task and not self.current_agent_task.done():
             self.current_agent_task.cancel()
             self.add_output("⏹️ Agent interrupted by user", rich_format=True)
 
         if self.interrupt_callback:
-            asyncio.create_task(self.interrupt_callback())
+            await self.interrupt_callback()
 
         self.agent_running = False
 
@@ -346,8 +399,7 @@ class AgentTUI(App):
                 self.agent_running = True
                 try:
                     # Create task properly for async callback
-                    task = asyncio.create_task(self.input_callback(content))
-                    await task
+                    await self.input_callback(content)
                 except Exception as e:
                     self.add_output(f"❌ Error processing input: {str(e)}", rich_format=True, style="error")
                 finally:
@@ -461,90 +513,35 @@ class AgentTUI(App):
         self.add_output(welcome_msg_rich, rich_format=True)
         
         # Update footer after setting agent name
-        self._update_footer()
+        self._update_status()
 
     def set_agent_task(self, task: asyncio.Task):
         """Set the current agent task for interruption."""
         self.current_agent_task = task
         self.agent_running = True
 
-    def register_input_callback(self, callback: Callable[[str], Awaitable[None]]):
-        """Register callback for user input."""
+    def register_input_callback(self, callback: Callable[[str], Awaitable[Any]]):
+        """Register a callback function to handle user input."""
         self.input_callback = callback
 
-    def register_interrupt_callback(self, callback: Callable[[], Awaitable[None]]):
-        """Register callback for agent interruption."""
+    def register_interrupt_callback(self, callback: Callable[[], Awaitable[Any]]):
+        """Register a callback function to interrupt the agent."""
         self.interrupt_callback = callback
-
-
 
     def watch_agent_running(self, running: bool) -> None:
         """Update footer when agent running status changes."""
         if self.is_mounted:
-            self._update_footer()
+            self._update_status()
 
     def watch_agent_name(self, name: str) -> None:
         """Update footer when agent name changes."""
         if self.is_mounted:
-            self._update_footer()
+            self._update_status()
 
     def watch__current_time(self, time: str) -> None:
         """Update footer when time changes."""
         if self.is_mounted:
-            self._update_footer()
-
-    def _update_footer(self) -> None:
-        """Update the footer with current status."""
-        # Only update if the app is mounted and screen is available
-        if not self.is_mounted:
-            return
-            
-        try:
-            status = "🟢 Running" if self.agent_running else "⚪ Ready"
-            thought_indicator = "🧠ON" if self.agent_thought_enabled else "🧠OFF"
-            
-            # Build comprehensive status like basic CLI
-            status_parts = [
-                f"🤖 {self.agent_name}",
-                f"Session: {self.session_id}",
-                f"Uptime: {self._uptime}",
-                f"{self._current_time}",
-                f"{status}",
-                f"{thought_indicator}",
-            ]
-            
-            # Add token usage if available
-            if self._total_tokens > 0:
-                token_parts = []
-                if self._prompt_tokens > 0:
-                    token_parts.append(f"P:{self._prompt_tokens}")
-                if self._thinking_tokens > 0:
-                    token_parts.append(f"T:{self._thinking_tokens}")
-                if self._output_tokens > 0:
-                    token_parts.append(f"O:{self._output_tokens}")
-                token_parts.append(f"Total:{self._total_tokens}")
-                status_parts.append(f"Tokens: {', '.join(token_parts)}")
-            
-            # Add tool usage if available
-            if self._tools_used > 0:
-                tool_status = f"Tools: {self._tools_used}"
-                if self._last_tool:
-                    tool_status += f", Last: {self._last_tool}"
-                status_parts.append(tool_status)
-            
-            # Add model info if available
-            if self._model_name != "Unknown":
-                status_parts.append(f"Model: {self._model_name}")
-            
-            status_text = " | ".join(status_parts)
-            
-            # Try to update footer - use a simple approach since Footer.update() may not exist
-            footer = self.query_one(Footer)
-            # Just set a simple status - Textual Footer will handle the display
-            
-        except Exception as e:
-            # Silently fail footer updates to avoid disrupting the UI
-            pass
+            self._update_status()
 
     def update_token_usage(self, prompt_tokens: int = 0, thinking_tokens: int = 0, output_tokens: int = 0, total_tokens: int = 0, model_name: str = ""):
         """Update token usage information."""
@@ -664,12 +661,7 @@ class AgentTUI(App):
             self.history_index = len(self.command_history)
             input_widget.value = ""
 
-    def action_insert_newline(self) -> None:
-        """Action to insert a newline in the input area."""
-        # Input widget doesn't support multiline, so this action is not applicable
-        pass
-
-    def add_tool_event(self, tool_name: str, event_type: str, args: dict = None, result: any = None, duration: float = None):
+    def add_tool_event(self, tool_name: str, event_type: str, args: Optional[dict] = None, result: Any = None, duration: Optional[float] = None):
         """Add a tool execution event to the thought pane."""
         if not self.agent_thought_enabled:
             return

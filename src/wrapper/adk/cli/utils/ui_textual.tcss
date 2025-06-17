@@ -43,7 +43,7 @@ Screen {
     border: solid white;
     margin: 1;
     padding: 0 1;
-    background: #2a2a2a;
+    background: transparent;
 }
 
 .light .output-pane {
@@ -77,6 +77,14 @@ Screen {
 }
 
 Footer {
+    height: 1;
+    dock: bottom;
+    background: #2a2a2a;
+    color: #dddddd;
+    text-align: center;
+}
+
+#status-bar {
     height: 1;
     dock: bottom;
     background: #2a2a2a;
