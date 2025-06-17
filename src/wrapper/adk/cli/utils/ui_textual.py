@@ -143,11 +143,13 @@ class AgentTUI(App):
     ]
 
     agent_running: reactive[bool] = reactive(False)
+    agent_thinking: reactive[bool] = reactive(False)
     agent_thought_enabled: reactive[bool] = reactive(True)
     agent_name: reactive[str] = reactive("Agent")
     session_id: reactive[str] = reactive("")
     _uptime: reactive[str] = reactive("00:00:00")
     _current_time: reactive[str] = reactive(datetime.now().strftime('%H:%M:%S'))
+    _thinking_animation_index: reactive[int] = reactive(0)
     
     # Token usage tracking
     _prompt_tokens: reactive[int] = reactive(0)
@@ -172,6 +174,10 @@ class AgentTUI(App):
         self.interrupt_callback: Optional[Callable[[], Awaitable[Any]]] = None
         self.command_history: list[str] = []
         self.history_index: int = -1
+        
+        # Thinking animation frames
+        self._thinking_frames = ["🤔", "💭", "🧠", "⚡"]
+        self._thinking_timer = None
 
         # Define categorized commands for the completer
         self.categorized_commands = {
@@ -249,7 +255,15 @@ class AgentTUI(App):
         self._current_time = now.strftime('%H:%M:%S')
 
         try:
-            status = "🟢 Running" if self.agent_running else "⚪ Ready"
+            # Determine status with thinking animation
+            if self.agent_thinking:
+                thinking_icon = self._thinking_frames[self._thinking_animation_index % len(self._thinking_frames)]
+                status = f"{thinking_icon} Thinking"
+            elif self.agent_running:
+                status = "🟢 Running"
+            else:
+                status = "🟢 Ready"
+            
             thought_indicator = "🧠ON" if self.agent_thought_enabled else "🧠OFF"
             
             # Build comprehensive status like basic CLI
@@ -333,6 +347,25 @@ class AgentTUI(App):
         
         self.add_output(f"[info]Agent thought display: {'ON' if self.agent_thought_enabled else 'OFF'}[/info]", rich_format=True)
 
+    def start_thinking(self) -> None:
+        """Start the thinking animation."""
+        self.agent_thinking = True
+        if self._thinking_timer is None:
+            self._thinking_timer = self.set_interval(0.5, self._animate_thinking)
+
+    def stop_thinking(self) -> None:
+        """Stop the thinking animation."""
+        self.agent_thinking = False
+        if self._thinking_timer is not None:
+            self._thinking_timer.stop()
+            self._thinking_timer = None
+        self._thinking_animation_index = 0
+
+    def _animate_thinking(self) -> None:
+        """Animate the thinking indicator."""
+        if self.agent_thinking:
+            self._thinking_animation_index = (self._thinking_animation_index + 1) % len(self._thinking_frames)
+
     def action_clear_output(self) -> None:
         """Clear the output log."""
         output_log = self.query_one("#output-log", RichLog)
@@ -353,6 +386,7 @@ class AgentTUI(App):
         if self.interrupt_callback:
             await self.interrupt_callback()
 
+        self.stop_thinking()
         self.agent_running = False
 
     async def on_input_submitted(self, event: Input.Submitted) -> None:
@@ -397,12 +431,14 @@ class AgentTUI(App):
             # Process user input through callback
             if self.input_callback:
                 self.agent_running = True
+                self.start_thinking()
                 try:
                     # Create task properly for async callback
                     await self.input_callback(content)
                 except Exception as e:
                     self.add_output(f"❌ Error processing input: {str(e)}", rich_format=True, style="error")
                 finally:
+                    self.stop_thinking()
                     self.agent_running = False
         else:
             self.add_output("💡 Type a message and press Enter to send it to the agent", rich_format=True, style="info")
@@ -530,6 +566,11 @@ class AgentTUI(App):
 
     def watch_agent_running(self, running: bool) -> None:
         """Update footer when agent running status changes."""
+        if self.is_mounted:
+            self._update_status()
+
+    def watch_agent_thinking(self, thinking: bool) -> None:
+        """Update footer when agent thinking status changes."""
         if self.is_mounted:
             self._update_status()
 
@@ -735,4 +776,15 @@ class AgentTUI(App):
 
     def register_thought_callback(self, thought_callback):
         """Register callback for agent thoughts."""
-        self._thought_callback = thought_callback 
+        self._thought_callback = thought_callback
+
+    def set_thinking_state(self, thinking: bool) -> None:
+        """Manually control the thinking state (useful for external integrations)."""
+        if thinking:
+            self.start_thinking()
+        else:
+            self.stop_thinking()
+
+    def is_thinking(self) -> bool:
+        """Check if the agent is currently in thinking state."""
+        return self.agent_thinking 
