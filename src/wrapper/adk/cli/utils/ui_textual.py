@@ -8,11 +8,13 @@ from typing import Optional, Callable, Any, Awaitable, List, Union
 
 from textual.app import App, ComposeResult
 from textual.containers import Container, Vertical, Horizontal
-from textual.widgets import Header, Footer, Input, RichLog, Label, TextArea, Static
+from textual.widgets import Header, Footer, Input, RichLog, Label, TextArea, Static, OptionList
+from textual.widgets.option_list import Option
 from textual.binding import Binding
 from textual.events import Event, Key
 from textual.reactive import reactive
 from textual import work
+from textual.screen import ModalScreen
 
 from rich.console import Console
 from rich.markdown import Markdown
@@ -22,14 +24,63 @@ from rich.text import Text
 from .ui_common import UITheme, ThemeConfig, StatusBar
 from .ui_rich import RichRenderer
 
+
+class CompletionWidget(ModalScreen[str]):
+    """Floating completion widget for showing tab completion options."""
+    
+    def __init__(self, completions: list[str], categorized_commands: dict[str, list[str]], show_all: bool = False, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.completions = completions
+        self.categorized_commands = categorized_commands
+        self.show_all = show_all
+
+        
+    def compose(self) -> ComposeResult:
+        """Create the completion widget."""
+        # Group completions by category
+        options = []
+        
+        for category, commands in self.categorized_commands.items():
+            category_matches = [cmd for cmd in commands if cmd in self.completions]
+            if category_matches:
+                # Add category header
+                options.append(Option(f"{category}", disabled=True))
+                # Add commands in this category
+                for cmd in category_matches:
+                    options.append(Option(f"  {cmd}", id=cmd))
+        
+        # Add any completions that don't fit in categories
+        uncategorized = [cmd for cmd in self.completions if not any(cmd in commands for commands in self.categorized_commands.values())]
+        if uncategorized:
+            if options:  # Only add separator if there are categorized items
+                options.append(Option("─" * 40, disabled=True))
+            for cmd in uncategorized:
+                options.append(Option(cmd, id=cmd))
+        
+        # Use different styling based on whether we're showing all options
+        dialog_class = "completion-dialog-full" if self.show_all else "completion-dialog"
+        title_text = "All Available Commands:" if self.show_all else "Tab Completion - Select an option:"
+        
+        with Container(id="completion-dialog", classes=dialog_class):
+            yield Label(title_text, id="completion-title")
+            yield OptionList(*options, id="completion-list")
+            yield Label("Press Enter to select, Escape to cancel", id="completion-help")
+    
+    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
+        """Handle option selection."""
+        if hasattr(event.option, 'id') and event.option.id:  # Skip disabled options
+            self.dismiss(event.option.id)
+    
+    def on_key(self, event: Key) -> None:
+        """Handle key events."""
+        if event.key == "escape":
+            self.dismiss(None)
+
 class CategorizedInput(Input):
     def __init__(self, categorized_commands: dict[str, list[str]], *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.categorized_commands = categorized_commands
         self.all_commands = [cmd for cmds in categorized_commands.values() for cmd in cmds]
-        self.completion_index = -1
-        self.current_completions = []
-        self.original_text = ""
         # History navigation support
         self.command_history = []
         self.history_index = -1
@@ -39,41 +90,37 @@ class CategorizedInput(Input):
         if event.key == "tab":
             self._handle_tab_completion()
             event.prevent_default()
-        elif event.key == "escape":
-            self._cancel_completion()
-            event.prevent_default()
         elif event.key == "up":
             self._navigate_history(-1)
             event.prevent_default()
         elif event.key == "down":
             self._navigate_history(1)
             event.prevent_default()
-        else:
-            # Reset completion on any other key
-            if self.completion_index >= 0:
-                self._cancel_completion()
-            # Don't call super().on_key() - let the default Input handling work
+        # Let other keys be handled normally
 
     def _handle_tab_completion(self):
         """Handle tab completion logic."""
         current_text = self.value
+        completions = self._get_completions(current_text)
+        show_all = not current_text.strip()  # Show all if no text entered
         
-        # If we're not in completion mode, start it
-        if self.completion_index < 0:
-            self.original_text = current_text
-            self.current_completions = self._get_completions(current_text)
-            if self.current_completions:
-                self.completion_index = 0
-                self.value = self.current_completions[0]
-        else:
-            # Cycle to next completion
-            self.completion_index = (self.completion_index + 1) % len(self.current_completions)
-            self.value = self.current_completions[self.completion_index]
+        if completions:
+            # Show completion dialog
+            self.app.push_screen(
+                CompletionWidget(completions, self.categorized_commands, show_all),
+                self._on_completion_selected
+            )
+    
+    def _on_completion_selected(self, selected_command: str | None) -> None:
+        """Handle completion selection from dialog."""
+        if selected_command:
+            self.value = selected_command
 
     def _get_completions(self, text: str) -> list[str]:
         """Get completion suggestions for the given text."""
         if not text.strip():
-            return []
+            # Return all commands if no text is entered
+            return sorted(self.all_commands)
         
         text_lower = text.lower()
         completions = []
@@ -83,15 +130,9 @@ class CategorizedInput(Input):
             if text_lower in command.lower():
                 completions.append(command)
         
-        return sorted(completions)[:10]  # Limit to 10 suggestions
+        return sorted(completions)
 
-    def _cancel_completion(self):
-        """Cancel current completion and restore original text."""
-        if self.completion_index >= 0:
-            self.value = self.original_text
-            self.completion_index = -1
-            self.current_completions = []
-            self.original_text = ""
+
 
     def _navigate_history(self, direction: int) -> None:
         """Navigate command history."""
@@ -135,7 +176,7 @@ class AgentTUI(App):
         Binding("ctrl+l", "clear_output", "Clear Screen", show=False),
         Binding("ctrl+d", "quit", "Quit", show=False),
         Binding("ctrl+c", "interrupt_agent", "Interrupt Agent", show=False),
-        Binding("tab", "trigger_completion", "Tab Completion", show=False),
+        # Removed tab binding - handled by CategorizedInput widget directly
         Binding("up", "history_previous", "Previous Command", show=False),
         Binding("down", "history_next", "Next Command", show=False),
         Binding("ctrl+p", "history_previous", "Previous Command", show=False),
@@ -178,6 +219,8 @@ class AgentTUI(App):
         # Thinking animation frames
         self._thinking_frames = ["🤔", "💭", "🧠", "⚡"]
         self._thinking_timer = None
+        
+
 
         # Define categorized commands for the completer
         self.categorized_commands = {
@@ -193,7 +236,7 @@ class AgentTUI(App):
                 'configure github actions', 'setup monitoring for', 'add logging to',
                 'create health checks', 'setup load balancer', 'configure autoscaling',
                 'list the k8s clusters and indicate the current one',
-                'list all the user applications in the qa- namespaces on the current k8s cluster',
+                'list all the user applications in the qa- namespaces',
             ],
             '📦 Deployment & Operations': [
                 'deploy to production', 'deploy to staging', 'rollback deployment',
@@ -665,10 +708,7 @@ class AgentTUI(App):
             token_display = ", ".join(token_parts)
             self.add_output(f"📊 Model Usage: {model_name} - {token_display}", style="info")
 
-    def action_trigger_completion(self) -> None:
-        """Trigger tab completion in the input area."""
-        input_widget = self.query_one("#input-area", CategorizedInput)
-        input_widget._handle_tab_completion()
+    # Removed action_trigger_completion - tab completion is now handled directly by CategorizedInput widget
 
     def action_history_previous(self) -> None:
         """Navigate to previous command in history."""

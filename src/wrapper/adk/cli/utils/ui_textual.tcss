@@ -21,7 +21,7 @@ Screen {
     border: solid #6a6aff;
     margin: 1;
     padding: 0 1;
-    background: #2d2d4a;
+    # background: #2d2d4a;
     height: 1fr;
     overflow-y: scroll;
     scrollbar-size: 0 0;
@@ -32,7 +32,7 @@ Screen {
     border: solid #ff6aff;
     margin: 1;
     padding: 0 1;
-    background: #2d2d4a;
+    # background: #2d2d4a;
     height: 1fr;
     overflow-y: scroll;
     scrollbar-size: 0 0;
@@ -43,7 +43,7 @@ Screen {
     border: solid white;
     margin: 1;
     padding: 0 1;
-    background: transparent;
+    # background: transparent;
 }
 
 .light .output-pane {
@@ -56,16 +56,6 @@ Screen {
     border: solid #6a6aff;
 }
 
-.light .input-pane {
-    background: #e8f5e8;
-    border: solid white;
-}
-
-.dark .input-pane {
-    background: transparent;
-    border: solid white;
-}
-
 .light .thought-pane {
     background: #e8f0f0;
     border: solid #a0b0b0;
@@ -74,6 +64,16 @@ Screen {
 .dark .thought-pane {
     background: transparent;
     border: solid #6a7a7a;
+}
+
+.light .input-pane {
+    background: #e8f5e8;
+    border: solid white;
+}
+
+.dark .input-pane {
+    background: transparent;
+    border: solid white;
 }
 
 Footer {
@@ -103,7 +103,7 @@ Footer {
 }
 
 .info {
-    color: green;
+    color: blue;
 }
 .warning {
     color: yellow;
@@ -130,4 +130,51 @@ Footer {
 .welcome {
     color: #FF69B4;
     text-style: bold;
+}
+
+/* Completion Dialog Styles */
+CompletionWidget {
+    align: center middle;
+    background: rgba(0, 0, 0, 0.3);
+}
+
+#completion-dialog {
+    width: 60;
+    height: 20;
+    border: solid white;
+    background: #2d2d4a;
+    padding: 1;
+    scrollbar-size: 0 0;
+}
+
+#completion-title {
+    text-align: center;
+    text-style: bold;
+    color: #87CEEB;
+}
+
+#completion-list {
+    height: 1fr;
+    border: solid #6a6aff;
+}
+
+#completion-help {
+    text-align: center;
+    color: #666666;
+    text-style: italic;
+}
+
+.light #completion-dialog {
+    background: #e8e8f5;
+    border: solid #333333;
+}
+
+.light #completion-list {
+    border: solid #a0a0ff;
+}
+
+/* Full completion dialog (when showing all options) */
+.completion-dialog-full {
+    width: 100;
+    height: 25;
 }
