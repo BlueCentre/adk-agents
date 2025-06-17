@@ -264,14 +264,14 @@ class AgentTUI(App):
             else:
                 status = "🟢 Ready"
             
-            thought_indicator = "🧠ON" if self.agent_thought_enabled else "🧠OFF"
+            thought_indicator = "🧠 ON" if self.agent_thought_enabled else "🧠 OFF"
             
             # Build comprehensive status like basic CLI
             status_parts = [
                 f"🤖 {self.agent_name}",
-                f"Session: {self.session_id}",
-                f"Uptime: {self._uptime}",
-                f"{self._current_time}",
+                f"🧑 Session: {self.session_id}",
+                # f"Uptime: {self._uptime}",
+                # f"{self._current_time}",
                 f"{status}",
                 f"{thought_indicator}",
             ]
