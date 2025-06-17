@@ -142,7 +142,7 @@ async def run_interactively(
   while True:
     try:
       if fallback_mode:
-        query = await prompt_session.prompt_async('user > ')
+        query = await prompt_session.prompt_async('😜 user > ')
       else:
         with patch_stdout():
           query = await prompt_session.prompt_async('😎 user > ')
@@ -158,7 +158,7 @@ async def run_interactively(
       output_console.print("[yellow]💡 Try using a simpler terminal or check your environment.[/yellow]")
       output_console.print("[blue]Falling back to basic input mode...[/blue]")
       try:
-        query = input('user > ')
+        query = input('😜 user > ')
       except (EOFError, KeyboardInterrupt):
         output_console = console if fallback_mode else (cli.console if cli else console)
         output_console.print("\n[warning]Goodbye! 👋[/warning]")
@@ -294,12 +294,12 @@ def _filter_thought_content(text: str) -> tuple[str, list[str]]:
   return '\n'.join(filtered_lines), extracted_thoughts
 
 
-def _strip_rich_markup(text: str) -> str:
-  """Strip rich markup from a string."""
-  # This is a very basic stripping. For robust stripping, consider rich.text.Text.plain
-  # or a more comprehensive regex.
-  # Remove common rich tags like [], [bold], [green], etc.
-  return re.sub(r"\[/?\w+\s*=\s*[^]]+\]|\[/?\w+\]", "", text)
+# def _strip_rich_markup(text: str) -> str:
+#   """Strip rich markup from a string."""
+#   # This is a very basic stripping. For robust stripping, consider rich.text.Text.plain
+#   # or a more comprehensive regex.
+#   # Remove common rich tags like [], [bold], [green], etc.
+#   return re.sub(r"\[/?\w+\s*=\s*[^]]+\]|\[/?\w+\]", "", text)
 
 
 async def run_interactively_with_interruption(
@@ -480,22 +480,22 @@ async def run_interactively_with_interruption(
   await close_runner_gracefully(runner)
 
 
-async def _process_agent_responses(agent_gen, cli):
-  """Process events from the agent generator and display them in the CLI."""
-  async for event in agent_gen:
-    if event.content and event.content.parts:
-      if text := ''.join(part.text or '' for part in event.content.parts):
-        # Filter out thought content to prevent duplication
-        filtered_text, extracted_thoughts = _filter_thought_content(text)
+# async def _process_agent_responses(agent_gen, cli):
+#   """Process events from the agent generator and display them in the CLI."""
+#   async for event in agent_gen:
+#     if event.content and event.content.parts:
+#       if text := ''.join(part.text or '' for part in event.content.parts):
+#         # Filter out thought content to prevent duplication
+#         filtered_text, extracted_thoughts = _filter_thought_content(text)
         
-        # Display agent thoughts in the thought pane if enabled
-        if cli.agent_thought_enabled and extracted_thoughts:
-          for thought in extracted_thoughts:
-            cli.add_thought(thought)
+#         # Display agent thoughts in the thought pane if enabled
+#         if cli.agent_thought_enabled and extracted_thoughts:
+#           for thought in extracted_thoughts:
+#             cli.add_thought(thought)
             
-        # Display main agent output in the output pane
-        if filtered_text.strip():  # Only display if there's non-thought content
-          cli.add_agent_output(filtered_text, event.author)
+#         # Display main agent output in the output pane
+#         if filtered_text.strip():  # Only display if there's non-thought content
+#           cli.add_agent_output(filtered_text, event.author)
 
 
 async def run_cli(
