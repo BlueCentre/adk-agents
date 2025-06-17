@@ -18,7 +18,8 @@ from typing import Optional
 
 from .ui_common import UITheme
 from .ui_rich import RichRenderer
-from .ui_prompt_toolkit import EnhancedCLI, InterruptibleCLI
+# from .ui_prompt_toolkit import EnhancedCLI, InterruptibleCLI
+from .ui_prompt_toolkit import EnhancedCLI
 from .ui_textual import AgentTUI
 
 

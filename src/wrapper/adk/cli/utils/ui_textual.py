@@ -25,147 +25,28 @@ from .ui_common import UITheme, ThemeConfig, StatusBar
 from .ui_rich import RichRenderer
 
 
-class CompletionWidget(ModalScreen[str]):
-    """Floating completion widget for showing tab completion options."""
-    
-    def __init__(self, completions: list[str], categorized_commands: dict[str, list[str]], show_all: bool = False, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.completions = completions
-        self.categorized_commands = categorized_commands
-        self.show_all = show_all
-
-        
-    def compose(self) -> ComposeResult:
-        """Create the completion widget."""
-        # Group completions by category
-        options = []
-        
-        for category, commands in self.categorized_commands.items():
-            category_matches = [cmd for cmd in commands if cmd in self.completions]
-            if category_matches:
-                # Add category header
-                options.append(Option(f"{category}", disabled=True))
-                # Add commands in this category
-                for cmd in category_matches:
-                    options.append(Option(f"  {cmd}", id=cmd))
-        
-        # Add any completions that don't fit in categories
-        uncategorized = [cmd for cmd in self.completions if not any(cmd in commands for commands in self.categorized_commands.values())]
-        if uncategorized:
-            if options:  # Only add separator if there are categorized items
-                options.append(Option("─" * 40, disabled=True))
-            for cmd in uncategorized:
-                options.append(Option(cmd, id=cmd))
-        
-        # Use different styling based on whether we're showing all options
-        dialog_class = "completion-dialog-full" if self.show_all else "completion-dialog"
-        title_text = "All Available Commands:" if self.show_all else "Tab Completion - Select an option:"
-        
-        with Container(id="completion-dialog", classes=dialog_class):
-            yield Label(title_text, id="completion-title")
-            yield OptionList(*options, id="completion-list")
-            yield Label("Press Enter to select, Escape to cancel", id="completion-help")
-    
-    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
-        """Handle option selection."""
-        if hasattr(event.option, 'id') and event.option.id:  # Skip disabled options
-            self.dismiss(event.option.id)
-    
-    def on_key(self, event: Key) -> None:
-        """Handle key events."""
-        if event.key == "escape":
-            self.dismiss(None)
-
-class CategorizedInput(Input):
-    def __init__(self, categorized_commands: dict[str, list[str]], *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.categorized_commands = categorized_commands
-        self.all_commands = [cmd for cmds in categorized_commands.values() for cmd in cmds]
-        # History navigation support
-        self.command_history = []
-        self.history_index = -1
-
-    def on_key(self, event: Key) -> None:
-        """Handle key events for tab completion and history navigation."""
-        if event.key == "tab":
-            self._handle_tab_completion()
-            event.prevent_default()
-        elif event.key == "up":
-            self._navigate_history(-1)
-            event.prevent_default()
-        elif event.key == "down":
-            self._navigate_history(1)
-            event.prevent_default()
-        # Let other keys be handled normally
-
-    def _handle_tab_completion(self):
-        """Handle tab completion logic."""
-        current_text = self.value
-        completions = self._get_completions(current_text)
-        show_all = not current_text.strip()  # Show all if no text entered
-        
-        if completions:
-            # Show completion dialog
-            self.app.push_screen(
-                CompletionWidget(completions, self.categorized_commands, show_all),
-                self._on_completion_selected
-            )
-    
-    def _on_completion_selected(self, selected_command: str | None) -> None:
-        """Handle completion selection from dialog."""
-        if selected_command:
-            self.value = selected_command
-
-    def _get_completions(self, text: str) -> list[str]:
-        """Get completion suggestions for the given text."""
-        if not text.strip():
-            # Return all commands if no text is entered
-            return sorted(self.all_commands)
-        
-        text_lower = text.lower()
-        completions = []
-        
-        # Find matching commands
-        for command in self.all_commands:
-            if text_lower in command.lower():
-                completions.append(command)
-        
-        return sorted(completions)
-
-
-
-    def _navigate_history(self, direction: int) -> None:
-        """Navigate command history."""
-        if not self.command_history:
-            return
-
-        if direction == -1:  # Up arrow - previous command
-            if self.history_index > 0:
-                self.history_index -= 1
-                self.value = self.command_history[self.history_index]
-            elif self.history_index == 0:
-                pass  # Already at first item
-            else:
-                # Initialize to last item
-                self.history_index = len(self.command_history) - 1
-                self.value = self.command_history[self.history_index]
-        elif direction == 1:  # Down arrow - next command
-            if self.history_index < len(self.command_history) - 1:
-                self.history_index += 1
-                self.value = self.command_history[self.history_index]
-            else:
-                # Clear input when going past last item
-                self.history_index = len(self.command_history)
-                self.value = ""
-
-    def add_to_history(self, command: str):
-        """Add a command to the history."""
-        if command.strip():
-            self.command_history.append(command.strip())
-            self.history_index = len(self.command_history)
-
 class AgentTUI(App):
-    """Textual UI for the ADK Agent."""
+    """
+    A Textual application that serves as the main User Interface (UI) for the ADK Agent.
+
+    This class extends Textual's `App` and provides a rich interactive command-line
+    experience with multiple panes (output, thought, input), real-time status updates,
+    and intelligent command completion.
+
+    Key Features:
+    - Multi-pane layout: Displays agent output, agent thoughts, and user input areas.
+    - Reactive state management: Tracks agent's running/thinking status, token usage,
+      and tool usage in real-time.
+    - Theming: Supports toggling between light and dark themes.
+    - Command History and Tab Completion: Enhances user input with history navigation
+      and categorized command suggestions.
+    - Interruptible Agent Operations: Allows users to interrupt long-running agent tasks.
+    - Dynamic Status Bar: Provides a clear overview of the agent's status, session ID,
+      token metrics, and last used tool.
+
+    The UI is designed to provide comprehensive feedback on the agent's operations,
+    making it easier to monitor and interact with the agent.
+    """
 
     CSS_PATH = "ui_textual.tcss"
 
@@ -827,4 +708,174 @@ class AgentTUI(App):
 
     def is_thinking(self) -> bool:
         """Check if the agent is currently in thinking state."""
-        return self.agent_thinking 
+        return self.agent_thinking
+
+class CategorizedInput(Input):
+    """
+    A custom Input widget that provides tab completion for categorized commands
+    and supports navigation through command history.
+
+    This class enhances the standard Textual Input widget by adding features
+    useful for a command-line interface, such as:
+    - Tab completion: Suggests commands based on user input, categorized for clarity.
+    - Command history: Allows users to navigate through previously entered commands
+      using the up and down arrow keys.
+
+    Args:
+        categorized_commands (dict[str, list[str]]): A dictionary where keys are
+            category names (e.g., "File Commands") and values are lists of
+            commands belonging to that category.
+        *args: Variable length argument list to pass to the parent Input class.
+        **kwargs: Arbitrary keyword arguments to pass to the parent Input class.
+    """
+    def __init__(self, categorized_commands: dict[str, list[str]], *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.categorized_commands = categorized_commands
+        self.all_commands = [cmd for cmds in categorized_commands.values() for cmd in cmds]
+        # History navigation support
+        self.command_history = []
+        self.history_index = -1
+
+    def on_key(self, event: Key) -> None:
+        """Handle key events for tab completion and history navigation."""
+        if event.key == "tab":
+            self._handle_tab_completion()
+            event.prevent_default()
+        elif event.key == "up":
+            self._navigate_history(-1)
+            event.prevent_default()
+        elif event.key == "down":
+            self._navigate_history(1)
+            event.prevent_default()
+        # Let other keys be handled normally
+
+    def _handle_tab_completion(self):
+        """Handle tab completion logic."""
+        current_text = self.value
+        completions = self._get_completions(current_text)
+        show_all = not current_text.strip()  # Show all if no text entered
+        
+        if completions:
+            # Show completion dialog
+            self.app.push_screen(
+                CompletionWidget(completions, self.categorized_commands, show_all),
+                self._on_completion_selected
+            )
+    
+    def _on_completion_selected(self, selected_command: str | None) -> None:
+        """Handle completion selection from dialog."""
+        if selected_command:
+            self.value = selected_command
+
+    def _get_completions(self, text: str) -> list[str]:
+        """Get completion suggestions for the given text."""
+        if not text.strip():
+            # Return all commands if no text is entered
+            return sorted(self.all_commands)
+        
+        text_lower = text.lower()
+        completions = []
+        
+        # Find matching commands
+        for command in self.all_commands:
+            if text_lower in command.lower():
+                completions.append(command)
+        
+        return sorted(completions)
+
+    def _navigate_history(self, direction: int) -> None:
+        """Navigate command history."""
+        if not self.command_history:
+            return
+
+        if direction == -1:  # Up arrow - previous command
+            if self.history_index > 0:
+                self.history_index -= 1
+                self.value = self.command_history[self.history_index]
+            elif self.history_index == 0:
+                pass  # Already at first item
+            else:
+                # Initialize to last item
+                self.history_index = len(self.command_history) - 1
+                self.value = self.command_history[self.history_index]
+        elif direction == 1:  # Down arrow - next command
+            if self.history_index < len(self.command_history) - 1:
+                self.history_index += 1
+                self.value = self.command_history[self.history_index]
+            else:
+                # Clear input when going past last item
+                self.history_index = len(self.command_history)
+                self.value = ""
+
+    def add_to_history(self, command: str):
+        """Add a command to the history."""
+        if command.strip():
+            self.command_history.append(command.strip())
+            self.history_index = len(self.command_history)
+
+class CompletionWidget(ModalScreen[str]):
+    """
+    A modal screen widget for displaying and selecting tab completion options.
+
+    This widget appears as a floating dialog when the user requests tab completion
+    (e.g., by pressing Tab in the `CategorizedInput` field). It presents a list
+    of command suggestions, optionally grouped by categories, allowing the user
+    to select a command to insert into the input field.
+
+    Args:
+        completions (list[str]): A list of string suggestions for completion.
+        categorized_commands (dict[str, list[str]]): A dictionary used to group
+            the completions into categories for better organization and display.
+        show_all (bool): If True, indicates that all available commands should be
+            shown, regardless of the current input. Defaults to False.
+        *args: Variable length argument list to pass to the parent ModalScreen class.
+        **kwargs: Arbitrary keyword arguments to pass to the parent ModalScreen class.
+    """
+    
+    def __init__(self, completions: list[str], categorized_commands: dict[str, list[str]], show_all: bool = False, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.completions = completions
+        self.categorized_commands = categorized_commands
+        self.show_all = show_all
+
+        
+    def compose(self) -> ComposeResult:
+        """Create the completion widget."""
+        # Group completions by category
+        options = []
+        
+        for category, commands in self.categorized_commands.items():
+            category_matches = [cmd for cmd in commands if cmd in self.completions]
+            if category_matches:
+                # Add category header
+                options.append(Option(f"{category}", disabled=True))
+                # Add commands in this category
+                for cmd in category_matches:
+                    options.append(Option(f"  {cmd}", id=cmd))
+        
+        # Add any completions that don't fit in categories
+        uncategorized = [cmd for cmd in self.completions if not any(cmd in commands for commands in self.categorized_commands.values())]
+        if uncategorized:
+            if options:  # Only add separator if there are categorized items
+                options.append(Option("─" * 40, disabled=True))
+            for cmd in uncategorized:
+                options.append(Option(cmd, id=cmd))
+        
+        # Use different styling based on whether we're showing all options
+        dialog_class = "completion-dialog-full" if self.show_all else "completion-dialog"
+        title_text = "All Available Commands:" if self.show_all else "Tab Completion - Select an option:"
+        
+        with Container(id="completion-dialog", classes=dialog_class):
+            yield Label(title_text, id="completion-title")
+            yield OptionList(*options, id="completion-list")
+            yield Label("Press Enter to select, Escape to cancel", id="completion-help")
+    
+    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
+        """Handle option selection."""
+        if hasattr(event.option, 'id') and event.option.id:  # Skip disabled options
+            self.dismiss(event.option.id)
+    
+    def on_key(self, event: Key) -> None:
+        """Handle key events."""
+        if event.key == "escape":
+            self.dismiss(None)
