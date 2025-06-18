@@ -18,7 +18,8 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 
-from .ui_common import UITheme, ThemeConfig, StatusBar
+# from .ui_common import UITheme, ThemeConfig, StatusBar
+from .ui_common import UITheme, ThemeConfig
 from .ui_rich import RichRenderer
 
 
@@ -86,7 +87,7 @@ class AgentTUI(App):
         self._current_ui_theme = theme or UITheme.DARK
         self.theme_config = ThemeConfig.get_theme_config(self._current_ui_theme)
         self.rich_renderer = rich_renderer or RichRenderer(self._current_ui_theme)
-        self.status_bar = StatusBar(self._current_ui_theme)
+        # self.status_bar = StatusBar(self._current_ui_theme)
         self.console = Console(theme=self.rich_renderer.rich_theme, force_interactive=True)
         self.current_agent_task: Optional[asyncio.Task] = None
         self.input_callback: Optional[Callable[[str], Awaitable[Any]]] = None
@@ -97,8 +98,6 @@ class AgentTUI(App):
         # Thinking animation frames
         self._thinking_frames = ["🤔", "💭", "🧠", "⚡"]
         self._thinking_timer = None
-        
-
 
         # Define categorized commands for the completer
         self.categorized_commands = {
@@ -170,10 +169,10 @@ class AgentTUI(App):
         if not self.is_mounted:
             return
 
-        now = datetime.now()
-        uptime = now - self.status_bar.session_start_time
-        self._uptime = f"{uptime.seconds // 3600:02d}:{(uptime.seconds % 3600) // 60:02d}:{uptime.seconds % 60:02d}"
-        self._current_time = now.strftime('%H:%M:%S')
+        # now = datetime.now()
+        # uptime = now - self.status_bar.session_start_time
+        # self._uptime = f"{uptime.seconds // 3600:02d}:{(uptime.seconds % 3600) // 60:02d}:{uptime.seconds % 60:02d}"
+        # self._current_time = now.strftime('%H:%M:%S')
 
         try:
             # Determine status with thinking animation
@@ -562,11 +561,11 @@ class AgentTUI(App):
                 token_display = ", ".join(token_parts)
                 
                 content = Text.from_markup(
-                    f"[blue]📊 Model Usage[/blue]\n"
+                    # f"[blue]📊 Model Usage[/blue]\n"
                     f"[dim][b]Model:[/b] {model_name}\n"
                     f"[b]Tokens:[/b] {token_display}[/dim]"
                 )
-                thought_log.write(Panel(content, border_style="blue", expand=False))
+                thought_log.write(Panel(content, border_style="blue", expand=True, padding=(0, 0), title="[blue]📊 Model Usage[/blue]", title_align="left"))
                 
             except Exception as e:
                 # Fallback to regular output if thought pane fails
@@ -634,8 +633,12 @@ class AgentTUI(App):
                 if len(tool_args_display) > 100:
                     tool_args_display = tool_args_display[:97] + "..."
                 
-                content = Text.from_markup(f"[cyan]🔧 Running Tool[/cyan]\n[dim][b]Tool:[/b] {tool_name}\n[b]Args:[/b] {tool_args_display}[/dim]")
-                thought_log.write(Panel(content, border_style="cyan", expand=False))
+                content = Text.from_markup(
+                    # f"[cyan]🔧 Running Tool[/cyan]\n"
+                    f"[dim][b]Tool:[/b] {tool_name}\n"
+                    f"[b]Args:[/b] {tool_args_display}[/dim]"
+                )
+                thought_log.write(Panel(content, border_style="cyan", expand=True, padding=(0, 0), title="[cyan]🔧 Running Tool[/cyan]", title_align="left"))
                 
                 # Update tool usage tracking
                 self._tools_used += 1
@@ -647,12 +650,12 @@ class AgentTUI(App):
                 duration_str = f"{duration:.4f}s" if duration is not None else "Unknown"
                 
                 content = Text.from_markup(
-                    f"[green]✅ Tool Finished[/green]\n"
+                    # f"[green]✅ Tool Finished[/green]\n"
                     f"[dim][b]Tool:[/b] {tool_name}\n"
                     f"[b]Result:[/b] {result_summary}{'...' if len(str(result)) > 300 else ''}\n"
                     f"[b]Duration:[/b] {duration_str}[/dim]"
                 )
-                thought_log.write(Panel(content, border_style="green", expand=False))
+                thought_log.write(Panel(content, border_style="green", expand=True, padding=(0, 0), title="[green]✅ Tool Finished[/green]", title_align="left"))
                 
             elif event_type == "error":
                 # Tool execution error
@@ -660,12 +663,12 @@ class AgentTUI(App):
                 duration_str = f"{duration:.4f}s" if duration is not None else "Unknown"
                 
                 content = Text.from_markup(
-                    f"[red]❌ Tool Error[/red]\n"
+                    # f"[red]❌ Tool Error[/red]\n"
                     f"[dim][b]Tool:[/b] {tool_name}\n"
                     f"[b]Error:[/b] {error_msg}\n"
                     f"[b]Duration:[/b] {duration_str}[/dim]"
                 )
-                thought_log.write(Panel(content, border_style="red", expand=False))
+                thought_log.write(Panel(content, border_style="red", expand=True, padding=(0, 0), title="[red]❌ Tool Error[/red]", title_align="left"))
                 
         except Exception as e:
             # Fallback to regular output if thought pane fails
@@ -680,8 +683,11 @@ class AgentTUI(App):
             thought_log = self.query_one("#thought-log", RichLog)
             
             # Format the thought with proper styling
-            content = Text.from_markup(f"[yellow]🧠 Agent Thought[/yellow]\n[dim]{thought_text}[/dim]")
-            thought_log.write(Panel(content, border_style="yellow", expand=False))
+            content = Text.from_markup(
+                # f"[yellow]🧠 Agent Thought[/yellow]\n"
+                f"[dim]{thought_text}[/dim]"
+            )
+            thought_log.write(Panel(content, border_style="yellow", expand=True, padding=(0, 0), title="[yellow]🧠 Agent Thought[/yellow]", title_align="left"))
             
         except Exception as e:
             # Fallback to regular output if thought pane fails

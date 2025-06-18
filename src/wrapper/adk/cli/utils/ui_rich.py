@@ -40,9 +40,11 @@ class RichRenderer:
         return Panel(
             markdown,
             title=f"[bold {self.rich_theme.styles.get('agent.border_color', 'blue')}]🤖 {author} Response[/bold {self.rich_theme.styles.get('agent.border_color', 'blue')}]",
+            title_align="left",
             border_style=self.rich_theme.styles.get("agent.border_color", "blue"),
             expand=True,
             highlight=True,
+            padding=(0, 0),
         )
 
     def format_agent_thought(self, text: str) -> Panel:
@@ -50,9 +52,11 @@ class RichRenderer:
         return Panel(
             markdown,
             title=f"[bold {self.rich_theme.styles.get('thought.border_color', 'magenta')}]🧠 Agent Thought[/bold {self.rich_theme.styles.get('thought.border_color', 'magenta')}]",
+            title_align="left",
             border_style=self.rich_theme.styles.get("thought.border_color", "magenta"),
             expand=True,
             highlight=True,
+            padding=(0, 0),
         )
 
     def print_markdown(self, markdown_text: str, style: Optional[str] = None):
@@ -91,7 +95,8 @@ class RichRenderer:
         try:
             terminal_width = shutil.get_terminal_size().columns
             # Account for frame borders and padding - leave some margin
-            panel_width = max(80, terminal_width - 3)  # Minimum 80, subtract for borders/padding
+            # panel_width = max(80, terminal_width - 6)  # Minimum 80, subtract for borders/padding
+            panel_width = max(80, terminal_width)  # Minimum 80, subtract for borders/padding
         except:
             panel_width = 120  # Fallback width
 

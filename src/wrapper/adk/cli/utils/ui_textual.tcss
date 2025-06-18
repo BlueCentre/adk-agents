@@ -20,7 +20,7 @@ Screen {
     width: 2fr;
     border: solid #6a6aff;
     margin: 1;
-    padding: 0 1;
+    padding: 0 0;
     # background: #2d2d4a;
     height: 1fr;
     overflow-y: scroll;
@@ -31,7 +31,7 @@ Screen {
     width: 1fr;
     border: solid #ff6aff;
     margin: 1;
-    padding: 0 1;
+    padding: 0 0;
     # background: #2d2d4a;
     height: 1fr;
     overflow-y: scroll;
