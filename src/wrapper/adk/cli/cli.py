@@ -15,7 +15,6 @@
 from __future__ import annotations
 
 import asyncio
-from contextlib import redirect_stdout, redirect_stderr
 from datetime import datetime
 from pydantic import BaseModel
 from typing import Optional
@@ -25,25 +24,21 @@ import time
 
 import rich_click as click
 from rich.console import Console
-from prompt_toolkit import PromptSession
 from prompt_toolkit.patch_stdout import patch_stdout
 
 from google.genai import types
-from google.adk.agents.llm_agent import LlmAgent
 from google.adk.agents.base_agent import BaseAgent
 from google.adk.artifacts import BaseArtifactService
 from google.adk.artifacts import InMemoryArtifactService
-from google.adk.events.event import Event
 from google.adk.runners import Runner
 from google.adk.sessions.base_session_service import BaseSessionService
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.adk.sessions.session import Session
 
 from .utils import envs
-from .utils.agent_loader import AgentLoader, load_agent_from_module
+from .utils.agent_loader import AgentLoader
 from .utils.envs import load_dotenv_for_agent
 from .utils.ui import get_cli_instance, get_interruptible_cli_instance
-from .utils.ui_textual import AgentTUI
 from .utils.ui_common import UITheme
 
 

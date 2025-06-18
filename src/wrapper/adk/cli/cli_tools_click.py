@@ -15,27 +15,21 @@
 from __future__ import annotations
 
 import asyncio
-import collections
-from contextlib import asynccontextmanager
 from datetime import datetime
 import functools
 import logging
 import os
-import sys
 import tempfile
 from typing import Optional
 
 import rich_click as click
-from fastapi import FastAPI
 import uvicorn
 
 from . import cli_create
 from . import cli_deploy
 from .. import version
-from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from .cli import run_cli
 from .fast_api import get_fast_api_app
-from .utils import envs
 from .utils import logs
 
 
@@ -253,26 +247,26 @@ def cli_run(
     ui_theme: Optional[str],
     interruptible: bool,
 ):
-  """Runs an interactive CLI for a certain agent.
+    """Runs an interactive CLI for a certain agent.
 
-  AGENT_MODULE_NAME: required, the module path to the agent, e.g. 'agents.devops'
+    AGENT_MODULE_NAME: required, the module path to the agent, e.g. 'agents.devops'
 
-  Example:
+    Example:
 
     adk-agent run agents.devops
-  """
-  logs.log_to_tmp_folder()
-  asyncio.run(
-      run_cli(
-          agent_module_name=agent_module_name,
-          input_file=replay,
-          saved_session_file=resume,
-          save_session=save_session,
-          session_id=session_id,
-          ui_theme=ui_theme,
-          interruptible=interruptible,
-      )
-  )
+    """
+    logs.log_to_tmp_folder()
+    asyncio.run(
+        run_cli(
+            agent_module_name=agent_module_name,
+            input_file=replay,
+            saved_session_file=resume,
+            save_session=save_session,
+            session_id=session_id,
+            ui_theme=ui_theme,
+            interruptible=interruptible,
+        )
+    )
 
 
 def fast_api_common_options():

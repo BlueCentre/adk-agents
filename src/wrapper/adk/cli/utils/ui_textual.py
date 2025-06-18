@@ -1,23 +1,20 @@
 from __future__ import annotations
 
 import asyncio
-import os
-import sys
 from datetime import datetime
-from typing import Optional, Callable, Any, Awaitable, List, Union
+from typing import Optional, Callable, Any, Awaitable, Union
 
 from textual.app import App, ComposeResult
 from textual.containers import Container, Vertical, Horizontal
-from textual.widgets import Header, Footer, Input, RichLog, Label, TextArea, Static, OptionList
+from textual.widgets import Input, RichLog, Label, Static, OptionList
 from textual.widgets.option_list import Option
 from textual.binding import Binding
-from textual.events import Event, Key
+from textual.events import Key
 from textual.reactive import reactive
 from textual import work
 from textual.screen import ModalScreen
 
 from rich.console import Console
-from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.text import Text
 

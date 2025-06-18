@@ -16,38 +16,19 @@ from __future__ import annotations
 
 import asyncio
 import os
-import sys
 from datetime import datetime
-from typing import Optional, Callable, Any, Awaitable
-from io import StringIO
-from contextlib import redirect_stdout, redirect_stderr
+from typing import Optional, Callable, Awaitable
 
-from prompt_toolkit import PromptSession, Application
-from prompt_toolkit.patch_stdout import patch_stdout
+from prompt_toolkit import PromptSession
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.styles import Style
 from prompt_toolkit.history import InMemoryHistory
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
-from prompt_toolkit.completion import WordCompleter, Completer, Completion
-from prompt_toolkit.keys import Keys
-from prompt_toolkit.layout import Layout
-from prompt_toolkit.layout.containers import HSplit, VSplit, Window, FloatContainer, Float
-from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
+from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.buffer import Buffer
-from prompt_toolkit.widgets import TextArea, Frame
-from prompt_toolkit.formatted_text import FormattedText
-from prompt_toolkit.application import get_app
-from prompt_toolkit.filters import Condition
-from prompt_toolkit.enums import EditingMode
-from prompt_toolkit.output import Output
-from prompt_toolkit.output.defaults import create_output
-from prompt_toolkit.shortcuts import confirm
-from prompt_toolkit.layout.menus import CompletionsMenu
 
 from rich.console import Console
-from rich.markdown import Markdown
 from rich.panel import Panel
-from rich.text import Text
 
 from .ui_common import UITheme, ThemeConfig, StatusBar
 from .ui_rich import RichRenderer

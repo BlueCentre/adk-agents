@@ -14,13 +14,10 @@
 
 from __future__ import annotations
 
-import os
 from datetime import datetime
 from enum import Enum
-from typing import Optional
 
 from rich.theme import Theme
-from rich.console import Console
 
 
 class UITheme(Enum):
