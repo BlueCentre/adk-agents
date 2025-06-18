@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime
+from textwrap import wrap
 from typing import Optional, Callable, Any, Awaitable, Union
 
 from textual.app import App, ComposeResult
@@ -560,16 +561,15 @@ class AgentTUI(App):
                 
                 token_display = ", ".join(token_parts)
                 
-                content = Text.from_markup(
-                    # f"[blue]📊 Model Usage[/blue]\n"
-                    f"[dim][b]Model:[/b] {model_name}\n"
-                    f"[b]Tokens:[/b] {token_display}[/dim]"
-                )
-                thought_log.write(Panel(content, border_style="blue", expand=True, padding=(0, 0), title="[blue]📊 Model Usage[/blue]", title_align="left"))
+                token_info_str = f"Tokens: {', '.join(token_parts)}"
+                model_info_str = f"Model: {self._model_name}" if self._model_name else ""
+
+                # Use the centralized rich renderer for model usage panel
+                content_panel = self.rich_renderer.format_model_usage(f"{token_info_str}\n{model_info_str}")
+                thought_log.write(content_panel)
                 
             except Exception as e:
-                # Fallback to regular output if thought pane fails
-                self.add_output(f"📊 Model Usage: {model_name} - {token_display}", style="info")
+                self.add_output(f"📊 Model Usage: {total_tokens} tokens", style="info")
         else:
             # If thoughts are disabled, show in main output as before
             token_parts = []
@@ -583,7 +583,7 @@ class AgentTUI(App):
                 token_parts.append(f"Total: {total_tokens:,}")
             
             token_display = ", ".join(token_parts)
-            self.add_output(f"📊 Model Usage: {model_name} - {token_display}", style="info")
+            self.add_output(f"📊 Model Usage: {total_tokens} tokens", style="info")
 
     # Removed action_trigger_completion - tab completion is now handled directly by CategorizedInput widget
 
@@ -629,16 +629,8 @@ class AgentTUI(App):
             
             if event_type == "start":
                 # Tool execution start
-                tool_args_display = ", ".join([f"{k}={v}" for k, v in (args or {}).items()])
-                if len(tool_args_display) > 100:
-                    tool_args_display = tool_args_display[:97] + "..."
-                
-                content = Text.from_markup(
-                    # f"[cyan]🔧 Running Tool[/cyan]\n"
-                    f"[dim][b]Tool:[/b] {tool_name}\n"
-                    f"[b]Args:[/b] {tool_args_display}[/dim]"
-                )
-                thought_log.write(Panel(content, border_style="cyan", expand=True, padding=(0, 0), title="[cyan]🔧 Running Tool[/cyan]", title_align="left"))
+                content_panel = self.rich_renderer.format_running_tool(tool_name, args)
+                thought_log.write(content_panel)
                 
                 # Update tool usage tracking
                 self._tools_used += 1
@@ -646,29 +638,14 @@ class AgentTUI(App):
                 
             elif event_type == "finish":
                 # Tool execution finish
-                result_summary = str(result)[:300] if result else "No result"
-                duration_str = f"{duration:.4f}s" if duration is not None else "Unknown"
-                
-                content = Text.from_markup(
-                    # f"[green]✅ Tool Finished[/green]\n"
-                    f"[dim][b]Tool:[/b] {tool_name}\n"
-                    f"[b]Result:[/b] {result_summary}{'...' if len(str(result)) > 300 else ''}\n"
-                    f"[b]Duration:[/b] {duration_str}[/dim]"
-                )
-                thought_log.write(Panel(content, border_style="green", expand=True, padding=(0, 0), title="[green]✅ Tool Finished[/green]", title_align="left"))
+                content_panel = self.rich_renderer.format_tool_finished(tool_name, result, duration)
+                thought_log.write(content_panel)
                 
             elif event_type == "error":
                 # Tool execution error
                 error_msg = str(result) if result else "Unknown error"
-                duration_str = f"{duration:.4f}s" if duration is not None else "Unknown"
-                
-                content = Text.from_markup(
-                    # f"[red]❌ Tool Error[/red]\n"
-                    f"[dim][b]Tool:[/b] {tool_name}\n"
-                    f"[b]Error:[/b] {error_msg}\n"
-                    f"[b]Duration:[/b] {duration_str}[/dim]"
-                )
-                thought_log.write(Panel(content, border_style="red", expand=True, padding=(0, 0), title="[red]❌ Tool Error[/red]", title_align="left"))
+                content_panel = self.rich_renderer.format_tool_error(tool_name, error_msg)
+                thought_log.write(content_panel)
                 
         except Exception as e:
             # Fallback to regular output if thought pane fails
@@ -682,12 +659,9 @@ class AgentTUI(App):
         try:
             thought_log = self.query_one("#thought-log", RichLog)
             
-            # Format the thought with proper styling
-            content = Text.from_markup(
-                # f"[yellow]🧠 Agent Thought[/yellow]\n"
-                f"[dim]{thought_text}[/dim]"
-            )
-            thought_log.write(Panel(content, border_style="yellow", expand=True, padding=(0, 0), title="[yellow]🧠 Agent Thought[/yellow]", title_align="left"))
+            # Format the thought with proper styling using the rich_renderer
+            content_panel = self.rich_renderer.format_agent_thought(thought_text)
+            thought_log.write(content_panel)
             
         except Exception as e:
             # Fallback to regular output if thought pane fails
