@@ -71,7 +71,9 @@ class RichRenderer:
 
     def format_running_tool(self, tool_name: str, args: Optional[dict]) -> Panel:
         arg_str = f"({', '.join(f'{k}={v}' for k, v in args.items())})" if args else "()"
-        content = Text.from_markup(f"[dim]Tool: {tool_name}{arg_str}[/dim]")
+        content = Text.from_markup(
+            f"[dim]Tool: {tool_name}{arg_str}[/dim]"
+        )
         return Panel(
             content,
             title="[cyan]🔧 Running Tool[/cyan]",
@@ -84,7 +86,10 @@ class RichRenderer:
     def format_tool_finished(self, tool_name: str, result: Any, duration: Optional[float]) -> Panel:
         duration_str = f" in {duration:.2f}s" if duration is not None else ""
         result_str = f"Result: {str(result)[:100]}..." if len(str(result)) > 100 else f"Result: {result}"
-        content = Text.from_markup(f"[dim]Tool: {tool_name}{duration_str}\n{result_str}[/dim]")
+        content = Text.from_markup(
+            f"[dim]Tool: {tool_name}{duration_str}\n"
+            f"{result_str}[/dim]"
+        )
         return Panel(
             content,
             title="[green]✅ Tool Finished[/green]",
@@ -95,7 +100,10 @@ class RichRenderer:
         )
 
     def format_tool_error(self, tool_name: str, error_message: str) -> Panel:
-        content = Text.from_markup(f"[dim]Tool: {tool_name}\nError: {error_message}[/dim]")
+        content = Text.from_markup(
+            f"[dim]Tool: {tool_name}\n"
+            f"Error: {error_message}[/dim]"
+        )
         return Panel(
             content,
             title="[red]❌ Tool Error[/red]",
