@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime
-from textwrap import wrap
 from typing import Optional, Callable, Any, Awaitable, Union
 
 from textual.app import App, ComposeResult
@@ -19,7 +18,6 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 
-# from .ui_common import UITheme, ThemeConfig, StatusBar
 from .ui_common import UITheme, ThemeConfig
 from .ui_rich import RichRenderer
 
