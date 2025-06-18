@@ -161,9 +161,9 @@ class StatusBar:
         
         segments = [
             (f" 🤖 {agent_name} ", "bottom-toolbar.accent"),
-            (f" Session: {session_id[:8]}... ", "bottom-toolbar.info"),
-            (f" Uptime: {uptime_str} ", "bottom-toolbar.info"),
-            (f" {now.strftime('%H:%M:%S')} ", "bottom-toolbar.accent"),
+            (f" 🧑 Session: {session_id[:8]}... ", "bottom-toolbar.info"),
+            # (f" Uptime: {uptime_str} ", "bottom-toolbar.info"),
+            # (f" {now.strftime('%H:%M:%S')} ", "bottom-toolbar.accent"),
         ]
         
         return segments
