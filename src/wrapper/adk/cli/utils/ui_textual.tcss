@@ -139,12 +139,11 @@ CompletionWidget {
 }
 
 #completion-dialog {
-    width: 60;
-    height: 20;
+    width: 100;
+    height: 25;
     border: solid white;
     background: #2d2d4a;
     padding: 1;
-    scrollbar-size: 0 0;
 }
 
 #completion-title {
@@ -155,7 +154,7 @@ CompletionWidget {
 
 #completion-list {
     height: 1fr;
-    border: solid #6a6aff;
+    # border: solid blue;
 }
 
 #completion-help {
