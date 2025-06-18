@@ -15,7 +15,7 @@ from google.adk.tools.agent_tool import AgentTool
 from google.adk.tools.google_search_tool import google_search
 from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset
 from google.adk.tools.mcp_tool.mcp_toolset import StdioServerParameters
-from google.adk.tools.mcp_tool.mcp_toolset import SseServerParams
+from google.adk.tools.mcp_tool.mcp_toolset import SseConnectionParams
 
 from .. import config as agent_config
 from .. import prompts
@@ -181,7 +181,7 @@ async def load_user_tools_and_toolsets_async():
                 if not isinstance(processed_config.get("url"), str):
                     logger.warning(f"Failed to load MCP Toolset '{server_name}': 'url' must be a string after env var substitution.")
                     continue
-                connection_params = SseServerParams(url=processed_config["url"])
+                connection_params = SseConnectionParams(url=processed_config["url"])
             elif "command" in processed_config and "args" in processed_config:
                 if not isinstance(processed_config.get("command"), str):
                     logger.warning(f"Failed to load MCP Toolset '{server_name}': 'command' must be a string after env var substitution.")
