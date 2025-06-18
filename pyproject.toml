@@ -131,6 +131,9 @@ where = ["src", "."]
 include = ["wrapper*", "agents*"]
 #exclude = ["example_prompts*", "scripts*", ".cache*", ".agent*"]
 
+[tool.setuptools.package-data]
+"wrapper.adk.cli.utils" = ["*.tcss"]
+
 [dependency-groups]
 dev = [
   "pytest>=8.3.5",
