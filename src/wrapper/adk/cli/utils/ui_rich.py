@@ -1,17 +1,3 @@
-# Copyright 2025 Google LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 from __future__ import annotations
 
 import shutil
@@ -61,7 +47,7 @@ class RichRenderer:
 
     def format_model_usage(self, text: str) -> Panel:
         return Panel(
-            Text.from_markup(text),
+            Text.from_markup(f"[dim]{text}[/dim]"),
             title="[blue]📊 Model Usage[/blue]",
             title_align="left",
             border_style="blue",
@@ -113,15 +99,6 @@ class RichRenderer:
             padding=(0, 0),
         )
 
-    def print_markdown(self, markdown_text: str, style: Optional[str] = None):
-        self.console.print(Markdown(markdown_text, style=style))
-
-    def print_panel(self, content: Any, title: Optional[str] = None, border_style: Optional[str] = None):
-        self.console.print(Panel(content, title=title, border_style=border_style))
-
-    def print_text(self, text: str, style: Optional[str] = None):
-        self.console.print(Text(text, style=style))
-
     def format_agent_response_panel(self, text: str, author: str) -> Panel:
         """Format agent response with themed panel and return Panel object."""
         markdown_text = Markdown(text)
@@ -168,6 +145,15 @@ class RichRenderer:
         panel_text = string_io.getvalue()
 
         return panel_text.rstrip()
+
+    def print_markdown(self, markdown_text: str, style: Optional[str] = None):
+        self.console.print(Markdown(markdown_text, style=style))
+
+    def print_panel(self, content: Any, title: Optional[str] = None, border_style: Optional[str] = None):
+        self.console.print(Panel(content, title=title, border_style=border_style))
+
+    def print_text(self, text: str, style: Optional[str] = None):
+        self.console.print(Text(text, style=style))
 
     def _render_markdown(self, text: str) -> str:
         """Render markdown using Rich's Markdown directly, without Panel wrapper."""
