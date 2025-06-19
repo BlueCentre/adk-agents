@@ -18,8 +18,8 @@ logger = logging.getLogger(__name__)
 
 # --- LLM Configuration ---
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-GEMINI_FLASH_MODEL_NAME = os.getenv("GEMINI_FLASH_MODEL", "gemini-1.5-flash")
-GEMINI_PRO_MODEL_NAME = os.getenv("GEMINI_PRO_MODEL", "gemini-1.5-pro")
+GEMINI_FLASH_MODEL_NAME = os.getenv("GEMINI_FLASH_MODEL", "gemini-2.5-flash-preview-05-20")
+GEMINI_PRO_MODEL_NAME = os.getenv("GEMINI_PRO_MODEL", "gemini-2.5-pro-preview-06-05")
 GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL", GEMINI_FLASH_MODEL_NAME) # Default to Pro
 
 # Gemini 2.5 series models with thinking support
