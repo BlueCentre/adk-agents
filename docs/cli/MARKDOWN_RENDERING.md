@@ -1,6 +1,6 @@
-# Markdown Rendering in Interruptible CLI
+# Markdown Rendering in Textual CLI
 
-The `--interruptible` CLI mode now supports **markdown rendering** for agent responses! This makes the output much more readable and visually appealing.
+The `--tui` CLI mode now supports **markdown rendering** for agent responses! This makes the output much more readable and visually appealing.
 
 ## Features
 
@@ -103,4 +103,4 @@ The code analysis found [3 issues]:
 | Ctrl+L | Clear output |
 | Ctrl+D | Exit |
 
-The markdown rendering makes agent responses much more pleasant to read while maintaining the powerful interruptible CLI functionality! 
+The markdown rendering makes agent responses much more pleasant to read while maintaining the powerful Textual CLI functionality!

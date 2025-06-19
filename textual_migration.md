@@ -4,7 +4,7 @@
 
 **Status**: Both UI modes are now fully functional:
 - **Basic CLI mode** (`uv run agent run agents.devops`) - Uses `prompt_toolkit` with enhanced features
-- **Interruptible CLI mode** (`uv run agent run agents.devops --interruptible`) - Uses Textual with advanced multi-pane interface
+- **Textual CLI mode** (`uv run agent run agents.devops --tui`) - Uses Textual with advanced multi-pane interface
 
 **Key Achievements**:
 - ✅ Created fully functional Textual-based `AgentTUI` with multi-pane interface
@@ -33,7 +33,7 @@ The current UI is primarily built using `prompt_toolkit` for interactive shell a
     *   Displays dynamic status information via `bottom_toolbar`.
     *   Utilizes `rich.Console` for general formatted output.
 
-*   **`InterruptibleCLI` (in `src/wrapper/adk/cli/utils/ui_prompt_toolkit.py`)**:
+*   **`TextualCLI` (in `src/wrapper/adk/cli/utils/ui_prompt_toolkit.py`)**:
     *   The more advanced UI for interactive agent sessions.
     *   Uses `HSplit` and `VSplit` for a multi-pane interface (input, output, optional agent thought).
     *   Manages separate `Buffer` objects for `input`, `output`, `status`, and `thought` content.
@@ -56,7 +56,7 @@ The current UI is primarily built using `prompt_toolkit` for interactive shell a
     *   Manages the content and formatting of the status bar.
 
 *   **`cli.py`**:
-    *   Orchestrates UI initialization, selecting between `EnhancedCLI` or `InterruptibleCLI`.
+    *   Orchestrates UI initialization, selecting between `EnhancedCLI` or `TextualCLI`.
     *   Includes a fallback mechanism if UI initialization fails.
 
 ### Advanced Layouts Being Implemented:
@@ -97,8 +97,8 @@ The migration will involve creating a new `textual` application that mirrors the
 
 - [x] Create a new file: `src/wrapper/adk/cli/utils/ui_textual.py`.
 - [x] Create a new CSS file: `src/wrapper/adk/cli/utils/ui_textual.tcss`.
-- [x] Update `src/wrapper/adk/cli/utils/ui.py` to ensure `get_cli_instance` returns an `EnhancedCLI` (prompt_toolkit) instance and `get_interruptible_cli_instance` returns an `AgentTUI` (Textual) instance.
-- [x] Modify `src/wrapper/adk/cli/cli.py` to correctly use `get_cli_instance` for basic interactive mode and `get_interruptible_cli_instance` for the Textual-based interactive mode.
+- [x] Update `src/wrapper/adk/cli/utils/ui.py` to ensure `get_cli_instance` returns an `EnhancedCLI` (prompt_toolkit) instance and `get_textual_cli_instance` returns an `AgentTUI` (Textual) instance.
+- [x] Modify `src/wrapper/adk/cli/cli.py` to correctly use `get_cli_instance` for basic interactive mode and `get_textual_cli_instance` for the Textual-based interactive mode.
 
 #### Step 1: Define the `AgentTUI` Application (`src/wrapper/adk/cli/utils/ui_textual.py`)
 
@@ -150,7 +150,7 @@ The migration will involve creating a new `textual` application that mirrors the
 #### Step 5: Update `ui.py` to Return Correct UI Instances
 
 - [x] Ensure `get_cli_instance()` returns an `EnhancedCLI` (prompt_toolkit) instance.
-- [x] Ensure `get_interruptible_cli_instance()` returns an `AgentTUI` (Textual) instance.
+- [x] Ensure `get_textual_cli_instance()` returns an `AgentTUI` (Textual) instance.
 - [x] Remove/comment out old `prompt_toolkit` imports that are no longer needed due to the migration.
 
 #### Step 6: Update `cli.py` to Use Correct UI Instances
@@ -161,14 +161,14 @@ The migration will involve creating a new `textual` application that mirrors the
     - [x] This function should use `get_cli_instance()` to get the `EnhancedCLI` (prompt_toolkit) instance.
     - [x] Retain its original logic for basic CLI operations, including prompt session creation, command handling (clear, help, theme), and `rich` console output for agent responses.
 - [x] In `run_interactively_with_interruption()`:
-    - [x] This function should use `get_interruptible_cli_instance()` to get the `AgentTUI` (Textual) instance.
+    - [x] This function should use `get_textual_cli_instance()` to get the `AgentTUI` (Textual) instance.
     - [x] Initialize `app_tui` as `AgentTUI`.
     - [x] Set `app_tui.agent_name` from `root_agent.name`.
     - [x] Register callback functions for user input and agent interruption.
     - [x] Implement proper agent output and thought handling.
     - [x] Call `app_tui.display_agent_welcome()` with `root_agent.name`, `root_agent.description`, and `getattr(root_agent, 'tools', [])`.
     - [x] Call `await app_tui.run_async()`.
-- [x] Ensure the main `cli.main` function correctly calls `run_interactively` or `run_interactively_with_interruption` based on the `interruptible` flag.
+- [x] Ensure the main `cli.main` function correctly calls `run_interactively` or `run_interactively_with_textual` based on the `tui` flag.
 
 #### Step 7: Adapt `Runner` (Conceptual changes)
 

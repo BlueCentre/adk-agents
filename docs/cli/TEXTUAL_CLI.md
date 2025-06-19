@@ -1,6 +1,6 @@
-# Interruptible CLI for ADK Agents
+# Textual CLI for ADK Agents
 
-The ADK now supports an enhanced **Interruptible CLI** that provides persistent input capabilities and the ability to interrupt long-running agent operations. This feature significantly improves the user experience by allowing real-time interaction with agents.
+The ADK now supports an enhanced **Textual CLI** that provides persistent input capabilities and the ability to interrupt long-running agent operations. This feature significantly improves the user experience by allowing real-time interaction with agents.
 
 ## Features
 
@@ -26,11 +26,11 @@ The ADK now supports an enhanced **Interruptible CLI** that provides persistent 
 ### Command Line Options
 
 ```bash
-# Enable interruptible CLI
-uv run python -m src.wrapper.adk.cli.cli --agent agents.devops --interruptible
+# Enable Textual CLI
+uv run python -m src.wrapper.adk.cli.cli --agent agents.devops --tui
 
 # With theme selection
-uv run python -m src.wrapper.adk.cli.cli --agent agents.devops --interruptible --theme dark
+uv run python -m src.wrapper.adk.cli.cli --agent agents.devops --tui --theme dark
 
 # Regular CLI (original behavior)
 uv run python -m src.wrapper.adk.cli.cli --agent agents.devops
@@ -82,7 +82,7 @@ uv run python -m src.wrapper.adk.cli.cli --agent agents.devops
 
 ### Async Task Management
 
-The interruptible CLI uses asyncio for concurrent operations:
+The Textual CLI uses asyncio for concurrent operations:
 
 - **Input handling**: Always responsive, even during agent processing
 - **Agent execution**: Runs in separate tasks that can be cancelled
@@ -103,7 +103,7 @@ When you press `Ctrl+C`:
 ### Core Components
 
 ```python
-class InterruptibleCLI:
+class TextualCLI:
     """CLI with persistent input pane and agent interruption capabilities."""
     
     def __init__(self, theme: Optional[UITheme] = None):
@@ -132,10 +132,10 @@ class InterruptibleCLI:
 import asyncio
 from src.wrapper.adk.cli.cli import run_cli
 
-# Run with interruptible CLI
+# Run with Textual CLI
 await run_cli(
     agent_module_name="agents.devops",
-    interruptible=True,
+    tui=True,
     ui_theme="dark"
 )
 ```
@@ -144,7 +144,7 @@ await run_cli(
 
 ```bash
 # Run the demo
-uv run python example_prompts/interruptible_cli_demo.py
+uv run python example_prompts/textual_cli_demo.py
 ```
 
 ## Benefits
@@ -158,13 +158,13 @@ uv run python example_prompts/interruptible_cli_demo.py
 ### For Developers
 - **Better testing**: Interrupt long-running operations during development
 - **Debugging**: Cleaner separation of input/output streams
-- **Flexibility**: Choose between regular and interruptible modes
+- **Flexibility**: Choose between regular and textual modes
 - **Extensibility**: Framework for advanced CLI features
 
 ## Compatibility
 
 - **Backwards compatible**: Original CLI behavior preserved
-- **Opt-in feature**: Use `--interruptible` flag to enable
+- **Opt-in feature**: Use `--tui` flag to enable
 - **Fallback support**: Gracefully falls back to regular CLI if needed
 - **Terminal support**: Works with modern terminal emulators
 
@@ -177,4 +177,4 @@ uv run python example_prompts/interruptible_cli_demo.py
 
 ---
 
-The Interruptible CLI transforms the ADK agent interaction experience from a sequential question-answer pattern to a dynamic, responsive interface that puts users in control. 
+The Textual CLI transforms the ADK agent interaction experience from a sequential question-answer pattern to a dynamic, responsive interface that puts users in control.

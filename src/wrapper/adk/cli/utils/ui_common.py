@@ -205,9 +205,9 @@ class StatusBar:
 #     rich_renderer = RichRenderer(ui_theme)
 #     return EnhancedCLI(ui_theme, rich_renderer)
 
-# def get_interruptible_cli_instance(theme: Optional[str] = None):
-#     """Factory function to create an InterruptibleCLI instance with enhanced agent response formatting."""
-#     from .ui_prompt_toolkit import InterruptibleCLI
+# def get_textual_cli_instance(theme: Optional[str] = None):
+#     """Factory function to create an TextualCLI instance with enhanced agent response formatting."""
+#     from .ui_prompt_toolkit import TextualCLI
 #     from .ui_rich import RichRenderer
 #     ui_theme: Optional[UITheme] = None
 #     if theme:
@@ -217,4 +217,4 @@ class StatusBar:
 #             pass  # Use auto-detected theme
     
 #     rich_renderer = RichRenderer(ui_theme)
-#     return InterruptibleCLI(ui_theme, rich_renderer)
+#     return TextualCLI(ui_theme, rich_renderer)

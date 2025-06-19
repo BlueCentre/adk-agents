@@ -1,8 +1,8 @@
 # Input Pane Usage Guide
 
-## How to Type in the Interruptible CLI
+## How to Type in the Textual CLI
 
-The interruptible CLI provides a **persistent input pane** at the bottom of the screen where you can always type, even while the agent is responding.
+The Textual CLI provides a **persistent input pane** at the bottom of the screen where you can always type, even while the agent is responding.
 
 ### 🎯 Interface Layout
 
@@ -123,7 +123,7 @@ The interface provides clear visual cues:
 
 1. **Start the CLI**:
    ```bash
-   uv run agent run agents.devops --interruptible
+   uv run agent run agents.devops --tui
    ```
 
 2. **See the interface load** with input pane ready

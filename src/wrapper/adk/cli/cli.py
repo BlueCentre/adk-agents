@@ -38,7 +38,7 @@ from google.adk.sessions.session import Session
 from .utils import envs
 from .utils.agent_loader import AgentLoader
 from .utils.envs import load_dotenv_for_agent
-from .utils.ui import get_cli_instance, get_interruptible_cli_instance
+from .utils.ui import get_cli_instance, get_textual_cli_instance
 from .utils.ui_common import UITheme
 
 
@@ -307,7 +307,7 @@ async def run_interactively_with_interruption(
   """Run the agent interactively with interruption support using Textual UI."""
   
   # Create the Textual UI
-  app_tui = get_interruptible_cli_instance(ui_theme)
+  app_tui = get_textual_cli_instance(ui_theme)
   
   # Set agent info
   app_tui.agent_name = root_agent.name
@@ -501,7 +501,7 @@ async def run_cli(
     save_session: bool = False,
     session_id: Optional[str] = None,
     ui_theme: Optional[str] = None,
-    interruptible: bool = False,
+    tui: bool = False,
 ) -> None:
   """Runs an interactive CLI for a certain agent.
 
@@ -516,7 +516,7 @@ async def run_cli(
     session_id: Optional[str], the session ID to save the session to on exit.
     ui_theme: Optional[str], the UI theme to use ('light' or 'dark'). 
       If not provided, auto-detects from environment.
-    interruptible: bool, whether to use the interruptible CLI with persistent
+    tui: bool, whether to use the Textual CLI with persistent
       input and agent interruption capabilities.
   """
   # Load environment variables specific to the agent
@@ -556,7 +556,7 @@ async def run_cli(
     )
   else:
     session = await session_service.create_session(app_name=agent_module_name, user_id="default-user")
-    if interruptible:
+    if tui:
       await run_interactively_with_interruption(
           root_agent=root_agent,
           artifact_service=artifact_service,
@@ -604,9 +604,9 @@ async def run_cli(
 # @click.option('--save-session', is_flag=True, help='Save session on exit')
 # @click.option('--session-id', help='Session ID for saving')
 # @click.option('--theme', type=click.Choice(['light', 'dark']), help='UI theme')
-# @click.option('--interruptible', is_flag=True, help='Use interruptible CLI with persistent input pane')
+# @click.option('--tui', is_flag=True, help='Use Textual CLI with persistent input pane')
 # def main(agent: str, input_file: Optional[str], saved_session: Optional[str], 
-#          save_session: bool, session_id: Optional[str], theme: Optional[str], interruptible: bool):
+#          save_session: bool, session_id: Optional[str], theme: Optional[str], tui: bool):
 #   # Load environment variables specific to the agent
 #   load_dotenv_for_agent(agent)
 
@@ -648,7 +648,7 @@ async def run_cli(
 #     )
 #   else:
 #     session = asyncio.run(session_service.create_session(app_name=agent, user_id="default-user"))
-#     if interruptible:
+#     if tui:
 #       asyncio.run(
 #           run_interactively_with_interruption(
 #               root_agent=root_agent,

@@ -24,7 +24,7 @@ Token Usage: Prompt: 2475, Thinking: 33, Output: 9, Total: 2517
 
 ## The Solution ✅
 
-### 1. **Text Sanitization in InterruptibleCLI**
+### 1. **Text Sanitization in TextualCLI**
 
 Added a `_add_to_output()` method that converts Rich content to plain text:
 
@@ -132,7 +132,7 @@ Rich Formatted Text → Rich Console (plain) → ANSI Stripper → prompt_toolki
 ## Benefits 🎉
 
 ### **For Users**
-- ✅ **Clean, readable output** in the interruptible CLI
+- ✅ **Clean, readable output** in the Textual CLI
 - ✅ **No formatting artifacts** or escape codes
 - ✅ **Consistent appearance** across different terminals
 - ✅ **Preserved functionality** of both Rich and prompt_toolkit
@@ -189,7 +189,7 @@ Status: ✓
 
 ```bash
 # Test the clean output
-uv run agent run agents.devops --interruptible
+uv run agent run agents.devops --tui
 
 # Should now display:
 # - Clean, readable text
@@ -207,4 +207,4 @@ uv run agent run agents.devops --interruptible
 
 ---
 
-This solution enables seamless integration between Rich's powerful formatting capabilities and prompt_toolkit's advanced UI features, giving you the best of both worlds! 🎯 
+This solution enables seamless integration between Rich's powerful formatting capabilities and prompt_toolkit's advanced UI features, giving you the best of both worlds! 🎯

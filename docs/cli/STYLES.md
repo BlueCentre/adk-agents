@@ -21,7 +21,7 @@ graph TD;
 
     subgraph Key CLI Classes
         P[cli.py] --> Q[EnhancedCLI - ui_prompt_toolkit.py];
-        P --> R[InterruptibleCLI - ui_prompt_toolkit.py];
+        P --> R[TextualCLI - ui_prompt_toolkit.py];
         P --> S[AgentTUI - ui_textual.py];
     end
 
@@ -69,7 +69,7 @@ The ADK CLI leverages several key Python classes to construct and manage its use
 
 *   **`EnhancedCLI`** (found in `src/wrapper/adk/cli/utils/ui_prompt_toolkit.py`): This class is responsible for setting up and managing the interactive prompt session using the `prompt_toolkit` library. It integrates the `ThemeConfig` from `ui_common.py` to apply dynamic styling based on the selected theme (light/dark). It also uses `RichRenderer` (from `ui_rich.py`) for formatting agent responses and other rich content within the standard prompt-based CLI.
 
-*   **`InterruptibleCLI`** (also in `src/wrapper/adk/cli/utils/ui_prompt_toolkit.py`): This class extends `EnhancedCLI` to provide an interruptible CLI experience. It manages the layout of the UI components (input, output, and thought panes) within a `prompt_toolkit` application. While it doesn't directly handle the low-level styling of elements like borders or backgrounds (that's left to Textual CSS), it orchestrates their placement and ensures they use the correct `Rich` console for output.
+*   **`TextualCLI`** (also in `src/wrapper/adk/cli/utils/ui_prompt_toolkit.py`): This class extends `EnhancedCLI` to provide an Textual CLI experience. It manages the layout of the UI components (input, output, and thought panes) within a `prompt_toolkit` application. While it doesn't directly handle the low-level styling of elements like borders or backgrounds (that's left to Textual CSS), it orchestrates their placement and ensures they use the correct `Rich` console for output.
 
 *   **`AgentTUI`** (found in `src/wrapper/adk/cli/utils/ui_textual.py`): This class is a `Textual` application that defines the overall layout and behavior of the terminal user interface. It is responsible for composing the various panes (output, thought, input) and applying the CSS rules defined in `ui_textual.tcss`. `AgentTUI` utilizes the `Rich` library's `Console` and `Panel` components, often in conjunction with `RichRenderer`, to display formatted text, agent responses, and tool outputs within its panes. It leverages `ui_common.py` for theme-specific `Rich` styling.
 

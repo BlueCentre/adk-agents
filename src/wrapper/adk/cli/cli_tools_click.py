@@ -225,12 +225,12 @@ def validate_exclusive(ctx, param, value):
     ),
 )
 @click.option(
-    "--interruptible",
+    "--tui",
     is_flag=True,
     show_default=True,
     default=False,
     help=(
-        "Optional. Use interruptible CLI with persistent input pane and agent interruption capabilities. "
+        "Optional. Use Textual CLI with persistent input pane and agent interruption capabilities. "
         "Allows typing while agent is responding and interrupting with Ctrl+C."
     ),
 )
@@ -245,7 +245,7 @@ def cli_run(
     replay: Optional[str],
     resume: Optional[str],
     ui_theme: Optional[str],
-    interruptible: bool,
+    tui: bool,
 ):
     """Runs an interactive CLI for a certain agent.
 
@@ -264,7 +264,7 @@ def cli_run(
             save_session=save_session,
             session_id=session_id,
             ui_theme=ui_theme,
-            interruptible=interruptible,
+            tui=tui,
         )
     )
 

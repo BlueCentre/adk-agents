@@ -39,7 +39,7 @@ def get_cli_instance(theme: Optional[str] = None) -> EnhancedCLI:
     return EnhancedCLI(theme=ui_theme, rich_renderer=rich_renderer)
 
 
-def get_interruptible_cli_instance(theme: Optional[str] = None) -> AgentTUI:
+def get_textual_cli_instance(theme: Optional[str] = None) -> AgentTUI:
     """Factory function to create an AgentTUI (Textual) instance with optional theme."""
     ui_theme = None
     if theme:

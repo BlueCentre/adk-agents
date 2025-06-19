@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 """
-Demo script for the Interruptible CLI feature.
+Demo script for the Textual CLI feature.
 
-This script demonstrates how to use the new interruptible CLI that allows:
+This script demonstrates how to use the new Textual CLI that allows:
 - Persistent input pane that remains active while the agent is responding
 - Ability to interrupt long-running agent operations with Ctrl+C
 - Split-pane interface with output above and input below
 - Real-time status updates
 
 Usage:
-    # Using the interruptible CLI
-    uv run python -m src.wrapper.adk.cli.cli --agent agents.devops --interruptible
+    # Using the Textual CLI
+    uv run python -m src.wrapper.adk.cli.cli --agent agents.devops --tui
     
     # Or using the regular CLI
     uv run python -m src.wrapper.adk.cli.cli --agent agents.devops
     
     # With theme selection
-    uv run python -m src.wrapper.adk.cli.cli --agent agents.devops --interruptible --theme dark
+    uv run python -m src.wrapper.adk.cli.cli --agent agents.devops --tui --theme dark
 """
 
 import asyncio
@@ -29,9 +29,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.wrapper.adk.cli.cli import run_cli
 
 
-async def demo_interruptible_cli():
-    """Demo the interruptible CLI with DevOps agent."""
-    print("🚀 Starting Interruptible CLI Demo")
+async def demo_textual_cli():
+    """Demo the Textual CLI with DevOps agent."""
+    print("🚀 Starting Textual CLI Demo")
     print("=" * 50)
     print()
     print("Features to try:")
@@ -42,13 +42,13 @@ async def demo_interruptible_cli():
     print("• Use Ctrl+Y to toggle agent thought display")
     print("• Type 'help' for more commands")
     print()
-    print("Starting the interruptible CLI...")
+    print("Starting the Textual CLI...")
     print()
     
     try:
         await run_cli(
             agent_module_name="agents.devops",
-            interruptible=True,
+            tui=True,
             ui_theme="dark",
             save_session=False
         )
@@ -60,4 +60,4 @@ async def demo_interruptible_cli():
 
 if __name__ == "__main__":
     # Run the demo
-    asyncio.run(demo_interruptible_cli()) 
+    asyncio.run(demo_textual_cli())
