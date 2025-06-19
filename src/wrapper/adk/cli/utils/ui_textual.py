@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
+# from datetime import datetime
 from typing import Optional, Callable, Any, Awaitable, Union
 
 from textual.app import App, ComposeResult
@@ -66,8 +66,8 @@ class AgentTUI(App):
     agent_thought_enabled: reactive[bool] = reactive(True)
     agent_name: reactive[str] = reactive("Agent")
     session_id: reactive[str] = reactive("")
-    _uptime: reactive[str] = reactive("00:00:00")
-    _current_time: reactive[str] = reactive(datetime.now().strftime('%H:%M:%S'))
+    # _uptime: reactive[str] = reactive("00:00:00")
+    # _current_time: reactive[str] = reactive(datetime.now().strftime('%H:%M:%S'))
     _thinking_animation_index: reactive[int] = reactive(0)
     
     # Token usage tracking
@@ -498,10 +498,10 @@ class AgentTUI(App):
         if self.is_mounted:
             self._update_status()
 
-    def watch__current_time(self, time: str) -> None:
-        """Update footer when time changes."""
-        if self.is_mounted:
-            self._update_status()
+    # def watch__current_time(self, time: str) -> None:
+    #     """Update footer when time changes."""
+    #     if self.is_mounted:
+    #         self._update_status()
 
     def update_token_usage(self, prompt_tokens: int = 0, thinking_tokens: int = 0, output_tokens: int = 0, total_tokens: int = 0, model_name: str = ""):
         """Update token usage information."""
