@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+if [ "$#" -eq 0 ]; then
+  uvx --refresh --from git+https://github.com/BlueCentre/adk-agents.git@main agent run agents.devops.agent
+else
+  uvx --refresh --from git+https://github.com/BlueCentre/adk-agents.git@main agent "$@"
+fi
