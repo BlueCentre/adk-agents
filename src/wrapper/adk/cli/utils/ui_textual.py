@@ -4,6 +4,7 @@ import asyncio
 # from datetime import datetime
 from typing import Optional, Callable, Any, Awaitable, Union
 
+from textual import work
 from textual.app import App, ComposeResult
 from textual.containers import Container, Vertical, Horizontal
 from textual.widgets import Input, RichLog, Label, Static, OptionList
@@ -11,7 +12,6 @@ from textual.widgets.option_list import Option
 from textual.binding import Binding
 from textual.events import Key
 from textual.reactive import reactive
-from textual import work
 from textual.screen import ModalScreen
 
 from rich.console import Console
@@ -135,6 +135,7 @@ class AgentTUI(App):
         with Vertical():
             with Horizontal(id="main-content"):
                 yield RichLog(id="output-log", classes="output-pane")
+                # This pane can be hidden (Ctrl+Y)
                 if self.agent_thought_enabled:
                     yield RichLog(id="thought-log", classes="thought-pane")
 
