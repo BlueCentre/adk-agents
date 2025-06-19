@@ -100,12 +100,6 @@ class AgentTUI(App):
 
         # Define categorized commands for the completer
         self.categorized_commands = {
-            '🔍 Code Analysis': [
-                'analyze this code', 'review the codebase', 'find security vulnerabilities', 
-                'optimize performance of', 'refactor this function', 'add error handling to',
-                'add type hints to', 'add documentation for', 'write unit tests for',
-                'write integration tests for', 'fix the bug in', 'debug this issue',
-            ],
             '🚀 Infrastructure & DevOps': [
                 'create a dockerfile', 'create docker-compose.yml', 'write kubernetes manifests',
                 'create helm chart for', 'write terraform code for', 'setup CI/CD pipeline',
@@ -113,6 +107,12 @@ class AgentTUI(App):
                 'create health checks', 'setup load balancer', 'configure autoscaling',
                 'list the k8s clusters and indicate the current one',
                 'list all the user applications in the qa- namespaces',
+            ],
+            '🔍 Code Analysis': [
+                'analyze this code', 'review the codebase', 'find security vulnerabilities', 
+                'optimize performance of', 'refactor this function', 'add error handling to',
+                'add type hints to', 'add documentation for', 'write unit tests for',
+                'write integration tests for', 'fix the bug in', 'debug this issue',
             ],
             '📦 Deployment & Operations': [
                 'deploy to production', 'deploy to staging', 'rollback deployment',
