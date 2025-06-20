@@ -15,7 +15,6 @@ from textual.reactive import reactive
 from textual.screen import ModalScreen
 
 from rich.console import Console
-from rich.panel import Panel
 from rich.text import Text
 
 from .ui_common import UITheme, ThemeConfig
@@ -135,10 +134,24 @@ class AgentTUI(App):
         """Create child widgets for the app."""
         with Vertical():
             with Horizontal(id="main-content"):
-                yield RichLog(id="output-log", classes="output-pane")
+                output_log = RichLog(id="output-log", classes="output-pane")
+                output_log.border_title = f"🤖 {self.agent_name}" if self.agent_name else "🤖 Agent Output"
+                # output_log.border_subtitle = f"🧑 Session: {self.session_id}" if self.session_id else "🧑 Session: Unknown"
+                # Use same status logic as status bar
+                if self.agent_thinking:
+                    thinking_icon = self._thinking_frames[self._thinking_animation_index % len(self._thinking_frames)]
+                    status = f"{thinking_icon} Thinking"
+                elif self.agent_running:
+                    status = "🟢 Running"
+                else:
+                    status = "🟢 Ready"
+                output_log.border_subtitle = status
+                yield output_log
                 # This pane can be hidden (Ctrl+Y)
                 if self.agent_thought_enabled:
-                    yield RichLog(id="event-log", classes="event-pane")
+                    event_log = RichLog(id="event-log", classes="event-pane")
+                    event_log.border_title = "ℹ️ Events (Ctrl+Y to toggle)"
+                    yield event_log
             yield CategorizedInput(
                 self.categorized_commands,
                 id="input-area",
@@ -503,11 +516,11 @@ class AgentTUI(App):
         else:
             self.add_output("💡 Type a message and press Enter to send it to the agent", rich_format=True, style="info")
 
-    def add_output(self, text: Union[str, Text, Panel], author: str = "User", rich_format: bool = False, style: str = ""):
+    def add_output(self, text: Union[str, Text], author: str = "User", rich_format: bool = False, style: str = ""):
         """Add text to the output log."""
         output_log = self.query_one("#output-log", RichLog)
         if rich_format:
-            if isinstance(text, Panel) or isinstance(text, Text):
+            if isinstance(text, Text):
                 output_log.write(text)
             elif author in ["Agent", "agent"] or "Agent" in author:  # More flexible agent detection
                 panel_text = self.rich_renderer.format_agent_response(text, author)
@@ -542,20 +555,66 @@ class AgentTUI(App):
         """Register a callback function to interrupt the agent."""
         self.interrupt_callback = callback
 
-    def watch_agent_running(self, running: bool) -> None:
-        """Update footer when agent running status changes."""
+    def watch_agent_name(self, name: str) -> None:
+        """Update footer and output panel title when agent name changes."""
         if self.is_mounted:
             self._update_status()
+            # Update the output panel border title
+            try:
+                output_log = self.query_one("#output-log", RichLog)
+                output_log.border_title = f"🤖 {name}" if name else "🤖 Agent Output"
+            except:
+                # If the output log doesn't exist yet, ignore
+                pass
+
+    def watch_agent_running(self, running: bool) -> None:
+        """Update footer and output panel subtitle when agent running status changes."""
+        if self.is_mounted:
+            self._update_status()
+            # Update the output panel border subtitle using same logic as status bar
+            try:
+                output_log = self.query_one("#output-log", RichLog)
+                if self.agent_thinking:
+                    thinking_icon = self._thinking_frames[self._thinking_animation_index % len(self._thinking_frames)]
+                    status = f"{thinking_icon} Thinking"
+                elif running:
+                    status = "🟢 Running"
+                else:
+                    status = "🟢 Ready"
+                output_log.border_subtitle = status
+            except:
+                # If the output log doesn't exist yet, ignore
+                pass
 
     def watch_agent_thinking(self, thinking: bool) -> None:
-        """Update footer when agent thinking status changes."""
+        """Update footer and output panel subtitle when agent thinking status changes."""
         if self.is_mounted:
             self._update_status()
+            # Update the output panel border subtitle using same logic as status bar
+            try:
+                output_log = self.query_one("#output-log", RichLog)
+                if thinking:
+                    thinking_icon = self._thinking_frames[self._thinking_animation_index % len(self._thinking_frames)]
+                    status = f"{thinking_icon} Thinking"
+                elif self.agent_running:
+                    status = "🟢 Running"
+                else:
+                    status = "🟢 Ready"
+                output_log.border_subtitle = status
+            except:
+                # If the output log doesn't exist yet, ignore
+                pass
 
-    def watch_agent_name(self, name: str) -> None:
-        """Update footer when agent name changes."""
+    def watch_session_id(self, session_id: str) -> None:
+        """Update output panel subtitle when session ID changes."""
         if self.is_mounted:
-            self._update_status()
+            # Update the output panel border subtitle
+            try:
+                output_log = self.query_one("#output-log", RichLog)
+                output_log.border_subtitle = f"🧑 Session: {session_id}" if session_id else "🧑 Session: Unknown"
+            except:
+                # If the output log doesn't exist yet, ignore
+                pass
 
     # def watch__current_time(self, time: str) -> None:
     #     """Update footer when time changes."""

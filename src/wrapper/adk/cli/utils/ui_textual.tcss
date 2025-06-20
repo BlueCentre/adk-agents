@@ -34,7 +34,7 @@ Widget {
     height: 1fr;
     margin: 0;
     padding: 0 0;
-    # border: solid #6a6aff;
+    border: solid #6a6aff;
     # background: #2d2d4a;
     overflow-y: scroll;
     scrollbar-size: 0 0;
@@ -45,7 +45,7 @@ Widget {
     height: 1fr;
     margin: 0;
     padding: 0 0;
-    # border: solid #ff6aff;
+    border: solid #ff6aff;
     # background: #2d2d4a;
     overflow-y: scroll;
     scrollbar-size: 0 0;
