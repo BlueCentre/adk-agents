@@ -374,6 +374,16 @@ class AgentTUI(App):
         # Input widget doesn't support multiline, so this action is not applicable
         pass
 
+    def action_clear_output(self) -> None:
+        """Clear the output log."""
+        output_log = self.query_one("#output-log", RichLog)
+        output_log.clear()
+        self.add_output("🧹 Screen cleared", rich_format=True, style="info")
+
+    def action_quit(self) -> None:
+        """Quit the application."""
+        self.exit()
+
     def action_toggle_theme(self) -> None:
         """Toggle between light and dark themes."""
         self.remove_class(self._current_ui_theme.value)
@@ -384,7 +394,7 @@ class AgentTUI(App):
         self.rich_renderer.rich_theme = ThemeConfig.get_rich_theme(self._current_ui_theme)
         self.rich_renderer.console = Console(theme=self.rich_renderer.rich_theme, force_interactive=True)
         theme_name = "🌒 Dark" if self._current_ui_theme == UITheme.DARK else "🌞 Light"
-        self.add_output(Text.from_markup(f"[info]Switched to {theme_name} theme[/info]"), rich_format=True)
+        self.add_output(f"Switched to {theme_name} theme", rich_format=True, style="info")
 
     def action_toggle_agent_thought(self) -> None:
         """Toggle agent thought display."""
@@ -405,7 +415,7 @@ class AgentTUI(App):
                 main_content = self.query_one("#main-content")
                 main_content.mount(RichLog(id="thought-log", classes="thought-pane"))
         
-        self.add_output(Text.from_markup(f"[info]Detailed pane display: {'ON' if self.agent_thought_enabled else 'OFF'}[/info]"), rich_format=True)
+        self.add_output(f"Detailed pane display: {'ON' if self.agent_thought_enabled else 'OFF'}", rich_format=True, style="info")
 
     def start_thinking(self) -> None:
         """Start the thinking animation."""
@@ -425,16 +435,6 @@ class AgentTUI(App):
         """Animate the thinking indicator."""
         if self.agent_thinking:
             self._thinking_animation_index = (self._thinking_animation_index + 1) % len(self._thinking_frames)
-
-    def action_clear_output(self) -> None:
-        """Clear the output log."""
-        output_log = self.query_one("#output-log", RichLog)
-        output_log.clear()
-        self.add_output("🧹 Screen cleared", rich_format=True)
-
-    def action_quit(self) -> None:
-        """Quit the application."""
-        self.exit()
 
     @work
     async def action_interrupt_agent(self) -> None:
