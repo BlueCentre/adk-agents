@@ -138,8 +138,7 @@ class AgentTUI(App):
                 yield RichLog(id="output-log", classes="output-pane")
                 # This pane can be hidden (Ctrl+Y)
                 if self.agent_thought_enabled:
-                    yield RichLog(id="thought-log", classes="thought-pane")
-
+                    yield RichLog(id="event-log", classes="event-pane")
             yield CategorizedInput(
                 self.categorized_commands,
                 id="input-area",
@@ -225,7 +224,7 @@ class AgentTUI(App):
         # Display in thought pane if enabled
         if self.agent_thought_enabled:
             try:
-                thought_log = self.query_one("#thought-log", RichLog)
+                event_log = self.query_one("#event-log", RichLog)
 
                 # Create token usage display
                 token_parts = []
@@ -245,7 +244,7 @@ class AgentTUI(App):
 
                 # Use the centralized rich renderer for model usage panel
                 content_panel = self.rich_renderer.format_model_usage(f"{token_info_str}\n{model_info_str}")
-                thought_log.write(content_panel)
+                event_log.write(content_panel)
 
             except Exception as e:
                 self.add_output(f"📊 Model Usage: {total_tokens} tokens", style="info")
@@ -403,18 +402,18 @@ class AgentTUI(App):
 
         # Check if thought log already exists
         try:
-            thought_log = self.query_one("#thought-log", RichLog)
+            event_log = self.query_one("#event-log", RichLog)
             if self.agent_thought_enabled:
                 # Show the thought log if it's hidden
-                thought_log.display = True
+                event_log.display = True
             else:
                 # Hide the thought log
-                thought_log.display = False
+                event_log.display = False
         except:
             # Thought log doesn't exist, create it if needed
             if self.agent_thought_enabled:
                 main_content = self.query_one("#main-content")
-                main_content.mount(RichLog(id="thought-log", classes="thought-pane"))
+                main_content.mount(RichLog(id="event-log", classes="event-pane"))
 
         self.add_output(f"Detailed pane display: {'ON' if self.agent_thought_enabled else 'OFF'}", rich_format=True, style="info")
 
@@ -527,8 +526,8 @@ class AgentTUI(App):
     def add_thought(self, text: str):
         """Add text to the agent thought log."""
         if self.agent_thought_enabled:
-            thought_log = self.query_one("#thought-log", RichLog)
-            thought_log.write(self.rich_renderer.format_agent_thought(text))
+            event_log = self.query_one("#event-log", RichLog)
+            event_log.write(self.rich_renderer.format_agent_thought(text))
 
     def set_agent_task(self, task: asyncio.Task):
         """Set the current agent task for interruption."""
@@ -631,12 +630,12 @@ class AgentTUI(App):
             return
             
         try:
-            thought_log = self.query_one("#thought-log", RichLog)
+            event_log = self.query_one("#event-log", RichLog)
             
             if event_type == "start":
                 # Tool execution start
                 content_panel = self.rich_renderer.format_running_tool(tool_name, args)
-                thought_log.write(content_panel)
+                event_log.write(content_panel)
                 
                 # Update tool usage tracking
                 self._tools_used += 1
@@ -645,13 +644,13 @@ class AgentTUI(App):
             elif event_type == "finish":
                 # Tool execution finish
                 content_panel = self.rich_renderer.format_tool_finished(tool_name, result, duration)
-                thought_log.write(content_panel)
+                event_log.write(content_panel)
                 
             elif event_type == "error":
                 # Tool execution error
                 error_msg = str(result) if result else "Unknown error"
                 content_panel = self.rich_renderer.format_tool_error(tool_name, error_msg)
-                thought_log.write(content_panel)
+                event_log.write(content_panel)
                 
         except Exception as e:
             # Fallback to regular output if thought pane fails
@@ -663,11 +662,11 @@ class AgentTUI(App):
             return
             
         try:
-            thought_log = self.query_one("#thought-log", RichLog)
+            event_log = self.query_one("#event-log", RichLog)
             
             # Format the thought with proper styling using the rich_renderer
             content_panel = self.rich_renderer.format_agent_thought(thought_text)
-            thought_log.write(content_panel)
+            event_log.write(content_panel)
             
         except Exception as e:
             # Fallback to regular output if thought pane fails

@@ -40,7 +40,7 @@ Widget {
     scrollbar-size: 0 0;
 }
 
-.thought-pane {
+.event-pane {
     width: 1fr;
     height: 1fr;
     margin: 0;
@@ -69,12 +69,12 @@ Widget {
     border: solid #6a6aff;
 }
 
-.light .thought-pane {
+.light .event-pane {
     background: #e8f0f0;
     border: solid #a0b0b0;
 }
 
-.dark .thought-pane {
+.dark .event-pane {
     background: transparent;
     border: solid #6a7a7a;
 }
