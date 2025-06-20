@@ -152,11 +152,13 @@ class AgentTUI(App):
                     event_log = RichLog(id="event-log", classes="event-pane")
                     event_log.border_title = "ℹ️ Events (Ctrl+Y to toggle)"
                     yield event_log
-            yield CategorizedInput(
+            input_widget = CategorizedInput(
                 self.categorized_commands,
                 id="input-area",
                 classes="input-pane",
             )
+            input_widget.border_title = "🧑 User Input"
+            yield input_widget
             yield Static("", id="status-bar")
 
     def on_mount(self) -> None:
