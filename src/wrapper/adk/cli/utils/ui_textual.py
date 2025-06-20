@@ -405,7 +405,7 @@ class AgentTUI(App):
                 main_content = self.query_one("#main-content")
                 main_content.mount(RichLog(id="thought-log", classes="thought-pane"))
         
-        self.add_output(f"[info]Agent thought display: {'ON' if self.agent_thought_enabled else 'OFF'}[/info]", rich_format=True)
+        self.add_output(Text.from_markup(f"[info]Detailed pane display: {'ON' if self.agent_thought_enabled else 'OFF'}[/info]"), rich_format=True)
 
     def start_thinking(self) -> None:
         """Start the thinking animation."""
