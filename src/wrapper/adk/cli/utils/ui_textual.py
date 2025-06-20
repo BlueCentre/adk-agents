@@ -148,6 +148,7 @@ class AgentTUI(App):
 
     def on_mount(self) -> None:
         """Called when app is mounted."""
+        self.theme = "flexoki"
         self.set_interval(5.0, self._update_status)  # Reduced from 1.0 to 5.0 seconds to prevent mouse flickering
         self.query_one("#input-area", CategorizedInput).focus()
         import uuid
@@ -184,8 +185,7 @@ class AgentTUI(App):
 
 [bold]Description:[/bold] {agent_description or "AI Assistant"}
 [bold]Tools Available:[/bold] {len(tools) if tools else 0} tools loaded
-[bold]Session ID:[/bold] {self.session_id}
-[bold]Agent Thoughts:[/bold] {thought_status} (Ctrl+Y to toggle)
+[bold]Event Pane:[/bold] {thought_status} (Ctrl+Y to toggle)
 [bold]Theme:[/bold] {theme_indicator} {self._current_ui_theme.value.title()}
 
 [bold green]🚀 Ready to assist! Type your message below and press Enter.[/bold green]

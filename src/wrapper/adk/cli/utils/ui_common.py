@@ -101,7 +101,7 @@ class ThemeConfig:
                     "user": "cyan italic",
                     "agent": "white",
                     "welcome": "bold magenta",
-                    "agent.border_color": "blue",
+                    "agent.border_color": "green",
                     "thought.border_color": "magenta",
                     "bottom-toolbar": "#cccccc on #004488",
                     "bottom-toolbar.accent": "#FFD700 on #004488",

@@ -103,7 +103,7 @@ async def run_interactively(
       artifact_service=artifact_service,
       session_service=session_service,
   )
-  
+
   # Initialize basic console for fallback with scrollback-friendly settings
   console = Console(
       force_interactive=False,  # Disable animations that might interfere with scrollback
@@ -111,7 +111,7 @@ async def run_interactively(
       width=None,               # Auto-detect width to avoid fixed sizing issues
       height=None               # Auto-detect height to avoid fixed sizing issues
   )
-  
+
   # Initialize enhanced CLI with theming
   try:
     cli = get_cli_instance(ui_theme)
@@ -126,14 +126,14 @@ async def run_interactively(
     prompt_session = PromptSession()
     cli = None
     fallback_mode = True
-  
+
   # Welcome message with usage tips
   if not fallback_mode and cli:
     cli.print_welcome_message(root_agent.name)
   else:
     console.print(f"🚀 Starting interactive session with agent {root_agent.name}")
     console.print("Enhanced UI features are disabled. Basic CLI mode active.")
-  
+
   while True:
     try:
       if fallback_mode:
@@ -158,14 +158,14 @@ async def run_interactively(
         output_console = console if fallback_mode else (cli.console if cli else console)
         output_console.print("\n[warning]Goodbye! 👋[/warning]")
         break
-      
+
     if not query or not query.strip():
       continue
     if query.strip().lower() in ['exit', 'quit', 'bye']:
       output_console = console if fallback_mode else (cli.console if cli else console)
       output_console.print("[warning]Goodbye! 👋[/warning]")
       break
-    
+
     # Handle special commands
     if query.strip().lower() == 'clear':
       output_console = console if fallback_mode else (cli.console if cli else console)
@@ -191,7 +191,7 @@ async def run_interactively(
         # Recreate prompt session with new theme
         prompt_session = cli.create_enhanced_prompt_session(root_agent.name, session.id)
       continue
-      
+
     async for event in runner.run_async(
         user_id=session.user_id,
         session_id=session.id,
@@ -209,12 +209,12 @@ async def run_interactively(
             else:
               # Simple output for fallback mode
               console.print(f"[green]{event.author}[/green]: {filtered_text}")
-          
+
           # Display agent thoughts in the thought pane if enabled
           if cli and hasattr(cli, 'agent_thought_enabled') and cli.agent_thought_enabled and extracted_thoughts:
             for thought in extracted_thoughts:
               cli.add_thought(thought)
-  
+
   # Use graceful cleanup to handle MCP session cleanup errors
   from .utils.cleanup import close_runner_gracefully
   await close_runner_gracefully(runner)
@@ -305,13 +305,13 @@ async def run_interactively_with_interruption(
     ui_theme: Optional[str] = None,
 ) -> None:
   """Run the agent interactively with interruption support using Textual UI."""
-  
+
   # Create the Textual UI
   app_tui = get_textual_cli_instance(ui_theme)
-  
+
   # Set agent info
   app_tui.agent_name = root_agent.name
-  
+
   # Create runner
   runner = Runner(
       app_name=session.app_name,
@@ -328,7 +328,7 @@ async def run_interactively_with_interruption(
       def __init__(self, original_console, textual_ui):
         self.original_console = original_console
         self.textual_ui = textual_ui
-        
+
       def print(self, *args, **kwargs):
         # Check if this is an agent thought panel
         if args and hasattr(args[0], 'title') and '🧠 Agent Thought' in str(args[0].title):
@@ -343,11 +343,11 @@ async def run_interactively_with_interruption(
         else:
           # For non-thought output, pass through to original console
           self.original_console.print(*args, **kwargs)
-          
+
       def __getattr__(self, name):
         # Delegate all other methods to the original console
         return getattr(self.original_console, name)
-    
+
     # Replace the agent's console
     root_agent._console = TextualConsoleRedirect(original_console, app_tui)
 
@@ -355,45 +355,45 @@ async def run_interactively_with_interruption(
   original_before_tool = getattr(root_agent, 'before_tool_callback', None)
   original_after_tool = getattr(root_agent, 'after_tool_callback', None)
   original_after_model = getattr(root_agent, 'after_model_callback', None)
-  
+
   # Tool execution tracking
   tool_start_times = {}
-  
+
   async def enhanced_before_tool(tool, args, tool_context, callback_context=None):
     """Enhanced before_tool callback that also sends events to Textual UI."""
     # Record start time for duration calculation
     tool_start_times[tool.name] = time.time()
-    
+
     # Send tool start event to Textual UI
     app_tui.add_tool_event(tool.name, "start", args=args)
-    
+
     # Call original callback if it exists
     if original_before_tool:
       return await original_before_tool(tool, args, tool_context, callback_context)
     return None
-  
+
   async def enhanced_after_tool(tool, tool_response, callback_context=None, args=None, tool_context=None):
     """Enhanced after_tool callback that also sends events to Textual UI."""
     # Calculate duration
     start_time = tool_start_times.get(tool.name, time.time())
     duration = time.time() - start_time
-    
+
     # Determine if this was an error
     is_error = False
     if isinstance(tool_response, dict):
       is_error = tool_response.get("status") == "error" or tool_response.get("error") is not None
-    
+
     # Send tool finish/error event to Textual UI
     if is_error:
       app_tui.add_tool_event(tool.name, "error", result=tool_response, duration=duration)
     else:
       app_tui.add_tool_event(tool.name, "finish", result=tool_response, duration=duration)
-    
+
     # Call original callback if it exists
     if original_after_tool:
       return await original_after_tool(tool, tool_response, callback_context, args, tool_context)
     return None
-  
+
   # Replace agent callbacks with enhanced versions (if the agent supports it)
   if hasattr(root_agent, 'before_tool_callback'):
     root_agent.before_tool_callback = enhanced_before_tool
@@ -403,11 +403,11 @@ async def run_interactively_with_interruption(
   async def handle_user_input(user_input: str):
     """Handle user input by running the agent and processing output."""
     try:
-      app_tui.add_output(f"🔄 Processing: {user_input}", author="User", rich_format=True, style="info")
-      
+      app_tui.add_output(f"🔄 Processing: {user_input}", author="User", rich_format=True, style="accent")
+
       # Create content for the agent
       content = types.Content(role='user', parts=[types.Part(text=user_input)])
-      
+
       # Run the agent and process events
       async for event in runner.run_async(
           user_id=session.user_id,
@@ -418,16 +418,16 @@ async def run_interactively_with_interruption(
           if text := ''.join(part.text or '' for part in event.content.parts):
             # Filter out thought content to prevent duplication
             filtered_text, extracted_thoughts = _filter_thought_content(text)
-            
+
             # Display agent thoughts in the thought pane if enabled (fallback approach)
             if app_tui.agent_thought_enabled and extracted_thoughts:
               for thought in extracted_thoughts:
                 app_tui.add_agent_thought(thought)
-                
+
             # Display main agent output in the output pane
             if filtered_text.strip():  # Only display if there's non-thought content
               app_tui.add_agent_output(filtered_text, event.author)
-        
+
         # Handle token usage from LLM responses
         if hasattr(event, 'usage_metadata') and event.usage_metadata:
           usage = event.usage_metadata
@@ -435,7 +435,7 @@ async def run_interactively_with_interruption(
           completion_tokens = getattr(usage, 'candidates_token_count', 0)
           total_tokens = getattr(usage, 'total_token_count', 0)
           thinking_tokens = getattr(usage, 'thoughts_token_count', 0) or 0
-          
+
           # Update token usage in the UI
           app_tui.display_model_usage(
             prompt_tokens=prompt_tokens,
@@ -444,21 +444,21 @@ async def run_interactively_with_interruption(
             thinking_tokens=thinking_tokens,
             model_name=getattr(root_agent, 'model', 'Unknown')
           )
-          
+
     except Exception as e:
       app_tui.add_output(f"❌ Error: {str(e)}", author="System", rich_format=True, style="error")
-  
+
   async def interrupt_agent():
     """Handle agent interruption."""
     app_tui.add_output("⏹️ Agent interruption requested", author="System", rich_format=True, style="warning")
-  
+
   # Register callbacks with the Textual app
   app_tui.register_input_callback(handle_user_input)
   app_tui.register_interrupt_callback(interrupt_agent)
 
   # Display welcome message through the Textual app
   app_tui.display_agent_welcome(root_agent.name, root_agent.description, getattr(root_agent, 'tools', []))
-  
+
   # Run the Textual application
   await app_tui.run_async()
 
