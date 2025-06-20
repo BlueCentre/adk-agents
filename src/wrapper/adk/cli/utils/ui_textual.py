@@ -123,6 +123,7 @@ class AgentTUI(App):
                 'create new feature branch', 'merge pull request', 'tag new release',
                 'update changelog', 'bump version number', 'execute regression tests',
                 'run security scan', 'run performance tests', 'generate documentation',
+                'summarize, commit, and push changes to main using https://www.conventionalcommits.org/en/v1.0.0/#specification',
             ],
             '⚙️ CLI Commands': [
                 'exit', 'quit', 'bye', 'help', 'clear', 'theme toggle', 'theme dark', 'theme light',
@@ -220,12 +221,12 @@ class AgentTUI(App):
         self._total_tokens = total_tokens
         self._thinking_tokens = thinking_tokens
         self._model_name = model_name
-        
+
         # Display in thought pane if enabled
         if self.agent_thought_enabled:
             try:
                 thought_log = self.query_one("#thought-log", RichLog)
-                
+
                 # Create token usage display
                 token_parts = []
                 if prompt_tokens > 0:
@@ -236,16 +237,16 @@ class AgentTUI(App):
                     token_parts.append(f"Output: {completion_tokens:,}")
                 if total_tokens > 0:
                     token_parts.append(f"Total: {total_tokens:,}")
-                
-                token_display = ", ".join(token_parts)
-                
+
+                # token_display = ", ".join(token_parts)
+
                 token_info_str = f"Tokens: {', '.join(token_parts)}"
                 model_info_str = f"Model: {self._model_name}" if self._model_name else ""
 
                 # Use the centralized rich renderer for model usage panel
                 content_panel = self.rich_renderer.format_model_usage(f"{token_info_str}\n{model_info_str}")
                 thought_log.write(content_panel)
-                
+
             except Exception as e:
                 self.add_output(f"📊 Model Usage: {total_tokens} tokens", style="info")
         else:
@@ -259,8 +260,8 @@ class AgentTUI(App):
                 token_parts.append(f"Output: {completion_tokens:,}")
             if total_tokens > 0:
                 token_parts.append(f"Total: {total_tokens:,}")
-            
-            token_display = ", ".join(token_parts)
+
+            # token_display = ", ".join(token_parts)
             self.add_output(f"📊 Model Usage: {total_tokens} tokens", style="info")
 
     def _show_help(self):
@@ -323,9 +324,9 @@ class AgentTUI(App):
                 status = "🟢 Running"
             else:
                 status = "🟢 Ready"
-            
+
             thought_indicator = "🧠 ON" if self.agent_thought_enabled else "🧠 OFF"
-            
+
             # Build comprehensive status like basic CLI
             status_parts = [
                 f"🤖 {self.agent_name}",
@@ -335,7 +336,7 @@ class AgentTUI(App):
                 f"{status}",
                 f"{thought_indicator}",
             ]
-            
+
             # Add token usage if available
             if self._total_tokens > 0:
                 token_parts = []
@@ -347,24 +348,24 @@ class AgentTUI(App):
                     token_parts.append(f"O:{self._output_tokens}")
                 token_parts.append(f"Total:{self._total_tokens}")
                 status_parts.append(f"Tokens: {', '.join(token_parts)}")
-            
+
             # Add tool usage if available
             if self._tools_used > 0:
                 tool_status = f"Tools: {self._tools_used}"
                 if self._last_tool:
                     tool_status += f", Last: {self._last_tool}"
                 status_parts.append(tool_status)
-            
+
             # Add model info if available
             if self._model_name != "Unknown":
                 status_parts.append(f"Model: {self._model_name}")
-            
+
             status_text = " | ".join(status_parts)
             
             # Update the custom status bar
             status_bar_widget = self.query_one("#status-bar", Static)
             status_bar_widget.update(status_text)
-            
+
         except Exception as e:
             # Silently fail footer updates to avoid disrupting the UI
             pass
@@ -399,7 +400,7 @@ class AgentTUI(App):
     def action_toggle_agent_thought(self) -> None:
         """Toggle agent thought display."""
         self.agent_thought_enabled = not self.agent_thought_enabled
-        
+
         # Check if thought log already exists
         try:
             thought_log = self.query_one("#thought-log", RichLog)
@@ -414,7 +415,7 @@ class AgentTUI(App):
             if self.agent_thought_enabled:
                 main_content = self.query_one("#main-content")
                 main_content.mount(RichLog(id="thought-log", classes="thought-pane"))
-        
+
         self.add_output(f"Detailed pane display: {'ON' if self.agent_thought_enabled else 'OFF'}", rich_format=True, style="info")
 
     def start_thinking(self) -> None:
@@ -482,7 +483,7 @@ class AgentTUI(App):
                     self.remove_class("dark", "theme-mode")
                     self.add_output("🌞 Switched to light theme", rich_format=True, style="info")
                 return
-            
+
             # Add to history (both app and input widget)
             self.command_history.append(content)
             self.history_index = len(self.command_history)
