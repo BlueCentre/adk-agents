@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import shutil
-from io import StringIO
+# import shutil
+# from io import StringIO
 from typing import Optional, Any
 
 from rich.console import Console
@@ -25,12 +25,12 @@ class RichRenderer:
         markdown = Markdown(text, style="agent")
         return Panel(
             markdown,
-            title=f"[bold {self.rich_theme.styles.get('agent.border_color', 'blue')}]🤖 {author} Response[/bold {self.rich_theme.styles.get('agent.border_color', 'blue')}]",
+            title=f"[bold {self.rich_theme.styles.get('agent.border_color', 'green')}]🤖 {author} Response[/bold {self.rich_theme.styles.get('agent.border_color', 'green')}]",
             title_align="left",
-            border_style=self.rich_theme.styles.get("agent.border_color", "blue"),
-            expand=True,
-            highlight=True,
-            padding=(0, 0),
+            border_style=self.rich_theme.styles.get("agent.border_color", "green"),
+            # expand=True,
+            # highlight=True,
+            # padding=(0, 0),
         )
 
     def format_agent_thought(self, text: str) -> Panel:

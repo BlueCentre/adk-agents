@@ -163,6 +163,146 @@ class AgentTUI(App):
         # Schedule footer update after mount is complete
         self.call_after_refresh(self._update_status)
 
+    def display_agent_welcome(self, agent_name: str, agent_description: str = "", tools: Optional[list] = None):
+        """Display a comprehensive welcome message."""
+        # If the app is not yet mounted, store the info for later
+        try:
+            self.query_one("#output-log", RichLog)
+        except:
+            self._pending_welcome_info = (agent_name, agent_description, tools)
+            return
+            
+        self.agent_name = agent_name
+        theme_indicator = "🌒" if self._current_ui_theme == UITheme.DARK else "🌞"
+        thought_status = "ON" if self.agent_thought_enabled else "OFF"
+
+        welcome_msg_rich = Text.from_markup(f"""
+[agent]▄▀█ █   ▄▀█ █▀▀ █▀▀ █▄█ ▀█▀[/agent]
+[agent]█▀█ █   █▀█ █▄█ █▄▄ █░█ ░█░[/agent]
+
+[bold cyan]🤖 Welcome to {agent_name}![/bold cyan]
+
+[bold]Description:[/bold] {agent_description or "AI Assistant"}
+[bold]Tools Available:[/bold] {len(tools) if tools else 0} tools loaded
+[bold]Session ID:[/bold] {self.session_id}
+[bold]Agent Thoughts:[/bold] {thought_status} (Ctrl+Y to toggle)
+[bold]Theme:[/bold] {theme_indicator} {self._current_ui_theme.value.title()}
+
+[bold green]🚀 Ready to assist! Type your message below and press Enter.[/bold green]
+[dim]💡 Use 'help' command or Ctrl+T (theme), Ctrl+Y (thoughts), Ctrl+L (clear), Ctrl+D (quit)[/dim]
+""")
+
+#         welcome_msg_rich.append(f"""
+# [bold]Theme:[/bold] {theme_indicator} {self._current_ui_theme.value.title()}
+# [bold]Session started:[/bold] {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+# [bold green]🚀 Ready to assist! Type your message below and press Enter.[/bold green]
+# [dim]💡 Use 'help' command or Ctrl+T (theme), Ctrl+Y (thoughts), Ctrl+L (clear), Ctrl+D (quit)[/dim]
+# """)
+
+        self.add_output(welcome_msg_rich, rich_format=True)
+        
+        # Update footer after setting agent name
+        self._update_status()
+
+    def display_model_usage(
+            self,
+            prompt_tokens: int = 0,
+            completion_tokens: int = 0, 
+            total_tokens: int = 0,
+            thinking_tokens: int = 0,
+            model_name: str = "Unknown"
+        ):
+        """Display model usage information in the thought pane."""
+        # Update internal tracking
+        self._prompt_tokens = prompt_tokens
+        self._output_tokens = completion_tokens
+        self._total_tokens = total_tokens
+        self._thinking_tokens = thinking_tokens
+        self._model_name = model_name
+        
+        # Display in thought pane if enabled
+        if self.agent_thought_enabled:
+            try:
+                thought_log = self.query_one("#thought-log", RichLog)
+                
+                # Create token usage display
+                token_parts = []
+                if prompt_tokens > 0:
+                    token_parts.append(f"Prompt: {prompt_tokens:,}")
+                if thinking_tokens > 0:
+                    token_parts.append(f"Thinking: {thinking_tokens:,}")
+                if completion_tokens > 0:
+                    token_parts.append(f"Output: {completion_tokens:,}")
+                if total_tokens > 0:
+                    token_parts.append(f"Total: {total_tokens:,}")
+                
+                token_display = ", ".join(token_parts)
+                
+                token_info_str = f"Tokens: {', '.join(token_parts)}"
+                model_info_str = f"Model: {self._model_name}" if self._model_name else ""
+
+                # Use the centralized rich renderer for model usage panel
+                content_panel = self.rich_renderer.format_model_usage(f"{token_info_str}\n{model_info_str}")
+                thought_log.write(content_panel)
+                
+            except Exception as e:
+                self.add_output(f"📊 Model Usage: {total_tokens} tokens", style="info")
+        else:
+            # If thoughts are disabled, show in main output as before
+            token_parts = []
+            if prompt_tokens > 0:
+                token_parts.append(f"Prompt: {prompt_tokens:,}")
+            if thinking_tokens > 0:
+                token_parts.append(f"Thinking: {thinking_tokens:,}")
+            if completion_tokens > 0:
+                token_parts.append(f"Output: {completion_tokens:,}")
+            if total_tokens > 0:
+                token_parts.append(f"Total: {total_tokens:,}")
+            
+            token_display = ", ".join(token_parts)
+            self.add_output(f"📊 Model Usage: {total_tokens} tokens", style="info")
+
+    def _show_help(self):
+        """Display help information."""
+        help_text = Text.from_markup("""
+[bold cyan]🔧 Available Commands:[/bold cyan]
+
+[bold]Built-in Commands:[/bold]
+• [yellow]clear[/yellow] - Clear the output screen
+• [yellow]help[/yellow] - Show this help message
+• [yellow]theme[/yellow] - Toggle between light/dark themes
+• [yellow]theme dark[/yellow] - Switch to dark theme
+• [yellow]theme light[/yellow] - Switch to light theme
+• [yellow]exit/quit/bye[/yellow] - Exit the application
+
+[bold]Keyboard Shortcuts:[/bold]
+• [yellow]Ctrl+T[/yellow] - Toggle theme
+• [yellow]Ctrl+Y[/yellow] - Toggle agent thought display
+• [yellow]Ctrl+L[/yellow] - Clear screen
+• [yellow]Ctrl+C[/yellow] - Interrupt running agent
+• [yellow]Ctrl+D[/yellow] - Quit application
+• [yellow]Up/Down[/yellow] or [yellow]Ctrl+P/Ctrl+N[/yellow] - Navigate command history
+• [yellow]Tab[/yellow] - Trigger command completion (cycle through suggestions)
+• [yellow]Escape[/yellow] - Cancel current completion
+
+[bold]Tab Completion Examples:[/bold]
+• Type [yellow]create a[/yellow] + Tab → "create a dockerfile", "create docker-compose.yml"
+• Type [yellow]setup mon[/yellow] + Tab → "setup monitoring for"
+• Type [yellow]deploy to[/yellow] + Tab → "deploy to production", "deploy to staging"
+• Type [yellow]analyze[/yellow] + Tab → "analyze this code"
+
+[bold]Agent Features:[/bold]
+• Type any message to interact with the agent
+• Agent responses appear in the main output pane
+• Agent thoughts (if enabled) appear in the right pane
+• Token usage and tool usage are tracked in real-time
+• Use Ctrl+C to interrupt long-running agent operations
+
+[bold green]💡 Tip:[/bold green] This is an advanced multi-pane interface with persistent input, real-time agent interaction, and DevOps-optimized completions!
+""")
+        self.add_output(help_text, rich_format=True)
+
     def _update_status(self) -> None:
         """Update the status bar."""
         # Only update if the app is mounted and screen is available
@@ -244,7 +384,7 @@ class AgentTUI(App):
         self.rich_renderer.rich_theme = ThemeConfig.get_rich_theme(self._current_ui_theme)
         self.rich_renderer.console = Console(theme=self.rich_renderer.rich_theme, force_interactive=True)
         theme_name = "🌒 Dark" if self._current_ui_theme == UITheme.DARK else "🌞 Light"
-        self.add_output(f"[info]Switched to {theme_name} theme[/info]", rich_format=True)
+        self.add_output(Text.from_markup(f"[info]Switched to {theme_name} theme[/info]"), rich_format=True)
 
     def action_toggle_agent_thought(self) -> None:
         """Toggle agent thought display."""
@@ -363,46 +503,6 @@ class AgentTUI(App):
         else:
             self.add_output("💡 Type a message and press Enter to send it to the agent", rich_format=True, style="info")
 
-    def _show_help(self):
-        """Display help information."""
-        help_text = Text.from_markup("""
-[bold cyan]🔧 Available Commands:[/bold cyan]
-
-[bold]Built-in Commands:[/bold]
-• [yellow]clear[/yellow] - Clear the output screen
-• [yellow]help[/yellow] - Show this help message
-• [yellow]theme[/yellow] - Toggle between light/dark themes
-• [yellow]theme dark[/yellow] - Switch to dark theme
-• [yellow]theme light[/yellow] - Switch to light theme
-• [yellow]exit/quit/bye[/yellow] - Exit the application
-
-[bold]Keyboard Shortcuts:[/bold]
-• [yellow]Ctrl+T[/yellow] - Toggle theme
-• [yellow]Ctrl+Y[/yellow] - Toggle agent thought display
-• [yellow]Ctrl+L[/yellow] - Clear screen
-• [yellow]Ctrl+C[/yellow] - Interrupt running agent
-• [yellow]Ctrl+D[/yellow] - Quit application
-• [yellow]Up/Down[/yellow] or [yellow]Ctrl+P/Ctrl+N[/yellow] - Navigate command history
-• [yellow]Tab[/yellow] - Trigger command completion (cycle through suggestions)
-• [yellow]Escape[/yellow] - Cancel current completion
-
-[bold]Tab Completion Examples:[/bold]
-• Type [yellow]create a[/yellow] + Tab → "create a dockerfile", "create docker-compose.yml"
-• Type [yellow]setup mon[/yellow] + Tab → "setup monitoring for"
-• Type [yellow]deploy to[/yellow] + Tab → "deploy to production", "deploy to staging"
-• Type [yellow]analyze[/yellow] + Tab → "analyze this code"
-
-[bold]Agent Features:[/bold]
-• Type any message to interact with the agent
-• Agent responses appear in the main output pane
-• Agent thoughts (if enabled) appear in the right pane
-• Token usage and tool usage are tracked in real-time
-• Use Ctrl+C to interrupt long-running agent operations
-
-[bold green]💡 Tip:[/bold green] This is an advanced multi-pane interface with persistent input, real-time agent interaction, and DevOps-optimized completions!
-""")
-        self.add_output(help_text, rich_format=True)
-
     def add_output(self, text: Union[str, Text, Panel], author: str = "User", rich_format: bool = False, style: str = ""):
         """Add text to the output log."""
         output_log = self.query_one("#output-log", RichLog)
@@ -428,48 +528,6 @@ class AgentTUI(App):
         if self.agent_thought_enabled:
             thought_log = self.query_one("#thought-log", RichLog)
             thought_log.write(self.rich_renderer.format_agent_thought(text))
-
-    def display_agent_welcome(self, agent_name: str, agent_description: str = "", tools: Optional[list] = None):
-        """Display a comprehensive welcome message."""
-        # If the app is not yet mounted, store the info for later
-        try:
-            self.query_one("#output-log", RichLog)
-        except:
-            self._pending_welcome_info = (agent_name, agent_description, tools)
-            return
-            
-        self.agent_name = agent_name
-        theme_indicator = "🌒" if self._current_ui_theme == UITheme.DARK else "🌞"
-        thought_status = "ON" if self.agent_thought_enabled else "OFF"
-
-        welcome_msg_rich = Text.from_markup(f"""
-[agent]▄▀█ █   ▄▀█ █▀▀ █▀▀ █▄█ ▀█▀[/agent]
-[agent]█▀█ █   █▀█ █▄█ █▄▄ █░█ ░█░[/agent]
-
-[bold cyan]🤖 Welcome to {agent_name}![/bold cyan]
-
-[bold]Description:[/bold] {agent_description or "AI Assistant"}
-[bold]Tools Available:[/bold] {len(tools) if tools else 0} tools loaded
-[bold]Session ID:[/bold] {self.session_id}
-[bold]Agent Thoughts:[/bold] {thought_status} (Ctrl+Y to toggle)
-[bold]Theme:[/bold] {theme_indicator} {self._current_ui_theme.value.title()}
-
-[bold green]🚀 Ready to assist! Type your message below and press Enter.[/bold green]
-[dim]💡 Use 'help' command or Ctrl+T (theme), Ctrl+Y (thoughts), Ctrl+L (clear), Ctrl+D (quit)[/dim]
-""")
-
-#         welcome_msg_rich.append(f"""
-# [bold]Theme:[/bold] {theme_indicator} {self._current_ui_theme.value.title()}
-# [bold]Session started:[/bold] {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-
-# [bold green]🚀 Ready to assist! Type your message below and press Enter.[/bold green]
-# [dim]💡 Use 'help' command or Ctrl+T (theme), Ctrl+Y (thoughts), Ctrl+L (clear), Ctrl+D (quit)[/dim]
-# """)
-
-        self.add_output(welcome_msg_rich, rich_format=True)
-        
-        # Update footer after setting agent name
-        self._update_status()
 
     def set_agent_task(self, task: asyncio.Task):
         """Set the current agent task for interruption."""
@@ -531,58 +589,6 @@ class AgentTUI(App):
         if self.agent_thought_enabled:
             tool_text = f"🔧 Tool Used: {tool_name} (Total: {self._tools_used})"
             self.add_thought(tool_text)
-
-    def display_model_usage(self, prompt_tokens: int = 0, completion_tokens: int = 0, 
-                           total_tokens: int = 0, thinking_tokens: int = 0, model_name: str = "Unknown"):
-        """Display model usage information in the thought pane."""
-        # Update internal tracking
-        self._prompt_tokens = prompt_tokens
-        self._output_tokens = completion_tokens
-        self._total_tokens = total_tokens
-        self._thinking_tokens = thinking_tokens
-        self._model_name = model_name
-        
-        # Display in thought pane if enabled
-        if self.agent_thought_enabled:
-            try:
-                thought_log = self.query_one("#thought-log", RichLog)
-                
-                # Create token usage display
-                token_parts = []
-                if prompt_tokens > 0:
-                    token_parts.append(f"Prompt: {prompt_tokens:,}")
-                if thinking_tokens > 0:
-                    token_parts.append(f"Thinking: {thinking_tokens:,}")
-                if completion_tokens > 0:
-                    token_parts.append(f"Output: {completion_tokens:,}")
-                if total_tokens > 0:
-                    token_parts.append(f"Total: {total_tokens:,}")
-                
-                token_display = ", ".join(token_parts)
-                
-                token_info_str = f"Tokens: {', '.join(token_parts)}"
-                model_info_str = f"Model: {self._model_name}" if self._model_name else ""
-
-                # Use the centralized rich renderer for model usage panel
-                content_panel = self.rich_renderer.format_model_usage(f"{token_info_str}\n{model_info_str}")
-                thought_log.write(content_panel)
-                
-            except Exception as e:
-                self.add_output(f"📊 Model Usage: {total_tokens} tokens", style="info")
-        else:
-            # If thoughts are disabled, show in main output as before
-            token_parts = []
-            if prompt_tokens > 0:
-                token_parts.append(f"Prompt: {prompt_tokens:,}")
-            if thinking_tokens > 0:
-                token_parts.append(f"Thinking: {thinking_tokens:,}")
-            if completion_tokens > 0:
-                token_parts.append(f"Output: {completion_tokens:,}")
-            if total_tokens > 0:
-                token_parts.append(f"Total: {total_tokens:,}")
-            
-            token_display = ", ".join(token_parts)
-            self.add_output(f"📊 Model Usage: {total_tokens} tokens", style="info")
 
     # Removed action_trigger_completion - tab completion is now handled directly by CategorizedInput widget
 
@@ -725,39 +731,11 @@ class CategorizedInput(Input):
             event.prevent_default()
         # Let other keys be handled normally
 
-    def _handle_tab_completion(self):
-        """Handle tab completion logic."""
-        current_text = self.value
-        completions = self._get_completions(current_text)
-        show_all = not current_text.strip()  # Show all if no text entered
-        
-        if completions:
-            # Show completion dialog
-            self.app.push_screen(
-                CompletionWidget(completions, self.categorized_commands, show_all),
-                self._on_completion_selected
-            )
-    
-    def _on_completion_selected(self, selected_command: str | None) -> None:
-        """Handle completion selection from dialog."""
-        if selected_command:
-            self.value = selected_command
-
-    def _get_completions(self, text: str) -> list[str]:
-        """Get completion suggestions for the given text."""
-        if not text.strip():
-            # Return all commands if no text is entered
-            return sorted(self.all_commands)
-        
-        text_lower = text.lower()
-        completions = []
-        
-        # Find matching commands
-        for command in self.all_commands:
-            if text_lower in command.lower():
-                completions.append(command)
-        
-        return sorted(completions)
+    def add_to_history(self, command: str):
+        """Add a command to the history."""
+        if command.strip():
+            self.command_history.append(command.strip())
+            self.history_index = len(self.command_history)
 
     def _navigate_history(self, direction: int) -> None:
         """Navigate command history."""
@@ -783,11 +761,39 @@ class CategorizedInput(Input):
                 self.history_index = len(self.command_history)
                 self.value = ""
 
-    def add_to_history(self, command: str):
-        """Add a command to the history."""
-        if command.strip():
-            self.command_history.append(command.strip())
-            self.history_index = len(self.command_history)
+    def _handle_tab_completion(self):
+        """Handle tab completion logic."""
+        current_text = self.value
+        completions = self._get_completions(current_text)
+        show_all = not current_text.strip()  # Show all if no text entered
+        
+        if completions:
+            # Show completion dialog
+            self.app.push_screen(
+                CompletionWidget(completions, self.categorized_commands, show_all),
+                self._on_completion_selected
+            )
+
+    def _on_completion_selected(self, selected_command: str | None) -> None:
+        """Handle completion selection from dialog."""
+        if selected_command:
+            self.value = selected_command
+
+    def _get_completions(self, text: str) -> list[str]:
+        """Get completion suggestions for the given text."""
+        if not text.strip():
+            # Return all commands if no text is entered
+            return sorted(self.all_commands)
+        
+        text_lower = text.lower()
+        completions = []
+        
+        # Find matching commands
+        for command in self.all_commands:
+            if text_lower in command.lower():
+                completions.append(command)
+        
+        return sorted(completions)
 
 class CompletionWidget(ModalScreen[str]):
     """
@@ -807,14 +813,13 @@ class CompletionWidget(ModalScreen[str]):
         *args: Variable length argument list to pass to the parent ModalScreen class.
         **kwargs: Arbitrary keyword arguments to pass to the parent ModalScreen class.
     """
-    
+
     def __init__(self, completions: list[str], categorized_commands: dict[str, list[str]], show_all: bool = False, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.completions = completions
         self.categorized_commands = categorized_commands
         self.show_all = show_all
 
-        
     def compose(self) -> ComposeResult:
         """Create the completion widget."""
         # Group completions by category
@@ -845,13 +850,13 @@ class CompletionWidget(ModalScreen[str]):
             yield Label(title_text, id="completion-title")
             yield OptionList(*options, id="completion-list")
             yield Label("Press Enter to select, Escape to cancel", id="completion-help")
-    
-    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
-        """Handle option selection."""
-        if hasattr(event.option, 'id') and event.option.id:  # Skip disabled options
-            self.dismiss(event.option.id)
-    
+
     def on_key(self, event: Key) -> None:
         """Handle key events."""
         if event.key == "escape":
             self.dismiss(None)
+
+    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
+        """Handle option selection."""
+        if hasattr(event.option, 'id') and event.option.id:  # Skip disabled options
+            self.dismiss(event.option.id)
