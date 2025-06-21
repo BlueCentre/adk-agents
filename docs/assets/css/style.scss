@@ -1,0 +1,27 @@
+---
+# Only a front matter (e.g. empty or with layout: null) is required for Jekyll to process the file.
+# If you don't want Jekyll to process the file, delete the front matter.
+---
+
+// Import the default theme styles
+@import "just-the-docs/just-the-docs";
+
+// Import custom styles (if you create a _sass/custom/custom.scss)
+// @import "custom/custom";
+
+/*
+  Custom Dark Mode Refinements (Examples - uncomment and modify as needed)
+
+  body {
+    // Example: Slightly different background for dark mode
+    // background-color: #1a1a1a;
+  }
+
+  .site-title, .site-title:visited {
+    // Example: Different title color for dark mode
+    // color: #abcdef;
+  }
+
+  // You can inspect the elements on the rendered page to find selectors
+  // and add more specific overrides here.
+*/
