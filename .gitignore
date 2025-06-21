@@ -113,6 +113,11 @@ Pipfile.lock
 yarn.lock
 package-lock.json
 
+# Ruby gems
+vendor/
+.bundle/
+Gemfile.lock
+
 # Development and debugging
 .ruff_cache/
 .mypy_cache/

@@ -9,7 +9,7 @@ url: "" # Will be set by GitHub Actions automatically
 color_scheme: dark
 
 # Repository information - PLEASE UPDATE THIS
-repository: your-username/your-repo-name # Replace with your actual GitHub repository (e.g., MyOrg/devops-agent)
+repository: ipv1337/adk-agents # Replace with your actual GitHub repository (e.g., MyOrg/devops-agent)
 
 # Plugins
 plugins:
@@ -19,7 +19,7 @@ plugins:
 # Navigation links
 aux_links:
   "View on GitHub":
-    - "https://github.com/your-username/your-repo-name" # Replace with your actual GitHub repository
+    - "https://github.com/ipv1337/adk-agents" # Replace with your actual GitHub repository
 
 # Define navigation structure (optional, theme often infers this)
 # nav_sort: case_insensitive # Example, if you want case-insensitive sorting
