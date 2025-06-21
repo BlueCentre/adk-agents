@@ -1,0 +1,65 @@
+# Site settings
+title: DevOps Agent Documentation
+description: "The DevOps Agent is a sophisticated AI assistant engineered to empower developers and DevOps engineers across the full software development lifecycle. This documentation provides guidance on its features, usage, and contribution."
+theme: just-the-docs
+url: "" # Will be set by GitHub Actions automatically
+
+# Enable dark mode by default
+# See: https://just-the-docs.github.io/just-the-docs/docs/configuration/#color-scheme
+color_scheme: dark
+
+# Repository information - PLEASE UPDATE THIS
+repository: your-username/your-repo-name # Replace with your actual GitHub repository (e.g., MyOrg/devops-agent)
+
+# Plugins
+plugins:
+  - jekyll-sitemap # Create a sitemap using the official Jekyll sitemap gem
+  - jekyll-redirect-from # Handles redirects, good for future-proofing links
+
+# Navigation links
+aux_links:
+  "View on GitHub":
+    - "https://github.com/your-username/your-repo-name" # Replace with your actual GitHub repository
+
+# Define navigation structure (optional, theme often infers this)
+# nav_sort: case_insensitive # Example, if you want case-insensitive sorting
+
+# Footer content
+# footer_content: "Copyright &copy; 2024 Your Name/Company. Hosted on GitHub Pages."
+
+# Callouts for tips, notes, warnings (like in Aider's docs)
+callouts:
+  tip:
+    title: Tip
+    color: green
+  note:
+    title: Note
+    color: yellow
+  warning:
+    title: Warning
+    color: red
+  important:
+    title: Important
+    color: blue
+
+# Kramdown settings for Markdown processing
+kramdown:
+  syntax_highlighter_opts:
+    css_class: highlight
+
+# SASS settings
+sass:
+  style: compressed
+
+# Exclude from processing.
+exclude:
+  - .sass-cache/
+  - .jekyll-cache/
+  - gemfiles/
+  - Gemfile
+  - Gemfile.lock
+  - node_modules/
+  - vendor/bundle/
+  - vendor/cache/
+  - vendor/gems/
+  - vendor/ruby/

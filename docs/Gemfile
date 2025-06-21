@@ -1,0 +1,20 @@
+source "https://rubygems.org"
+
+gem "jekyll", "~> 4.3" # Or a specific version Jekyll runs on GitHub Pages
+gem "just-the-docs", "~> 0.8.2" # Check for the latest version compatible with GH Pages
+
+# Other plugins you might want to add later:
+# gem "jekyll-redirect-from"
+# gem "jekyll-feed"
+
+group :jekyll_plugins do
+  gem "jekyll-sitemap"
+end
+
+# Windows does not include zoneinfo files, so bundle the tzinfo-data gem
+gem "tzinfo-data", platforms: [:mingw, :mswin, :x64_mingw, :jruby]
+
+# If you have C extensions, uncomment the following line to use the correct platform
+# platforms :ruby do
+#   # platform-specific gems
+# end
