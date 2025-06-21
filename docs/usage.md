@@ -30,7 +30,8 @@ Alternatively, use the convenience script:
 ./scripts/execution/run.sh
 ```
 This sets up a virtual environment and starts an interactive CLI session.
-{% include callout.html type="note" content="The `PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python` part is a workaround for a compatibility issue between recent `protobuf` versions and older pre-compiled code in some dependencies." %}
+{: .note }
+> The `PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python` part is a workaround for a compatibility issue between recent `protobuf` versions and older pre-compiled code in some dependencies.
 
 ### 3. Deploy to Google Cloud Run (Optional)
 The agent can be deployed as a service to Google Cloud Run:
@@ -68,7 +69,8 @@ AGENT_MODEL=gemini-2.5-pro-preview-06-05
 # Your Google API key (required)
 GOOGLE_API_KEY=your_api_key_here
 ```
-{% include callout.html type="tip" title="Performance" content="Higher thinking budgets (e.g., 16384+) allow more complex reasoning but increase costs. Complex reasoning may take longer but can produce higher quality results." %}
+{: .tip }
+> **Performance:** Higher thinking budgets (e.g., 16384+) allow more complex reasoning but increase costs. Complex reasoning may take longer but can produce higher quality results.
 
 ## Interacting with the Agent: Enhanced CLI
 
