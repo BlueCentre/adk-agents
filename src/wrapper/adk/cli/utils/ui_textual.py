@@ -50,7 +50,6 @@ class AgentTUI(App):
         Binding("f12", "toggle_user_multiline_input", "Toggle Input Mode", show=False),
         Binding("ctrl+t", "toggle_theme", "Toggle Theme", show=False),
         Binding("ctrl+y", "toggle_agent_thought", "Toggle Thought", show=False),
-
         Binding("ctrl+l", "clear_output", "Clear Screen", show=False),
         Binding("ctrl+d", "quit", "Quit", show=False, priority=True),
         Binding("ctrl+c", "interrupt_agent", "Interrupt Agent", show=False, priority=True),
@@ -61,46 +60,17 @@ class AgentTUI(App):
         # Removed tab binding - handled by CategorizedInput widget directly
     ]
 
-    agent_running: reactive[bool] = reactive(False)
-    agent_thinking: reactive[bool] = reactive(False)
-    agent_thought_enabled: reactive[bool] = reactive(True)
-    agent_name: reactive[str] = reactive("Agent")
+    # UI state
     session_id: reactive[str] = reactive("")
-    user_multiline_input_enabled: reactive[bool] = reactive(False)
     # _uptime: reactive[str] = reactive("00:00:00")
     # _current_time: reactive[str] = reactive(datetime.now().strftime('%H:%M:%S'))
-    _thinking_animation_index: reactive[int] = reactive(0)
-    
-    # Token usage tracking
-    _prompt_tokens: reactive[int] = reactive(0)
-    _thinking_tokens: reactive[int] = reactive(0)
-    _output_tokens: reactive[int] = reactive(0)
-    _total_tokens: reactive[int] = reactive(0)
-    _model_name: reactive[str] = reactive("Unknown")
-    
-    # Tool usage tracking
-    _tools_used: reactive[int] = reactive(0)
-    _last_tool: reactive[str] = reactive("")
 
-    def __init__(self, theme: Optional[UITheme] = None, rich_renderer: Optional[RichRenderer] = None, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._current_ui_theme = theme or UITheme.DARK
-        self.theme_config = ThemeConfig.get_theme_config(self._current_ui_theme)
-        self.rich_renderer = rich_renderer or RichRenderer(self._current_ui_theme)
-        # self.status_bar = StatusBar(self._current_ui_theme)
-        self.console = Console(theme=self.rich_renderer.rich_theme, force_interactive=True)
-        self.current_agent_task: Optional[asyncio.Task] = None
-        self.input_callback: Optional[Callable[[str], Awaitable[Any]]] = None
-        self.interrupt_callback: Optional[Callable[[], Awaitable[Any]]] = None
-        self.command_history: list[str] = []
-        self.history_index: int = -1
-        
-        # Thinking animation frames
-        self._thinking_frames = ["🤔", "💭", "🧠", "⚡"]
-        self._thinking_timer = None
-
-        # Define categorized commands for the completer
-        self.categorized_commands = {
+    # User input state
+    user_multiline_input_enabled: reactive[bool] = reactive(False)
+    user_input_history: reactive[list[str]] = reactive([])
+    user_input_history_index: reactive[int] = reactive(-1)
+    user_categorized_commands: reactive[dict[str, list[str]]] = reactive(
+        {
             '🚀 Infrastructure & DevOps': [
                 'create a dockerfile', 'create docker-compose.yml', 'write kubernetes manifests',
                 'create helm chart for', 'write terraform code for', 'setup CI/CD pipeline',
@@ -130,6 +100,40 @@ class AgentTUI(App):
                 'exit', 'quit', 'bye', 'help', 'clear', 'theme toggle', 'theme dark', 'theme light',
             ],
         }
+    )
+
+    # Agent state
+    agent_name: reactive[str] = reactive("Agent")
+    agent_running: reactive[bool] = reactive(False)
+    agent_thinking: reactive[bool] = reactive(False)
+    agent_thought_enabled: reactive[bool] = reactive(True)
+
+    # Token usage tracking
+    _prompt_tokens: reactive[int] = reactive(0)
+    _thinking_tokens: reactive[int] = reactive(0)
+    _output_tokens: reactive[int] = reactive(0)
+    _total_tokens: reactive[int] = reactive(0)
+    _model_name: reactive[str] = reactive("Unknown")
+
+    # Tool usage tracking
+    _tools_used: reactive[int] = reactive(0)
+    _last_tool: reactive[str] = reactive("")
+
+    # Thinking animation state
+    _thinking_animation_index: reactive[int] = reactive(0)
+    _thinking_frames: reactive[list[str]] = reactive(["🤔", "💭", "🧠", "⚡"])
+    _thinking_timer: reactive[Optional[asyncio.Task]] = reactive(None)
+
+
+    def __init__(self, theme: Optional[UITheme] = None, rich_renderer: Optional[RichRenderer] = None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._current_ui_theme = theme or UITheme.DARK
+        self.theme_config = ThemeConfig.get_theme_config(self._current_ui_theme)
+        self.rich_renderer = rich_renderer or RichRenderer(self._current_ui_theme)
+        self.console = Console(theme=self.rich_renderer.rich_theme, force_interactive=True)
+        self.current_agent_task: Optional[asyncio.Task] = None
+        self.input_callback: Optional[Callable[[str], Awaitable[Any]]] = None
+        self.interrupt_callback: Optional[Callable[[], Awaitable[Any]]] = None
 
 
     def compose(self) -> ComposeResult:
@@ -163,14 +167,13 @@ class AgentTUI(App):
                 yield input_widget
             else:
                 input_widget = CategorizedInput(
-                    self.categorized_commands,
+                    self.user_categorized_commands,
                     id="input-area",
                     classes="input-pane",
                 )
-                input_widget.border_title = "🧑 User Input"
+                input_widget.border_title = "🧑 User Input (Ctrl+M to toggle)"
                 yield input_widget
             yield Static("", id="status-bar")
-
 
 
     def on_mount(self) -> None:
@@ -213,7 +216,6 @@ class AgentTUI(App):
 
 [bold]Description:[/bold] {agent_description or "AI Assistant"}
 [bold]Tools Available:[/bold] {len(tools) if tools else 0} tools loaded
-[bold]Event Pane:[/bold] {thought_status} (Ctrl+Y to toggle)
 [bold]Theme:[/bold] {theme_indicator} {self._current_ui_theme.value.title()}
 
 [bold green]🚀 Ready to assist! Type your message below and press Enter.[/bold green]
@@ -481,7 +483,7 @@ class AgentTUI(App):
                 self.add_output("📝 Switched to multi-line input mode (Ctrl+S to submit, Enter for new line)", rich_format=True, style="info")
             else:
                 new_input = CategorizedInput(
-                    self.categorized_commands,
+                    self.user_categorized_commands,
                     id="input-area",
                     classes="input-pane",
                     value=current_content
@@ -575,8 +577,8 @@ class AgentTUI(App):
                 return
 
             # Add to history (both app and input widget)
-            self.command_history.append(content)
-            self.history_index = len(self.command_history)
+            self.user_input_history.append(content)
+            self.user_input_history_index = len(self.user_input_history)
             if hasattr(input_widget, 'add_to_history'):
                 input_widget.add_to_history(content)
 
@@ -801,34 +803,34 @@ class AgentTUI(App):
 
     def action_history_previous(self) -> None:
         """Navigate to previous command in history."""
-        if not self.command_history:
+        if not self.user_input_history:
             return
         
         input_widget = self.query_one("#input-area", CategorizedInput)
         
-        if self.history_index > 0:
-            self.history_index -= 1
-            input_widget.value = self.command_history[self.history_index]
-        elif self.history_index == 0:
+        if self.user_input_history_index > 0:
+            self.user_input_history_index -= 1
+            input_widget.value = self.user_input_history[self.user_input_history_index]
+        elif self.user_input_history_index == 0:
             pass  # Already at first item
         else:
             # Initialize to last item
-            self.history_index = len(self.command_history) - 1
-            input_widget.value = self.command_history[self.history_index]
+            self.user_input_history_index = len(self.user_input_history) - 1
+            input_widget.value = self.user_input_history[self.user_input_history_index]
 
     def action_history_next(self) -> None:
         """Navigate to next command in history."""
-        if not self.command_history:
+        if not self.user_input_history:
             return
             
         input_widget = self.query_one("#input-area", CategorizedInput)
         
-        if self.history_index < len(self.command_history) - 1:
-            self.history_index += 1
-            input_widget.value = self.command_history[self.history_index]
+        if self.user_input_history_index < len(self.user_input_history) - 1:
+            self.user_input_history_index += 1
+            input_widget.value = self.user_input_history[self.user_input_history_index]
         else:
             # Clear input when going past last item
-            self.history_index = len(self.command_history)
+            self.user_input_history_index = len(self.user_input_history)
             input_widget.value = ""
 
 class CategorizedInput(Input):
@@ -843,19 +845,19 @@ class CategorizedInput(Input):
       using the up and down arrow keys.
 
     Args:
-        categorized_commands (dict[str, list[str]]): A dictionary where keys are
+        user_categorized_commands (dict[str, list[str]]): A dictionary where keys are
             category names (e.g., "File Commands") and values are lists of
             commands belonging to that category.
         *args: Variable length argument list to pass to the parent Input class.
         **kwargs: Arbitrary keyword arguments to pass to the parent Input class.
     """
-    def __init__(self, categorized_commands: dict[str, list[str]], *args, **kwargs):
+    def __init__(self, user_categorized_commands: dict[str, list[str]], *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.categorized_commands = categorized_commands
-        self.all_commands = [cmd for cmds in categorized_commands.values() for cmd in cmds]
+        self.user_categorized_commands = user_categorized_commands
+        self.all_commands = [cmd for cmds in user_categorized_commands.values() for cmd in cmds]
         # History navigation support
-        self.command_history = []
-        self.history_index = -1
+        self.user_input_history = []
+        self.user_input_history_index = -1
 
     def on_key(self, event: Key) -> None:
         """Handle key events for tab completion and history navigation."""
@@ -886,31 +888,31 @@ class CategorizedInput(Input):
     def add_to_history(self, command: str):
         """Add a command to the history."""
         if command.strip():
-            self.command_history.append(command.strip())
-            self.history_index = len(self.command_history)
+            self.user_input_history.append(command.strip())
+            self.user_input_history_index = len(self.user_input_history)
 
     def _navigate_history(self, direction: int) -> None:
         """Navigate command history."""
-        if not self.command_history:
+        if not self.user_input_history:
             return
 
         if direction == -1:  # Up arrow - previous command
-            if self.history_index > 0:
-                self.history_index -= 1
-                self.value = self.command_history[self.history_index]
-            elif self.history_index == 0:
+            if self.user_input_history_index > 0:
+                self.user_input_history_index -= 1
+                self.value = self.user_input_history[self.user_input_history_index]
+            elif self.user_input_history_index == 0:
                 pass  # Already at first item
             else:
                 # Initialize to last item
-                self.history_index = len(self.command_history) - 1
-                self.value = self.command_history[self.history_index]
+                self.user_input_history_index = len(self.user_input_history) - 1
+                self.value = self.user_input_history[self.user_input_history_index]
         elif direction == 1:  # Down arrow - next command
-            if self.history_index < len(self.command_history) - 1:
-                self.history_index += 1
-                self.value = self.command_history[self.history_index]
+            if self.user_input_history_index < len(self.user_input_history) - 1:
+                self.user_input_history_index += 1
+                self.value = self.user_input_history[self.user_input_history_index]
             else:
                 # Clear input when going past last item
-                self.history_index = len(self.command_history)
+                self.user_input_history_index = len(self.user_input_history)
                 self.value = ""
 
     def _handle_tab_completion(self):
@@ -922,7 +924,7 @@ class CategorizedInput(Input):
         if completions:
             # Show completion dialog
             self.app.push_screen(
-                CompletionWidget(completions, self.categorized_commands, show_all),
+                CompletionWidget(completions, self.user_categorized_commands, show_all),
                 self._on_completion_selected
             )
 
@@ -974,7 +976,7 @@ class CompletionWidget(ModalScreen[str]):
 
     Args:
         completions (list[str]): A list of string suggestions for completion.
-        categorized_commands (dict[str, list[str]]): A dictionary used to group
+        user_categorized_commands (dict[str, list[str]]): A dictionary used to group
             the completions into categories for better organization and display.
         show_all (bool): If True, indicates that all available commands should be
             shown, regardless of the current input. Defaults to False.
@@ -982,10 +984,10 @@ class CompletionWidget(ModalScreen[str]):
         **kwargs: Arbitrary keyword arguments to pass to the parent ModalScreen class.
     """
 
-    def __init__(self, completions: list[str], categorized_commands: dict[str, list[str]], show_all: bool = False, *args, **kwargs):
+    def __init__(self, completions: list[str], user_categorized_commands: dict[str, list[str]], show_all: bool = False, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.completions = completions
-        self.categorized_commands = categorized_commands
+        self.user_categorized_commands = user_categorized_commands
         self.show_all = show_all
 
     def compose(self) -> ComposeResult:
@@ -993,7 +995,7 @@ class CompletionWidget(ModalScreen[str]):
         # Group completions by category
         options = []
         
-        for category, commands in self.categorized_commands.items():
+        for category, commands in self.user_categorized_commands.items():
             category_matches = [cmd for cmd in commands if cmd in self.completions]
             if category_matches:
                 # Add category header
@@ -1003,7 +1005,7 @@ class CompletionWidget(ModalScreen[str]):
                     options.append(Option(f"  {cmd}", id=cmd))
         
         # Add any completions that don't fit in categories
-        uncategorized = [cmd for cmd in self.completions if not any(cmd in commands for commands in self.categorized_commands.values())]
+        uncategorized = [cmd for cmd in self.completions if not any(cmd in commands for commands in self.user_categorized_commands.values())]
         if uncategorized:
             if options:  # Only add separator if there are categorized items
                 options.append(Option("─" * 40, disabled=True))
