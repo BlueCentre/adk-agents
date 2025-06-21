@@ -1,3 +1,11 @@
+---
+layout: default
+title: UI Component Styling
+parent: CLI Documentation
+nav_order: 4
+mermaid: true
+---
+
 # UI Component Styling in ADK CLI
 
 This document outlines where and how the various UI components of the ADK Command Line Interface are styled. The styling is distributed across several key files, utilizing Textual CSS, `prompt_toolkit` for interactive elements, and `rich` for rich content rendering.

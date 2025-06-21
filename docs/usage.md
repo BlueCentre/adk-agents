@@ -1,8 +1,9 @@
 ---
 layout: default
 title: Usage Guide
-nav_order: 3
+nav_order: 4
 description: "Learn how to install, configure, and use the DevOps Agent with all available interfaces."
+mermaid: true
 ---
 
 # Usage Guide
@@ -42,6 +43,30 @@ pip install google-adk
 ## Usage Modes
 
 The DevOps Agent supports multiple interaction modes to suit different workflows and preferences.
+
+```mermaid
+journey
+    title DevOps Agent User Journey
+    section Setup
+      Install ADK: 5: User
+      Set API Key: 4: User
+      Choose Interface: 5: User
+    section Development
+      Enhanced CLI: 5: User
+      Multi-line Input: 4: User
+      Command History: 4: User
+      Auto-completion: 5: User
+    section Advanced Usage
+      TUI Mode: 5: User
+      Agent Interruption: 4: User
+      Session Management: 4: User
+      Web Interface: 3: User
+    section Production
+      API Server: 3: User
+      Cloud Deployment: 4: User
+      Session Persistence: 4: User
+      Monitoring: 3: User
+```
 
 ### 🖥️ Enhanced CLI (Default)
 
@@ -141,6 +166,34 @@ adk api_server agents/ \
 - `GET /apps/{app_name}/users/{user_id}/sessions/{session_id}/artifacts`: Manage artifacts
 
 ## Session Management
+
+```mermaid
+flowchart TD
+    A[Start Agent] --> B{Save Session?}
+    B -->|Yes| C[Create Session ID]
+    B -->|No| D[Ephemeral Session]
+    C --> E[Interactive Session]
+    D --> E
+    E --> F[Commands & Responses]
+    F --> G[Session Data Stored]
+    G --> H{Continue?}
+    H -->|Yes| F
+    H -->|No| I[End Session]
+    I --> J[Session Saved to File]
+    
+    K[Resume Session] --> L[Load Session File]
+    L --> M[Restore Context]
+    M --> N[Continue from Last State]
+    
+    O[Replay Session] --> P[Load Session File]
+    P --> Q[Execute Commands Sequentially]
+    Q --> R[Show Results]
+    
+    style C fill:#e1f5fe
+    style G fill:#e8f5e8
+    style J fill:#fff3e0
+    style M fill:#f3e5f5
+```
 
 ### Save and Resume Sessions
 

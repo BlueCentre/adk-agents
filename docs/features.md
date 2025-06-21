@@ -1,8 +1,9 @@
 ---
 layout: default
 title: Features
-nav_order: 2
+nav_order: 3
 description: "Explore the powerful features of the DevOps Agent and its comprehensive CLI interfaces."
+mermaid: true
 ---
 
 # Key Features
@@ -10,6 +11,47 @@ description: "Explore the powerful features of the DevOps Agent and its comprehe
 The DevOps Agent is equipped with a comprehensive suite of features to assist developers and DevOps engineers throughout the software development lifecycle.
 
 ## 🖥️ Advanced CLI Interfaces
+
+```mermaid
+graph TD
+    subgraph "User Interfaces"
+        A[Enhanced CLI<br/>Default]
+        B[Textual TUI<br/>Terminal UI]
+        C[Web Interface<br/>Browser]
+        D[API Server<br/>REST/WebSocket]
+    end
+    
+    subgraph "Core Agent"
+        E[DevOps Agent Engine]
+        F[Context Manager]
+        G[Tool Manager]
+        H[Planning Manager]
+    end
+    
+    subgraph "Deployment Options"
+        I[Local Development]
+        J[Google Cloud Run]
+        K[Agent Engine]
+        L[Docker Container]
+    end
+    
+    A --> E
+    B --> E
+    C --> E
+    D --> E
+    E --> F
+    E --> G
+    E --> H
+    E --> I
+    E --> J
+    E --> K
+    E --> L
+    
+    style A fill:#e1f5fe
+    style B fill:#f3e5f5
+    style C fill:#e8f5e8
+    style D fill:#fff3e0
+```
 
 ### Enhanced CLI (Default)
 Rich interactive command-line interface with professional-grade features:
@@ -50,6 +92,52 @@ RESTful API for programmatic access and integration:
 - **Authentication**: Configurable authentication mechanisms
 
 ## 🚀 Deployment & Infrastructure
+
+```mermaid
+flowchart LR
+    subgraph "Development"
+        A[Local Dev<br/>UV Package Manager]
+        B[Hot Reloading<br/>Debug Mode]
+    end
+    
+    subgraph "Containerization"
+        C[Docker<br/>Multi-stage Builds]
+        D[Security Hardening<br/>Non-root User]
+    end
+    
+    subgraph "Cloud Deployment"
+        E[Google Cloud Run<br/>Serverless Containers]
+        F[Agent Engine<br/>Managed Infrastructure]
+        G[Custom Infrastructure<br/>Docker/K8s]
+    end
+    
+    subgraph "Features"
+        H[Auto-scaling]
+        I[Load Balancing]
+        J[Health Checks]
+        K[Version Management]
+        L[Resource Optimization]
+    end
+    
+    A --> C
+    B --> C
+    C --> E
+    C --> F
+    C --> G
+    E --> H
+    E --> I
+    E --> J
+    F --> H
+    F --> K
+    F --> L
+    G --> H
+    G --> I
+    
+    style A fill:#e3f2fd
+    style E fill:#e8f5e8
+    style F fill:#fff3e0
+    style G fill:#f3e5f5
+```
 
 ### Local Development
 Streamlined local development experience:
@@ -127,6 +215,58 @@ Reclaim time by automating routine and complex DevOps tasks:
 - **Monitoring Setup**: Automated monitoring and alerting configuration
 
 ## 🧠 Advanced Context Management
+
+```mermaid
+graph TD
+    subgraph "Context Sources"
+        A[Project Files]
+        B[Git History]
+        C[Documentation]
+        D[Tool Results]
+        E[Conversation History]
+    end
+    
+    subgraph "Context Processing"
+        F[Dynamic Discovery]
+        G[Smart Prioritization]
+        H[Cross-turn Correlation]
+        I[Intelligent Summarization]
+    end
+    
+    subgraph "Optimization"
+        J[Relevance Scoring]
+        K[Token Optimization]
+        L[Content Filtering]
+        M[Proactive Addition]
+    end
+    
+    subgraph "LLM Integration"
+        N[Optimized Context]
+        O[Token Budget Management]
+        P[Quality Metrics]
+    end
+    
+    A --> F
+    B --> F
+    C --> F
+    D --> H
+    E --> H
+    F --> G
+    G --> J
+    H --> I
+    I --> K
+    J --> L
+    K --> M
+    L --> N
+    M --> N
+    N --> O
+    O --> P
+    
+    style F fill:#e1f5fe
+    style G fill:#f3e5f5
+    style H fill:#e8f5e8
+    style I fill:#fff3e0
+```
 
 ### Intelligent Context Processing
 Multi-factor relevance scoring and content discovery:

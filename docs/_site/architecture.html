@@ -1,0 +1,175 @@
+<!DOCTYPE html> <html lang="en-US"> <head> <meta charset="UTF-8"> <meta http-equiv="X-UA-Compatible" content="IE=Edge"> <link rel="stylesheet" href="/assets/css/just-the-docs-default.css"> <link rel="stylesheet" href="/assets/css/just-the-docs-head-nav.css" id="jtd-head-nav-stylesheet"> <style id="jtd-nav-activation"> .site-nav > ul.nav-list:first-child > li:not(:nth-child(2)) > a, .site-nav > ul.nav-list:first-child > li > ul > li > a, .site-nav > ul.nav-list:first-child > li > ul > li > ul > li > a { background-image: none; } .site-nav > ul.nav-list:not(:first-child) a, .site-nav li.external a { background-image: none; } .site-nav > ul.nav-list:first-child > li:nth-child(2) > a { font-weight: 600; text-decoration: none; }.site-nav > ul.nav-list:first-child > li:nth-child(2) > button svg { transform: rotate(-90deg); }.site-nav > ul.nav-list:first-child > li.nav-list-item:nth-child(2) > ul.nav-list { display: block; } </style> <script src="/assets/js/vendor/lunr.min.js"></script> <script src="/assets/js/just-the-docs.js"></script> <meta name="viewport" content="width=device-width, initial-scale=1"> <!-- Begin Jekyll SEO tag v2.8.0 --> <title>Architecture | DevOps Agent Documentation</title> <meta name="generator" content="Jekyll v3.9.5" /> <meta property="og:title" content="Architecture" /> <meta property="og:locale" content="en_US" /> <meta name="description" content="Technical architecture and design of the DevOps Agent system." /> <meta property="og:description" content="Technical architecture and design of the DevOps Agent system." /> <link rel="canonical" href="/architecture.html" /> <meta property="og:url" content="/architecture.html" /> <meta property="og:site_name" content="DevOps Agent Documentation" /> <meta property="og:type" content="website" /> <meta name="twitter:card" content="summary" /> <meta property="twitter:title" content="Architecture" /> <script type="application/ld+json"> {"@context":"https://schema.org","@type":"WebPage","description":"Technical architecture and design of the DevOps Agent system.","headline":"Architecture","url":"/architecture.html"}</script> <!-- End Jekyll SEO tag --> <!-- Custom head content for individual pages --> <!-- Mermaid JS for diagram rendering --> <script type="module"> import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs'; mermaid.initialize({ startOnLoad: true, theme: 'default', themeVariables: { primaryColor: '#0969da', primaryTextColor: '#1f2328', primaryBorderColor: '#d0d7de', lineColor: '#656d76', secondaryColor: '#f6f8fa', tertiaryColor: '#f6f8fa' } }); // Process both .language-mermaid (code blocks) and .mermaid (div tags) await mermaid.run({ querySelector: '.language-mermaid, .mermaid', }); </script> </head> <body> <a class="skip-to-main" href="#main-content">Skip to main content</a> <svg xmlns="http://www.w3.org/2000/svg" class="d-none"> <symbol id="svg-link" viewBox="0 0 24 24"> <title>Link</title> <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-link"> <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path> </svg> </symbol> <symbol id="svg-menu" viewBox="0 0 24 24"> <title>Menu</title> <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-menu"> <line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line> </svg> </symbol> <symbol id="svg-arrow-right" viewBox="0 0 24 24"> <title>Expand</title> <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevron-right"> <polyline points="9 18 15 12 9 6"></polyline> </svg> </symbol> <!-- Feather. MIT License: https://github.com/feathericons/feather/blob/master/LICENSE --> <symbol id="svg-external-link" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-external-link"> <title id="svg-external-link-title">(external link)</title> <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line> </symbol> <symbol id="svg-doc" viewBox="0 0 24 24"> <title>Document</title> <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-file"> <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline> </svg> </symbol> <symbol id="svg-search" viewBox="0 0 24 24"> <title>Search</title> <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-search"> <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line> </svg> </symbol> <!-- Bootstrap Icons. MIT License: https://github.com/twbs/icons/blob/main/LICENSE.md --> <symbol id="svg-copy" viewBox="0 0 16 16"> <title>Copy</title> <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-clipboard" viewBox="0 0 16 16"> <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/> <path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3z"/> </svg> </symbol> <symbol id="svg-copied" viewBox="0 0 16 16"> <title>Copied</title> <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-clipboard-check-fill" viewBox="0 0 16 16"> <path d="M6.5 0A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3Zm3 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3Z"/> <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1A2.5 2.5 0 0 1 9.5 5h-3A2.5 2.5 0 0 1 4 2.5v-1Zm6.854 7.354-3 3a.5.5 0 0 1-.708 0l-1.5-1.5a.5.5 0 0 1 .708-.708L7.5 10.793l2.646-2.647a.5.5 0 0 1 .708.708Z"/> </svg> </symbol> </svg> <div class="side-bar"> <div class="site-header" role="banner"> <a href="/" class="site-title lh-tight"> DevOps Agent Documentation </a> <button id="menu-button" class="site-button btn-reset" aria-label="Toggle menu" aria-pressed="false"> <svg viewBox="0 0 24 24" class="icon" aria-hidden="true"><use xlink:href="#svg-menu"></use></svg> </button> </div> <nav aria-label="Main" id="site-nav" class="site-nav"> <ul class="nav-list"><li class="nav-list-item"><a href="/" class="nav-list-link">Home</a></li><li class="nav-list-item"><a href="/architecture.html" class="nav-list-link">Architecture</a></li><li class="nav-list-item"><a href="/features.html" class="nav-list-link">Features</a></li><li class="nav-list-item"><a href="/usage.html" class="nav-list-link">Usage Guide</a></li><li class="nav-list-item"><button class="nav-list-expander btn-reset" aria-label="toggle items in CLI Documentation category" aria-pressed="false"> <svg viewBox="0 0 24 24" aria-hidden="true"><use xlink:href="#svg-arrow-right"></use></svg> </button><a href="/cli/README.html" class="nav-list-link">CLI Documentation</a><ul class="nav-list"><li class="nav-list-item"><a href="/cli/TEXTUAL_CLI.html" class="nav-list-link">Textual CLI Guide</a></li><li class="nav-list-item"><a href="/cli/INPUT_PANE_GUIDE.html" class="nav-list-link">Input Pane Guide</a></li><li class="nav-list-item"><a href="/cli/STYLES.html" class="nav-list-link">UI Component Styling</a></li></ul></li><li class="nav-list-item"><a href="/contributing.html" class="nav-list-link">Contributing</a></li><li class="nav-list-item"><a href="/cli/MARKDOWN_RENDERING.html" class="nav-list-link">Markdown Rendering in Textual CLI</a></li><li class="nav-list-item"><a href="/cli/RICH_PROMPT_TOOLKIT_COMPATIBILITY.html" class="nav-list-link">Rich + prompt_toolkit Compatibility</a></li></ul> </nav> <footer class="site-footer"> This site uses <a href="https://github.com/just-the-docs/just-the-docs">Just the Docs</a>, a documentation theme for Jekyll. </footer> </div> <div class="main" id="top"> <div id="main-header" class="main-header"> <div class="search" role="search"> <div class="search-input-wrap"> <input type="text" id="search-input" class="search-input" tabindex="0" placeholder="Search DevOps Agent Documentation" aria-label="Search DevOps Agent Documentation" autocomplete="off"> <label for="search-input" class="search-label"><svg viewBox="0 0 24 24" class="search-icon"><use xlink:href="#svg-search"></use></svg></label> </div> <div id="search-results" class="search-results"></div> </div> <nav aria-label="Auxiliary" class="aux-nav"> <ul class="aux-nav-list"> <li class="aux-nav-list-item"> <a href="https://github.com/BlueCentre/adk-agents" class="site-button" > View on GitHub </a> </li> </ul> </nav> </div> <div class="main-content-wrap"> <div id="main-content" class="main-content"> <main> <h1 id="architecture-overview"> <a href="#architecture-overview" class="anchor-heading" aria-labelledby="architecture-overview"><svg viewBox="0 0 16 16" aria-hidden="true"><use xlink:href="#svg-link"></use></svg></a> Architecture Overview </h1> <p>The DevOps Agent implements a sophisticated multi-layered architecture that integrates with the Google ADK framework while providing advanced capabilities through custom components.</p> <h2 id="google-adk-framework-integration"> <a href="#google-adk-framework-integration" class="anchor-heading" aria-labelledby="google-adk-framework-integration"><svg viewBox="0 0 16 16" aria-hidden="true"><use xlink:href="#svg-link"></use></svg></a> Google ADK Framework Integration </h2><pre><code class="language-mermaid">graph LR
+    subgraph GoogleADKFramework
+        ADK_Core[Core Engine]
+        ADK_Tools[Tool Management]
+        ADK_LLM[LLM Integration]
+        ADK_CLI[CLI Deployment]
+    end
+
+    subgraph DevOpsAgentApplication
+        DevOpsAgent[devops_agent.py]
+        PromptPy[prompts.py]
+        ConfigPy[config.py]
+        CustomTools[Custom Tools]
+        ContextMgmt[Context Management]
+        PlanningMgr[Planning Manager]
+    end
+
+    DevOpsAgent --&gt; ADK_Core
+    DevOpsAgent --&gt; ADK_Tools
+    DevOpsAgent --&gt; ADK_LLM
+    PromptPy --&gt; DevOpsAgent
+    ConfigPy --&gt; DevOpsAgent
+    ContextMgmt --&gt; DevOpsAgent
+    PlanningMgr --&gt; DevOpsAgent
+    CustomTools --&gt; ADK_Tools
+    ADK_CLI --&gt; DevOpsAgent
+</code></pre><h2 id="agent-request-processing-lifecycle"> <a href="#agent-request-processing-lifecycle" class="anchor-heading" aria-labelledby="agent-request-processing-lifecycle"><svg viewBox="0 0 16 16" aria-hidden="true"><use xlink:href="#svg-link"></use></svg></a> Agent Request Processing Lifecycle </h2> <p>The agent processes requests through a sophisticated callback-driven lifecycle that enables advanced planning, context management, and error handling:</p><pre><code class="language-mermaid">graph TD
+    UserReq[User Request] --&gt; ADK[ADK Framework]
+    ADK --&gt; BeforeModel[handle_before_model]
+    
+    subgraph "Before Model Processing"
+        BeforeModel --&gt; StateInit[Initialize State]
+        StateInit --&gt; PlanCheck{Planning Needed?}
+        PlanCheck -- Yes --&gt; PlanGen[Generate Plan]
+        PlanCheck -- No --&gt; CtxAssembly[Assemble Context]
+        PlanGen --&gt; PlanReview[Present to User]
+        PlanReview --&gt; PlanApproval{User Approval?}
+        PlanApproval -- No --&gt; PlanRefine[Refine Plan]
+        PlanRefine --&gt; PlanReview
+        PlanApproval -- Yes --&gt; CtxAssembly
+        CtxAssembly --&gt; CtxInject[Inject Context into LLM Request]
+    end
+    
+    CtxInject --&gt; LLMCall[LLM Processing]
+    LLMCall --&gt; AfterModel[handle_after_model]
+    
+    subgraph "After Model Processing"
+        AfterModel --&gt; ExtractResp[Extract Response]
+        ExtractResp --&gt; FuncCalls{Function Calls?}
+        FuncCalls -- Yes --&gt; BeforeTool[handle_before_tool]
+        FuncCalls -- No --&gt; UpdateState[Update Conversation State]
+    end
+    
+    BeforeTool --&gt; ToolExec[Tool Execution]
+    ToolExec --&gt; AfterTool[handle_after_tool]
+    
+    subgraph "Tool Processing"
+        AfterTool --&gt; ErrorCheck{Tool Error?}
+        ErrorCheck -- Yes --&gt; ErrorHandler[Enhanced Error Handling]
+        ErrorCheck -- No --&gt; ToolSuccess[Process Success]
+        ErrorHandler --&gt; RetryLogic{Retry Available?}
+        RetryLogic -- Yes --&gt; RetryTool[Execute Retry Tool]
+        RetryLogic -- No --&gt; UserGuidance[Provide User Guidance]
+        RetryTool --&gt; ToolSuccess
+        ToolSuccess --&gt; StateUpdate[Update Tool Results]
+    end
+    
+    StateUpdate --&gt; MoreTools{More Tools?}
+    MoreTools -- Yes --&gt; BeforeTool
+    MoreTools -- No --&gt; FinalResp[Final Response]
+    UpdateState --&gt; FinalResp
+    UserGuidance --&gt; FinalResp
+    FinalResp --&gt; UserOutput[User Output]
+</code></pre><h2 id="enhanced-tool-execution-system"> <a href="#enhanced-tool-execution-system" class="anchor-heading" aria-labelledby="enhanced-tool-execution-system"><svg viewBox="0 0 16 16" aria-hidden="true"><use xlink:href="#svg-link"></use></svg></a> Enhanced Tool Execution System </h2> <p>Our robust tool execution system includes comprehensive error handling, automatic retry capabilities, and safety-first design:</p><pre><code class="language-mermaid">graph TD
+    ToolCall[Tool Call Request] --&gt; SafetyCheck[Safety Check]
+    SafetyCheck --&gt; Whitelisted{Whitelisted?}
+    Whitelisted -- Yes --&gt; DirectExec[Direct Execution]
+    Whitelisted -- No --&gt; ApprovalCheck{Approval Required?}
+    ApprovalCheck -- Yes --&gt; UserApproval[Request User Approval]
+    ApprovalCheck -- No --&gt; DirectExec
+    UserApproval --&gt; Approved{User Approves?}
+    Approved -- No --&gt; Denied[Execution Denied]
+    Approved -- Yes --&gt; DirectExec
+    
+    DirectExec --&gt; ParseStrategy[Select Parsing Strategy]
+    
+    subgraph "Multi-Strategy Execution"
+        ParseStrategy --&gt; Shlex[1. shlex.split]
+        Shlex --&gt; ShlexResult{Success?}
+        ShlexResult -- No --&gt; Shell[2. shell=True]
+        ShlexResult -- Yes --&gt; Success[Execution Success]
+        Shell --&gt; ShellResult{Success?}
+        ShellResult -- No --&gt; SimpleSplit[3. Simple Split]
+        ShellResult -- Yes --&gt; Success
+        SimpleSplit --&gt; SimpleResult{Success?}
+        SimpleResult -- Yes --&gt; Success
+        SimpleResult -- No --&gt; AllFailed[All Strategies Failed]
+    end
+    
+    Success --&gt; ResultProcess[Process Result]
+    AllFailed --&gt; ErrorAnalysis[Error Pattern Analysis]
+    
+    subgraph "Error Recovery"
+        ErrorAnalysis --&gt; ErrorType{Error Type}
+        ErrorType -- Parsing --&gt; QuoteError[Quote/Parsing Error]
+        ErrorType -- Command Not Found --&gt; MissingCmd[Missing Command]
+        ErrorType -- Timeout --&gt; TimeoutError[Timeout Error]
+        ErrorType -- Permission --&gt; PermError[Permission Error]
+        
+        QuoteError --&gt; RetryTool[execute_vetted_shell_command_with_retry]
+        MissingCmd --&gt; InstallGuide[Installation Guidance]
+        TimeoutError --&gt; TimeoutSuggestion[Timeout/Splitting Suggestions]
+        PermError --&gt; PermissionGuide[Permission Fix Guidance]
+        
+        RetryTool --&gt; AltStrategies[Try Alternative Formats]
+        AltStrategies --&gt; AltResult{Alternative Success?}
+        AltResult -- Yes --&gt; Success
+        AltResult -- No --&gt; ManualSuggestions[Manual Intervention Suggestions]
+    end
+    
+    ResultProcess --&gt; UpdateContext[Update Context State]
+    InstallGuide --&gt; UserGuidance[Enhanced User Guidance]
+    TimeoutSuggestion --&gt; UserGuidance
+    PermissionGuide --&gt; UserGuidance
+    ManualSuggestions --&gt; UserGuidance
+    Denied --&gt; UserGuidance
+    
+    UpdateContext --&gt; Complete[Tool Execution Complete]
+    UserGuidance --&gt; Complete
+</code></pre><h2 id="codebase-understanding-with-rag"> <a href="#codebase-understanding-with-rag" class="anchor-heading" aria-labelledby="codebase-understanding-with-rag"><svg viewBox="0 0 16 16" aria-hidden="true"><use xlink:href="#svg-link"></use></svg></a> Codebase Understanding with RAG </h2> <p>A key feature of the DevOps agent is its ability to understand and interact with codebases through Retrieval-Augmented Generation:</p><pre><code class="language-mermaid">graph TD
+    U[User Input Query] --&gt; DA{DevOps Agent}
+    DA -- Understand auth module --&gt; RCT{retrieve_code_context_tool};
+    RCT -- Query --&gt; VDB[(Vector Database - Indexed Code)];
+    VDB -- Relevant Code Chunks --&gt; RCT;
+    RCT -- Code Snippets --&gt; DA;
+    DA -- Combines snippets with LLM reasoning --&gt; LR[LLM Response];
+    LR --&gt; O[Agent provides explanation based on code];
+
+    subgraph "Initial Indexing (One-time or on update)"
+      CI[Codebase Files] --&gt; IDT{index_directory_tool};
+      IDT --&gt; VDB;
+    end
+</code></pre><h3 id="rag-implementation-details"> <a href="#rag-implementation-details" class="anchor-heading" aria-labelledby="rag-implementation-details"><svg viewBox="0 0 16 16" aria-hidden="true"><use xlink:href="#svg-link"></use></svg></a> RAG Implementation Details </h3> <ol> <li><strong><code class="language-plaintext highlighter-rouge">index_directory_tool</code></strong>: Scans directories, processes supported file types, breaks them into manageable chunks, generates vector embeddings, and stores them in ChromaDB</li> <li><strong><code class="language-plaintext highlighter-rouge">retrieve_code_context_tool</code></strong>: Takes natural language queries, converts them to embeddings, and searches the vector database for relevant code chunks</li> <li><strong>Semantic Search</strong>: Uses Google embeddings for high-quality semantic understanding of code structure and relationships</li> </ol> <h2 id="token-management-architecture"> <a href="#token-management-architecture" class="anchor-heading" aria-labelledby="token-management-architecture"><svg viewBox="0 0 16 16" aria-hidden="true"><use xlink:href="#svg-link"></use></svg></a> Token Management Architecture </h2> <p>The agent implements sophisticated token counting and management for efficient LLM interactions:</p><pre><code class="language-mermaid">graph TD
+    subgraph "Token Limit Determination"
+        Agent[DevOps Agent] --&gt; TLD[Determine Token Limit]
+        TLD --&gt; ClientAPI{LLM Client API Available?}
+        ClientAPI -- Yes --&gt; DynamicLimit[Get Dynamic Limit]
+        ClientAPI -- No --&gt; FallbackLimit[Use Model-Specific Fallback]
+        DynamicLimit --&gt; TokenLimit[Actual Token Limit]
+        FallbackLimit --&gt; TokenLimit
+    end
+    
+    subgraph "Context Assembly &amp; Optimization"
+        TokenLimit --&gt; CM[Context Manager]
+        CM --&gt; StateSync[Sync with ADK State]
+        StateSync --&gt; Prioritize[Smart Prioritization]
+        Prioritize --&gt; Correlate[Cross-Turn Correlation]
+        Correlate --&gt; Summarize[Intelligent Summarization]
+        Summarize --&gt; Expand[Dynamic Context Expansion]
+        Expand --&gt; OptContext[Optimized Context]
+    end
+    
+    subgraph "Token Counting &amp; Validation"
+        OptContext --&gt; CountTokens[Count Context Tokens]
+        CountTokens --&gt; CountMethod{Counting Method}
+        CountMethod -- LLM Client --&gt; AccurateCount[Native API Count]
+        CountMethod -- tiktoken --&gt; TiktokenCount[tiktoken Count]
+        AccurateCount --&gt; Validate[Validate Against Limit]
+        TiktokenCount --&gt; Validate
+        Validate --&gt; WithinLimit{Within Limit?}
+        WithinLimit -- Yes --&gt; SendToLLM[Send to LLM]
+        WithinLimit -- No --&gt; Compress[Further Compression]
+        Compress --&gt; OptContext
+    end
+</code></pre><h2 id="key-architectural-benefits"> <a href="#key-architectural-benefits" class="anchor-heading" aria-labelledby="key-architectural-benefits"><svg viewBox="0 0 16 16" aria-hidden="true"><use xlink:href="#svg-link"></use></svg></a> Key Architectural Benefits </h2> <h3 id="performance-optimizations"> <a href="#performance-optimizations" class="anchor-heading" aria-labelledby="performance-optimizations"><svg viewBox="0 0 16 16" aria-hidden="true"><use xlink:href="#svg-link"></use></svg></a> Performance Optimizations </h3> <ul> <li><strong>244x improvement</strong> in token utilization through smart context management</li> <li><strong>Dynamic context expansion</strong> for relevant information discovery</li> <li><strong>Multi-strategy parsing</strong> for robust command execution</li> </ul> <h3 id="safety--reliability"> <a href="#safety--reliability" class="anchor-heading" aria-labelledby="safety--reliability"><svg viewBox="0 0 16 16" aria-hidden="true"><use xlink:href="#svg-link"></use></svg></a> Safety &amp; Reliability </h3> <ul> <li><strong>Safety-first tool execution</strong> with user approval workflows</li> <li><strong>Comprehensive error handling</strong> with automatic retry capabilities</li> <li><strong>Multi-layered validation</strong> for command parsing and execution</li> </ul> <h3 id="scalability"> <a href="#scalability" class="anchor-heading" aria-labelledby="scalability"><svg viewBox="0 0 16 16" aria-hidden="true"><use xlink:href="#svg-link"></use></svg></a> Scalability </h3> <ul> <li><strong>Serverless deployment</strong> options with Google Cloud Run</li> <li><strong>Managed infrastructure</strong> with Agent Engine</li> <li><strong>Container-native</strong> design for flexible deployment</li> </ul> <h3 id="developer-experience"> <a href="#developer-experience" class="anchor-heading" aria-labelledby="developer-experience"><svg viewBox="0 0 16 16" aria-hidden="true"><use xlink:href="#svg-link"></use></svg></a> Developer Experience </h3> <ul> <li><strong>Multiple interface options</strong> (CLI, TUI, Web, API)</li> <li><strong>Session management</strong> for continuous workflows</li> <li><strong>Real-time monitoring</strong> and token tracking</li> <li><strong>Rich debugging</strong> and tracing capabilities</li> </ul> </main> </div> </div> <div class="search-overlay"></div> </div> </body> </html>
