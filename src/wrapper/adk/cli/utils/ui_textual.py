@@ -397,10 +397,10 @@ class AgentTUI(App):
             # Silently fail footer updates to avoid disrupting the UI
             pass
 
-    def action_insert_newline(self) -> None:
-        """Action to insert a newline in the input area."""
-        # Input widget doesn't support multiline, so this action is not applicable
-        pass
+    # def action_insert_newline(self) -> None:
+    #     """Action to insert a newline in the input area."""
+    #     # Input widget doesn't support multiline, so this action is not applicable
+    #     pass
 
     def action_clear_output(self) -> None:
         """Clear the output log."""
@@ -408,9 +408,9 @@ class AgentTUI(App):
         output_log.clear()
         self.add_output("🧹 Screen cleared", rich_format=True, style="info")
 
-    def action_quit(self) -> None:
-        """Quit the application."""
-        self.exit()
+    # def action_quit(self) -> None:
+    #     """Quit the application."""
+    #     self.exit()
 
     def action_toggle_theme(self) -> None:
         """Toggle between light and dark themes."""
@@ -509,6 +509,10 @@ class AgentTUI(App):
             self._thinking_timer.stop()
             self._thinking_timer = None
         self._thinking_animation_index = 0
+
+    def is_thinking(self) -> bool:
+        """Check if the agent is currently in thinking state."""
+        return self.agent_thinking
 
     def _animate_thinking(self) -> None:
         """Animate the thinking indicator."""
@@ -622,10 +626,65 @@ class AgentTUI(App):
             event_log = self.query_one("#event-log", RichLog)
             event_log.write(self.rich_renderer.format_agent_thought(text))
 
+    def add_tool_event(self, tool_name: str, event_type: str, args: Optional[dict] = None, result: Any = None, duration: Optional[float] = None):
+        """Add a tool execution event to the thought pane."""
+        if not self.agent_thought_enabled:
+            return
+            
+        try:
+            event_log = self.query_one("#event-log", RichLog)
+            
+            if event_type == "start":
+                # Tool execution start
+                content_panel = self.rich_renderer.format_running_tool(tool_name, args)
+                event_log.write(content_panel)
+                
+                # Update tool usage tracking
+                self._tools_used += 1
+                self._last_tool_used = tool_name
+                
+            elif event_type == "finish":
+                # Tool execution finish
+                content_panel = self.rich_renderer.format_tool_finished(tool_name, result, duration)
+                event_log.write(content_panel)
+                
+            elif event_type == "error":
+                # Tool execution error
+                error_msg = str(result) if result else "Unknown error"
+                content_panel = self.rich_renderer.format_tool_error(tool_name, error_msg)
+                event_log.write(content_panel)
+                
+        except Exception as e:
+            # Fallback to regular output if thought pane fails
+            self.add_output(f"Tool {event_type}: {tool_name}", style="info")
+
+    def add_agent_thought(self, thought_text: str):
+        """Add agent thought to the thought pane."""
+        if not self.agent_thought_enabled:
+            return
+            
+        try:
+            event_log = self.query_one("#event-log", RichLog)
+            
+            # Format the thought with proper styling using the rich_renderer
+            content_panel = self.rich_renderer.format_agent_thought(thought_text)
+            event_log.write(content_panel)
+            
+        except Exception as e:
+            # Fallback to regular output if thought pane fails
+            self.add_output(f"💭 {thought_text}", style="info")
+
     def set_agent_task(self, task: asyncio.Task):
         """Set the current agent task for interruption."""
         self.current_agent_task = task
         self.agent_running = True
+
+    def set_thinking_state(self, thinking: bool) -> None:
+        """Manually control the thinking state (useful for external integrations)."""
+        if thinking:
+            self.start_thinking()
+        else:
+            self.stop_thinking()
 
     def register_input_callback(self, callback: Callable[[str], Awaitable[Any]]):
         """Register a callback function to handle user input."""
@@ -634,6 +693,15 @@ class AgentTUI(App):
     def register_interrupt_callback(self, callback: Callable[[], Awaitable[Any]]):
         """Register a callback function to interrupt the agent."""
         self.interrupt_callback = callback
+
+    def register_tool_callbacks(self, before_tool_callback, after_tool_callback):
+        """Register callbacks for tool execution events."""
+        self._before_tool_callback = before_tool_callback
+        self._after_tool_callback = after_tool_callback
+
+    def register_thought_callback(self, thought_callback):
+        """Register callback for agent thoughts."""
+        self._thought_callback = thought_callback
 
     def watch_agent_name(self, name: str) -> None:
         """Update footer and output panel title when agent name changes."""
@@ -763,90 +831,6 @@ class AgentTUI(App):
             self.history_index = len(self.command_history)
             input_widget.value = ""
 
-    def add_tool_event(self, tool_name: str, event_type: str, args: Optional[dict] = None, result: Any = None, duration: Optional[float] = None):
-        """Add a tool execution event to the thought pane."""
-        if not self.agent_thought_enabled:
-            return
-            
-        try:
-            event_log = self.query_one("#event-log", RichLog)
-            
-            if event_type == "start":
-                # Tool execution start
-                content_panel = self.rich_renderer.format_running_tool(tool_name, args)
-                event_log.write(content_panel)
-                
-                # Update tool usage tracking
-                self._tools_used += 1
-                self._last_tool_used = tool_name
-                
-            elif event_type == "finish":
-                # Tool execution finish
-                content_panel = self.rich_renderer.format_tool_finished(tool_name, result, duration)
-                event_log.write(content_panel)
-                
-            elif event_type == "error":
-                # Tool execution error
-                error_msg = str(result) if result else "Unknown error"
-                content_panel = self.rich_renderer.format_tool_error(tool_name, error_msg)
-                event_log.write(content_panel)
-                
-        except Exception as e:
-            # Fallback to regular output if thought pane fails
-            self.add_output(f"Tool {event_type}: {tool_name}", style="info")
-
-    def add_agent_thought(self, thought_text: str):
-        """Add agent thought to the thought pane."""
-        if not self.agent_thought_enabled:
-            return
-            
-        try:
-            event_log = self.query_one("#event-log", RichLog)
-            
-            # Format the thought with proper styling using the rich_renderer
-            content_panel = self.rich_renderer.format_agent_thought(thought_text)
-            event_log.write(content_panel)
-            
-        except Exception as e:
-            # Fallback to regular output if thought pane fails
-            self.add_output(f"💭 {thought_text}", style="info")
-
-    def register_tool_callbacks(self, before_tool_callback, after_tool_callback):
-        """Register callbacks for tool execution events."""
-        self._before_tool_callback = before_tool_callback
-        self._after_tool_callback = after_tool_callback
-
-    def register_thought_callback(self, thought_callback):
-        """Register callback for agent thoughts."""
-        self._thought_callback = thought_callback
-
-    def set_thinking_state(self, thinking: bool) -> None:
-        """Manually control the thinking state (useful for external integrations)."""
-        if thinking:
-            self.start_thinking()
-        else:
-            self.stop_thinking()
-
-    def is_thinking(self) -> bool:
-        """Check if the agent is currently in thinking state."""
-        return self.agent_thinking
-
-class SubmittableTextArea(TextArea):
-    """TextArea that can submit content on Enter."""
-    
-    def on_key(self, event: Key) -> None:
-        """Handle key events."""
-        if event.key == "ctrl+s":
-            # Submit the content on Ctrl+S
-            content = self.text.strip()
-            if content:
-                # Create a synthetic Input.Submitted event
-                from textual.widgets import Input
-                submit_event = Input.Submitted(self, content)
-                self.post_message(submit_event)
-            event.prevent_default()
-        # Let Enter and other keys be handled by TextArea's default behavior (Enter creates new line)
-
 class CategorizedInput(Input):
     """
     A custom Input widget that provides tab completion for categorized commands
@@ -884,20 +868,20 @@ class CategorizedInput(Input):
         elif event.key == "down":
             self._navigate_history(1)
             event.prevent_default()
-        elif event.key == "ctrl+d":
-            self.action_quit()
-            event.prevent_default()
+        # elif event.key == "ctrl+d":
+        #     self.action_quit()
+        #     event.prevent_default()
 
         # Let other keys be handled normally - no need to call super() as Input doesn't have on_key
 
-    def action_insert_newline(self) -> None:
-        """Action to insert a newline in the input area."""
-        # Input widget doesn't support multiline, so this action is not applicable
-        pass
+    # def action_insert_newline(self) -> None:
+    #     """Action to insert a newline in the input area."""
+    #     # Input widget doesn't support multiline, so this action is not applicable
+    #     pass
 
-    def action_quit(self) -> None:
-        """Quit the application."""
-        self.app.exit()
+    # def action_quit(self) -> None:
+    #     """Quit the application."""
+    #     self.app.exit()
 
     def add_to_history(self, command: str):
         """Add a command to the history."""
@@ -962,6 +946,22 @@ class CategorizedInput(Input):
                 completions.append(command)
         
         return sorted(completions)
+
+class SubmittableTextArea(TextArea):
+    """TextArea that can submit content on Enter."""
+    
+    def on_key(self, event: Key) -> None:
+        """Handle key events."""
+        if event.key == "ctrl+s":
+            # Submit the content on Ctrl+S
+            content = self.text.strip()
+            if content:
+                # Create a synthetic Input.Submitted event
+                from textual.widgets import Input
+                submit_event = Input.Submitted(self, content)
+                self.post_message(submit_event)
+            event.prevent_default()
+        # Let Enter and other keys be handled by TextArea's default behavior (Enter creates new line)
 
 class CompletionWidget(ModalScreen[str]):
     """

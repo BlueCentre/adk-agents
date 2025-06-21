@@ -1,17 +1,3 @@
-# Copyright 2025 Google LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 from __future__ import annotations
 
 import asyncio
@@ -36,7 +22,7 @@ from .ui_rich import RichRenderer
 
 class EnhancedCLI:
     """Enhanced CLI with tmux-style interface and theming."""
-    
+
     def __init__(self, theme: Optional[UITheme] = None, rich_renderer: Optional[RichRenderer] = None):
         # Determine theme from environment or default
         self.theme = theme or self._detect_theme()
@@ -65,7 +51,8 @@ class EnhancedCLI:
         self.status_buffer = Buffer()
         self.layout = None  # Will be set when needed
         self.bindings = None  # Will be set when needed
-        
+
+
     def _detect_theme(self) -> UITheme:
         """Auto-detect theme from environment variables."""
         # Check various environment variables for theme preference
@@ -81,7 +68,78 @@ class EnhancedCLI:
             
         # Default to dark theme
         return UITheme.DARK
-    
+
+    def _safe_format_toolbar(self, agent_name: str, session_id: str) -> str:
+        """Safely format the toolbar with error handling."""
+        try:
+            return self.status_bar.format_toolbar(agent_name, session_id)
+        except Exception as e:
+            # Fallback to simple toolbar if formatting fails
+            return f" 🤖 {agent_name} | Session: {session_id[:8]}... | 💡 Alt+Enter:multi-line | 🚪 Ctrl+D:exit"
+
+    def _render_markdown(self, text: str) -> str:
+        """Render markdown using Rich's Markdown directly, without Panel wrapper."""
+        return self.rich_renderer._render_markdown(text)
+
+    def _basic_markdown_fallback(self, text: str) -> str:
+        """Basic markdown rendering fallback if Rich fails."""
+        return self.rich_renderer._basic_markdown_fallback(text)
+
+    def _add_to_output(self, text: str, style: str = "", skip_markdown: bool = False):
+        """Add text to the output buffer for interruptible CLI mode."""
+        if hasattr(self, 'output_buffer') and self.output_buffer:
+            # Add text to the output buffer
+            current_text = self.output_buffer.text
+            if current_text:
+                new_text = current_text + "\n" + text
+            else:
+                new_text = text
+            self.output_buffer.text = new_text
+        else:
+            # Fallback to console print
+            self.console.print(text)
+
+    def print_welcome_message(self, agent_name: str) -> None:
+        """Print a themed welcome message with tmux-style formatting."""
+        theme_indicator = "🌒" if self.theme == UITheme.DARK else "🌞"
+        
+        # Welcome ASCII Art Logo
+        self.console.print()
+        self.console.print("[agent]                 ▄▀█ █   ▄▀█ █▀▀ █▀▀ █▄█ ▀█▀[/agent]")
+        self.console.print("[agent]                 █▀█ █   █▀█ █▄█ █▄▄ █░█ ░█░[/agent]")
+        self.console.print()
+        self.console.print("[muted]           🤖 Advanced AI Agent Development Kit 🤖[/muted]")
+        self.console.print()
+
+        self.console.print("\n[accent]┌─ Enhanced Agent CLI ─────────────────────────────────────┐[/accent]")
+        self.console.print(f"[accent]│[/accent] [agent]Agent:[/agent] [highlight]{agent_name}[/highlight]")
+        self.console.print(f"[accent]│[/accent] [muted]Theme:[/muted] {theme_indicator} {self.theme.value.title()}")
+        self.console.print(f"[accent]│[/accent] [muted]Session started:[/muted] {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        self.console.print("[accent]└──────────────────────────────────────────────────────────┘[/accent]")
+
+    def print_help(self) -> None:
+        """Print themed help message."""
+        self.console.print("\n[accent]┌─ Available Commands ─────────────────────────────────────┐[/accent]")
+        self.console.print("[accent]│[/accent] [highlight]Navigation:[/highlight]")
+        self.console.print("[accent]│[/accent]   [user]exit, quit, bye[/user] - Exit the CLI")
+        self.console.print("[accent]│[/accent]   [user]clear[/user] - Clear the screen")
+        self.console.print("[accent]│[/accent]   [user]help[/user] - Show this help message")
+        self.console.print("[accent]│[/accent]")
+        self.console.print("[accent]│[/accent] [highlight]Theming:[/highlight]")
+        self.console.print("[accent]│[/accent]   [user]theme toggle[/user] - Toggle between light/dark")
+        self.console.print("[accent]│[/accent]   [user]theme dark[/user] - Switch to dark theme")
+        self.console.print("[accent]│[/accent]   [user]theme light[/user] - Switch to light theme")
+        self.console.print("[accent]│[/accent]")
+        self.console.print("[accent]│[/accent] [highlight]Keyboard Shortcuts:[/highlight]")
+        self.console.print("[accent]│[/accent]   [user]Enter[/user] - Submit input")
+        self.console.print("[accent]│[/accent]   [user]Alt+Enter[/user] - Insert new line for multi-line input")
+        self.console.print("[accent]│[/accent]   [user]Ctrl+D[/user] - Exit gracefully")
+        self.console.print("[accent]│[/accent]   [user]Ctrl+L[/user] - Clear screen")
+        self.console.print("[accent]│[/accent]   [user]Ctrl+T[/user] - Toggle theme")
+        self.console.print("[accent]│[/accent]   [user]Tab[/user] - Show command suggestions")
+        self.console.print("[accent]└──────────────────────────────────────────────────────────┘[/accent]")
+        self.console.print()
+
     def create_enhanced_prompt_session(self, agent_name: str = "Agent", session_id: str = "unknown") -> PromptSession:
         """Create an enhanced PromptSession with tmux-style theming."""
 
@@ -198,15 +256,7 @@ class EnhancedCLI:
             refresh_interval=0.1,  # Reduce refresh rate to minimize interference
             input_processors=[],   # Disable input processors that might interfere
         )
-    
-    def _safe_format_toolbar(self, agent_name: str, session_id: str) -> str:
-        """Safely format the toolbar with error handling."""
-        try:
-            return self.status_bar.format_toolbar(agent_name, session_id)
-        except Exception as e:
-            # Fallback to simple toolbar if formatting fails
-            return f" 🤖 {agent_name} | Session: {session_id[:8]}... | 💡 Alt+Enter:multi-line | 🚪 Ctrl+D:exit"
-    
+
     def toggle_theme(self) -> None:
         """Toggle between light and dark themes."""
         self.theme = UITheme.LIGHT if self.theme == UITheme.DARK else UITheme.DARK
@@ -226,7 +276,7 @@ class EnhancedCLI:
         
         theme_name = "🌒 Dark" if self.theme == UITheme.DARK else "🌞 Light"
         self.console.print(f"[info]Switched to {theme_name} theme[/info]")
-    
+
     def set_theme(self, theme: UITheme) -> None:
         """Set a specific theme."""
         if self.theme != theme:
@@ -247,54 +297,13 @@ class EnhancedCLI:
             
             theme_name = "🌒 Dark" if self.theme == UITheme.DARK else "🌞 Light"
             self.console.print(f"[info]Set theme to {theme_name}[/info]")
-    
-    def print_welcome_message(self, agent_name: str) -> None:
-        """Print a themed welcome message with tmux-style formatting."""
-        theme_indicator = "🌒" if self.theme == UITheme.DARK else "🌞"
-        
-        # Welcome ASCII Art Logo
-        self.console.print()
-        self.console.print("[agent]                 ▄▀█ █   ▄▀█ █▀▀ █▀▀ █▄█ ▀█▀[/agent]")
-        self.console.print("[agent]                 █▀█ █   █▀█ █▄█ █▄▄ █░█ ░█░[/agent]")
-        self.console.print()
-        self.console.print("[muted]           🤖 Advanced AI Agent Development Kit 🤖[/muted]")
-        self.console.print()
 
-        self.console.print("\n[accent]┌─ Enhanced Agent CLI ─────────────────────────────────────┐[/accent]")
-        self.console.print(f"[accent]│[/accent] [agent]Agent:[/agent] [highlight]{agent_name}[/highlight]")
-        self.console.print(f"[accent]│[/accent] [muted]Theme:[/muted] {theme_indicator} {self.theme.value.title()}")
-        self.console.print(f"[accent]│[/accent] [muted]Session started:[/muted] {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        self.console.print("[accent]└──────────────────────────────────────────────────────────┘[/accent]")
-        
     def format_agent_response(self, text: str, author: str) -> Panel:
         """Format agent response with themed panel."""
         # This method should now use rich_renderer to format the response
         # and then return a Rich Panel object
         # return self.rich_renderer.format_agent_response_panel(text, author)
         return self.rich_renderer.format_agent_response(text, author)
-    
-    def print_help(self) -> None:
-        """Print themed help message."""
-        self.console.print("\n[accent]┌─ Available Commands ─────────────────────────────────────┐[/accent]")
-        self.console.print("[accent]│[/accent] [highlight]Navigation:[/highlight]")
-        self.console.print("[accent]│[/accent]   [user]exit, quit, bye[/user] - Exit the CLI")
-        self.console.print("[accent]│[/accent]   [user]clear[/user] - Clear the screen")
-        self.console.print("[accent]│[/accent]   [user]help[/user] - Show this help message")
-        self.console.print("[accent]│[/accent]")
-        self.console.print("[accent]│[/accent] [highlight]Theming:[/highlight]")
-        self.console.print("[accent]│[/accent]   [user]theme toggle[/user] - Toggle between light/dark")
-        self.console.print("[accent]│[/accent]   [user]theme dark[/user] - Switch to dark theme")
-        self.console.print("[accent]│[/accent]   [user]theme light[/user] - Switch to light theme")
-        self.console.print("[accent]│[/accent]")
-        self.console.print("[accent]│[/accent] [highlight]Keyboard Shortcuts:[/highlight]")
-        self.console.print("[accent]│[/accent]   [user]Enter[/user] - Submit input")
-        self.console.print("[accent]│[/accent]   [user]Alt+Enter[/user] - Insert new line for multi-line input")
-        self.console.print("[accent]│[/accent]   [user]Ctrl+D[/user] - Exit gracefully")
-        self.console.print("[accent]│[/accent]   [user]Ctrl+L[/user] - Clear screen")
-        self.console.print("[accent]│[/accent]   [user]Ctrl+T[/user] - Toggle theme")
-        self.console.print("[accent]│[/accent]   [user]Tab[/user] - Show command suggestions")
-        self.console.print("[accent]└──────────────────────────────────────────────────────────┘[/accent]")
-        self.console.print()
 
     def add_agent_output(self, text: str, author: str = "Agent"):
         """Add agent output with the same Rich Panel formatting as EnhancedCLI."""
@@ -304,29 +313,6 @@ class EnhancedCLI:
         
         # Print the panel directly to console
         self.console.print(panel)
-
-    def _add_to_output(self, text: str, style: str = "", skip_markdown: bool = False):
-        """Add text to the output buffer for interruptible CLI mode."""
-        if hasattr(self, 'output_buffer') and self.output_buffer:
-            # Add text to the output buffer
-            current_text = self.output_buffer.text
-            if current_text:
-                new_text = current_text + "\n" + text
-            else:
-                new_text = text
-            self.output_buffer.text = new_text
-        else:
-            # Fallback to console print
-            self.console.print(text)
-
-
-    def _render_markdown(self, text: str) -> str:
-        """Render markdown using Rich's Markdown directly, without Panel wrapper."""
-        return self.rich_renderer._render_markdown(text)
-
-    def _basic_markdown_fallback(self, text: str) -> str:
-        """Basic markdown rendering fallback if Rich fails."""
-        return self.rich_renderer._basic_markdown_fallback(text)
 
 
 # class InterruptibleCLI:
