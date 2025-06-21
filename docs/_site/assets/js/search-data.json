@@ -1,0 +1,254 @@
+{"0": {
+    "doc": "Contributing",
+    "title": "Contributing to the DevOps Agent",
+    "content": "We welcome contributions from the community to enhance the DevOps Agent! Whether you’re interested in fixing bugs, adding new features, improving documentation, or refining the agent’s logic, your help is appreciated. ",
+    "url": "/contributing.html#contributing-to-the-devops-agent",
+    
+    "relUrl": "/contributing.html#contributing-to-the-devops-agent"
+  },"1": {
+    "doc": "Contributing",
+    "title": "Understanding Agent Modification",
+    "content": "A key aspect of contributing to this project is understanding how the agent’s own code can be modified. The AGENT.md file in the repository root contains critical directives: . | Core LLM vs. Application Code: The agent differentiates between its core LLM architecture (provided by Google, not modifiable by users/contributors directly through this repo) and its Application Code (Python scripts, configs like AGENT.md itself, located within the project). | Modifiable Application Code: When discussing changes to “the agent” or “its logic” in the context of this project, it typically refers to this modifiable application code. | File Editing Tools: The agent can use its file editing tools to modify its own application code, with explicit user guidance and approval. | . If you plan to contribute by modifying the agent’s behavior or prompts, familiarize yourself with the AGENT.md file. ",
+    "url": "/contributing.html#understanding-agent-modification",
+    
+    "relUrl": "/contributing.html#understanding-agent-modification"
+  },"2": {
+    "doc": "Contributing",
+    "title": "Getting Started",
+    "content": ". | Fork the Repository: Start by forking the main DevOps Agent repository to your GitHub account. | Clone Your Fork: git clone https://github.com/YOUR-USERNAME/YOUR-REPO-NAME.git # Replace with your fork's URL cd YOUR-REPO-NAME . | Set Up Development Environment: . | The project uses Python (see README.md for version) and uvx for running. | Install any development dependencies (often found in pyproject.toml under [project.optional-dependencies].dev or similar). | Familiarize yourself with the scripts/execution/run.sh script for local execution. | . | Create a Branch: Create a new branch for your feature or bug fix: git checkout -b your-feature-branch-name . | . ",
+    "url": "/contributing.html#getting-started",
+    
+    "relUrl": "/contributing.html#getting-started"
+  },"3": {
+    "doc": "Contributing",
+    "title": "Development Guidelines",
+    "content": ". | Directory Structure: Understand the project’s directory structure as outlined in the README.md to locate relevant files. Core agent logic is primarily within the agents/devops/ directory. | Coding Standards: . | Follow existing code style and patterns. | The project uses pre-commit hooks (see .pre-commit-config.yaml) for linting and formatting. Ensure you have pre-commit installed and hooks set up (pre-commit install). | . | Testing: (Details on testing infrastructure would ideally be here - e.g., “Run tests using pytest.” or specific script commands from scripts/validation/ or tests/). Add or update tests for your changes. | Documentation: If you add or change features, update relevant documentation in the docs/ directory. | . ",
+    "url": "/contributing.html#development-guidelines",
+    
+    "relUrl": "/contributing.html#development-guidelines"
+  },"4": {
+    "doc": "Contributing",
+    "title": "Submitting Changes",
+    "content": ". | Commit Your Changes: Make clear, atomic commits. git add . git commit -m \"feat: Describe your feature or fix\" . | Push to Your Fork: git push origin your-feature-branch-name . | Create a Pull Request (PR): . | Go to the original DevOps Agent repository on GitHub. | You should see a prompt to create a PR from your new branch. | Fill out the PR template (from .github/PULL_REQUEST_TEMPLATE.md) with details about your changes. | Ensure your PR passes any automated checks or CI workflows. | . | Code Review: Project maintainers will review your PR. Be prepared to discuss your changes and make adjustments. | . ",
+    "url": "/contributing.html#submitting-changes",
+    
+    "relUrl": "/contributing.html#submitting-changes"
+  },"5": {
+    "doc": "Contributing",
+    "title": "Reporting Bugs",
+    "content": ". | Use the GitHub Issues tab in the repository. | Check if the bug has already been reported. | Fill out the bug report template (from .github/ISSUE_TEMPLATE.md) with as much detail as possible, including: . | Steps to reproduce the bug. | Expected behavior. | Actual behavior. | Your environment details (OS, Python version, agent version if applicable). | . | . ",
+    "url": "/contributing.html#reporting-bugs",
+    
+    "relUrl": "/contributing.html#reporting-bugs"
+  },"6": {
+    "doc": "Contributing",
+    "title": "Questions?",
+    "content": "Feel free to ask questions by opening an issue or (if available) joining a community discussion forum/chat. Thank you for your interest in contributing to the DevOps Agent! . ",
+    "url": "/contributing.html#questions",
+    
+    "relUrl": "/contributing.html#questions"
+  },"7": {
+    "doc": "Contributing",
+    "title": "Contributing",
+    "content": " ",
+    "url": "/contributing.html",
+    
+    "relUrl": "/contributing.html"
+  },"8": {
+    "doc": "Features",
+    "title": "Key Features",
+    "content": "The DevOps Agent is equipped with a comprehensive suite of features to assist developers and DevOps engineers throughout the software development lifecycle. ",
+    "url": "/features.html#key-features",
+    
+    "relUrl": "/features.html#key-features"
+  },"9": {
+    "doc": "Features",
+    "title": "CI/CD Automation",
+    "content": "Streamlines your software delivery process. | For Developers: Accelerate development cycles. The agent can help generate pipeline configurations, troubleshoot failing builds, and automate deployment steps. | For Platform Engineers: Standardize and manage CI/CD pipelines. Assist in creating robust, reusable pipeline templates, monitoring pipeline health, and ensuring consistent deployment practices. | . ",
+    "url": "/features.html#cicd-automation",
+    
+    "relUrl": "/features.html#cicd-automation"
+  },"10": {
+    "doc": "Features",
+    "title": "Infrastructure Management",
+    "content": "Simplify your cloud and on-premise infrastructure operations. | For Developers: Quickly provision development and testing environments. Ask the agent to generate Infrastructure-as-Code (IaC) scripts (e.g., Terraform, Ansible). | For Platform Engineers: Automate complex infrastructure tasks. Assist in generating IaC, managing configurations, and providing insights into resource utilization and cost optimization. | . ",
+    "url": "/features.html#infrastructure-management",
+    
+    "relUrl": "/features.html#infrastructure-management"
+  },"11": {
+    "doc": "Features",
+    "title": "Codebase Understanding (via RAG with ChromaDB)",
+    "content": "Unlock deep insights into your code repositories using Retrieval-Augmented Generation. | For Developers: Onboard to new projects faster, debug complex issues by quickly locating relevant code, and refactor code confidently. | For Platform Engineers: Gain clarity on legacy systems, identify areas for optimization or security hardening, and ensure compliance. | . ",
+    "url": "/features.html#codebase-understanding-via-rag-with-chromadb",
+    
+    "relUrl": "/features.html#codebase-understanding-via-rag-with-chromadb"
+  },"12": {
+    "doc": "Features",
+    "title": "Workflow Automation",
+    "content": "Reclaim time by automating routine and complex DevOps tasks. | For Developers: Automate tasks like generating boilerplate code, running linters/formatters, or creating pull request summaries. | For Platform Engineers: Automate incident response, compliance checks, or resource cleanup tasks. | . ",
+    "url": "/features.html#workflow-automation",
+    
+    "relUrl": "/features.html#workflow-automation"
+  },"13": {
+    "doc": "Features",
+    "title": "Interactive Planning",
+    "content": "Tackle complex tasks with confidence through collaborative planning. The agent proposes a plan, you review and approve or suggest refinements before execution. | For Developers: Review and approve plans for large refactorings or new feature implementations. | For Platform Engineers: Vet plans for intricate infrastructure changes or multi-step deployments. | . ",
+    "url": "/features.html#interactive-planning",
+    
+    "relUrl": "/features.html#interactive-planning"
+  },"14": {
+    "doc": "Features",
+    "title": "Advanced Context Management",
+    "content": "Features intelligent multi-factor relevance scoring, automatic content discovery, cross-turn correlation, and intelligent summarization for optimal performance and context quality. ",
+    "url": "/features.html#advanced-context-management",
+    
+    "relUrl": "/features.html#advanced-context-management"
+  },"15": {
+    "doc": "Features",
+    "title": "RAG-Enhanced Codebase Understanding",
+    "content": "Deep semantic search and retrieval using ChromaDB vector storage with Google embeddings. Enables automatic project context gathering from READMEs, package configurations, Git history, and documentation. ",
+    "url": "/features.html#rag-enhanced-codebase-understanding",
+    
+    "relUrl": "/features.html#rag-enhanced-codebase-understanding"
+  },"16": {
+    "doc": "Features",
+    "title": "Comprehensive Tool Integration",
+    "content": "A versatile suite including file operations, code search, vetted shell execution, codebase indexing/retrieval, and intelligent tool discovery with a safety-first approach and user approval workflows. ",
+    "url": "/features.html#comprehensive-tool-integration",
+    
+    "relUrl": "/features.html#comprehensive-tool-integration"
+  },"17": {
+    "doc": "Features",
+    "title": "Proactive Context Addition",
+    "content": "Automatically discovers and includes project files, Git history, documentation, and configuration files with zero manual intervention. Enhanced support for modern Python packaging with uv detection. ",
+    "url": "/features.html#proactive-context-addition",
+    
+    "relUrl": "/features.html#proactive-context-addition"
+  },"18": {
+    "doc": "Features",
+    "title": "Token Optimization &amp; Transparency",
+    "content": "Dynamic token limit determination, usage transparency with detailed breakdowns, accurate counting methods, and context optimization strategies to maximize relevance within limits. ",
+    "url": "/features.html#token-optimization--transparency",
+    
+    "relUrl": "/features.html#token-optimization--transparency"
+  },"19": {
+    "doc": "Features",
+    "title": "Production-Ready Architecture",
+    "content": "Built on Google ADK with robust error handling, comprehensive logging, full type annotations, and enterprise-grade deployment capabilities via Google Cloud Run. ",
+    "url": "/features.html#production-ready-architecture",
+    
+    "relUrl": "/features.html#production-ready-architecture"
+  },"20": {
+    "doc": "Features",
+    "title": "Enhanced Interactive CLI",
+    "content": "Advanced command-line interface with: . | Multi-line input support (Alt+Enter) | Mouse interaction | Auto-completion for DevOps workflows | Command history with auto-suggestions | Intelligent keyboard shortcuts | Rich visual feedback with styled prompts and contextual help. | . ",
+    "url": "/features.html#enhanced-interactive-cli",
+    
+    "relUrl": "/features.html#enhanced-interactive-cli"
+  },"21": {
+    "doc": "Features",
+    "title": "Enhanced User Experience",
+    "content": "Detailed execution feedback, granular error reporting, and intelligent status indicators providing clear insight into agent operations and decision-making processes. ",
+    "url": "/features.html#enhanced-user-experience",
+    
+    "relUrl": "/features.html#enhanced-user-experience"
+  },"22": {
+    "doc": "Features",
+    "title": "Gemini Thinking Feature",
+    "content": "Leverages Gemini 2.5 series models’ internal reasoning process for enhanced problem-solving in complex DevOps tasks. | Supported Models: gemini-2.5-flash-preview-05-20, gemini-2.5-pro-preview-06-05. | Benefits: Enhanced problem solving, better planning, improved debugging assistance, and deeper code analysis. | Transparency: Includes display of thinking tokens and thought summaries (configurable). | . ",
+    "url": "/features.html#gemini-thinking-feature",
+    
+    "relUrl": "/features.html#gemini-thinking-feature"
+  },"23": {
+    "doc": "Features",
+    "title": "Features",
+    "content": " ",
+    "url": "/features.html",
+    
+    "relUrl": "/features.html"
+  },"24": {
+    "doc": "Home",
+    "title": "Welcome to the DevOps Agent Documentation",
+    "content": "The DevOps Agent is a sophisticated AI assistant engineered to empower developers and DevOps engineers across the full software development lifecycle, from infrastructure management to operational excellence. Built on the Google Agent Development Kit (ADK) foundation with Google Gemini LLMs providing advanced reasoning capabilities, the agent utilizes ChromaDB for semantic code search and incorporates cutting-edge context management. This site provides comprehensive documentation for the DevOps Agent. Here you will find: . | Features: Discover the wide range of capabilities offered by the agent. | Usage Guide: Learn how to install, configure, and interact with the agent. | Contributing: Find out how you can contribute to the development of the DevOps Agent. | . ",
+    "url": "/#welcome-to-the-devops-agent-documentation",
+    
+    "relUrl": "/#welcome-to-the-devops-agent-documentation"
+  },"25": {
+    "doc": "Home",
+    "title": "Quick Overview",
+    "content": "The DevOps Agent is designed to assist with: . | CI/CD Automation | Infrastructure Management | Deep Codebase Understanding (RAG) | Workflow Automation | Interactive Task Planning | And much more! | . Dive into the documentation to explore how the DevOps Agent can streamline your workflows and enhance your productivity. We hope you find this documentation helpful! . ",
+    "url": "/#quick-overview",
+    
+    "relUrl": "/#quick-overview"
+  },"26": {
+    "doc": "Home",
+    "title": "Home",
+    "content": " ",
+    "url": "/",
+    
+    "relUrl": "/"
+  },"27": {
+    "doc": "Usage Guide",
+    "title": "Usage Guide",
+    "content": "This guide will walk you through getting started with and effectively using the DevOps Agent. ",
+    "url": "/usage.html",
+    
+    "relUrl": "/usage.html"
+  },"28": {
+    "doc": "Usage Guide",
+    "title": "Quickstart",
+    "content": "To get started with the DevOps Agent, ensure you have Python 3.13 (or a compatible version) and uvx (the Universal Virtualenv Executer from the Google ADK) installed. 1. Set Google API Key . Important: Make sure you have set the GOOGLE_API_KEY environment variable: . export GOOGLE_API_KEY=your_api_key_here . This is required for the agent to create a GenAI client when running with the ADK. 2. Run the Agent Locally . Use the following command from the root of the repository: . PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python uvx --with extensions --with google-generativeai --with google-api-core --with chromadb --with protobuf --with openai --with tiktoken --no-cache --python 3.13 --from git+https://github.com/BlueCentre/adk-python.git@main adk run agents/devops . Alternatively, use the convenience script: ./scripts/execution/run.sh . This sets up a virtual environment and starts an interactive CLI session. The PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python part is a workaround for a compatibility issue between recent protobuf versions and older pre-compiled code in some dependencies. 3. Deploy to Google Cloud Run (Optional) . The agent can be deployed as a service to Google Cloud Run: . adk deploy cloud_run --project=[YOUR_GCP_PROJECT] --region=[YOUR_GCP_REGION] agents/devops/ . Replace [YOUR_GCP_PROJECT] and [YOUR_GCP_REGION] with your details. ",
+    "url": "/usage.html#quickstart",
+    
+    "relUrl": "/usage.html#quickstart"
+  },"29": {
+    "doc": "Usage Guide",
+    "title": "Advanced Configuration",
+    "content": "Gemini Thinking Feature . Enhance reasoning for complex tasks using Gemini 2.5 series models. Supported Models: . | gemini-2.5-flash-preview-05-20 | gemini-2.5-pro-preview-06-05 | . Configuration: Create or update your .env file in the project root: . # Enable Gemini thinking (default: false) GEMINI_THINKING_ENABLE=true # Include thought summaries in responses (default: true) GEMINI_THINKING_INCLUDE_THOUGHTS=true # Set thinking budget (tokens for reasoning, default: 8192) GEMINI_THINKING_BUDGET=8192 # Use a 2.5 series model AGENT_MODEL=gemini-2.5-pro-preview-06-05 # or # AGENT_MODEL=gemini-2.5-flash-preview-05-20 # Your Google API key (required) GOOGLE_API_KEY=your_api_key_here . Performance: Higher thinking budgets (e.g., 16384+) allow more complex reasoning but increase costs. Complex reasoning may take longer but can produce higher quality results. ",
+    "url": "/usage.html#advanced-configuration",
+    
+    "relUrl": "/usage.html#advanced-configuration"
+  },"30": {
+    "doc": "Usage Guide",
+    "title": "Interacting with the Agent: Enhanced CLI",
+    "content": "The DevOps Agent features an advanced command-line interface: . Key Features: . | Multi-line Input: Use Alt+Enter to submit complex, multi-line requests. | Mouse Support: Click to position cursor, drag to select text, scroll menus. | Smart Auto-completion: Tab completion for 50+ common DevOps commands. | Command History: Navigate with ↑/↓ keys, with auto-suggestions. | Visual Enhancements: Styled prompts, continuation indicators ( &gt;), contextual help. | . Keyboard Shortcuts: . | Alt+Enter: Submit multi-line input | Ctrl+D: Exit | Ctrl+L: Clear screen | Ctrl+C: Cancel current input | Tab: Show command completions | ↑/↓: Navigate command history | . Example Interactions: . | Multi-line Complex Request: ``` Create a Kubernetes deployment that: . | Uses a multi-container pod setup | Includes health checks and resource limits | Has proper security contexts | Implements horizontal pod autoscaling [Alt+Enter to submit] ``` | . | Quick Commands with Completion: setup monitoring for[Tab] # Shows completion options . For more examples, refer to the prompts in the example_prompts/ directory of the repository. | . ",
+    "url": "/usage.html#interacting-with-the-agent-enhanced-cli",
+    
+    "relUrl": "/usage.html#interacting-with-the-agent-enhanced-cli"
+  },"31": {
+    "doc": "Input Pane Usage Guide",
+    "title": "Input Pane Usage Guide",
+    "content": "# Input Pane Usage Guide ## How to Type in the Textual CLI The Textual CLI provides a **persistent input pane** at the bottom of the screen where you can always type, even while the agent is responding. ### 🎯 Interface Layout ``` ┌─────────────────────────────────────────┐ │ 🤖 Agent Output │ ← Agent responses appear here │ │ │ [10:30:45] 🤖 Agent: Hello! How can │ │ I help you today? │ │ │ │ │ ├─────────────────────────────────────────┤ │ 😎 User Input │ ← You type here │ │ │ > your message here...█ │ ← Cursor active │ │ ├─────────────────────────────────────────┤ │ 🟢 Ready | Theme: 🌒 Dark | 10:30:45 │ ← Status bar └─────────────────────────────────────────┘ ``` ### ⌨️ How to Type 1. **Start typing immediately** - The input pane is **always focused and ready** 2. **Type your message** - All keyboard input goes to the input pane by default 3. **Press Enter** - Submit your message to the agent 4. **Alt+Enter** - Add a new line for multi-line messages ### 🚀 Key Features #### **Persistent Input** - ✅ **Type while agent is responding** - No need to wait - ✅ **Input remains active** - Always ready for your next command - ✅ **Multi-line support** - Use Alt+Enter for longer messages #### **Agent Interruption** - 🛑 **Ctrl+C** - Interrupt long-running agent operations - ⚡ **Immediate responsiveness** - Continue typing after interruption - 🔄 **Clean recovery** - System returns to ready state ### 📋 Keyboard Shortcuts | Key Combination | Action |-----------------|--------| **Enter** | Submit your input to the agent | **Alt+Enter** | Insert newline (for multi-line input) | **Ctrl+C** | Interrupt running agent | **Ctrl+D** | Exit the CLI | **Ctrl+L** | Clear the output pane | **Ctrl+T** | Toggle theme (dark/light) | **Tab** | Keep focus on input pane | ### 💡 Usage Tips #### **While Agent is Thinking** ``` 🟡 Thinking... | Theme: 🌒 Dark | 10:30:45 ``` - ✅ You can still type your next question - ✅ Input accumulates in the input pane - ✅ Press Ctrl+C to interrupt if needed #### **When Agent is Ready** ``` 🟢 Ready | Theme: 🌒 Dark | 10:30:45 ``` - ✅ Type and press Enter to submit - ✅ Agent will process immediately - ✅ Your input is cleared after submission ### 🎨 Visual Feedback The interface provides clear visual cues: - **Input Pane Title Changes**: - `😎 User Input (Enter to send, Alt+Enter for newline)` - When ready - `💭 User Input (Ctrl+C to interrupt agent)` - When agent is running - **Status Bar Updates**: - `🟢 Ready` - Agent waiting for input - `🟡 Thinking...` - Agent processing your request ### 🔧 Technical Details #### **Focus Management** - Input buffer **automatically receives focus** on startup - Focus **remains on input pane** during normal operation - **Tab key** ensures focus returns to input if lost #### **Buffer Management** - **Input buffer**: Where you type (editable) - **Output buffer**: Agent responses (read-only, programmatically updated) - **Status buffer**: Real-time status (auto-updated) #### **Editing Mode** - Uses **Emacs editing mode** for familiar keyboard shortcuts - Supports standard text editing operations - Multi-line editing with proper line handling ### 🐛 Troubleshooting #### **Can't Type?** 1. Make sure the CLI started without errors 2. Try pressing **Tab** to ensure focus is on input pane 3. Check that your terminal supports the interface #### **Enter Not Working?** - Enter only works when agent is **not running** - If agent is running, press **Ctrl+C** first to interrupt - Use **Alt+Enter** for newlines, not Enter #### **Missing Cursor?** - The cursor should be visible in the input pane - Try pressing any key to activate input - Terminal compatibility may affect cursor display ### 🎯 Example Workflow 1. **Start the CLI**: ```bash uv run agent run agents.devops --tui ``` 2. **See the interface load** with input pane ready 3. **Type your first message**: ``` > hello agent, can you help me? ``` 4. **Press Enter** - Message sent to agent 5. **While agent responds, type your next question**: ``` > what kubernetes clusters are available? ``` 6. **Press Ctrl+C if needed** to interrupt long operations 7. **Continue the conversation** seamlessly The input pane transforms the CLI from a **sequential** question-answer pattern to a **dynamic**, **always-ready** interface that puts you in complete control! 🎉 ",
+    "url": "/cli/INPUT_PANE_GUIDE.html",
+    
+    "relUrl": "/cli/INPUT_PANE_GUIDE.html"
+  },"32": {
+    "doc": "Markdown Rendering in Textual CLI",
+    "title": "Markdown Rendering in Textual CLI",
+    "content": "# Markdown Rendering in Textual CLI The `--tui` CLI mode now supports **markdown rendering** for agent responses! This makes the output much more readable and visually appealing. ## Features ### Headers - `# Header 1` → 🔷 Header 1 - `## Header 2` → 🔸 Header 2 - `### Header 3` → ▪️ Header 3 ### Text Formatting - `**bold text**` → [bold text] - `*italic text*` → (italic text) - `__bold text__` → [bold text] - `_italic text_` → (italic text) ### Code - `` `inline code` `` → `inline code` - Code blocks with syntax highlighting: ```python def hello(): print(\"Hello, World!\") ``` → 💻 Code: def hello(): print(\"Hello, World!\") ### Lists - `- Item 1` → • Item 1 - `* Item 2` → • Item 2 - `+ Item 3` → • Item 3 - `1. Numbered` → 1️⃣ Numbered ### Other Elements - `> Blockquote` → 💬 Blockquote - `[Link](https://example.com)` → Link (https://example.com) - `---` → ────────────────────────────────────────────────── ## Usage ### Toggle Markdown Rendering - **Ctrl+M** - Toggle markdown rendering on/off - Status bar shows 📝 when enabled, 📄 when disabled - Enabled by default ### Example Agent Response When an agent responds with markdown like: ```markdown # Analysis Results ## Summary The code analysis found **3 issues**: 1. Missing error handling 2. Unused variables 3. Performance bottleneck ### Recommendations - Add `try/catch` blocks - Remove unused code - Optimize the `process_data()` function > **Note**: These are suggestions, not requirements. ``` It will be rendered as: ``` 🔷 Analysis Results 🔸 Summary The code analysis found [3 issues]: 1️⃣ Missing error handling 2️⃣ Unused variables 3️⃣ Performance bottleneck ▪️ Recommendations • Add `try/catch` blocks • Remove unused code • Optimize the `process_data()` function 💬 [Note]: These are suggestions, not requirements. ``` ## Benefits ✅ **Better readability** - Structured content with visual hierarchy ✅ **Emoji indicators** - Quick visual scanning of content types ✅ **Terminal-friendly** - Works well in any terminal environment ✅ **Toggle-able** - Can be disabled if plain text is preferred ✅ **Preserves functionality** - All CLI features still work normally ## Keyboard Shortcuts | Shortcut | Action |----------|--------| Ctrl+M | Toggle markdown rendering | Ctrl+T | Toggle theme (dark/light) | Ctrl+C | Interrupt agent | Ctrl+L | Clear output | Ctrl+D | Exit | The markdown rendering makes agent responses much more pleasant to read while maintaining the powerful Textual CLI functionality! ",
+    "url": "/cli/MARKDOWN_RENDERING.html",
+    
+    "relUrl": "/cli/MARKDOWN_RENDERING.html"
+  },"33": {
+    "doc": "Rich + prompt_toolkit Compatibility",
+    "title": "Rich + prompt_toolkit Compatibility",
+    "content": "# Rich + prompt_toolkit Compatibility ## The Problem 🚫 Rich and prompt_toolkit don't work well together out of the box: - **Rich** uses ANSI escape codes and special markup for beautiful terminal output - **prompt_toolkit** has its own text rendering system with buffers and layout management - **Conflict**: Rich's formatting codes appear as messy, unrendered text in prompt_toolkit buffers ### Before (Messy Output): ``` [20:43:22] 🤖 devops_agent: [bold green]Hello![/bold green] How can I assist you today? ╭───────────────────────────────────────── 🧠 Model Usage (with Thinking) ─────────────────────────────────────────╮ │ Token Usage: Prompt: 2475, [cyan]Thinking: 33[/cyan], Output: 9, Total: 2517 │ ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯ ``` ### After (Clean Output): ``` [20:43:22] 🤖 devops_agent: Hello! How can I assist you today? Token Usage: Prompt: 2475, Thinking: 33, Output: 9, Total: 2517 ``` ## The Solution ✅ ### 1. **Text Sanitization in TextualCLI** Added a `_add_to_output()` method that converts Rich content to plain text: ```python def _add_to_output(self, text: str, style: str = \"\"): \"\"\"Add text to the output buffer, stripping Rich formatting.\"\"\" from rich.console import Console from io import StringIO # Create a temporary console to render Rich content to plain text string_io = StringIO() temp_console = Console(file=string_io, force_terminal=False, width=80) # Try to render as Rich content, fall back to plain text try: temp_console.print(text) clean_text = string_io.getvalue().rstrip('\\n') except: # If Rich rendering fails, use plain text clean_text = text timestamp = datetime.now().strftime(\"%H:%M:%S\") formatted_text = f\"[{timestamp}] {clean_text}\\n\" current_text = self.output_buffer.text self.output_buffer.text = current_text + formatted_text # Auto-scroll to bottom self.output_buffer.cursor_position = len(self.output_buffer.text) ``` ### 2. **ANSI Code Stripping Function** Added `_strip_rich_markup()` to remove any remaining formatting: ```python def _strip_rich_markup(text: str) -> str: \"\"\"Strip Rich markup and ANSI codes from text for clean prompt_toolkit display.\"\"\" import re from rich.console import Console from io import StringIO try: # Create a console that outputs plain text string_io = StringIO() temp_console = Console(file=string_io, force_terminal=False, width=120, legacy_windows=False) # Print the text and capture plain output temp_console.print(text, markup=False, highlight=False) clean_text = string_io.getvalue().rstrip('\\n') # Additional cleanup of any remaining ANSI codes ansi_escape = re.compile(r'\\x1B(?:[@-Z\\\\-_]|\\[[0-?]*[ -/]*[@-~])') clean_text = ansi_escape.sub('', clean_text) return clean_text except Exception: # Fallback: basic ANSI code removal ansi_escape = re.compile(r'\\x1B(?:[@-Z\\\\-_]|\\[[0-?]*[ -/]*[@-~])') return ansi_escape.sub('', text) ``` ### 3. **Agent Response Processing** Modified the agent response handler to clean text before display: ```python async def _process_agent_responses(agent_gen, cli): \"\"\"Process agent responses and add them to the CLI output.\"\"\" async for event in agent_gen: if event.content and event.content.parts: if text := ''.join(part.text or '' for part in event.content.parts): # Filter out thought content to prevent duplication filtered_text = _filter_thought_content(text) if filtered_text.strip(): # Strip any Rich markup/ANSI codes for clean prompt_toolkit display clean_text = _strip_rich_markup(filtered_text) cli.add_agent_output(clean_text, event.author) ``` ## Technical Approach 🔧 ### **Two-Stage Cleaning Process** 1. **Rich Console Rendering**: Use Rich's own console to render markup to plain text 2. **ANSI Code Removal**: Strip any remaining escape sequences with regex ### **Fallback Strategy** - Primary: Rich console rendering with `force_terminal=False` - Fallback: Regex-based ANSI code removal - Final: Raw text if all else fails ### **Compatibility Layer** The solution acts as a compatibility layer: ``` Rich Formatted Text → Rich Console (plain) → ANSI Stripper → prompt_toolkit Buffer ↓ ↓ ↓ ↓ [bold]Hello[/bold] → Hello → Hello → Clean Display ``` ## Benefits 🎉 ### **For Users** - ✅ **Clean, readable output** in the Textual CLI - ✅ **No formatting artifacts** or escape codes - ✅ **Consistent appearance** across different terminals - ✅ **Preserved functionality** of both Rich and prompt_toolkit ### **For Developers** - ✅ **Use Rich freely** in agent code without compatibility concerns - ✅ **Automatic conversion** - no manual text processing needed - ✅ **Backwards compatible** - existing code continues to work - ✅ **Error resilient** - graceful fallbacks if conversion fails ## Configuration Options 🛠️ ### **Console Width** ```python temp_console = Console(file=string_io, force_terminal=False, width=80) ``` - Controls text wrapping in the output - Adjustable based on terminal size ### **Rich Features Disabled** ```python temp_console.print(text, markup=False, highlight=False) ``` - Disables Rich markup processing - Disables syntax highlighting - Ensures plain text output ### **ANSI Escape Pattern** ```python ansi_escape = re.compile(r'\\x1B(?:[@-Z\\\\-_]|\\[[0-?]*[ -/]*[@-~])') ``` - Comprehensive ANSI escape sequence matching - Removes colors, cursor movements, formatting codes ## Usage Examples 📝 ### **Before (Messy)** ``` Agent Output: [bold red]Error:[/bold red] Connection failed [33mWarning:[0m Retrying connection... ╭─ Status ─╮ │ [32m✓[0m │ ╰──────────╯ ``` ### **After (Clean)** ``` Agent Output: Error: Connection failed Warning: Retrying connection... Status: ✓ ``` ## Testing 🧪 ```bash # Test the clean output uv run agent run agents.devops --tui # Should now display: # - Clean, readable text # - No ANSI escape codes # - No Rich markup artifacts # - Proper text wrapping ``` ## Future Enhancements 🚀 1. **Configurable width**: Auto-detect terminal width 2. **Selective formatting**: Preserve some basic formatting (bold, colors) 3. **Rich integration**: Use prompt_toolkit's FormattedText for Rich-like styling 4. **Performance optimization**: Cache rendered text for repeated content --- This solution enables seamless integration between Rich's powerful formatting capabilities and prompt_toolkit's advanced UI features, giving you the best of both worlds! 🎯 ",
+    "url": "/cli/RICH_PROMPT_TOOLKIT_COMPATIBILITY.html",
+    
+    "relUrl": "/cli/RICH_PROMPT_TOOLKIT_COMPATIBILITY.html"
+  },"34": {
+    "doc": "UI Component Styling in ADK CLI",
+    "title": "UI Component Styling in ADK CLI",
+    "content": "# UI Component Styling in ADK CLI This document outlines where and how the various UI components of the ADK Command Line Interface are styled. The styling is distributed across several key files, utilizing Textual CSS, `prompt_toolkit` for interactive elements, and `rich` for rich content rendering. ## Styling Architecture Diagram ```mermaid info ``` ```mermaid graph TD; subgraph CLI Application A[CLI Application] --> B(Main Content Area); B --> C{Panes}; C --> D[Output Pane]; C --> E[Thought Pane]; C --> F[Input Area]; A --> G[Footer]; end subgraph Key CLI Classes P[cli.py] --> Q[EnhancedCLI - ui_prompt_toolkit.py]; P --> R[TextualCLI - ui_prompt_toolkit.py]; P --> S[AgentTUI - ui_textual.py]; end subgraph Styling Definitions H[ui_textual.tcss] --> D; H --> E; H --> F; H --> G; Q --> I[ui_prompt_toolkit.py]; R --> I; S --> H; S --> J[ui_rich.py]; Q --> J; R --> J; K[ui_common.py] --> I; K --> J; end D -- \"Styled by: .output-pane, .light/.dark .output-pane\" --> H; E -- \"Styled by: .thought-pane, .light/.dark .thought-pane\" --> H; F -- \"Styled by: #input-area, .light/.dark .input-pane\" --> H; G -- \"Styled by: Footer, .light/.dark Footer\" --> H; D -- \"Content rendered by: Markdown, Panels\" --> J; E -- \"Content rendered by: Markdown, Panels\" --> J; I -- \"Manages: Theme config, Prompt styles, Completion menu, Toolbar\" --> K; J -- \"Uses: Rich Theme for borders/titles\" --> K; K -- \"Defines: UITheme, ThemeConfig (DARK_THEME, LIGHT_THEME), get_rich_theme, StatusBar\" --> A; K -- \"Defines: Generic message styles (.info, .warning, etc.)\" --> H; K -- \"Defines: Border colors for Rich panels\" --> J; Q -- \"Orchestrates interactive CLI with prompt_toolkit\" --> D; Q -- \"Orchestrates interactive CLI with prompt_toolkit\" --> E; Q -- \"Orchestrates interactive CLI with prompt_toolkit\" --> F; R -- \"Manages persistent input/output panes in a Textual app\" --> D; R -- \"Manages persistent input/output panes in a Textual app\" --> E; R -- \"Manages persistent input/output panes in a Textual app\" --> F; S -- \"Textual Application responsible for TUI layout\" --> D; S -- \"Textual Application responsible for TUI layout\" --> E; S -- \"Textual Application responsible for TUI layout\" --> F; ``` ## Key CLI Classes and their Role in UI Styling The ADK CLI leverages several key Python classes to construct and manage its user interface, each playing a specific role in how components are styled and rendered. * **`EnhancedCLI`** (found in `src/wrapper/adk/cli/utils/ui_prompt_toolkit.py`): This class is responsible for setting up and managing the interactive prompt session using the `prompt_toolkit` library. It integrates the `ThemeConfig` from `ui_common.py` to apply dynamic styling based on the selected theme (light/dark). It also uses `RichRenderer` (from `ui_rich.py`) for formatting agent responses and other rich content within the standard prompt-based CLI. * **`TextualCLI`** (also in `src/wrapper/adk/cli/utils/ui_prompt_toolkit.py`): This class extends `EnhancedCLI` to provide an Textual CLI experience. It manages the layout of the UI components (input, output, and thought panes) within a `prompt_toolkit` application. While it doesn't directly handle the low-level styling of elements like borders or backgrounds (that's left to Textual CSS), it orchestrates their placement and ensures they use the correct `Rich` console for output. * **`AgentTUI`** (found in `src/wrapper/adk/cli/utils/ui_textual.py`): This class is a `Textual` application that defines the overall layout and behavior of the terminal user interface. It is responsible for composing the various panes (output, thought, input) and applying the CSS rules defined in `ui_textual.tcss`. `AgentTUI` utilizes the `Rich` library's `Console` and `Panel` components, often in conjunction with `RichRenderer`, to display formatted text, agent responses, and tool outputs within its panes. It leverages `ui_common.py` for theme-specific `Rich` styling. ## UI Component Styling Summary | UI Component(s) | Styling File(s) | Description |-------------------------|---------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------| **Overall Layout & Panes** | `src/wrapper/adk/cli/utils/ui_textual.tcss` | Defines the visual appearance of the main UI elements using Textual CSS. This includes: . | `Screen`: overall background. | `.light` and `.dark` classes: define background and text colors for light and dark themes. | `.output-pane`, `.thought-pane`, `#input-area`: define dimensions, borders, margins, padding, background, and scroll behavior for these main display areas. | `Footer` and `#status-bar`: styles the bottom status bar(s). The `#status-bar` is primarily used for the main bottom toolbar which is populated by the `StatusBar` class in `ui_common.py`. | Generic message styles: `.info`, `.warning`, `.error`, `.success`, `.accent`, `.highlight`, `.user`, `.agent`, and `.welcome` for various types of text messages. These styles are used by `AgentTUI` for direct Textual rendering, and their counterparts in `ui_common.py` are used by `RichRenderer` for Rich content. | . | **Interactive CLI Elements** | ` ",
+    "url": "/cli/STYLES.html",
+    
+    "relUrl": "/cli/STYLES.html"
+  },"35": {
+    "doc": "Textual CLI for ADK Agents",
+    "title": "Textual CLI for ADK Agents",
+    "content": "# Textual CLI for ADK Agents The ADK now supports an enhanced **Textual CLI** that provides persistent input capabilities and the ability to interrupt long-running agent operations. This feature significantly improves the user experience by allowing real-time interaction with agents. ## Features ### 🎯 Persistent Input Pane - **Always-available input**: Type commands while the agent is processing - **Split-pane interface**: Output displayed above, input below - **Real-time typing**: No need to wait for agent responses to complete ### ⚡ Agent Interruption - **Ctrl+C interruption**: Stop long-running agent operations instantly - **Graceful cancellation**: Agents receive cancellation signals cleanly - **Immediate responsiveness**: Continue with new queries after interruption ### 🎨 Enhanced UI - **Themed interface**: Dark and light themes with dynamic switching - **Status indicators**: Real-time display of agent state - **Visual feedback**: Clear indication when agent is thinking vs. ready - **Keyboard shortcuts**: Comprehensive hotkey support - **Agent thought display**: Optional side pane showing agent's reasoning process ## Usage ### Command Line Options ```bash # Enable Textual CLI uv run python -m src.wrapper.adk.cli.cli --agent agents.devops --tui # With theme selection uv run python -m src.wrapper.adk.cli.cli --agent agents.devops --tui --theme dark # Regular CLI (original behavior) uv run python -m src.wrapper.adk.cli.cli --agent agents.devops ``` ### In-Application Commands | Command | Description |---------|-------------| `help` | Show available commands and shortcuts | `clear` | Clear the output pane | `theme toggle` | Switch between light/dark themes | `theme dark/light` | Set specific theme | `exit`, `quit`, `bye` | Exit the CLI | ### Keyboard Shortcuts | Shortcut | Action |----------|--------| `Enter` | Submit input (when agent not running) | `Alt+Enter` | Insert newline in input | `Ctrl+C` | Interrupt running agent | `Ctrl+D` | Exit application | `Ctrl+L` | Clear output pane | `Ctrl+T` | Toggle theme | `Ctrl+Y` | Toggle agent thought display | ## Technical Architecture ### Split-Pane Layout ``` ┌─────────────────────────────────────────────────────────────────┐ │ 🤖 Agent Output │ 🧠 Agent Thought │ │ │ │ │ Agent responses appear here in │ Agent's thinking process │ │ real-time as they're generated │ shows here when enabled │ │ │ (toggle with Ctrl+Y) │ │ │ │ ├───────────────────────────────────┴───────────────────────────────┤ │ 😎 User Input │ │ │ │ > Type your commands here... │ │ │ ├───────────────────────────────────────────────────────────────────┤ │ 🟢 Ready | 🧠ON | Theme: 🌒 Dark | 10:30:45 │ └───────────────────────────────────────────────────────────────────┘ ``` ### Async Task Management The Textual CLI uses asyncio for concurrent operations: - **Input handling**: Always responsive, even during agent processing - **Agent execution**: Runs in separate tasks that can be cancelled - **Output streaming**: Real-time display of agent responses - **State management**: Thread-safe tracking of agent status ### Interruption Mechanism When you press `Ctrl+C`: 1. **Detection**: Key binding captures the interrupt signal 2. **Task cancellation**: Current agent task receives `asyncio.CancelledError` 3. **Cleanup**: Agent resources are cleaned up gracefully 4. **Recovery**: System returns to ready state for new input ## Implementation Details ### Core Components ```python class TextualCLI: \"\"\"CLI with persistent input pane and agent interruption capabilities.\"\"\" def __init__(self, theme: Optional[UITheme] = None): # State management self.agent_running = False self.current_agent_task: Optional[asyncio.Task] = None # UI Components self.input_buffer = Buffer(multiline=True) self.output_buffer = Buffer(read_only=True) self.status_buffer = Buffer(read_only=True) ``` ### Key Methods - `register_input_callback()`: Set handler for user input - `register_interrupt_callback()`: Set handler for interruptions - `add_agent_output()`: Stream agent responses to output pane - `set_agent_task()`: Track current agent task for interruption ## Examples ### Basic Usage ```python import asyncio from src.wrapper.adk.cli.cli import run_cli # Run with Textual CLI await run_cli( agent_module_name=\"agents.devops\", tui=True, ui_theme=\"dark\" ) ``` ### Demo Script ```bash # Run the demo uv run python example_prompts/textual_cli_demo.py ``` ## Benefits ### For Users - **No waiting**: Continue typing while agent processes - **Control**: Stop long operations when needed - **Efficiency**: Better workflow with immediate responsiveness - **Visibility**: Clear status of what the agent is doing ### For Developers - **Better testing**: Interrupt long-running operations during development - **Debugging**: Cleaner separation of input/output streams - **Flexibility**: Choose between regular and textual modes - **Extensibility**: Framework for advanced CLI features ## Compatibility - **Backwards compatible**: Original CLI behavior preserved - **Opt-in feature**: Use `--tui` flag to enable - **Fallback support**: Gracefully falls back to regular CLI if needed - **Terminal support**: Works with modern terminal emulators ## Future Enhancements - **Multi-agent support**: Switch between different agents - **Session management**: Save/restore interactive sessions - **Plugin system**: Custom commands and shortcuts - **Advanced layouts**: Configurable pane arrangements --- The Textual CLI transforms the ADK agent interaction experience from a sequential question-answer pattern to a dynamic, responsive interface that puts users in control. ",
+    "url": "/cli/TEXTUAL_CLI.html",
+    
+    "relUrl": "/cli/TEXTUAL_CLI.html"
+  }
+}

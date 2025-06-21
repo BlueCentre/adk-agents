@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9 http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd" xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<url>
+<loc>http://localhost:4000/contributing.html</loc>
+</url>
+<url>
+<loc>http://localhost:4000/features.html</loc>
+</url>
+<url>
+<loc>http://localhost:4000/</loc>
+</url>
+<url>
+<loc>http://localhost:4000/usage.html</loc>
+</url>
+<url>
+<loc>http://localhost:4000/cli/INPUT_PANE_GUIDE.html</loc>
+</url>
+<url>
+<loc>http://localhost:4000/cli/MARKDOWN_RENDERING.html</loc>
+</url>
+<url>
+<loc>http://localhost:4000/cli/RICH_PROMPT_TOOLKIT_COMPATIBILITY.html</loc>
+</url>
+<url>
+<loc>http://localhost:4000/cli/STYLES.html</loc>
+</url>
+<url>
+<loc>http://localhost:4000/cli/TEXTUAL_CLI.html</loc>
+</url>
+</urlset>
