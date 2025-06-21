@@ -7,7 +7,7 @@ from typing import Optional, Callable, Any, Awaitable, Union
 from textual import work
 from textual.app import App, ComposeResult
 from textual.containers import Container, Vertical, Horizontal
-from textual.widgets import Input, RichLog, Label, Static, OptionList
+from textual.widgets import Input, TextArea, RichLog, Label, Static, OptionList
 from textual.widgets.option_list import Option
 from textual.binding import Binding
 from textual.events import Key
@@ -47,12 +47,13 @@ class AgentTUI(App):
     CSS_PATH = "ui_textual.tcss"
 
     BINDINGS = [
-        Binding("alt+enter", "insert_newline", "New Line", show=False),
+        Binding("f12", "toggle_user_multiline_input", "Toggle Input Mode", show=False),
         Binding("ctrl+t", "toggle_theme", "Toggle Theme", show=False),
         Binding("ctrl+y", "toggle_agent_thought", "Toggle Thought", show=False),
+
         Binding("ctrl+l", "clear_output", "Clear Screen", show=False),
-        Binding("ctrl+d", "quit", "Quit", show=False),
-        Binding("ctrl+c", "interrupt_agent", "Interrupt Agent", show=False),
+        Binding("ctrl+d", "quit", "Quit", show=False, priority=True),
+        Binding("ctrl+c", "interrupt_agent", "Interrupt Agent", show=False, priority=True),
         Binding("up", "history_previous", "Previous Command", show=False),
         Binding("down", "history_next", "Next Command", show=False),
         Binding("ctrl+p", "history_previous", "Previous Command", show=False),
@@ -65,6 +66,7 @@ class AgentTUI(App):
     agent_thought_enabled: reactive[bool] = reactive(True)
     agent_name: reactive[str] = reactive("Agent")
     session_id: reactive[str] = reactive("")
+    user_multiline_input_enabled: reactive[bool] = reactive(False)
     # _uptime: reactive[str] = reactive("00:00:00")
     # _current_time: reactive[str] = reactive(datetime.now().strftime('%H:%M:%S'))
     _thinking_animation_index: reactive[int] = reactive(0)
@@ -152,20 +154,30 @@ class AgentTUI(App):
                     event_log = RichLog(id="event-log", classes="event-pane")
                     event_log.border_title = "ℹ️ Events (Ctrl+Y to toggle)"
                     yield event_log
-            input_widget = CategorizedInput(
-                self.categorized_commands,
-                id="input-area",
-                classes="input-pane",
-            )
-            input_widget.border_title = "🧑 User Input"
-            yield input_widget
+            if self.user_multiline_input_enabled:
+                input_widget = SubmittableTextArea(
+                    id="input-area",
+                    classes="input-pane",
+                )
+                input_widget.border_title = "🧑 User Input (Multi-line) - Ctrl+S to submit, Enter for new line"
+                yield input_widget
+            else:
+                input_widget = CategorizedInput(
+                    self.categorized_commands,
+                    id="input-area",
+                    classes="input-pane",
+                )
+                input_widget.border_title = "🧑 User Input"
+                yield input_widget
             yield Static("", id="status-bar")
+
+
 
     def on_mount(self) -> None:
         """Called when app is mounted."""
         self.theme = "flexoki"
         self.set_interval(5.0, self._update_status)  # Reduced from 1.0 to 5.0 seconds to prevent mouse flickering
-        self.query_one("#input-area", CategorizedInput).focus()
+        self.query_one("#input-area").focus()
         import uuid
         self.session_id = str(uuid.uuid4())[:8]
 
@@ -178,6 +190,7 @@ class AgentTUI(App):
             
         # Schedule footer update after mount is complete
         self.call_after_refresh(self._update_status)
+
 
     def display_agent_welcome(self, agent_name: str, agent_description: str = "", tools: Optional[list] = None):
         """Display a comprehensive welcome message."""
@@ -432,6 +445,57 @@ class AgentTUI(App):
 
         self.add_output(f"Detailed pane display: {'ON' if self.agent_thought_enabled else 'OFF'}", rich_format=True, style="info")
 
+    def action_toggle_user_multiline_input(self) -> None:
+        """Toggle between single-line input (CategorizedInput) and multi-line input (TextArea)."""
+
+        # Save current input content
+        current_content = ""
+        try:
+            current_input = self.query_one("#input-area")
+            if hasattr(current_input, 'value'):
+                current_content = current_input.value
+            elif hasattr(current_input, 'text'):
+                current_content = current_input.text
+        except:
+            pass
+
+        # Toggle the mode
+        self.user_multiline_input_enabled = not self.user_multiline_input_enabled
+        
+        # Remove the current input widget and wait for it to be removed
+        try:
+            current_input = self.query_one("#input-area")
+            current_input.remove()
+        except:
+            pass
+
+        # Create the new input widget after a small delay to ensure removal is complete
+        def create_and_mount_new_input():
+            if self.user_multiline_input_enabled:
+                new_input = SubmittableTextArea(
+                    id="input-area",
+                    classes="input-pane",
+                    text=current_content
+                )
+                new_input.border_title = "🧑 User Input (Multi-line) - Ctrl+S to submit, Enter for new line"
+                self.add_output("📝 Switched to multi-line input mode (Ctrl+S to submit, Enter for new line)", rich_format=True, style="info")
+            else:
+                new_input = CategorizedInput(
+                    self.categorized_commands,
+                    id="input-area",
+                    classes="input-pane",
+                    value=current_content
+                )
+                new_input.border_title = "🧑 User Input (Single-line)"
+                self.add_output("📝 Switched to single-line input mode (with tab completion)", rich_format=True, style="info")
+
+            # Mount the new widget before the status bar
+            self.mount(new_input, before="#status-bar")
+            self.call_after_refresh(lambda: new_input.focus())
+
+        # Schedule the creation and mounting after the current refresh cycle
+        self.call_after_refresh(create_and_mount_new_input)
+
     def start_thinking(self) -> None:
         """Start the thinking animation."""
         self.agent_thinking = True
@@ -467,8 +531,13 @@ class AgentTUI(App):
     async def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle user input submitted from the input area."""
         content = event.value.strip()
-        input_widget = self.query_one("#input-area", CategorizedInput)
-        input_widget.clear()
+        input_widget = self.query_one("#input-area")
+        
+        # Clear the input widget (handling both types)
+        if hasattr(input_widget, 'clear'):
+            input_widget.clear()
+        elif hasattr(input_widget, 'text'):
+            input_widget.text = ""
 
         if content:
             # Handle built-in commands
@@ -481,6 +550,9 @@ class AgentTUI(App):
                 return
             elif content.lower() == 'help':
                 self._show_help()
+                return
+            elif content.lower() == 'toggle':
+                self.action_toggle_user_multiline_input()
                 return
             elif content.lower().startswith('theme'):
                 parts = content.lower().split()
@@ -501,7 +573,8 @@ class AgentTUI(App):
             # Add to history (both app and input widget)
             self.command_history.append(content)
             self.history_index = len(self.command_history)
-            input_widget.add_to_history(content)
+            if hasattr(input_widget, 'add_to_history'):
+                input_widget.add_to_history(content)
 
             # Process user input through callback
             if self.input_callback:
@@ -517,6 +590,11 @@ class AgentTUI(App):
                     self.agent_running = False
         else:
             self.add_output("💡 Type a message and press Enter to send it to the agent", rich_format=True, style="info")
+
+    # async def on_text_area_changed(self, event: TextArea.Changed) -> None:
+    #     """Handle TextArea content changes - submit on Ctrl+Enter."""
+    #     # This will be handled by key bindings instead
+    #     pass
 
     def add_output(self, text: Union[str, Text], author: str = "User", rich_format: bool = False, style: str = ""):
         """Add text to the output log."""
@@ -753,6 +831,22 @@ class AgentTUI(App):
         """Check if the agent is currently in thinking state."""
         return self.agent_thinking
 
+class SubmittableTextArea(TextArea):
+    """TextArea that can submit content on Enter."""
+    
+    def on_key(self, event: Key) -> None:
+        """Handle key events."""
+        if event.key == "ctrl+s":
+            # Submit the content on Ctrl+S
+            content = self.text.strip()
+            if content:
+                # Create a synthetic Input.Submitted event
+                from textual.widgets import Input
+                submit_event = Input.Submitted(self, content)
+                self.post_message(submit_event)
+            event.prevent_default()
+        # Let Enter and other keys be handled by TextArea's default behavior (Enter creates new line)
+
 class CategorizedInput(Input):
     """
     A custom Input widget that provides tab completion for categorized commands
@@ -790,13 +884,11 @@ class CategorizedInput(Input):
         elif event.key == "down":
             self._navigate_history(1)
             event.prevent_default()
-        elif event.key == "alt+enter":
-            self.action_insert_newline()
-            event.prevent_default()
         elif event.key == "ctrl+d":
             self.action_quit()
             event.prevent_default()
-        # Let other keys be handled normally
+
+        # Let other keys be handled normally - no need to call super() as Input doesn't have on_key
 
     def action_insert_newline(self) -> None:
         """Action to insert a newline in the input area."""
