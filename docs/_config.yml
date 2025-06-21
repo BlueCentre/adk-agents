@@ -11,6 +11,12 @@ color_scheme: dark
 # Repository information
 repository: BlueCentre/adk-agents
 
+# Mermaid diagram support
+mermaid:
+  # Version of mermaid library
+  # Pick an available version from https://cdn.jsdelivr.net/npm/mermaid/
+  version: "11.4.0"
+
 # Plugins
 plugins:
   - jekyll-sitemap # Create a sitemap using the official Jekyll sitemap gem
