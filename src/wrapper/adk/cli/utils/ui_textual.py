@@ -53,11 +53,11 @@ class AgentTUI(App):
         Binding("ctrl+l", "clear_output", "Clear Screen", show=False),
         Binding("ctrl+d", "quit", "Quit", show=False),
         Binding("ctrl+c", "interrupt_agent", "Interrupt Agent", show=False),
-        # Removed tab binding - handled by CategorizedInput widget directly
         Binding("up", "history_previous", "Previous Command", show=False),
         Binding("down", "history_next", "Next Command", show=False),
         Binding("ctrl+p", "history_previous", "Previous Command", show=False),
         Binding("ctrl+n", "history_next", "Next Command", show=False),
+        # Removed tab binding - handled by CategorizedInput widget directly
     ]
 
     agent_running: reactive[bool] = reactive(False)
@@ -790,7 +790,22 @@ class CategorizedInput(Input):
         elif event.key == "down":
             self._navigate_history(1)
             event.prevent_default()
+        elif event.key == "alt+enter":
+            self.action_insert_newline()
+            event.prevent_default()
+        elif event.key == "ctrl+d":
+            self.action_quit()
+            event.prevent_default()
         # Let other keys be handled normally
+
+    def action_insert_newline(self) -> None:
+        """Action to insert a newline in the input area."""
+        # Input widget doesn't support multiline, so this action is not applicable
+        pass
+
+    def action_quit(self) -> None:
+        """Quit the application."""
+        self.app.exit()
 
     def add_to_history(self, command: str):
         """Add a command to the history."""

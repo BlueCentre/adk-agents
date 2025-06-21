@@ -150,3 +150,6 @@ celerybeat.pid
 
 # mkdocs documentation
 /site
+
+# Temporary
+slack/
