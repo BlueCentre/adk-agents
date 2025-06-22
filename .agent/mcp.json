@@ -38,6 +38,12 @@
         "DATADOG_APP_KEY": "{{env.DATADOG_APP_KEY}}"
       },
       "suppress_output": true
+    },
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "@playwright/mcp@latest"
+      ]
     }
   }
 }
