@@ -236,65 +236,7 @@ class AgentTUI(App):
         # Update footer after setting agent name
         self._update_status()
 
-    def display_model_usage(
-            self,
-            prompt_tokens: int = 0,
-            completion_tokens: int = 0, 
-            total_tokens: int = 0,
-            thinking_tokens: int = 0,
-            model_name: str = "Unknown"
-        ):
-        """Display model usage information in the thought pane."""
-        # Update internal tracking
-        self._prompt_tokens = prompt_tokens
-        self._output_tokens = completion_tokens
-        self._total_tokens = total_tokens
-        self._thinking_tokens = thinking_tokens
-        self._model_name = model_name
-
-        # Display in thought pane if enabled
-        if self.agent_thought_enabled:
-            try:
-                event_log = self.query_one("#event-log", RichLog)
-
-                # Create token usage display
-                token_parts = []
-                if prompt_tokens > 0:
-                    token_parts.append(f"Prompt: {prompt_tokens:,}")
-                if thinking_tokens > 0:
-                    token_parts.append(f"Thinking: {thinking_tokens:,}")
-                if completion_tokens > 0:
-                    token_parts.append(f"Output: {completion_tokens:,}")
-                if total_tokens > 0:
-                    token_parts.append(f"Total: {total_tokens:,}")
-
-                # token_display = ", ".join(token_parts)
-
-                token_info_str = f"Tokens: {', '.join(token_parts)}"
-                model_info_str = f"Model: {self._model_name}" if self._model_name else ""
-
-                # Use the centralized rich renderer for model usage panel
-                content_panel = self.rich_renderer.format_model_usage(f"{token_info_str}\n{model_info_str}")
-                event_log.write(content_panel)
-
-            except Exception as e:
-                self.add_output(f"📊 Model Usage: {total_tokens} tokens", style="info")
-        # else:
-        #     # If thoughts are disabled, show in main output as before
-        #     token_parts = []
-        #     if prompt_tokens > 0:
-        #         token_parts.append(f"Prompt: {prompt_tokens:,}")
-        #     if thinking_tokens > 0:
-        #         token_parts.append(f"Thinking: {thinking_tokens:,}")
-        #     if completion_tokens > 0:
-        #         token_parts.append(f"Output: {completion_tokens:,}")
-        #     if total_tokens > 0:
-        #         token_parts.append(f"Total: {total_tokens:,}")
-
-        #     # token_display = ", ".join(token_parts)
-        #     self.add_output(f"📊 Model Usage: {total_tokens} tokens", style="info")
-
-    def _show_help(self):
+    def display_user_help(self):
         """Display help information."""
         help_text = Text.from_markup("""
 [bold cyan]🔧 Available Commands:[/bold cyan]
@@ -400,6 +342,11 @@ class AgentTUI(App):
             # Silently fail footer updates to avoid disrupting the UI
             pass
 
+    def _animate_thinking(self) -> None:
+        """Animate the thinking indicator."""
+        if self.agent_thinking:
+            self._thinking_animation_index = (self._thinking_animation_index + 1) % len(self._thinking_frames)
+
     def start_thinking(self) -> None:
         """Start the thinking animation."""
         self.agent_thinking = True
@@ -414,122 +361,21 @@ class AgentTUI(App):
             self._thinking_timer = None
         self._thinking_animation_index = 0
 
-    def is_thinking(self) -> bool:
-        """Check if the agent is currently in thinking state."""
-        return self.agent_thinking
+    # def is_thinking(self) -> bool:
+    #     """Check if the agent is currently in thinking state."""
+    #     return self.agent_thinking
 
-    def _animate_thinking(self) -> None:
-        """Animate the thinking indicator."""
-        if self.agent_thinking:
-            self._thinking_animation_index = (self._thinking_animation_index + 1) % len(self._thinking_frames)
+    # def set_agent_task(self, task: asyncio.Task):
+    #     """Set the current agent task for interruption."""
+    #     self.current_agent_task = task
+    #     self.agent_running = True
 
-    # async def on_text_area_changed(self, event: TextArea.Changed) -> None:
-    #     """Handle TextArea content changes - submit on Ctrl+Enter."""
-    #     # This will be handled by key bindings instead
-    #     pass
-
-    def add_output(self, text: Union[str, Text], author: str = "User", rich_format: bool = False, style: str = ""):
-        """Add text to the output log."""
-        output_log = self.query_one("#output-log", RichLog)
-        if rich_format:
-            if isinstance(text, Text):
-                output_log.write(text)
-            elif author in ["Agent", "agent"] or "Agent" in author:  # More flexible agent detection
-                panel_text = self.rich_renderer.format_agent_response(text, author)
-                output_log.write(panel_text)
-            else:
-                output_log.write(Text(text, style=style))
-        else:
-            output_log.write(text)
-
-    def add_agent_output(self, text: str, author: str = "Agent"):
-        """Add agent output with proper markdown rendering."""
-        output_log = self.query_one("#output-log", RichLog)
-        panel_text = self.rich_renderer.format_agent_response(text, author)
-        output_log.write(panel_text)
-
-    def add_thought(self, text: str):
-        """Add text to the agent thought log."""
-        if self.agent_thought_enabled:
-            event_log = self.query_one("#event-log", RichLog)
-            event_log.write(self.rich_renderer.format_agent_thought(text))
-
-    def add_tool_event(self, tool_name: str, event_type: str, args: Optional[dict] = None, result: Any = None, duration: Optional[float] = None):
-        """Add a tool execution event to the thought pane."""
-        if not self.agent_thought_enabled:
-            return
-            
-        try:
-            event_log = self.query_one("#event-log", RichLog)
-            
-            if event_type == "start":
-                # Tool execution start
-                content_panel = self.rich_renderer.format_running_tool(tool_name, args)
-                event_log.write(content_panel)
-                
-                # Update tool usage tracking
-                self._tools_used += 1
-                self._last_tool_used = tool_name
-                
-            elif event_type == "finish":
-                # Tool execution finish
-                content_panel = self.rich_renderer.format_tool_finished(tool_name, result, duration)
-                event_log.write(content_panel)
-                
-            elif event_type == "error":
-                # Tool execution error
-                error_msg = str(result) if result else "Unknown error"
-                content_panel = self.rich_renderer.format_tool_error(tool_name, error_msg)
-                event_log.write(content_panel)
-                
-        except Exception as e:
-            # Fallback to regular output if thought pane fails
-            self.add_output(f"Tool {event_type}: {tool_name}", style="info")
-
-    def add_agent_thought(self, thought_text: str):
-        """Add agent thought to the thought pane."""
-        if not self.agent_thought_enabled:
-            return
-            
-        try:
-            event_log = self.query_one("#event-log", RichLog)
-            
-            # Format the thought with proper styling using the rich_renderer
-            content_panel = self.rich_renderer.format_agent_thought(thought_text)
-            event_log.write(content_panel)
-            
-        except Exception as e:
-            # Fallback to regular output if thought pane fails
-            self.add_output(f"💭 {thought_text}", style="info")
-
-    def set_agent_task(self, task: asyncio.Task):
-        """Set the current agent task for interruption."""
-        self.current_agent_task = task
-        self.agent_running = True
-
-    def set_thinking_state(self, thinking: bool) -> None:
-        """Manually control the thinking state (useful for external integrations)."""
-        if thinking:
-            self.start_thinking()
-        else:
-            self.stop_thinking()
-
-    def register_input_callback(self, callback: Callable[[str], Awaitable[Any]]):
-        """Register a callback function to handle user input."""
-        self.input_callback = callback
-
-    def register_interrupt_callback(self, callback: Callable[[], Awaitable[Any]]):
-        """Register a callback function to interrupt the agent."""
-        self.interrupt_callback = callback
-
-    def register_tool_callbacks(self, before_tool_callback, after_tool_callback):
-        """Register callbacks for tool execution events."""
-        self._before_tool_callback = before_tool_callback
-        self._after_tool_callback = after_tool_callback
-
-    def register_thought_callback(self, thought_callback):
-        """Register callback for agent thoughts."""
-        self._thought_callback = thought_callback
+    # def set_thinking_state(self, thinking: bool) -> None:
+    #     """Manually control the thinking state (useful for external integrations)."""
+    #     if thinking:
+    #         self.start_thinking()
+    #     else:
+    #         self.stop_thinking()
 
     def watch_agent_name(self, name: str) -> None:
         """Update footer and output panel title when agent name changes."""
@@ -781,7 +627,7 @@ class AgentTUI(App):
                 self.action_clear_output()
                 return
             elif content.lower() == 'help':
-                self._show_help()
+                self.display_user_help()
                 return
             elif content.lower() == 'toggle':
                 self.action_toggle_user_multiline_input()
@@ -822,6 +668,159 @@ class AgentTUI(App):
                     self.agent_running = False
         else:
             self.add_output("💡 Type a message and press Enter to send it to the agent", rich_format=True, style="info")
+
+    # BEGIN: Used from cli.py
+
+    def display_model_usage(
+            self,
+            prompt_tokens: int = 0,
+            completion_tokens: int = 0, 
+            total_tokens: int = 0,
+            thinking_tokens: int = 0,
+            model_name: str = "Unknown"
+        ):
+        """Display model usage information in the thought pane."""
+        # Update internal tracking
+        self._prompt_tokens = prompt_tokens
+        self._output_tokens = completion_tokens
+        self._total_tokens = total_tokens
+        self._thinking_tokens = thinking_tokens
+        self._model_name = model_name
+
+        # Display in thought pane if enabled
+        if self.agent_thought_enabled:
+            try:
+                event_log = self.query_one("#event-log", RichLog)
+
+                # Create token usage display
+                token_parts = []
+                if prompt_tokens > 0:
+                    token_parts.append(f"Prompt: {prompt_tokens:,}")
+                if thinking_tokens > 0:
+                    token_parts.append(f"Thinking: {thinking_tokens:,}")
+                if completion_tokens > 0:
+                    token_parts.append(f"Output: {completion_tokens:,}")
+                if total_tokens > 0:
+                    token_parts.append(f"Total: {total_tokens:,}")
+
+                # token_display = ", ".join(token_parts)
+
+                token_info_str = f"Tokens: {', '.join(token_parts)}"
+                model_info_str = f"Model: {self._model_name}" if self._model_name else ""
+
+                # Use the centralized rich renderer for model usage panel
+                content_panel = self.rich_renderer.format_model_usage(f"{token_info_str}\n{model_info_str}")
+                event_log.write(content_panel)
+
+            except Exception as e:
+                self.add_output(f"📊 Model Usage: {total_tokens} tokens", style="info")
+        # else:
+        #     # If thoughts are disabled, show in main output as before
+        #     token_parts = []
+        #     if prompt_tokens > 0:
+        #         token_parts.append(f"Prompt: {prompt_tokens:,}")
+        #     if thinking_tokens > 0:
+        #         token_parts.append(f"Thinking: {thinking_tokens:,}")
+        #     if completion_tokens > 0:
+        #         token_parts.append(f"Output: {completion_tokens:,}")
+        #     if total_tokens > 0:
+        #         token_parts.append(f"Total: {total_tokens:,}")
+
+        #     # token_display = ", ".join(token_parts)
+        #     self.add_output(f"📊 Model Usage: {total_tokens} tokens", style="info")
+
+    def add_output(self, text: Union[str, Text], author: str = "User", rich_format: bool = False, style: str = ""):
+        """Add text to the output log."""
+        output_log = self.query_one("#output-log", RichLog)
+        if rich_format:
+            if isinstance(text, Text):
+                output_log.write(text)
+            elif author in ["Agent", "agent"] or "Agent" in author:  # More flexible agent detection
+                panel_text = self.rich_renderer.format_agent_response(text, author)
+                output_log.write(panel_text)
+            else:
+                output_log.write(Text(text, style=style))
+        else:
+            output_log.write(text)
+
+    def add_agent_output(self, text: str, author: str = "Agent"):
+        """Add agent output with proper markdown rendering."""
+        output_log = self.query_one("#output-log", RichLog)
+        panel_text = self.rich_renderer.format_agent_response(text, author)
+        output_log.write(panel_text)
+
+    def add_thought(self, text: str):
+        """Add text to the agent thought log."""
+        if self.agent_thought_enabled:
+            event_log = self.query_one("#event-log", RichLog)
+            event_log.write(self.rich_renderer.format_agent_thought(text))
+
+    def add_tool_event(self, tool_name: str, event_type: str, args: Optional[dict] = None, result: Any = None, duration: Optional[float] = None):
+        """Add a tool execution event to the thought pane."""
+        if not self.agent_thought_enabled:
+            return
+            
+        try:
+            event_log = self.query_one("#event-log", RichLog)
+            
+            if event_type == "start":
+                # Tool execution start
+                content_panel = self.rich_renderer.format_running_tool(tool_name, args)
+                event_log.write(content_panel)
+                
+                # Update tool usage tracking
+                self._tools_used += 1
+                self._last_tool_used = tool_name
+                
+            elif event_type == "finish":
+                # Tool execution finish
+                content_panel = self.rich_renderer.format_tool_finished(tool_name, result, duration)
+                event_log.write(content_panel)
+                
+            elif event_type == "error":
+                # Tool execution error
+                error_msg = str(result) if result else "Unknown error"
+                content_panel = self.rich_renderer.format_tool_error(tool_name, error_msg)
+                event_log.write(content_panel)
+                
+        except Exception as e:
+            # Fallback to regular output if thought pane fails
+            self.add_output(f"Tool {event_type}: {tool_name}", style="info")
+
+    def add_agent_thought(self, thought_text: str):
+        """Add agent thought to the thought pane."""
+        if not self.agent_thought_enabled:
+            return
+            
+        try:
+            event_log = self.query_one("#event-log", RichLog)
+            
+            # Format the thought with proper styling using the rich_renderer
+            content_panel = self.rich_renderer.format_agent_thought(thought_text)
+            event_log.write(content_panel)
+            
+        except Exception as e:
+            # Fallback to regular output if thought pane fails
+            self.add_output(f"💭 {thought_text}", style="info")
+
+    def register_input_callback(self, callback: Callable[[str], Awaitable[Any]]):
+        """Register a callback function to handle user input."""
+        self.input_callback = callback
+
+    def register_interrupt_callback(self, callback: Callable[[], Awaitable[Any]]):
+        """Register a callback function to interrupt the agent."""
+        self.interrupt_callback = callback
+
+    # def register_tool_callbacks(self, before_tool_callback, after_tool_callback):
+    #     """Register callbacks for tool execution events."""
+    #     self._before_tool_callback = before_tool_callback
+    #     self._after_tool_callback = after_tool_callback
+
+    # def register_thought_callback(self, thought_callback):
+    #     """Register callback for agent thoughts."""
+    #     self._thought_callback = thought_callback
+
+    # END: Used from cli.py
 
 
 class CategorizedInput(Input):

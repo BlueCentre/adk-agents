@@ -15,11 +15,13 @@ from .ui_common import UITheme, ThemeConfig
 class RichRenderer:
     """Handles rendering of Rich components and markdown."""
 
+
     def __init__(self, theme: Optional[UITheme] = None):
         self.theme = theme or UITheme.DARK
         self.rich_theme = ThemeConfig.get_rich_theme(self.theme)
         self.console = Console(theme=self.rich_theme, force_interactive=True)
         self.markdown_enabled = True
+
 
     def format_agent_response(self, text: str, author: str = "Agent") -> Panel:
         markdown = Markdown(text, style="agent")

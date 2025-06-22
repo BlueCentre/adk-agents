@@ -90,6 +90,74 @@ async def run_input_file(
   return session
 
 
+def _filter_thought_content(text: str) -> tuple[str, list[str]]:
+  """Filter out thought content patterns from agent responses and return both filtered text and extracted thoughts."""
+  if not text or not text.strip():
+    return text, []
+    
+  lines = text.split('\n')
+  filtered_lines = []
+  extracted_thoughts = []
+  skip_section = False
+  current_thought = []
+  
+  for i, line in enumerate(lines):
+    line_lower = line.lower().strip()
+    
+    # Check for thought section markers - expand patterns based on agent's _is_thought_content
+    thought_markers = [
+      'thinking', 'approach', 'analytical', 'process', 'determining', 
+      'navigating', 'finding', 'current time', 'my approach',
+      # Add more patterns from the agent's _is_thought_content method
+      'thinking through', 'my analytical process', 'providing the requested information'
+    ]
+    
+    if line.startswith('**') and any(marker in line_lower for marker in thought_markers):
+      skip_section = True
+      current_thought = [line]  # Start collecting thought content
+      continue
+    
+    # Check for end of thought section (empty line or new content)
+    if skip_section and (not line.strip() or line.startswith('#') or 
+                        line.startswith('The ') or line.startswith('I ') or
+                        line.startswith('Here ') or line.startswith('Based on')):
+      if current_thought:
+        thought_text = '\n'.join(current_thought)
+        extracted_thoughts.append(thought_text)
+        current_thought = []
+      if line.startswith('The ') or line.startswith('I ') or line.startswith('Here ') or line.startswith('Based on'):
+        skip_section = False
+        filtered_lines.append(line)
+      continue
+    
+    # Skip lines that are part of thought content but collect them
+    if skip_section:
+      current_thought.append(line)
+      continue
+      
+    # Check for standalone thought patterns - expand based on agent patterns
+    standalone_patterns = [
+      'okay, so the user wants', 'let me think about', 'my best bet is to',
+      'first step is to', 'given my understanding', 'i recognize that',
+      'i need to', 'let\'s see', 'good practice, always', 'it\'s important to',
+      'essentially,', 'the logic is straightforward', 'i\'ll just', 'no need to',
+      'i remember that', 'i already', 'therefore,'
+    ]
+    
+    if any(pattern in line_lower for pattern in standalone_patterns):
+      extracted_thoughts.append(line)
+      continue
+    
+    # Keep the line if it's not thought content
+    filtered_lines.append(line)
+    
+  # Add any remaining thought content if the section didn't end gracefully
+  if current_thought:
+    thought_text = '\n'.join(current_thought)
+    extracted_thoughts.append(thought_text)
+    
+  return '\n'.join(filtered_lines), extracted_thoughts
+
 async def run_interactively(
     root_agent: BaseAgent,
     artifact_service: BaseArtifactService,
@@ -218,83 +286,6 @@ async def run_interactively(
   # Use graceful cleanup to handle MCP session cleanup errors
   from .utils.cleanup import close_runner_gracefully
   await close_runner_gracefully(runner)
-
-
-def _filter_thought_content(text: str) -> tuple[str, list[str]]:
-  """Filter out thought content patterns from agent responses and return both filtered text and extracted thoughts."""
-  if not text or not text.strip():
-    return text, []
-    
-  lines = text.split('\n')
-  filtered_lines = []
-  extracted_thoughts = []
-  skip_section = False
-  current_thought = []
-  
-  for i, line in enumerate(lines):
-    line_lower = line.lower().strip()
-    
-    # Check for thought section markers - expand patterns based on agent's _is_thought_content
-    thought_markers = [
-      'thinking', 'approach', 'analytical', 'process', 'determining', 
-      'navigating', 'finding', 'current time', 'my approach',
-      # Add more patterns from the agent's _is_thought_content method
-      'thinking through', 'my analytical process', 'providing the requested information'
-    ]
-    
-    if line.startswith('**') and any(marker in line_lower for marker in thought_markers):
-      skip_section = True
-      current_thought = [line]  # Start collecting thought content
-      continue
-    
-    # Check for end of thought section (empty line or new content)
-    if skip_section and (not line.strip() or line.startswith('#') or 
-                        line.startswith('The ') or line.startswith('I ') or
-                        line.startswith('Here ') or line.startswith('Based on')):
-      if current_thought:
-        thought_text = '\n'.join(current_thought)
-        extracted_thoughts.append(thought_text)
-        current_thought = []
-      if line.startswith('The ') or line.startswith('I ') or line.startswith('Here ') or line.startswith('Based on'):
-        skip_section = False
-        filtered_lines.append(line)
-      continue
-    
-    # Skip lines that are part of thought content but collect them
-    if skip_section:
-      current_thought.append(line)
-      continue
-      
-    # Check for standalone thought patterns - expand based on agent patterns
-    standalone_patterns = [
-      'okay, so the user wants', 'let me think about', 'my best bet is to',
-      'first step is to', 'given my understanding', 'i recognize that',
-      'i need to', 'let\'s see', 'good practice, always', 'it\'s important to',
-      'essentially,', 'the logic is straightforward', 'i\'ll just', 'no need to',
-      'i remember that', 'i already', 'therefore,'
-    ]
-    
-    if any(pattern in line_lower for pattern in standalone_patterns):
-      extracted_thoughts.append(line)
-      continue
-    
-    # Keep the line if it's not thought content
-    filtered_lines.append(line)
-    
-  # Add any remaining thought content if the section didn't end gracefully
-  if current_thought:
-    thought_text = '\n'.join(current_thought)
-    extracted_thoughts.append(thought_text)
-    
-  return '\n'.join(filtered_lines), extracted_thoughts
-
-
-# def _strip_rich_markup(text: str) -> str:
-#   """Strip rich markup from a string."""
-#   # This is a very basic stripping. For robust stripping, consider rich.text.Text.plain
-#   # or a more comprehensive regex.
-#   # Remove common rich tags like [], [bold], [green], etc.
-#   return re.sub(r"\[/?\w+\s*=\s*[^]]+\]|\[/?\w+\]", "", text)
 
 
 async def run_interactively_with_interruption(
@@ -473,24 +464,6 @@ async def run_interactively_with_interruption(
   # Use graceful cleanup to handle MCP session cleanup errors
   from .utils.cleanup import close_runner_gracefully
   await close_runner_gracefully(runner)
-
-
-# async def _process_agent_responses(agent_gen, cli):
-#   """Process events from the agent generator and display them in the CLI."""
-#   async for event in agent_gen:
-#     if event.content and event.content.parts:
-#       if text := ''.join(part.text or '' for part in event.content.parts):
-#         # Filter out thought content to prevent duplication
-#         filtered_text, extracted_thoughts = _filter_thought_content(text)
-        
-#         # Display agent thoughts in the thought pane if enabled
-#         if cli.agent_thought_enabled and extracted_thoughts:
-#           for thought in extracted_thoughts:
-#             cli.add_thought(thought)
-            
-#         # Display main agent output in the output pane
-#         if filtered_text.strip():  # Only display if there's non-thought content
-#           cli.add_agent_output(filtered_text, event.author)
 
 
 async def run_cli(
