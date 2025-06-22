@@ -133,6 +133,7 @@ include = ["wrapper*", "agents*"]
 
 [tool.setuptools.package-data]
 "wrapper.adk.cli.utils" = ["*.tcss"]
+"wrapper.adk.cli" = ["browser/*", "browser/**/*"]
 
 [dependency-groups]
 dev = [
