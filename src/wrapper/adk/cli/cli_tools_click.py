@@ -393,6 +393,86 @@ def cli_web(
   )
 
 
+@main.command("web-packaged")
+@fast_api_common_options()
+def cli_web_packaged(
+    session_db_url: str = "",
+    artifact_storage_uri: Optional[str] = None,
+    log_level: str = "INFO",
+    allow_origins: Optional[list[str]] = None,
+    host: str = "127.0.0.1",
+    port: int = 8000,
+    trace_to_cloud: bool = False,
+    reload: bool = True,
+):
+  """Runs a local FastAPI server for the ADK Web UI using packaged agents.
+
+  This command uses the agents that are bundled with the package, so no local
+  agents directory is required. Perfect for trying out the web interface
+  without setting up any local agent files.
+
+  Example:
+
+    agent web-packaged --session_db_url "sqlite:///sessions.db"
+  """
+  # Get the packaged agents directory
+  import os
+  import sys
+  try:
+    # Try to find the agents directory in the package
+    import importlib.util
+    
+    # First, try to import the agents module to see if it's available
+    try:
+      import agents
+      agents_dir = os.path.dirname(agents.__file__)
+    except ImportError:
+      # Fallback: look for agents directory relative to the package
+      # Find the package root directory
+      current_file = os.path.abspath(__file__)
+      # Navigate up from src/wrapper/adk/cli/cli_tools_click.py to package root
+      package_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_file))))
+      agents_dir = os.path.join(package_root, 'agents')
+      
+      if not os.path.exists(agents_dir):
+        click.echo("Error: Packaged agents not found. Please use 'agent web' with a local agents directory.", err=True)
+        click.echo(f"Searched for agents in: {agents_dir}", err=True)
+        return
+    
+    if not os.path.exists(agents_dir):
+      click.echo("Error: Packaged agents directory not found. Please use 'agent web' with a local agents directory.", err=True)
+      return
+      
+  except Exception as e:
+    click.echo(f"Error: Could not locate packaged agents: {e}", err=True)
+    return
+
+  # When reload is enabled, we need to use a different approach
+  # since uvicorn requires an import string for reload functionality
+  if reload:
+    # For reload mode, we disable it and show a helpful message
+    # This is because our current architecture doesn't support reload with dynamic app creation
+    print("INFO: Reload mode is not supported with the current FastAPI app architecture.")
+    print("INFO: Running without reload. Use --no-reload to suppress this message.")
+    reload = False
+
+  print(f"INFO: Using packaged agents from: {agents_dir}")
+  
+  uvicorn.run(
+      get_fast_api_app(
+          agents_dir=agents_dir,
+          session_db_url=session_db_url,
+          artifact_storage_uri=artifact_storage_uri,
+          allow_origins=list(allow_origins) if allow_origins else None,
+          web=True,
+          trace_to_cloud=trace_to_cloud,
+      ),
+      host=host,
+      port=port,
+      reload=reload,
+  )
+
+
 @main.command("api_server")
 # The directory of agents, where each sub-directory is a single agent.
 # By default, it is the current working directory
