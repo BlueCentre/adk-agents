@@ -67,7 +67,7 @@ env/
 .server-memory.json
 .adk/
 .agent/memory.json
-push.sh
+sessions.db
 
 # IDE and editor files
 .vscode/

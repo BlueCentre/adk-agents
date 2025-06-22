@@ -369,6 +369,15 @@ def cli_web(
 
     adk web agents/devops
   """
+  # When reload is enabled, we need to use a different approach
+  # since uvicorn requires an import string for reload functionality
+  if reload:
+    # For reload mode, we disable it and show a helpful message
+    # This is because our current architecture doesn't support reload with dynamic app creation
+    print("INFO: Reload mode is not supported with the current FastAPI app architecture.")
+    print("INFO: Running without reload. Use --no-reload to suppress this message.")
+    reload = False
+  
   uvicorn.run(
       get_fast_api_app(
           agents_dir=agents_dir,
@@ -415,6 +424,15 @@ def cli_api_server(
 
     adk api_server agents/devops
   """
+  # When reload is enabled, we need to use a different approach
+  # since uvicorn requires an import string for reload functionality
+  if reload:
+    # For reload mode, we disable it and show a helpful message
+    # This is because our current architecture doesn't support reload with dynamic app creation
+    print("INFO: Reload mode is not supported with the current FastAPI app architecture.")
+    print("INFO: Running without reload. Use --no-reload to suppress this message.")
+    reload = False
+  
   uvicorn.run(
       get_fast_api_app(
           agents_dir=agents_dir,

@@ -122,25 +122,41 @@ adk run agents/devops --tui --ui_theme dark
 Launch a web-based interface for browser interaction:
 
 ```bash
-# Basic web interface
+# Basic web interface (uses in-memory sessions)
 adk web agents/
 
-# With custom configuration
-adk web agents/ --host 0.0.0.0 --port 8080 --allow_origins "https://mydomain.com"
-
-# With session persistence
+# With persistent session storage (recommended)
 adk web agents/ --session_db_url "sqlite:///sessions.db"
 
-# With cloud tracing
-adk web agents/ --trace_to_cloud
+# Production configuration
+adk web agents/ \
+  --host 0.0.0.0 \
+  --port 8080 \
+  --session_db_url "postgresql://user:pass@host:port/db" \
+  --artifact_storage_uri "gs://my-bucket" \
+  --allow_origins "https://mydomain.com" \
+  --trace_to_cloud
 ```
 
 **Features:**
-- Modern web-based UI
-- Session management
-- Artifact storage support
-- CORS configuration
-- Auto-reload for development
+- Modern web-based UI accessible at `http://localhost:8000`
+- Automatic session recovery for interrupted conversations
+- Persistent session storage with database support
+- Artifact storage and management
+- CORS configuration for cross-origin requests
+- Built-in error handling and recovery
+
+**Session Management Options:**
+
+| Storage Type | Command | Use Case |
+|--------------|---------|----------|
+| In-Memory | `adk web agents/` | Quick testing (sessions lost on restart) |
+| SQLite | `adk web agents/ --session_db_url "sqlite:///sessions.db"` | Development & local use |
+| PostgreSQL | `adk web agents/ --session_db_url "postgresql://..."` | Production deployments |
+| Agent Engine | `adk web agents/ --session_db_url "agentengine://resource_id"` | Google Cloud managed |
+
+{: .tip }
+> **Recommended:** Use `--session_db_url "sqlite:///sessions.db"` for persistent sessions that survive server restarts. The database file will be created automatically.
 
 ### 🔌 API Server
 
@@ -368,10 +384,19 @@ adk run agents/devops --resume infrastructure_review.json
 - Use `--tui` flag for better control
 - Check terminal compatibility
 
+**Web Interface Issues:**
+- **Static files not loading**: Restart the server, files are served automatically
+- **Session errors in browser**: Use `--session_db_url "sqlite:///sessions.db"` for persistence
+- **Port already in use**: Change port with `--port 8080` or stop conflicting services
+- **CORS errors**: Add your domain with `--allow_origins "https://yourdomain.com"`
+- **Auto-reload warnings**: Normal behavior, use `--no-reload` to suppress message
+
 **Session Errors:**
-- Verify database URL format
-- Check permissions for SQLite files
-- Ensure network connectivity for remote databases
+- **"Session not found" errors**: Use persistent sessions with `--session_db_url "sqlite:///sessions.db"`
+- **Sessions lost on restart**: Switch from in-memory to database storage
+- **Database connection issues**: Verify database URL format and permissions
+- **SQLite permission errors**: Check write permissions in the directory
+- **Network database issues**: Ensure connectivity for remote databases
 
 **Deployment Issues:**
 - Verify Google Cloud authentication: `gcloud auth list`

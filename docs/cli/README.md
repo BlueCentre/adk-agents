@@ -32,10 +32,12 @@ Full-featured terminal interface with persistent interaction capabilities:
 
 ### Web Interface
 Modern browser-based interface for web-native interactions:
-- Responsive design for all devices
-- Session persistence and management
-- Artifact upload and download
-- CORS support for integration
+- Responsive design accessible at `http://localhost:8000`
+- Automatic session recovery for interrupted conversations
+- Persistent session storage with database support
+- Artifact upload, download, and management
+- CORS support for cross-origin integration
+- Built-in error handling and graceful degradation
 
 ### API Server
 RESTful API for programmatic access and integration:
@@ -48,6 +50,9 @@ RESTful API for programmatic access and integration:
 
 ### [Textual CLI Guide](./TEXTUAL_CLI.md)
 Complete guide to the Textual CLI with persistent input panes and agent interruption capabilities.
+
+### [Web Interface Guide](./WEB_INTERFACE_GUIDE.md)
+Comprehensive guide to the web interface with session management, troubleshooting, and deployment options.
 
 ### [Input Pane Guide](./INPUT_PANE_GUIDE.md)
 Detailed guide to using the input pane with categorized auto-completion and advanced features.
@@ -132,14 +137,33 @@ Launch web interface for browser-based interaction.
 adk web AGENTS_DIR [OPTIONS]
 ```
 
+**Examples:**
+```bash
+# Basic web interface (in-memory sessions)
+adk web agents/
+
+# With persistent sessions (recommended)
+adk web agents/ --session_db_url "sqlite:///sessions.db"
+
+# Production configuration
+adk web agents/ \
+  --host 0.0.0.0 \
+  --port 8080 \
+  --session_db_url "postgresql://user:pass@host:port/db" \
+  --artifact_storage_uri "gs://my-bucket"
+```
+
 **Options:**
 - `--host TEXT`: Binding host (default: 127.0.0.1)
 - `--port INTEGER`: Server port (default: 8000)
-- `--session_db_url TEXT`: Database URL for sessions
-- `--artifact_storage_uri TEXT`: Artifact storage URI
-- `--allow_origins TEXT`: CORS origins (multiple)
-- `--trace_to_cloud`: Enable cloud tracing
-- `--reload/--no-reload`: Auto-reload (default: enabled)
+- `--session_db_url TEXT`: Database URL for persistent sessions
+  - `sqlite:///sessions.db` - Local SQLite (recommended for development)
+  - `postgresql://...` - PostgreSQL for production
+  - `agentengine://resource_id` - Google Cloud managed sessions
+- `--artifact_storage_uri TEXT`: Artifact storage URI (`gs://bucket-name`)
+- `--allow_origins TEXT`: CORS origins (can be specified multiple times)
+- `--trace_to_cloud`: Enable cloud tracing for debugging
+- `--reload/--no-reload`: Auto-reload for development (default: enabled)
 
 #### `adk api_server`
 Run as RESTful API server for programmatic access.
@@ -295,6 +319,24 @@ adk run agents/devops  # Without --tui flag
 
 # Enable debug logging
 adk run agents/devops --tui --log_level DEBUG
+```
+
+**Web Interface Issues:**
+```bash
+# Session not found errors - use persistent storage
+adk web agents/ --session_db_url "sqlite:///sessions.db"
+
+# Port already in use
+adk web agents/ --port 8080
+
+# CORS errors for web integration
+adk web agents/ --allow_origins "https://yourdomain.com"
+
+# Auto-reload warnings (normal behavior)
+adk web agents/ --no-reload  # Suppress message
+
+# Static files not loading (restart server)
+# Files are served automatically from built-in directory
 ```
 
 **Session Problems:**

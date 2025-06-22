@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager
+import json
 import logging
 import os
 from pathlib import Path
@@ -112,7 +113,9 @@ def get_fast_api_app(
 
   # Serve static files from the build directory.
   if web:
-    app.mount("/dev-ui", StaticFiles(directory="src/wrapper/adk/cli/browser"))
+    import os
+    browser_dir = os.path.join(os.path.dirname(__file__), "browser")
+    app.mount("/dev-ui", StaticFiles(directory=browser_dir, html=True))
 
   @app.get("/list-apps")
   def list_apps() -> list[str]:
@@ -310,18 +313,40 @@ def get_fast_api_app(
       run_config = RunConfig(streaming_mode=StreamingMode.NONE)
 
     events = []
-    async for event in runner.run_async(
-        user_id=req.user_id,
-        session_id=req.session_id,
-        new_message=req.new_message,
-        run_config=run_config,
-    ):
-      if trace_to_cloud:
-        # trace_dict[event.id] = ApiServerSpanExporter().get_spans_for_trace(
-        #     event.trace_id
-        # ) # Re-added trace_dict update
-        pass
-      events.append(event)
+    try:
+      async for event in runner.run_async(
+          user_id=req.user_id,
+          session_id=req.session_id,
+          new_message=req.new_message,
+          run_config=run_config,
+      ):
+        if trace_to_cloud:
+          # trace_dict[event.id] = ApiServerSpanExporter().get_spans_for_trace(
+          #     event.trace_id
+          # ) # Re-added trace_dict update
+          pass
+        events.append(event)
+    except ValueError as e:
+      if "Session not found" in str(e):
+        # Create a new session and retry
+        logger.info(f"Session {req.session_id} not found, creating new session")
+        await session_service.create_session(
+            app_name=req.app_name, 
+            user_id=req.user_id, 
+            session_id=req.session_id
+        )
+        # Retry the request
+        async for event in runner.run_async(
+            user_id=req.user_id,
+            session_id=req.session_id,
+            new_message=req.new_message,
+            run_config=run_config,
+        ):
+          if trace_to_cloud:
+            pass
+          events.append(event)
+      else:
+        raise HTTPException(status_code=500, detail=str(e))
 
     return events
 
@@ -351,18 +376,46 @@ def get_fast_api_app(
       run_config = RunConfig(streaming_mode=StreamingMode.NONE)
 
     async def event_generator():
-      async for event in runner.run_async(
-          user_id=req.user_id,
-          session_id=req.session_id,
-          new_message=req.new_message,
-          run_config=run_config,
-      ):
-        if trace_to_cloud:
-          # trace_dict[event.id] = ApiServerSpanExporter().get_spans_for_trace(
-          #     event.trace_id
-          # ) # Re-added trace_dict update
-          pass
-        yield f"data: {event.model_dump_json()}\n\n"
+      try:
+        async for event in runner.run_async(
+            user_id=req.user_id,
+            session_id=req.session_id,
+            new_message=req.new_message,
+            run_config=run_config,
+        ):
+          if trace_to_cloud:
+            # trace_dict[event.id] = ApiServerSpanExporter().get_spans_for_trace(
+            #     event.trace_id
+            # ) # Re-added trace_dict update
+            pass
+          yield f"data: {event.model_dump_json()}\n\n"
+      except ValueError as e:
+        if "Session not found" in str(e):
+          # Create a new session and retry
+          logger.info(f"Session {req.session_id} not found, creating new session")
+          await session_service.create_session(
+              app_name=req.app_name, 
+              user_id=req.user_id, 
+              session_id=req.session_id
+          )
+          # Retry the request
+          async for event in runner.run_async(
+              user_id=req.user_id,
+              session_id=req.session_id,
+              new_message=req.new_message,
+              run_config=run_config,
+          ):
+            if trace_to_cloud:
+              pass
+            yield f"data: {event.model_dump_json()}\n\n"
+        else:
+          # Send error event to client
+          error_event = {
+            "type": "error",
+            "message": str(e),
+            "timestamp": "2025-06-22T11:00:00Z"
+          }
+          yield f"data: {json.dumps(error_event)}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
