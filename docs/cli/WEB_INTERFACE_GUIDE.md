@@ -22,10 +22,20 @@ The web interface offers:
 
 ## 🚀 Quick Start
 
-### Basic Usage
+### Zero-Setup Web Interface (Recommended)
 
 ```bash
-# Start the web interface
+# No local setup required - uses packaged agents
+adk web-packaged --session_db_url "sqlite:///sessions.db"
+
+# Access in browser
+open http://localhost:8000
+```
+
+### Local Agents Setup
+
+```bash
+# Start the web interface with local agents
 adk web agents/
 
 # Access in browser
@@ -36,7 +46,7 @@ open http://localhost:8000
 
 ```bash
 # Use SQLite for session persistence
-adk web agents/ --session_db_url "sqlite:///sessions.db"
+adk web-packaged --session_db_url "sqlite:///sessions.db"
 
 # Access in browser
 open http://localhost:8000
@@ -44,8 +54,14 @@ open http://localhost:8000
 
 ## 📋 Command Reference
 
-### Basic Command
+### Available Commands
 
+#### **Zero-Setup Command (Recommended)**
+```bash
+adk web-packaged [OPTIONS]
+```
+
+#### **Local Agents Command**
 ```bash
 adk web AGENTS_DIR [OPTIONS]
 ```
@@ -53,14 +69,17 @@ adk web AGENTS_DIR [OPTIONS]
 ### Common Examples
 
 ```bash
-# Development setup with persistent sessions
+# Zero-setup with persistent sessions (recommended)
+adk web-packaged --session_db_url "sqlite:///sessions.db"
+
+# Local agents with persistent sessions
 adk web agents/ --session_db_url "sqlite:///sessions.db"
 
-# Custom port and host
-adk web agents/ --host 0.0.0.0 --port 8080
+# Custom port and host (zero-setup)
+adk web-packaged --host 0.0.0.0 --port 8080 --session_db_url "sqlite:///sessions.db"
 
-# Production configuration
-adk web agents/ \
+# Production configuration (zero-setup)
+adk web-packaged \
   --host 0.0.0.0 \
   --port 8080 \
   --session_db_url "postgresql://user:pass@host:port/db" \
@@ -69,8 +88,34 @@ adk web agents/ \
   --trace_to_cloud
 
 # Suppress auto-reload message
-adk web agents/ --no-reload --session_db_url "sqlite:///sessions.db"
+adk web-packaged --no-reload --session_db_url "sqlite:///sessions.db"
 ```
+
+## 🔄 Command Comparison
+
+### `web-packaged` vs `web`
+
+| Feature | `web-packaged` | `web` |
+|---------|----------------|-------|
+| **Setup Required** | None | Local agents directory |
+| **Agents Source** | Bundled with package | Local filesystem |
+| **Use Case** | Quick demos, instant start | Development, custom agents |
+| **Installation** | Works with `uvx` immediately | Requires local agent files |
+| **Customization** | Limited to packaged agents | Full customization |
+
+### When to Use Each
+
+**Use `web-packaged` when:**
+- ✅ Quick demos or testing
+- ✅ Installing via `uvx` from git
+- ✅ No local setup desired
+- ✅ Using standard DevOps agent
+
+**Use `web` when:**
+- ✅ Developing custom agents
+- ✅ Need to modify agent behavior
+- ✅ Working with local agent files
+- ✅ Building custom workflows
 
 ## ⚙️ Configuration Options
 

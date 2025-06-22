@@ -131,7 +131,7 @@ adk create APP_NAME [OPTIONS]
 - `--region TEXT`: Google Cloud region
 
 #### `adk web`
-Launch web interface for browser-based interaction.
+Launch web interface for browser-based interaction using local agents directory.
 
 ```bash
 adk web AGENTS_DIR [OPTIONS]
@@ -153,7 +153,33 @@ adk web agents/ \
   --artifact_storage_uri "gs://my-bucket"
 ```
 
-**Options:**
+#### `adk web-packaged`
+Launch web interface using packaged agents (no local setup required).
+
+```bash
+adk web-packaged [OPTIONS]
+```
+
+**Examples:**
+```bash
+# Zero-setup web interface (recommended for quick start)
+adk web-packaged --session_db_url "sqlite:///sessions.db"
+
+# With custom configuration
+adk web-packaged \
+  --host 0.0.0.0 \
+  --port 8080 \
+  --session_db_url "sqlite:///sessions.db" \
+  --no-reload
+
+# Production setup with packaged agents
+adk web-packaged \
+  --session_db_url "postgresql://user:pass@host:port/db" \
+  --artifact_storage_uri "gs://my-bucket" \
+  --allow_origins "https://mydomain.com"
+```
+
+**Shared Options (both commands):**
 - `--host TEXT`: Binding host (default: 127.0.0.1)
 - `--port INTEGER`: Server port (default: 8000)
 - `--session_db_url TEXT`: Database URL for persistent sessions

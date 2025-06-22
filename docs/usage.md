@@ -121,6 +121,22 @@ adk run agents/devops --tui --ui_theme dark
 
 Launch a web-based interface for browser interaction:
 
+#### **Option 1: Zero-Setup Web Interface (Recommended for Quick Start)**
+
+```bash
+# No local setup required - uses packaged agents
+adk web-packaged --session_db_url "sqlite:///sessions.db"
+
+# With custom configuration
+adk web-packaged \
+  --host 0.0.0.0 \
+  --port 8080 \
+  --session_db_url "sqlite:///sessions.db" \
+  --no-reload
+```
+
+#### **Option 2: Local Agents Directory**
+
 ```bash
 # Basic web interface (uses in-memory sessions)
 adk web agents/
@@ -146,17 +162,24 @@ adk web agents/ \
 - CORS configuration for cross-origin requests
 - Built-in error handling and recovery
 
+**Command Comparison:**
+
+| Command | Agents Source | Use Case |
+|---------|---------------|----------|
+| `web-packaged` | Bundled with package | Quick demos, no setup required |
+| `web` | Local directory | Custom agents, development |
+
 **Session Management Options:**
 
 | Storage Type | Command | Use Case |
 |--------------|---------|----------|
-| In-Memory | `adk web agents/` | Quick testing (sessions lost on restart) |
-| SQLite | `adk web agents/ --session_db_url "sqlite:///sessions.db"` | Development & local use |
-| PostgreSQL | `adk web agents/ --session_db_url "postgresql://..."` | Production deployments |
-| Agent Engine | `adk web agents/ --session_db_url "agentengine://resource_id"` | Google Cloud managed |
+| In-Memory | `adk web-packaged` | Quick testing (sessions lost on restart) |
+| SQLite | `adk web-packaged --session_db_url "sqlite:///sessions.db"` | Development & local use |
+| PostgreSQL | `adk web-packaged --session_db_url "postgresql://..."` | Production deployments |
+| Agent Engine | `adk web-packaged --session_db_url "agentengine://resource_id"` | Google Cloud managed |
 
 {: .tip }
-> **Recommended:** Use `--session_db_url "sqlite:///sessions.db"` for persistent sessions that survive server restarts. The database file will be created automatically.
+> **Quick Start:** Use `adk web-packaged --session_db_url "sqlite:///sessions.db"` for instant web interface with no setup required!
 
 ### 🔌 API Server
 
