@@ -77,7 +77,7 @@ class AgentTUI(App):
                 'configure github actions', 'setup monitoring for', 'add logging to',
                 'create health checks', 'setup load balancer', 'configure autoscaling',
                 'list the k8s clusters and indicate the current one',
-                'list all the user applications in the qa- namespaces',
+                'list all the k8s user applications in non-system namespaces',
             ],
             '🔍 Code Analysis': [
                 'analyze this code', 'review the codebase', 'find security vulnerabilities', 
@@ -279,20 +279,20 @@ class AgentTUI(App):
 
             except Exception as e:
                 self.add_output(f"📊 Model Usage: {total_tokens} tokens", style="info")
-        else:
-            # If thoughts are disabled, show in main output as before
-            token_parts = []
-            if prompt_tokens > 0:
-                token_parts.append(f"Prompt: {prompt_tokens:,}")
-            if thinking_tokens > 0:
-                token_parts.append(f"Thinking: {thinking_tokens:,}")
-            if completion_tokens > 0:
-                token_parts.append(f"Output: {completion_tokens:,}")
-            if total_tokens > 0:
-                token_parts.append(f"Total: {total_tokens:,}")
+        # else:
+        #     # If thoughts are disabled, show in main output as before
+        #     token_parts = []
+        #     if prompt_tokens > 0:
+        #         token_parts.append(f"Prompt: {prompt_tokens:,}")
+        #     if thinking_tokens > 0:
+        #         token_parts.append(f"Thinking: {thinking_tokens:,}")
+        #     if completion_tokens > 0:
+        #         token_parts.append(f"Output: {completion_tokens:,}")
+        #     if total_tokens > 0:
+        #         token_parts.append(f"Total: {total_tokens:,}")
 
-            # token_display = ", ".join(token_parts)
-            self.add_output(f"📊 Model Usage: {total_tokens} tokens", style="info")
+        #     # token_display = ", ".join(token_parts)
+        #     self.add_output(f"📊 Model Usage: {total_tokens} tokens", style="info")
 
     def _show_help(self):
         """Display help information."""
@@ -400,105 +400,6 @@ class AgentTUI(App):
             # Silently fail footer updates to avoid disrupting the UI
             pass
 
-    # def action_insert_newline(self) -> None:
-    #     """Action to insert a newline in the input area."""
-    #     # Input widget doesn't support multiline, so this action is not applicable
-    #     pass
-
-    def action_clear_output(self) -> None:
-        """Clear the output log."""
-        output_log = self.query_one("#output-log", RichLog)
-        output_log.clear()
-        self.add_output("🧹 Screen cleared", rich_format=True, style="info")
-
-    # def action_quit(self) -> None:
-    #     """Quit the application."""
-    #     self.exit()
-
-    def action_toggle_theme(self) -> None:
-        """Toggle between light and dark themes."""
-        self.remove_class(self._current_ui_theme.value)
-        self._current_ui_theme = UITheme.LIGHT if self._current_ui_theme == UITheme.DARK else UITheme.DARK
-        self.add_class(self._current_ui_theme.value)
-        self.theme_config = ThemeConfig.get_theme_config(self._current_ui_theme)
-        self.rich_renderer.theme = self._current_ui_theme
-        self.rich_renderer.rich_theme = ThemeConfig.get_rich_theme(self._current_ui_theme)
-        self.rich_renderer.console = Console(theme=self.rich_renderer.rich_theme, force_interactive=True)
-        theme_name = "🌒 Dark" if self._current_ui_theme == UITheme.DARK else "🌞 Light"
-        self.add_output(f"Switched to {theme_name} theme", rich_format=True, style="info")
-
-    def action_toggle_agent_thought(self) -> None:
-        """Toggle agent thought display."""
-        self.agent_thought_enabled = not self.agent_thought_enabled
-
-        # Check if thought log already exists
-        try:
-            event_log = self.query_one("#event-log", RichLog)
-            if self.agent_thought_enabled:
-                # Show the thought log if it's hidden
-                event_log.display = True
-            else:
-                # Hide the thought log
-                event_log.display = False
-        except:
-            # Thought log doesn't exist, create it if needed
-            if self.agent_thought_enabled:
-                main_content = self.query_one("#main-content")
-                main_content.mount(RichLog(id="event-log", classes="event-pane"))
-
-        self.add_output(f"Detailed pane display: {'ON' if self.agent_thought_enabled else 'OFF'}", rich_format=True, style="info")
-
-    def action_toggle_user_multiline_input(self) -> None:
-        """Toggle between single-line input (CategorizedInput) and multi-line input (TextArea)."""
-
-        # Save current input content
-        current_content = ""
-        try:
-            current_input = self.query_one("#input-area")
-            if hasattr(current_input, 'value'):
-                current_content = current_input.value
-            elif hasattr(current_input, 'text'):
-                current_content = current_input.text
-        except:
-            pass
-
-        # Toggle the mode
-        self.user_multiline_input_enabled = not self.user_multiline_input_enabled
-        
-        # Remove the current input widget and wait for it to be removed
-        try:
-            current_input = self.query_one("#input-area")
-            current_input.remove()
-        except:
-            pass
-
-        # Create the new input widget after a small delay to ensure removal is complete
-        def create_and_mount_new_input():
-            if self.user_multiline_input_enabled:
-                new_input = SubmittableTextArea(
-                    id="input-area",
-                    classes="input-pane",
-                    text=current_content
-                )
-                new_input.border_title = "🧑 User Input (Multi-line) - Ctrl+S to submit, Enter for new line"
-                self.add_output("📝 Switched to multi-line input mode (Ctrl+S to submit, Enter for new line)", rich_format=True, style="info")
-            else:
-                new_input = CategorizedInput(
-                    self.user_categorized_commands,
-                    id="input-area",
-                    classes="input-pane",
-                    value=current_content
-                )
-                new_input.border_title = "🧑 User Input (Single-line)"
-                self.add_output("📝 Switched to single-line input mode (with tab completion)", rich_format=True, style="info")
-
-            # Mount the new widget before the status bar
-            self.mount(new_input, before="#status-bar")
-            self.call_after_refresh(lambda: new_input.focus())
-
-        # Schedule the creation and mounting after the current refresh cycle
-        self.call_after_refresh(create_and_mount_new_input)
-
     def start_thinking(self) -> None:
         """Start the thinking animation."""
         self.agent_thinking = True
@@ -521,82 +422,6 @@ class AgentTUI(App):
         """Animate the thinking indicator."""
         if self.agent_thinking:
             self._thinking_animation_index = (self._thinking_animation_index + 1) % len(self._thinking_frames)
-
-    @work
-    async def action_interrupt_agent(self) -> None:
-        """Interrupt the running agent."""
-        if self.agent_running and self.current_agent_task and not self.current_agent_task.done():
-            self.current_agent_task.cancel()
-            self.add_output("⏹️ Agent interrupted by user", rich_format=True)
-
-        if self.interrupt_callback:
-            await self.interrupt_callback()
-
-        self.stop_thinking()
-        self.agent_running = False
-
-    async def on_input_submitted(self, event: Input.Submitted) -> None:
-        """Handle user input submitted from the input area."""
-        content = event.value.strip()
-        input_widget = self.query_one("#input-area")
-        
-        # Clear the input widget (handling both types)
-        if hasattr(input_widget, 'clear'):
-            input_widget.clear()
-        elif hasattr(input_widget, 'text'):
-            input_widget.text = ""
-
-        if content:
-            # Handle built-in commands
-            if content.lower() in ['exit', 'quit', 'bye']:
-                self.add_output("👋 Goodbye!", rich_format=True, style="info")
-                self.exit()
-                return
-            elif content.lower() == 'clear':
-                self.action_clear_output()
-                return
-            elif content.lower() == 'help':
-                self._show_help()
-                return
-            elif content.lower() == 'toggle':
-                self.action_toggle_user_multiline_input()
-                return
-            elif content.lower().startswith('theme'):
-                parts = content.lower().split()
-                if len(parts) == 1 or parts[1] == 'toggle':
-                    self.action_toggle_theme()
-                elif parts[1] == 'dark':
-                    self._current_ui_theme = UITheme.DARK
-                    self.add_class("dark", "theme-mode")
-                    self.remove_class("light", "theme-mode")
-                    self.add_output("🌒 Switched to dark theme", rich_format=True, style="info")
-                elif parts[1] == 'light':
-                    self._current_ui_theme = UITheme.LIGHT
-                    self.add_class("light", "theme-mode")
-                    self.remove_class("dark", "theme-mode")
-                    self.add_output("🌞 Switched to light theme", rich_format=True, style="info")
-                return
-
-            # Add to history (both app and input widget)
-            self.user_input_history.append(content)
-            self.user_input_history_index = len(self.user_input_history)
-            if hasattr(input_widget, 'add_to_history'):
-                input_widget.add_to_history(content)
-
-            # Process user input through callback
-            if self.input_callback:
-                self.agent_running = True
-                self.start_thinking()
-                try:
-                    # Create task properly for async callback
-                    await self.input_callback(content)
-                except Exception as e:
-                    self.add_output(f"❌ Error processing input: {str(e)}", rich_format=True, style="error")
-                finally:
-                    self.stop_thinking()
-                    self.agent_running = False
-        else:
-            self.add_output("💡 Type a message and press Enter to send it to the agent", rich_format=True, style="info")
 
     # async def on_text_area_changed(self, event: TextArea.Changed) -> None:
     #     """Handle TextArea content changes - submit on Ctrl+Enter."""
@@ -772,35 +597,33 @@ class AgentTUI(App):
     #     if self.is_mounted:
     #         self._update_status()
 
-    def update_token_usage(self, prompt_tokens: int = 0, thinking_tokens: int = 0, output_tokens: int = 0, total_tokens: int = 0, model_name: str = ""):
-        """Update token usage information."""
-        self._prompt_tokens = prompt_tokens
-        self._thinking_tokens = thinking_tokens
-        self._output_tokens = output_tokens
-        self._total_tokens = total_tokens
-        if model_name:
-            self._model_name = model_name
+    # def update_token_usage(self, prompt_tokens: int = 0, thinking_tokens: int = 0, output_tokens: int = 0, total_tokens: int = 0, model_name: str = ""):
+    #     """Update token usage information."""
+    #     self._prompt_tokens = prompt_tokens
+    #     self._thinking_tokens = thinking_tokens
+    #     self._output_tokens = output_tokens
+    #     self._total_tokens = total_tokens
+    #     if model_name:
+    #         self._model_name = model_name
         
-        # Display token usage in output pane
-        if total_tokens > 0:
-            if thinking_tokens > 0:
-                token_text = Text.from_markup(f"[dim]📊 Token Usage: Prompt: {prompt_tokens:,}, Thinking: {thinking_tokens:,}, Output: {output_tokens:,}, Total: {total_tokens:,}[/dim]")
-            else:
-                token_text = Text.from_markup(f"[dim]📊 Token Usage: Prompt: {prompt_tokens:,}, Output: {output_tokens:,}, Total: {total_tokens:,}[/dim]")
+    #     # Display token usage in output pane
+    #     if total_tokens > 0:
+    #         if thinking_tokens > 0:
+    #             token_text = Text.from_markup(f"[dim]📊 Token Usage: Prompt: {prompt_tokens:,}, Thinking: {thinking_tokens:,}, Output: {output_tokens:,}, Total: {total_tokens:,}[/dim]")
+    #         else:
+    #             token_text = Text.from_markup(f"[dim]📊 Token Usage: Prompt: {prompt_tokens:,}, Output: {output_tokens:,}, Total: {total_tokens:,}[/dim]")
             
-            self.add_output(token_text, rich_format=True)
+    #         self.add_output(token_text, rich_format=True)
 
-    def update_tool_usage(self, tool_name: str):
-        """Update tool usage information."""
-        self._tools_used += 1
-        self._last_tool = tool_name
+    # def update_tool_usage(self, tool_name: str):
+    #     """Update tool usage information."""
+    #     self._tools_used += 1
+    #     self._last_tool = tool_name
         
-        # Display tool usage in thought pane
-        if self.agent_thought_enabled:
-            tool_text = f"🔧 Tool Used: {tool_name} (Total: {self._tools_used})"
-            self.add_thought(tool_text)
-
-    # Removed action_trigger_completion - tab completion is now handled directly by CategorizedInput widget
+    #     # Display tool usage in thought pane
+    #     if self.agent_thought_enabled:
+    #         tool_text = f"🔧 Tool Used: {tool_name} (Total: {self._tools_used})"
+    #         self.add_thought(tool_text)
 
     def action_history_previous(self) -> None:
         """Navigate to previous command in history."""
@@ -833,6 +656,173 @@ class AgentTUI(App):
             # Clear input when going past last item
             self.user_input_history_index = len(self.user_input_history)
             input_widget.value = ""
+
+    def action_clear_output(self) -> None:
+        """Clear the output log."""
+        output_log = self.query_one("#output-log", RichLog)
+        output_log.clear()
+        self.add_output("🧹 Screen cleared", rich_format=True, style="info")
+
+    def action_toggle_theme(self) -> None:
+        """Toggle between light and dark themes."""
+        self.remove_class(self._current_ui_theme.value)
+        self._current_ui_theme = UITheme.LIGHT if self._current_ui_theme == UITheme.DARK else UITheme.DARK
+        self.add_class(self._current_ui_theme.value)
+        self.theme_config = ThemeConfig.get_theme_config(self._current_ui_theme)
+        self.rich_renderer.theme = self._current_ui_theme
+        self.rich_renderer.rich_theme = ThemeConfig.get_rich_theme(self._current_ui_theme)
+        self.rich_renderer.console = Console(theme=self.rich_renderer.rich_theme, force_interactive=True)
+        theme_name = "🌒 Dark" if self._current_ui_theme == UITheme.DARK else "🌞 Light"
+        self.add_output(f"Switched to {theme_name} theme", rich_format=True, style="info")
+
+    def action_toggle_agent_thought(self) -> None:
+        """Toggle agent thought display."""
+        self.agent_thought_enabled = not self.agent_thought_enabled
+
+        # Check if thought log already exists
+        try:
+            event_log = self.query_one("#event-log", RichLog)
+            if self.agent_thought_enabled:
+                # Show the thought log if it's hidden
+                event_log.display = True
+            else:
+                # Hide the thought log
+                event_log.display = False
+        except:
+            # Thought log doesn't exist, create it if needed
+            if self.agent_thought_enabled:
+                main_content = self.query_one("#main-content")
+                main_content.mount(RichLog(id="event-log", classes="event-pane"))
+
+        self.add_output(f"Detailed pane display: {'ON' if self.agent_thought_enabled else 'OFF'}", rich_format=True, style="info")
+
+    def action_toggle_user_multiline_input(self) -> None:
+        """Toggle between single-line input (CategorizedInput) and multi-line input (TextArea)."""
+
+        # Save current input content
+        current_content = ""
+        try:
+            current_input = self.query_one("#input-area")
+            if hasattr(current_input, 'value'):
+                current_content = current_input.value
+            elif hasattr(current_input, 'text'):
+                current_content = current_input.text
+        except:
+            pass
+
+        # Toggle the mode
+        self.user_multiline_input_enabled = not self.user_multiline_input_enabled
+        
+        # Remove the current input widget and wait for it to be removed
+        try:
+            current_input = self.query_one("#input-area")
+            current_input.remove()
+        except:
+            pass
+
+        # Create the new input widget after a small delay to ensure removal is complete
+        def create_and_mount_new_input():
+            if self.user_multiline_input_enabled:
+                new_input = SubmittableTextArea(
+                    id="input-area",
+                    classes="input-pane",
+                    text=current_content
+                )
+                new_input.border_title = "🧑 User Input (Multi-line) - Ctrl+S to submit, Enter for new line"
+                self.add_output("📝 Switched to multi-line input mode (Ctrl+S to submit, Enter for new line)", rich_format=True, style="info")
+            else:
+                new_input = CategorizedInput(
+                    self.user_categorized_commands,
+                    id="input-area",
+                    classes="input-pane",
+                    value=current_content
+                )
+                new_input.border_title = "🧑 User Input (Single-line)"
+                self.add_output("📝 Switched to single-line input mode (with tab completion)", rich_format=True, style="info")
+
+            # Mount the new widget before the status bar
+            self.mount(new_input, before="#status-bar")
+            self.call_after_refresh(lambda: new_input.focus())
+
+        # Schedule the creation and mounting after the current refresh cycle
+        self.call_after_refresh(create_and_mount_new_input)
+
+    @work
+    async def action_interrupt_agent(self) -> None:
+        """Interrupt the running agent."""
+        if self.agent_running and self.current_agent_task and not self.current_agent_task.done():
+            self.current_agent_task.cancel()
+            self.add_output("⏹️ Agent interrupted by user", rich_format=True)
+
+        if self.interrupt_callback:
+            await self.interrupt_callback()
+
+        self.stop_thinking()
+        self.agent_running = False
+
+    async def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Handle user input submitted from the input area."""
+        content = event.value.strip()
+        input_widget = self.query_one("#input-area")
+        
+        # Clear the input widget (handling both types)
+        if hasattr(input_widget, 'clear'):
+            input_widget.clear()
+        elif hasattr(input_widget, 'text'):
+            input_widget.text = ""
+
+        if content:
+            # Handle built-in commands
+            if content.lower() in ['exit', 'quit', 'bye']:
+                self.add_output("👋 Goodbye!", rich_format=True, style="info")
+                self.exit()
+                return
+            elif content.lower() == 'clear':
+                self.action_clear_output()
+                return
+            elif content.lower() == 'help':
+                self._show_help()
+                return
+            elif content.lower() == 'toggle':
+                self.action_toggle_user_multiline_input()
+                return
+            elif content.lower().startswith('theme'):
+                parts = content.lower().split()
+                if len(parts) == 1 or parts[1] == 'toggle':
+                    self.action_toggle_theme()
+                elif parts[1] == 'dark':
+                    self._current_ui_theme = UITheme.DARK
+                    self.add_class("dark", "theme-mode")
+                    self.remove_class("light", "theme-mode")
+                    self.add_output("🌒 Switched to dark theme", rich_format=True, style="info")
+                elif parts[1] == 'light':
+                    self._current_ui_theme = UITheme.LIGHT
+                    self.add_class("light", "theme-mode")
+                    self.remove_class("dark", "theme-mode")
+                    self.add_output("🌞 Switched to light theme", rich_format=True, style="info")
+                return
+
+            # Add to history (both app and input widget)
+            self.user_input_history.append(content)
+            self.user_input_history_index = len(self.user_input_history)
+            if hasattr(input_widget, 'add_to_history'):
+                input_widget.add_to_history(content)
+
+            # Process user input through callback
+            if self.input_callback:
+                self.agent_running = True
+                self.start_thinking()
+                try:
+                    # Create task properly for async callback
+                    await self.input_callback(content)
+                except Exception as e:
+                    self.add_output(f"❌ Error processing input: {str(e)}", rich_format=True, style="error")
+                finally:
+                    self.stop_thinking()
+                    self.agent_running = False
+        else:
+            self.add_output("💡 Type a message and press Enter to send it to the agent", rich_format=True, style="info")
+
 
 class CategorizedInput(Input):
     """
@@ -950,6 +940,7 @@ class CategorizedInput(Input):
         
         return sorted(completions)
 
+
 class SubmittableTextArea(TextArea):
     """TextArea that can submit content on Enter."""
     
@@ -965,6 +956,7 @@ class SubmittableTextArea(TextArea):
                 self.post_message(submit_event)
             event.prevent_default()
         # Let Enter and other keys be handled by TextArea's default behavior (Enter creates new line)
+
 
 class CompletionWidget(ModalScreen[str]):
     """
