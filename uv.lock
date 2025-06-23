@@ -98,7 +98,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.115.13" },
     { name = "flit", marker = "extra == 'dev'", specifier = ">=3.10.0" },
     { name = "furo", marker = "extra == 'docs'" },
-    { name = "google-adk", git = "https://github.com/google/adk-python.git?rev=main" },
+    { name = "google-adk", git = "https://github.com/BlueCentre/adk-python.git?rev=feat%2Frich-click" },
     { name = "google-api-core", specifier = ">=2.19.0" },
     { name = "google-cloud-aiplatform", extras = ["evaluation"], marker = "extra == 'eval'", specifier = ">=1.87.0" },
     { name = "google-genai", specifier = "~=1.19.0" },
@@ -1246,12 +1246,10 @@ wheels = [
 [[package]]
 name = "google-adk"
 version = "1.4.2"
-source = { git = "https://github.com/google/adk-python.git?rev=main#7c670f638bc17374ceb08740bdd057e55c9c2e12" }
+source = { git = "https://github.com/BlueCentre/adk-python.git?rev=feat%2Frich-click#4dc3dea68d9093ffea56feb64fdd56b5c822c302" }
 dependencies = [
     { name = "anyio", marker = "python_full_version >= '3.10'" },
     { name = "authlib" },
-    { name = "click", version = "8.1.8", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
-    { name = "click", version = "8.2.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "fastapi" },
     { name = "google-api-python-client" },
     { name = "google-cloud-aiplatform", extra = ["agent-engines"] },
@@ -1269,6 +1267,7 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "pyyaml" },
     { name = "requests" },
+    { name = "rich-click" },
     { name = "sqlalchemy" },
     { name = "starlette" },
     { name = "typing-extensions" },
@@ -4761,6 +4760,21 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/ab/3a/0316b28d0761c6734d6bc14e770d85506c986c85ffb239e688eeaab2c2bc/rich-13.9.4.tar.gz", hash = "sha256:439594978a49a09530cff7ebc4b5c7103ef57baf48d5ea3184f21d9a2befa098", size = 223149, upload-time = "2024-11-01T16:43:57.873Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/19/71/39c7c0d87f8d4e6c020a393182060eaefeeae6c01dab6a84ec346f2567df/rich-13.9.4-py3-none-any.whl", hash = "sha256:6049d5e6ec054bf2779ab3358186963bac2ea89175919d699e378b99738c2a90", size = 242424, upload-time = "2024-11-01T16:43:55.817Z" },
+]
+
+[[package]]
+name = "rich-click"
+version = "1.8.9"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "click", version = "8.1.8", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "click", version = "8.2.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
+    { name = "rich" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b7/a8/dcc0a8ec9e91d76ecad9413a84b6d3a3310c6111cfe012d75ed385c78d96/rich_click-1.8.9.tar.gz", hash = "sha256:fd98c0ab9ddc1cf9c0b7463f68daf28b4d0033a74214ceb02f761b3ff2af3136", size = 39378, upload-time = "2025-05-19T21:33:05.569Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b6/c2/9fce4c8a9587c4e90500114d742fe8ef0fd92d7bad29d136bb9941add271/rich_click-1.8.9-py3-none-any.whl", hash = "sha256:c3fa81ed8a671a10de65a9e20abf642cfdac6fdb882db1ef465ee33919fbcfe2", size = 36082, upload-time = "2025-05-19T21:33:04.195Z" },
 ]
 
 [[package]]
