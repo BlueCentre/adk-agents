@@ -15,6 +15,8 @@
 from __future__ import annotations
 
 import asyncio
+import collections
+from contextlib import asynccontextmanager
 from datetime import datetime
 import functools
 import logging
@@ -23,6 +25,7 @@ import tempfile
 from typing import Optional
 
 import rich_click as click
+from fastapi import FastAPI
 import uvicorn
 
 from . import cli_create
@@ -32,6 +35,11 @@ from .cli import run_cli
 from .fast_api import get_fast_api_app
 from .utils import logs
 
+
+LOG_LEVELS = click.Choice(
+    ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+    case_sensitive=False,
+)
 
 class HelpfulCommand(click.Command):
   """Command that shows full help on error instead of just the error message.
@@ -244,8 +252,8 @@ def cli_run(
     session_id: Optional[str],
     replay: Optional[str],
     resume: Optional[str],
-    ui_theme: Optional[str],
-    tui: bool,
+    ui_theme: Optional[str], # Extend for TUI
+    tui: bool, # Extend for TUI
 ):
     """Runs an interactive CLI for a certain agent.
 
@@ -253,9 +261,10 @@ def cli_run(
 
     Example:
 
-    adk-agent run agents.devops
+    adk-agent run agents.devops OR agent run agents.devops
     """
     logs.log_to_tmp_folder()
+
     asyncio.run(
         run_cli(
             agent_module_name=agent_module_name,
@@ -267,6 +276,46 @@ def cli_run(
             tui=tui,
         )
     )
+
+
+def adk_services_options():
+  """Decorator to add ADK services options to click commands."""
+
+  def decorator(func):
+    @click.option(
+        "--session_service_uri",
+        help=(
+            """Optional. The URI of the session service.
+          - Use 'agentengine://<agent_engine_resource_id>' to connect to Agent Engine sessions.
+          - Use 'sqlite://<path_to_sqlite_file>' to connect to a SQLite DB.
+          - See https://docs.sqlalchemy.org/en/20/core/engines.html#backend-specific-urls for more details on supported database URIs."""
+        ),
+    )
+    @click.option(
+        "--artifact_service_uri",
+        type=str,
+        help=(
+            "Optional. The URI of the artifact service,"
+            " supported URIs: gs://<bucket name> for GCS artifact service."
+        ),
+        default=None,
+    )
+    @click.option(
+        "--memory_service_uri",
+        type=str,
+        help=(
+            """Optional. The URI of the memory service.
+            - Use 'rag://<rag_corpus_id>' to connect to Vertex AI Rag Memory Service."""
+        ),
+        default=None,
+    )
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+      return func(*args, **kwargs)
+
+    return wrapper
+
+  return decorator
 
 
 def fast_api_common_options():
@@ -341,7 +390,15 @@ def fast_api_common_options():
 
 
 @main.command("web")
+@click.option(
+    "--host",
+    type=str,
+    help="Optional. The binding host of the server",
+    default="127.0.0.1",
+    show_default=True,
+)
 @fast_api_common_options()
+@adk_services_options()
 @click.argument(
     "agents_dir",
     type=click.Path(
@@ -351,59 +408,88 @@ def fast_api_common_options():
 )
 def cli_web(
     agents_dir: str,
-    session_db_url: str = "",
-    artifact_storage_uri: Optional[str] = None,
     log_level: str = "INFO",
     allow_origins: Optional[list[str]] = None,
     host: str = "127.0.0.1",
     port: int = 8000,
     trace_to_cloud: bool = False,
     reload: bool = True,
+    session_service_uri: Optional[str] = None,
+    artifact_service_uri: Optional[str] = None,
+    memory_service_uri: Optional[str] = None,
+    session_db_url: Optional[str] = None,  # Deprecated
+    artifact_storage_uri: Optional[str] = None,  # Deprecated
 ):
-  """Runs a local FastAPI server for the ADK Web UI.
+  """Starts a FastAPI server with Web UI for agents.
 
-  AGENTS_DIR: required, the directory of agents, where each sub-directory is a
-  single agent.
+  AGENTS_DIR: The directory of agents, where each sub-directory is a single
+  agent, containing at least `__init__.py` and `agent.py` files.
 
   Example:
 
-    adk web agents/devops
+    adk web --port=[port] path/to/agents_dir
   """
-  # When reload is enabled, we need to use a different approach
-  # since uvicorn requires an import string for reload functionality
-  if reload:
-    # For reload mode, we disable it and show a helpful message
-    # This is because our current architecture doesn't support reload with dynamic app creation
-    print("INFO: Reload mode is not supported with the current FastAPI app architecture.")
-    print("INFO: Running without reload. Use --no-reload to suppress this message.")
-    reload = False
-  
-  uvicorn.run(
-      get_fast_api_app(
-          agents_dir=agents_dir,
-          session_db_url=session_db_url,
-          artifact_storage_uri=artifact_storage_uri,
-          allow_origins=list(allow_origins) if allow_origins else None,
-          web=True,
-          trace_to_cloud=trace_to_cloud,
-      ),
+  logs.setup_adk_logger(getattr(logging, log_level.upper()))
+
+  @asynccontextmanager
+  async def _lifespan(app: FastAPI):
+    click.secho(
+        f"""
++-----------------------------------------------------------------------------+
+| ADK Web Server started                                                      |
+|                                                                             |
+| For local testing, access at http://localhost:{port}.{" "*(29 - len(str(port)))}|
++-----------------------------------------------------------------------------+
+""",
+        fg="green",
+    )
+    yield  # Startup is done, now app is running
+    click.secho(
+        """
++-----------------------------------------------------------------------------+
+| ADK Web Server shutting down...                                             |
++-----------------------------------------------------------------------------+
+""",
+        fg="green",
+    )
+
+  session_service_uri = session_service_uri or session_db_url
+  artifact_service_uri = artifact_service_uri or artifact_storage_uri
+  app = get_fast_api_app(
+      agents_dir=agents_dir,
+      session_service_uri=session_service_uri,
+      artifact_service_uri=artifact_service_uri,
+      memory_service_uri=memory_service_uri,
+      allow_origins=allow_origins,
+      web=True,
+      trace_to_cloud=trace_to_cloud,
+      lifespan=_lifespan,
+  )
+  config = uvicorn.Config(
+      app,
       host=host,
       port=port,
       reload=reload,
   )
 
+  server = uvicorn.Server(config)
+  server.run()
+
 
 @main.command("web-packaged")
 @fast_api_common_options()
 def cli_web_packaged(
-    session_db_url: str = "",
-    artifact_storage_uri: Optional[str] = None,
     log_level: str = "INFO",
     allow_origins: Optional[list[str]] = None,
     host: str = "127.0.0.1",
     port: int = 8000,
     trace_to_cloud: bool = False,
     reload: bool = True,
+    session_service_uri: Optional[str] = None,
+    artifact_service_uri: Optional[str] = None,
+    memory_service_uri: Optional[str] = None,
+    session_db_url: Optional[str] = None,  # Deprecated
+    artifact_storage_uri: Optional[str] = None,  # Deprecated
 ):
   """Runs a local FastAPI server for the ADK Web UI using packaged agents.
 
@@ -415,13 +501,15 @@ def cli_web_packaged(
 
     agent web-packaged --session_db_url "sqlite:///sessions.db"
   """
+  logs.setup_adk_logger(getattr(logging, log_level.upper()))
+
   # Get the packaged agents directory
-  import os
-  import sys
+  # import os
+  # import sys
   try:
     # Try to find the agents directory in the package
     import importlib.util
-    
+
     # First, try to import the agents module to see if it's available
     try:
       import agents
@@ -433,47 +521,99 @@ def cli_web_packaged(
       # Navigate up from src/wrapper/adk/cli/cli_tools_click.py to package root
       package_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_file))))
       agents_dir = os.path.join(package_root, 'agents')
-      
+
       if not os.path.exists(agents_dir):
         click.echo("Error: Packaged agents not found. Please use 'agent web' with a local agents directory.", err=True)
         click.echo(f"Searched for agents in: {agents_dir}", err=True)
         return
-    
+
     if not os.path.exists(agents_dir):
       click.echo("Error: Packaged agents directory not found. Please use 'agent web' with a local agents directory.", err=True)
       return
-      
   except Exception as e:
     click.echo(f"Error: Could not locate packaged agents: {e}", err=True)
     return
 
-  # When reload is enabled, we need to use a different approach
-  # since uvicorn requires an import string for reload functionality
-  if reload:
-    # For reload mode, we disable it and show a helpful message
-    # This is because our current architecture doesn't support reload with dynamic app creation
-    print("INFO: Reload mode is not supported with the current FastAPI app architecture.")
-    print("INFO: Running without reload. Use --no-reload to suppress this message.")
-    reload = False
+  # # When reload is enabled, we need to use a different approach
+  # # since uvicorn requires an import string for reload functionality
+  # if reload:
+  #   # For reload mode, we disable it and show a helpful message
+  #   # This is because our current architecture doesn't support reload with dynamic app creation
+  #   print("INFO: Reload mode is not supported with the current FastAPI app architecture.")
+  #   print("INFO: Running without reload. Use --no-reload to suppress this message.")
+  #   reload = False
 
-  print(f"INFO: Using packaged agents from: {agents_dir}")
+  # print(f"INFO: Using packaged agents from: {agents_dir}")
   
-  uvicorn.run(
-      get_fast_api_app(
-          agents_dir=agents_dir,
-          session_db_url=session_db_url,
-          artifact_storage_uri=artifact_storage_uri,
-          allow_origins=list(allow_origins) if allow_origins else None,
-          web=True,
-          trace_to_cloud=trace_to_cloud,
-      ),
+  # uvicorn.run(
+  #     get_fast_api_app(
+  #         agents_dir=agents_dir,
+  #         session_db_url=session_db_url,
+  #         artifact_storage_uri=artifact_storage_uri,
+  #         allow_origins=list(allow_origins) if allow_origins else None,
+  #         web=True,
+  #         trace_to_cloud=trace_to_cloud,
+  #     ),
+  #     host=host,
+  #     port=port,
+  #     reload=reload,
+  # )
+
+  @asynccontextmanager
+  async def _lifespan(app: FastAPI):
+    click.secho(
+        f"""
++-----------------------------------------------------------------------------+
+| ADK Web Server started                                                      |
+|                                                                             |
+| For local testing, access at http://localhost:{port}.{" "*(29 - len(str(port)))}|
++-----------------------------------------------------------------------------+
+""",
+        fg="green",
+    )
+    yield  # Startup is done, now app is running
+    click.secho(
+        """
++-----------------------------------------------------------------------------+
+| ADK Web Server shutting down...                                             |
++-----------------------------------------------------------------------------+
+""",
+        fg="green",
+    )
+
+  session_service_uri = session_service_uri or session_db_url
+  artifact_service_uri = artifact_service_uri or artifact_storage_uri
+  app = get_fast_api_app(
+      agents_dir=agents_dir,
+      session_service_uri=session_service_uri,
+      artifact_service_uri=artifact_service_uri,
+      memory_service_uri=memory_service_uri,
+      allow_origins=allow_origins,
+      web=True,
+      trace_to_cloud=trace_to_cloud,
+      lifespan=_lifespan,
+  )
+  config = uvicorn.Config(
+      app,
       host=host,
       port=port,
       reload=reload,
   )
 
+  server = uvicorn.Server(config)
+  server.run()
+
 
 @main.command("api_server")
+@click.option(
+    "--host",
+    type=str,
+    help="Optional. The binding host of the server",
+    default="127.0.0.1",
+    show_default=True,
+)
+@fast_api_common_options()
+@adk_services_options()
 # The directory of agents, where each sub-directory is a single agent.
 # By default, it is the current working directory
 @click.argument(
@@ -483,42 +623,40 @@ def cli_web_packaged(
     ),
     default=os.getcwd(),
 )
-@fast_api_common_options()
 def cli_api_server(
     agents_dir: str,
-    session_db_url: str = "",
-    artifact_storage_uri: Optional[str] = None,
     log_level: str = "INFO",
     allow_origins: Optional[list[str]] = None,
     host: str = "127.0.0.1",
     port: int = 8000,
     trace_to_cloud: bool = False,
     reload: bool = True,
+    session_service_uri: Optional[str] = None,
+    artifact_service_uri: Optional[str] = None,
+    memory_service_uri: Optional[str] = None,
+    session_db_url: Optional[str] = None,  # Deprecated
+    artifact_storage_uri: Optional[str] = None,  # Deprecated
 ):
-  """Runs a local FastAPI server.
+  """Starts a FastAPI server for agents.
 
-  AGENTS_DIR: required, the directory of agents, where each sub-directory is a
-  single agent.
+  AGENTS_DIR: The directory of agents, where each sub-directory is a single
+  agent, containing at least `__init__.py` and `agent.py` files.
 
   Example:
 
-    adk api_server agents/devops
+    adk api_server --port=[port] path/to/agents_dir
   """
-  # When reload is enabled, we need to use a different approach
-  # since uvicorn requires an import string for reload functionality
-  if reload:
-    # For reload mode, we disable it and show a helpful message
-    # This is because our current architecture doesn't support reload with dynamic app creation
-    print("INFO: Reload mode is not supported with the current FastAPI app architecture.")
-    print("INFO: Running without reload. Use --no-reload to suppress this message.")
-    reload = False
-  
-  uvicorn.run(
+  logs.setup_adk_logger(getattr(logging, log_level.upper()))
+
+  session_service_uri = session_service_uri or session_db_url
+  artifact_service_uri = artifact_service_uri or artifact_storage_uri
+  config = uvicorn.Config(
       get_fast_api_app(
           agents_dir=agents_dir,
-          session_db_url=session_db_url,
-          artifact_storage_uri=artifact_storage_uri,
-          allow_origins=list(allow_origins) if allow_origins else None,
+          session_service_uri=session_service_uri,
+          artifact_service_uri=artifact_service_uri,
+          memory_service_uri=memory_service_uri,
+          allow_origins=allow_origins,
           web=False,
           trace_to_cloud=trace_to_cloud,
       ),
@@ -526,6 +664,8 @@ def cli_api_server(
       port=port,
       reload=reload,
   )
+  server = uvicorn.Server(config)
+  server.run()
 
 
 @deploy.command("cloud_run")

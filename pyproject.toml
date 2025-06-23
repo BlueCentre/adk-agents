@@ -39,8 +39,8 @@ dependencies = [
   "prompt_toolkit~=3.0.0", # For enhanced command-line input
   "textual~=3.4.0", # For enhanced TUI
   "pexpect>=4.9.0",
-  # "google-adk @ git+https://github.com/google/adk-python.git@main", # Added google-adk as a direct dependency
-  "google-adk @ git+https://github.com/BlueCentre/adk-python.git@feat/rich-click", # Added google-adk as a direct dependency
+  "google-adk @ git+https://github.com/google/adk-python.git@main", # Added google-adk as a direct dependency
+  # "google-adk @ git+https://github.com/BlueCentre/adk-python.git@feat/rich-click", # Added google-adk as a direct dependency
 ]
 dynamic = ["version"]
 
