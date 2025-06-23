@@ -149,8 +149,32 @@ class AgentRunRequest(common.BaseModel):
   streaming: bool = False
 
 
-class GetEventGraphResult(common.BaseModel):
-  dot_src: str
+class AddSessionToEvalSetRequest(common.BaseModel):
+  eval_id: str
+  session_id: str
+  user_id: str
+
+
+class RunEvalRequest(common.BaseModel):
+  eval_ids: list[str]  # if empty, then all evals in the eval set are run.
+  eval_metrics: list[EvalMetric]
+
+
+class RunEvalResult(common.BaseModel):
+  eval_set_file: str
+  eval_set_id: str
+  eval_id: str
+  final_eval_status: EvalStatus
+  eval_metric_results: list[tuple[EvalMetric, EvalMetricResult]] = Field(
+      deprecated=True,
+      description=(
+          "This field is deprecated, use overall_eval_metric_results instead."
+      ),
+  )
+  overall_eval_metric_results: list[EvalMetricResult]
+  eval_metric_result_per_invocation: list[EvalMetricResultPerInvocation]
+  user_id: str
+  session_id: str
 
 
 class GetEventGraphResult(common.BaseModel):
