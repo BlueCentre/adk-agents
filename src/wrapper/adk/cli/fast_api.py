@@ -58,7 +58,7 @@ from google.adk.agents.run_config import StreamingMode
 from google.adk.artifacts.gcs_artifact_service import GcsArtifactService
 from google.adk.artifacts.in_memory_artifact_service import InMemoryArtifactService
 from google.adk.auth.credential_service.in_memory_credential_service import InMemoryCredentialService
-from google.adk.cli_eval import EVAL_SESSION_ID_PREFIX
+from google.adk.cli.cli_eval import EVAL_SESSION_ID_PREFIX
 from google.adk.errors.not_found_error import NotFoundError
 from google.adk.events.event import Event
 from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
