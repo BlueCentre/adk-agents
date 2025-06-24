@@ -90,74 +90,6 @@ async def run_input_file(
   return session
 
 
-def _filter_thought_content(text: str) -> tuple[str, list[str]]:
-  """Filter out thought content patterns from agent responses and return both filtered text and extracted thoughts."""
-  if not text or not text.strip():
-    return text, []
-    
-  lines = text.split('\n')
-  filtered_lines = []
-  extracted_thoughts = []
-  skip_section = False
-  current_thought = []
-  
-  for i, line in enumerate(lines):
-    line_lower = line.lower().strip()
-    
-    # Check for thought section markers - expand patterns based on agent's _is_thought_content
-    thought_markers = [
-      'thinking', 'approach', 'analytical', 'process', 'determining', 
-      'navigating', 'finding', 'current time', 'my approach',
-      # Add more patterns from the agent's _is_thought_content method
-      'thinking through', 'my analytical process', 'providing the requested information'
-    ]
-    
-    if line.startswith('**') and any(marker in line_lower for marker in thought_markers):
-      skip_section = True
-      current_thought = [line]  # Start collecting thought content
-      continue
-    
-    # Check for end of thought section (empty line or new content)
-    if skip_section and (not line.strip() or line.startswith('#') or 
-                        line.startswith('The ') or line.startswith('I ') or
-                        line.startswith('Here ') or line.startswith('Based on')):
-      if current_thought:
-        thought_text = '\n'.join(current_thought)
-        extracted_thoughts.append(thought_text)
-        current_thought = []
-      if line.startswith('The ') or line.startswith('I ') or line.startswith('Here ') or line.startswith('Based on'):
-        skip_section = False
-        filtered_lines.append(line)
-      continue
-    
-    # Skip lines that are part of thought content but collect them
-    if skip_section:
-      current_thought.append(line)
-      continue
-      
-    # Check for standalone thought patterns - expand based on agent patterns
-    standalone_patterns = [
-      'okay, so the user wants', 'let me think about', 'my best bet is to',
-      'first step is to', 'given my understanding', 'i recognize that',
-      'i need to', 'let\'s see', 'good practice, always', 'it\'s important to',
-      'essentially,', 'the logic is straightforward', 'i\'ll just', 'no need to',
-      'i remember that', 'i already', 'therefore,'
-    ]
-    
-    if any(pattern in line_lower for pattern in standalone_patterns):
-      extracted_thoughts.append(line)
-      continue
-    
-    # Keep the line if it's not thought content
-    filtered_lines.append(line)
-    
-  # Add any remaining thought content if the section didn't end gracefully
-  if current_thought:
-    thought_text = '\n'.join(current_thought)
-    extracted_thoughts.append(thought_text)
-    
-  return '\n'.join(filtered_lines), extracted_thoughts
-
 async def run_interactively(
     root_agent: BaseAgent,
     artifact_service: BaseArtifactService,
@@ -165,13 +97,8 @@ async def run_interactively(
     session_service: BaseSessionService,
     ui_theme: Optional[str] = None,
 ) -> None:
-  runner = Runner(
-      app_name=session.app_name,
-      agent=root_agent,
-      artifact_service=artifact_service,
-      session_service=session_service,
-  )
-
+  """Run the agent interactively with fallback to basic CLI mode."""
+  
   # Initialize basic console for fallback with scrollback-friendly settings
   console = Console(
       force_interactive=False,  # Disable animations that might interfere with scrollback
@@ -201,6 +128,13 @@ async def run_interactively(
   else:
     console.print(f"🚀 Starting interactive session with agent {root_agent.name}")
     console.print("Enhanced UI features are disabled. Basic CLI mode active.")
+
+  runner = Runner(
+      app_name=session.app_name,
+      agent=root_agent,
+      artifact_service=artifact_service,
+      session_service=session_service,
+  )
 
   while True:
     try:
@@ -266,29 +200,38 @@ async def run_interactively(
         new_message=types.Content(role='user', parts=[types.Part(text=query)]),
     ):
       if event.content and event.content.parts:
-        if text := ''.join(part.text or '' for part in event.content.parts):
-          # Filter out thought content to prevent duplication
-          filtered_text, extracted_thoughts = _filter_thought_content(text)
-          
-          if filtered_text.strip():  # Only display if there's non-thought content
+        # Separate thought and non-thought content
+        regular_parts = []
+        thought_parts = []
+
+        for part in event.content.parts:
+          if hasattr(part, 'thought') and part.thought:
+            thought_parts.append(part)
+          else:
+            regular_parts.append(part)
+
+        # Handle regular content
+        if regular_text := ''.join(part.text or '' for part in regular_parts):
+          if regular_text.strip():
             if not fallback_mode and cli:
-              panel = cli.format_agent_response(filtered_text, event.author)
+              panel = cli.format_agent_response(regular_text, event.author)
               cli.console.print(panel)
             else:
               # Simple output for fallback mode
-              console.print(f"[green]{event.author}[/green]: {filtered_text}")
+              console.print(f"[green]{event.author}[/green]: {regular_text}")
 
-          # Display agent thoughts in the thought pane if enabled
-          if cli and hasattr(cli, 'agent_thought_enabled') and cli.agent_thought_enabled and extracted_thoughts:
-            for thought in extracted_thoughts:
-              cli.add_thought(thought)
+        # Handle thought content
+        if cli and hasattr(cli, 'agent_thought_enabled') and thought_parts:
+          for part in thought_parts:
+            if part.text:
+              cli.add_agent_thought(part.text)
 
   # Use graceful cleanup to handle MCP session cleanup errors
   from .utils.cleanup import close_runner_gracefully
   await close_runner_gracefully(runner)
 
 
-async def run_interactively_with_interruption(
+async def run_interactively_with_tui(
     root_agent: BaseAgent,
     artifact_service: BaseArtifactService,
     session: Session,
@@ -312,43 +255,43 @@ async def run_interactively_with_interruption(
   )
 
   # Store original agent console and replace it with a custom one that redirects to Textual UI
-  original_console = getattr(root_agent, '_console', None)
-  if original_console:
-    # Create a custom console that intercepts agent thought output
-    class TextualConsoleRedirect:
-      def __init__(self, original_console, textual_ui):
-        self.original_console = original_console
-        self.textual_ui = textual_ui
+  # original_console = getattr(root_agent, '_console', None)
+  # if original_console:
+  #   # Create a custom console that intercepts agent thought output
+  #   class TextualConsoleRedirect:
+  #     def __init__(self, original_console, textual_ui):
+  #       self.original_console = original_console
+  #       self.textual_ui = textual_ui
 
-      def print(self, *args, **kwargs):
-        # Check if this is an agent thought panel
-        if args and hasattr(args[0], 'title') and '🧠 Agent Thought' in str(args[0].title):
-          # Extract the thought content and send to Textual UI
-          if hasattr(args[0], 'renderable') and hasattr(args[0].renderable, 'plain'):
-            thought_text = args[0].renderable.plain
-            self.textual_ui.add_agent_thought(thought_text)
-          elif hasattr(args[0], 'renderable'):
-            # Fallback: convert to string
-            thought_text = str(args[0].renderable)
-            self.textual_ui.add_agent_thought(thought_text)
-        else:
-          # For non-thought output, pass through to original console
-          self.original_console.print(*args, **kwargs)
+  #     def print(self, *args, **kwargs):
+  #       # Check if this is an agent thought panel
+  #       if args and hasattr(args[0], 'title') and '🧠 Agent Thought' in str(args[0].title):
+  #         # Extract the thought content and send to Textual UI
+  #         if hasattr(args[0], 'renderable') and hasattr(args[0].renderable, 'plain'):
+  #           thought_text = args[0].renderable.plain
+  #           self.textual_ui.add_agent_thought(thought_text)
+  #         elif hasattr(args[0], 'renderable'):
+  #           # Fallback: convert to string
+  #           thought_text = str(args[0].renderable)
+  #           self.textual_ui.add_agent_thought(thought_text)
+  #       else:
+  #         # For non-thought output, pass through to original console
+  #         self.original_console.print(*args, **kwargs)
 
-      def __getattr__(self, name):
-        # Delegate all other methods to the original console
-        return getattr(self.original_console, name)
+  #     def __getattr__(self, name):
+  #       # Delegate all other methods to the original console
+  #       return getattr(self.original_console, name)
 
-    # Replace the agent's console
-    root_agent._console = TextualConsoleRedirect(original_console, app_tui)
+  #   # Replace the agent's console
+  #   root_agent._console = TextualConsoleRedirect(original_console, app_tui)
+
+  # Tool execution tracking
+  tool_start_times = {}
 
   # Store original agent callbacks
   original_before_tool = getattr(root_agent, 'before_tool_callback', None)
   original_after_tool = getattr(root_agent, 'after_tool_callback', None)
-  original_after_model = getattr(root_agent, 'after_model_callback', None)
-
-  # Tool execution tracking
-  tool_start_times = {}
+  # original_after_model = getattr(root_agent, 'after_model_callback', None)
 
   async def enhanced_before_tool(tool, args, tool_context, callback_context=None):
     """Enhanced before_tool callback that also sends events to Textual UI."""
@@ -406,18 +349,26 @@ async def run_interactively_with_interruption(
           new_message=content
       ):
         if event.content and event.content.parts:
-          if text := ''.join(part.text or '' for part in event.content.parts):
-            # Filter out thought content to prevent duplication
-            filtered_text, extracted_thoughts = _filter_thought_content(text)
+          # Separate thought and non-thought content
+          regular_parts = []
+          thought_parts = []
+          
+          for part in event.content.parts:
+            if hasattr(part, 'thought') and part.thought:
+              thought_parts.append(part)
+            else:
+              regular_parts.append(part)
 
-            # Display agent thoughts in the thought pane if enabled (fallback approach)
-            if app_tui.agent_thought_enabled and extracted_thoughts:
-              for thought in extracted_thoughts:
-                app_tui.add_agent_thought(thought)
+          # Handle thought content
+          if app_tui.agent_thought_enabled and thought_parts:
+            for part in thought_parts:
+              if part.text:
+                app_tui.add_agent_thought(part.text)
 
-            # Display main agent output in the output pane
-            if filtered_text.strip():  # Only display if there's non-thought content
-              app_tui.add_agent_output(filtered_text, event.author)
+          # Handle regular content
+          if regular_text := ''.join(part.text or '' for part in regular_parts):
+            if regular_text.strip():
+              app_tui.add_agent_output(regular_text, event.author)
 
         # Handle token usage from LLM responses
         if hasattr(event, 'usage_metadata') and event.usage_metadata:
@@ -454,8 +405,8 @@ async def run_interactively_with_interruption(
   await app_tui.run_async()
 
   # Restore original console and callbacks
-  if original_console:
-    root_agent._console = original_console
+  # if original_console:
+  #   root_agent._console = original_console
   if hasattr(root_agent, 'before_tool_callback'):
     root_agent.before_tool_callback = original_before_tool
   if hasattr(root_agent, 'after_tool_callback'):
@@ -516,7 +467,7 @@ async def run_cli(
         input_path=input_file,
     )
   elif saved_session_file:
-    session = await session_service.get_session(session_id=saved_session_file, app_name=agent_module_name)
+    session = await session_service.get_session(session_id=saved_session_file, app_name=agent_module_name, user_id="default-user")
     if not session:
       print(f"Error: Session with ID {saved_session_file} not found.")
       sys.exit(1)
@@ -530,7 +481,7 @@ async def run_cli(
   else:
     session = await session_service.create_session(app_name=agent_module_name, user_id="default-user")
     if tui:
-      await run_interactively_with_interruption(
+      await run_interactively_with_tui(
           root_agent=root_agent,
           artifact_service=artifact_service,
           session=session,
@@ -563,91 +514,3 @@ async def run_cli(
       f.write(session.model_dump_json(indent=2, exclude_none=True))
 
     print('Session saved to', session_path)
-
-
-# @click.group()
-# def cli():
-#   pass
-
-
-# @cli.command()
-# @click.option('--agent', '-a', required=True, help='Agent module name (e.g., agents.devops)')
-# @click.option('--input-file', '-i', help='Input file with queries')
-# @click.option('--saved-session', '-s', help='Saved session file to resume')
-# @click.option('--save-session', is_flag=True, help='Save session on exit')
-# @click.option('--session-id', help='Session ID for saving')
-# @click.option('--theme', type=click.Choice(['light', 'dark']), help='UI theme')
-# @click.option('--tui', is_flag=True, help='Use Textual CLI with persistent input pane')
-# def main(agent: str, input_file: Optional[str], saved_session: Optional[str], 
-#          save_session: bool, session_id: Optional[str], theme: Optional[str], tui: bool):
-#   # Load environment variables specific to the agent
-#   load_dotenv_for_agent(agent)
-
-#   if input_file and saved_session:
-#     print("Error: Cannot specify both --input-file and --saved-session.")
-#     sys.exit(1)
-
-#   # Use AgentLoader instance to load the agent
-#   agent_loader = AgentLoader()
-#   root_agent = agent_loader.load_agent(agent)
-  
-#   artifact_service = InMemoryArtifactService()
-#   session_service = InMemorySessionService()
-
-#   if input_file:
-#     asyncio.run(
-#         run_input_file(
-#             app_name=agent,
-#             user_id="default-user",
-#             root_agent=root_agent,
-#             artifact_service=artifact_service,
-#             session_service=session_service,
-#             input_path=input_file,
-#         )
-#     )
-#   elif saved_session:
-#     session = asyncio.run(session_service.get_session(session_id=saved_session, app_name=agent))
-#     if not session:
-#       print(f"Error: Session with ID {saved_session} not found.")
-#       sys.exit(1)
-#     asyncio.run(
-#         run_interactively(
-#             root_agent=root_agent,
-#             artifact_service=artifact_service,
-#             session=session,
-#             session_service=session_service,
-#             ui_theme=theme,
-#         )
-#     )
-#   else:
-#     session = asyncio.run(session_service.create_session(app_name=agent, user_id="default-user"))
-#     if tui:
-#       asyncio.run(
-#           run_interactively_with_interruption(
-#               root_agent=root_agent,
-#               artifact_service=artifact_service,
-#               session=session,
-#               session_service=session_service,
-#               ui_theme=theme,
-#           )
-#       )
-#     else:
-#       asyncio.run(
-#           run_interactively(
-#               root_agent=root_agent,
-#               artifact_service=artifact_service,
-#               session=session,
-#               session_service=session_service,
-#               ui_theme=theme,
-#           )
-#       )
-
-#   if save_session:
-#     # This part remains a placeholder as InMemorySessionService does not support direct file saving.
-#     # Future implementations might use a different SessionService or a custom saving mechanism.
-#     print("Session saving is not implemented for InMemorySessionService.")
-#     print("To enable session saving, configure a persistent session service (e.g., database or Vertex AI).")
-
-
-# if __name__ == '__main__':
-#   main()

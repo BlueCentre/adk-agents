@@ -45,6 +45,10 @@ class EnhancedCLI:
         self.current_agent_task: Optional[asyncio.Task] = None
         self.input_callback: Optional[Callable[[str], Awaitable[None]]] = None
         self.interrupt_callback: Optional[Callable[[], Awaitable[None]]] = None
+
+        # Agent thought display
+        self.agent_thought_enabled = True
+        self.agent_thought_buffer = []
         
         # UI Components for interruptible mode
         self.input_buffer = Buffer(multiline=True)
@@ -315,6 +319,11 @@ class EnhancedCLI:
         panel = self.rich_renderer.format_agent_response(text, author)
         
         # Print the panel directly to console
+        self.console.print(panel)
+
+    def add_agent_thought(self, text: str):
+        """Add agent thought summaries to the thought display."""
+        panel = self.rich_renderer.format_agent_thought(text)
         self.console.print(panel)
 
 

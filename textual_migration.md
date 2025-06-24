@@ -160,7 +160,7 @@ The migration will involve creating a new `textual` application that mirrors the
 - [x] In `run_interactively()`:
     - [x] This function should use `get_cli_instance()` to get the `EnhancedCLI` (prompt_toolkit) instance.
     - [x] Retain its original logic for basic CLI operations, including prompt session creation, command handling (clear, help, theme), and `rich` console output for agent responses.
-- [x] In `run_interactively_with_interruption()`:
+- [x] In `run_interactively_with_tui()`:
     - [x] This function should use `get_textual_cli_instance()` to get the `AgentTUI` (Textual) instance.
     - [x] Initialize `app_tui` as `AgentTUI`.
     - [x] Set `app_tui.agent_name` from `root_agent.name`.
@@ -178,7 +178,7 @@ The migration will involve creating a new `textual` application that mirrors the
 - [x] ~~Update agent's internal thinking logic to use `_thought_handler`.~~
 - [x] ~~Update agent's final response logic to use `_output_handler`.~~
 
-**Note**: Instead of modifying the `Runner` class, we implemented the callback functionality directly in the `run_interactively_with_interruption()` function, which works with the standard ADK `Runner` class.
+**Note**: Instead of modifying the `Runner` class, we implemented the callback functionality directly in the `run_interactively_with_tui()` function, which works with the standard ADK `Runner` class.
 
 #### Step 8: Implement Categorized Autocompletion for `textual.widgets.Input` or `TextArea`
 

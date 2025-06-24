@@ -14,7 +14,7 @@ class UITheme(Enum):
 
 class ThemeConfig:
     """Theme configuration for the CLI interface."""
-    
+
     DARK_THEME = {
         # Prompt styles
         'prompt': '#87ceeb bold',  # sky blue
@@ -46,7 +46,7 @@ class ThemeConfig:
         'status.session': '#dda0dd',  # plum
         'status.agent': '#ffa500',  # orange
     }
-    
+
     LIGHT_THEME = {
         # Prompt styles
         'prompt': '#0066cc bold',  # blue
@@ -131,37 +131,37 @@ class ThemeConfig:
 
 class StatusBar:
     """Tmux-style status bar for the CLI."""
-    
+
     def __init__(self, theme: UITheme = UITheme.DARK):
         self.theme = theme
         self.session_start_time = datetime.now()
-        
+
     def get_status_segments(self, agent_name: str, session_id: str) -> list[tuple[str, str]]:
         """Get status bar segments as (content, style) tuples."""
         now = datetime.now()
         uptime = now - self.session_start_time
         uptime_str = f"{uptime.seconds // 3600:02d}:{(uptime.seconds % 3600) // 60:02d}:{uptime.seconds % 60:02d}"
-        
+
         segments = [
             (f" 🤖 {agent_name} ", "bottom-toolbar.accent"),
             (f" 🧑 Session: {session_id[:8]}... ", "bottom-toolbar.info"),
             # (f" Uptime: {uptime_str} ", "bottom-toolbar.info"),
             # (f" {now.strftime('%H:%M:%S')} ", "bottom-toolbar.accent"),
         ]
-        
+
         return segments
-    
+
     def format_toolbar(self, agent_name: str, session_id: str) -> str:
         """Format the bottom toolbar with tmux-style segments."""
         segments = self.get_status_segments(agent_name, session_id)
-        
+
         # Build simple text with separators
         toolbar_parts = []
         for i, (content, style) in enumerate(segments):
             if i > 0:
                 toolbar_parts.append(" | ")  # Simple separator
             toolbar_parts.append(content)
-        
+
         # Add keyboard shortcuts on the right
         shortcuts = [
             ("Enter", "submit"),
@@ -170,10 +170,10 @@ class StatusBar:
             ("Ctrl+L", "clear"),
             ("Tab", "complete"),
         ]
-        
+
         shortcuts_text = " | ".join([f"{key}:{action}" for key, action in shortcuts])
         toolbar_parts.append(f" | 💡 {shortcuts_text}")
-        
+
         return ''.join(toolbar_parts)
 
 
@@ -187,7 +187,7 @@ class StatusBar:
 #             ui_theme = UITheme(theme.lower())
 #         except ValueError:
 #             pass  # Use auto-detected theme
-    
+
 #     rich_renderer = RichRenderer(ui_theme)
 #     return EnhancedCLI(ui_theme, rich_renderer)
 
@@ -201,6 +201,6 @@ class StatusBar:
 #             ui_theme = UITheme(theme.lower())
 #         except ValueError:
 #             pass  # Use auto-detected theme
-    
+
 #     rich_renderer = RichRenderer(ui_theme)
 #     return TextualCLI(ui_theme, rich_renderer)

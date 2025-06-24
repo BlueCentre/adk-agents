@@ -18,10 +18,10 @@ def get_cli_instance(theme: Optional[str] = None) -> EnhancedCLI:
         except ValueError:
             # Invalid theme, use default
             ui_theme = None
-    
+
     # Create RichRenderer with the theme
     rich_renderer = RichRenderer(ui_theme) if ui_theme else None
-    
+
     return EnhancedCLI(theme=ui_theme, rich_renderer=rich_renderer)
 
 
@@ -34,9 +34,9 @@ def get_textual_cli_instance(theme: Optional[str] = None) -> AgentTUI:
         except ValueError:
             # Invalid theme, use default
             ui_theme = None
-    
+
     # Create RichRenderer with the theme
     rich_renderer = RichRenderer(ui_theme) if ui_theme else None
-    
+
     # return InterruptibleCLI(theme=ui_theme, rich_renderer=rich_renderer)
     return AgentTUI(theme=ui_theme, rich_renderer=rich_renderer)

@@ -755,6 +755,22 @@ class AgentTUI(App):
             event_log = self.query_one("#event-log", RichLog)
             event_log.write(self.rich_renderer.format_agent_thought(text))
 
+    def add_agent_thought(self, thought_text: str):
+        """Add agent thought to the thought pane."""
+        if not self.agent_thought_enabled:
+            return
+            
+        try:
+            event_log = self.query_one("#event-log", RichLog)
+            
+            # Format the thought with proper styling using the rich_renderer
+            content_panel = self.rich_renderer.format_agent_thought(thought_text)
+            event_log.write(content_panel)
+            
+        except Exception as e:
+            # Fallback to regular output if thought pane fails
+            self.add_output(f"💭 {thought_text}", style="info")
+
     def add_tool_event(self, tool_name: str, event_type: str, args: Optional[dict] = None, result: Any = None, duration: Optional[float] = None):
         """Add a tool execution event to the thought pane."""
         if not self.agent_thought_enabled:
@@ -786,22 +802,6 @@ class AgentTUI(App):
         except Exception as e:
             # Fallback to regular output if thought pane fails
             self.add_output(f"Tool {event_type}: {tool_name}", style="info")
-
-    def add_agent_thought(self, thought_text: str):
-        """Add agent thought to the thought pane."""
-        if not self.agent_thought_enabled:
-            return
-            
-        try:
-            event_log = self.query_one("#event-log", RichLog)
-            
-            # Format the thought with proper styling using the rich_renderer
-            content_panel = self.rich_renderer.format_agent_thought(thought_text)
-            event_log.write(content_panel)
-            
-        except Exception as e:
-            # Fallback to regular output if thought pane fails
-            self.add_output(f"💭 {thought_text}", style="info")
 
     def register_input_callback(self, callback: Callable[[str], Awaitable[Any]]):
         """Register a callback function to handle user input."""

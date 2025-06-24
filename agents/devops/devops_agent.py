@@ -324,6 +324,11 @@ class StateManager:
 
 
 class MyDevopsAgent(LlmAgent):
+    """
+    This is a custom agent that uses the ADK to manage the state of the conversation.
+
+    https://google.github.io/adk-docs/agents/custom-agents/
+    """
     _console: Console = PrivateAttr(default_factory=lambda: Console(stderr=True))
     _status_indicator: Optional[Status] = PrivateAttr(default=None)
     _actual_llm_token_limit: int = PrivateAttr(default=agent_config.DEFAULT_TOKEN_LIMIT_FALLBACK)
@@ -2103,30 +2108,32 @@ Begin execution now, starting with the first step."""
         """
         Robust implementation of the agent loop with proper error handling,
         circuit breakers, and retry mechanisms.
+
+        https://google.github.io/adk-docs/agents/custom-agents/#part-2-defining-the-custom-execution-logic
         """
         # Initialize circuit breaker parameters
         max_events_per_attempt = 50  # Increased from 20 to allow for complex operations
         max_retries = 3  # Increased from 2 for better resilience
         max_consecutive_errors = 5  # New: prevent error loops
-        
+
         retry_count = 0
         consecutive_errors = 0
-        
+
         try:
             while retry_count <= max_retries:
                 event_count = 0
                 attempt_start_time = time.time()
-                
+
                 try:
                     logger.info(f"Agent {self.name}: Starting attempt {retry_count + 1}/{max_retries + 1}")
-                    
+
                     # Reset consecutive error counter on successful attempt start
                     consecutive_errors = 0
-                    
+
                     # Process events with circuit breaker
                     async for event in super()._run_async_impl(ctx):
                         event_count += 1
-                        
+
                         # Circuit breaker: prevent infinite event generation
                         if event_count > max_events_per_attempt:
                             logger.error(f"Agent {self.name}: Circuit breaker triggered - too many events ({event_count})")
@@ -2139,7 +2146,7 @@ Begin execution now, starting with the first step."""
                             )
                             ctx.end_invocation = True
                             return
-                        
+
                         # Check for timeout (prevent hanging)
                         elapsed_time = time.time() - attempt_start_time
                         if elapsed_time > 300:  # 5 minutes timeout per attempt
@@ -2153,35 +2160,35 @@ Begin execution now, starting with the first step."""
                             )
                             ctx.end_invocation = True
                             return
-                        
+
                         yield event
-                    
+
                     # Success - exit retry loop
                     logger.info(f"Agent {self.name}: Successfully completed after {retry_count + 1} attempts")
                     break
-                    
+
                 except Exception as e:
                     consecutive_errors += 1
                     error_message = str(e)
                     error_type = type(e).__name__
-                    
+
                     # Check if we've hit too many consecutive errors
                     if consecutive_errors >= max_consecutive_errors:
                         logger.error(f"Agent {self.name}: Too many consecutive errors ({consecutive_errors}), aborting")
                         raise e
-                    
+
                     # Determine if this error is retryable
                     should_retry = self._is_retryable_error(error_message, error_type)
-                    
+
                     if should_retry and retry_count < max_retries:
                         retry_count += 1
                         logger.warning(f"Agent {self.name}: Retryable error on attempt {retry_count}/{max_retries + 1}: {error_type}: {error_message}")
-                        
+
                         # Optimize input for retry
                         optimization_success = await self._optimize_input_for_retry(ctx, retry_count)
                         if not optimization_success:
                             logger.warning(f"Agent {self.name}: Input optimization failed, continuing with retry anyway")
-                        
+
                         # Exponential backoff with jitter
                         import asyncio
                         import random
@@ -2202,7 +2209,7 @@ Begin execution now, starting with the first step."""
             error_type = type(e).__name__
             error_message = str(e)
             tb_str = traceback.format_exc()
-            
+
             # Check if this is one of our target API errors
             if ("429" in error_message and "RESOURCE_EXHAUSTED" in error_message) or \
                ("500" in error_message and ("INTERNAL" in error_message or "ServerError" in error_message)):
@@ -2257,7 +2264,7 @@ Begin execution now, starting with the first step."""
                         f"Details: {error_type}: {error_message}. "
                         f"I cannot proceed with this request."
                     )
-            
+
             yield Event(
                 author=self.name,
                 content=genai_types.Content(parts=[genai_types.Part(text=user_facing_error)]),
@@ -2269,14 +2276,14 @@ Begin execution now, starting with the first step."""
     def _create_thinking_config(self) -> Optional[genai_types.ThinkingConfig]:
         """Create thinking configuration if thinking is enabled and supported for the current model."""
         model_name = self.model or agent_config.DEFAULT_AGENT_MODEL
-        
+
         if not agent_config.should_enable_thinking(model_name):
             return None
-        
+
         logger.info(f"Creating thinking configuration for model {model_name}")
         logger.info(f"  Include thoughts: {agent_config.GEMINI_THINKING_INCLUDE_THOUGHTS}")
         logger.info(f"  Thinking budget: {agent_config.GEMINI_THINKING_BUDGET}")
-        
+
         return genai_types.ThinkingConfig(
             include_thoughts=agent_config.GEMINI_THINKING_INCLUDE_THOUGHTS,
             thinking_budget=agent_config.GEMINI_THINKING_BUDGET
