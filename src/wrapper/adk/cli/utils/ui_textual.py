@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-# from datetime import datetime
 from typing import Optional, Callable, Any, Awaitable, Union
 
 from textual import work
@@ -62,8 +61,6 @@ class AgentTUI(App):
 
     # UI state
     session_id: reactive[str] = reactive("")
-    # _uptime: reactive[str] = reactive("00:00:00")
-    # _current_time: reactive[str] = reactive(datetime.now().strftime('%H:%M:%S'))
 
     # User input state
     user_multiline_input_enabled: reactive[bool] = reactive(False)
@@ -361,22 +358,6 @@ class AgentTUI(App):
             self._thinking_timer = None
         self._thinking_animation_index = 0
 
-    # def is_thinking(self) -> bool:
-    #     """Check if the agent is currently in thinking state."""
-    #     return self.agent_thinking
-
-    # def set_agent_task(self, task: asyncio.Task):
-    #     """Set the current agent task for interruption."""
-    #     self.current_agent_task = task
-    #     self.agent_running = True
-
-    # def set_thinking_state(self, thinking: bool) -> None:
-    #     """Manually control the thinking state (useful for external integrations)."""
-    #     if thinking:
-    #         self.start_thinking()
-    #     else:
-    #         self.stop_thinking()
-
     def watch_agent_name(self, name: str) -> None:
         """Update footer and output panel title when agent name changes."""
         if self.is_mounted:
@@ -437,39 +418,6 @@ class AgentTUI(App):
             except:
                 # If the output log doesn't exist yet, ignore
                 pass
-
-    # def watch__current_time(self, time: str) -> None:
-    #     """Update footer when time changes."""
-    #     if self.is_mounted:
-    #         self._update_status()
-
-    # def update_token_usage(self, prompt_tokens: int = 0, thinking_tokens: int = 0, output_tokens: int = 0, total_tokens: int = 0, model_name: str = ""):
-    #     """Update token usage information."""
-    #     self._prompt_tokens = prompt_tokens
-    #     self._thinking_tokens = thinking_tokens
-    #     self._output_tokens = output_tokens
-    #     self._total_tokens = total_tokens
-    #     if model_name:
-    #         self._model_name = model_name
-        
-    #     # Display token usage in output pane
-    #     if total_tokens > 0:
-    #         if thinking_tokens > 0:
-    #             token_text = Text.from_markup(f"[dim]📊 Token Usage: Prompt: {prompt_tokens:,}, Thinking: {thinking_tokens:,}, Output: {output_tokens:,}, Total: {total_tokens:,}[/dim]")
-    #         else:
-    #             token_text = Text.from_markup(f"[dim]📊 Token Usage: Prompt: {prompt_tokens:,}, Output: {output_tokens:,}, Total: {total_tokens:,}[/dim]")
-            
-    #         self.add_output(token_text, rich_format=True)
-
-    # def update_tool_usage(self, tool_name: str):
-    #     """Update tool usage information."""
-    #     self._tools_used += 1
-    #     self._last_tool = tool_name
-        
-    #     # Display tool usage in thought pane
-    #     if self.agent_thought_enabled:
-    #         tool_text = f"🔧 Tool Used: {tool_name} (Total: {self._tools_used})"
-    #         self.add_thought(tool_text)
 
     def action_history_previous(self) -> None:
         """Navigate to previous command in history."""

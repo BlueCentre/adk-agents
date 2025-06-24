@@ -1762,7 +1762,7 @@ Begin execution now, starting with the first step."""
             i += 1
             
         return analysis
-    
+
     def _extract_tool_chain_from_position(self, contents: List, start_pos: int) -> Dict[str, Any]:
         """
         Extract a complete tool execution chain starting from a user message.
@@ -1811,7 +1811,7 @@ Begin execution now, starting with the first step."""
             'is_current_or_active': is_current_or_active,
             'has_tool_calls': any(self._message_has_tool_calls(msg) for msg in chain)
         }
-    
+
     def _extract_conversation_segment(self, contents: List, start_pos: int) -> List:
         """Extract a complete conversation segment (user + assistant response(s))."""
         segment = []
@@ -1828,7 +1828,7 @@ Begin execution now, starting with the first step."""
             i += 1
             
         return segment
-    
+
     def _apply_smart_conversation_filtering(self, llm_request: LlmRequest, user_message_content: str) -> None:
         """
         Apply sophisticated conversation history filtering that preserves tool flows.
