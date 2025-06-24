@@ -14,20 +14,20 @@
 
 from __future__ import annotations
 
-import asyncio
+# import asyncio
 from datetime import datetime
-from pydantic import BaseModel
 from typing import Optional
-import re
-import sys
 import time
+# import re
+# import sys
 
 import rich_click as click
 from rich.console import Console
 from prompt_toolkit.patch_stdout import patch_stdout
-
 from google.genai import types
-from google.adk.agents.base_agent import BaseAgent
+from pydantic import BaseModel
+
+from google.adk.agents.llm_agent import LlmAgent
 from google.adk.artifacts import BaseArtifactService
 from google.adk.artifacts import InMemoryArtifactService
 from google.adk.auth.credential_service.base_credential_service import BaseCredentialService
@@ -84,10 +84,11 @@ async def run_input_file(
 
 
 async def run_interactively(
-    root_agent: BaseAgent,
+    root_agent: LlmAgent,
     artifact_service: BaseArtifactService,
     session: Session,
     session_service: BaseSessionService,
+    credential_service: BaseCredentialService,
     ui_theme: Optional[str] = None,
 ) -> None:
   """Run the agent interactively with fallback to basic CLI mode."""
@@ -127,6 +128,7 @@ async def run_interactively(
       agent=root_agent,
       artifact_service=artifact_service,
       session_service=session_service,
+      credential_service=credential_service,
   )
 
   while True:
@@ -225,10 +227,11 @@ async def run_interactively(
 
 
 async def run_interactively_with_tui(
-    root_agent: BaseAgent,
+    root_agent: LlmAgent,
     artifact_service: BaseArtifactService,
     session: Session,
     session_service: BaseSessionService,
+    credential_service: BaseCredentialService,
     ui_theme: Optional[str] = None,
 ) -> None:
   """Run the agent interactively with interruption support using Textual UI."""
@@ -245,6 +248,7 @@ async def run_interactively_with_tui(
       agent=root_agent,
       artifact_service=artifact_service,
       session_service=session_service,
+      credential_service=credential_service,
   )
 
   # Store original agent console and replace it with a custom one that redirects to Textual UI
@@ -451,40 +455,47 @@ async def run_cli(
   root_agent = agent_loader.load_agent(agent_module_name)
   # Load environment variables specific to the agent
   envs.load_dotenv_for_agent(agent_module_name)
-
-  if input_file and saved_session_file:
-    print("Error: Cannot specify both --input-file and --saved-session.")
-    sys.exit(1)
-
   if input_file:
-    await run_input_file(
+    session = await run_input_file(
         app_name=agent_module_name,
-        user_id="default-user",
+        user_id=user_id,
         root_agent=root_agent,
         artifact_service=artifact_service,
         session_service=session_service,
+        credential_service=credential_service,
         input_path=input_file,
     )
   elif saved_session_file:
-    session = await session_service.get_session(session_id=saved_session_file, app_name=agent_module_name, user_id="default-user")
-    if not session:
-      print(f"Error: Session with ID {saved_session_file} not found.")
-      sys.exit(1)
+    with open(saved_session_file, 'r', encoding='utf-8') as f:
+      loaded_session = Session.model_validate_json(f.read())
+
+    if loaded_session:
+      for event in loaded_session.events:
+        await session_service.append_event(session, event)
+        content = event.content
+        if not content or not content.parts or not content.parts[0].text:
+          continue
+        if event.author == 'user':
+          click.echo(f'[user]: {content.parts[0].text}')
+        else:
+          click.echo(f'[{event.author}]: {content.parts[0].text}')
+
     await run_interactively(
-        root_agent=root_agent,
-        artifact_service=artifact_service,
-        session=session,
-        session_service=session_service,
-        ui_theme=ui_theme,
+        root_agent,
+        artifact_service,
+        session,
+        session_service,
+        credential_service,
     )
   else:
-    session = await session_service.create_session(app_name=agent_module_name, user_id="default-user")
+    click.echo(f'Running agent {root_agent.name}, type exit to exit.')
     if tui:
       await run_interactively_with_tui(
           root_agent=root_agent,
           artifact_service=artifact_service,
           session=session,
           session_service=session_service,
+          credential_service=credential_service,
           ui_theme=ui_theme,
       )
     else:
@@ -493,11 +504,12 @@ async def run_cli(
           artifact_service=artifact_service,
           session=session,
           session_service=session_service,
+          credential_service=credential_service,
           ui_theme=ui_theme,
       )
 
   if save_session:
-    session_id = session_id or input('📝 Session ID to save: ')
+    session_id = session_id or input('Session ID to save: ')
     session_path = (
         # f'{agent_parent_dir}/{agent_folder_name}/{session_id}.session.json'
         f'{session_id}.session.json'
