@@ -30,14 +30,16 @@ from google.genai import types
 from google.adk.agents.base_agent import BaseAgent
 from google.adk.artifacts import BaseArtifactService
 from google.adk.artifacts import InMemoryArtifactService
+from google.adk.auth.credential_service.base_credential_service import BaseCredentialService
+from google.adk.auth.credential_service.in_memory_credential_service import InMemoryCredentialService
+from google.adk.cli.utils import envs
 from google.adk.runners import Runner
 from google.adk.sessions.base_session_service import BaseSessionService
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.adk.sessions.session import Session
 
-from .utils import envs
-from .utils.agent_loader import AgentLoader
-from .utils.envs import load_dotenv_for_agent
+from .utils.agent_loader import AgentLoader # Modified to use our packaged path
+from .utils.envs import load_dotenv_for_agent # Modified to use our packaged path
 from .utils.ui import get_cli_instance, get_textual_cli_instance
 from .utils.ui_common import UITheme
 
@@ -53,9 +55,10 @@ class InputFile(BaseModel):
 async def run_input_file(
     app_name: str,
     user_id: str,
-    root_agent: BaseAgent,
+    root_agent: LlmAgent,
     artifact_service: BaseArtifactService,
     session_service: BaseSessionService,
+    credential_service: BaseCredentialService,
     input_path: str,
 ) -> Session:
   runner = Runner(
@@ -63,9 +66,8 @@ async def run_input_file(
       agent=root_agent,
       artifact_service=artifact_service,
       session_service=session_service,
+      credential_service=credential_service,
   )
-  # Initialize Rich Console
-  console = Console()
   with open(input_path, 'r', encoding='utf-8') as f:
     input_file = InputFile.model_validate_json(f.read())
   input_file.state['_time'] = datetime.now()
@@ -73,20 +75,15 @@ async def run_input_file(
   session = await session_service.create_session(
       app_name=app_name, user_id=user_id, state=input_file.state
   )
-  console.print(f"[bold blue]Running from input file:[/bold blue] [blue]{input_path}[/blue]")
   for query in input_file.queries:
-    console.print(f'[blue][user][/blue]: {query}')
+    click.echo(f'[user]: {query}')
     content = types.Content(role='user', parts=[types.Part(text=query)])
     async for event in runner.run_async(
         user_id=session.user_id, session_id=session.id, new_message=content
     ):
       if event.content and event.content.parts:
         if text := ''.join(part.text or '' for part in event.content.parts):
-          console.print(f'[green][{event.author}][/green]: {text}')
-  
-  # Use graceful cleanup to handle MCP session cleanup errors
-  from .utils.cleanup import close_runner_gracefully
-  await close_runner_gracefully(runner)
+          click.echo(f'[{event.author}]: {text}')
   return session
 
 
