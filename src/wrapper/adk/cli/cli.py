@@ -32,14 +32,13 @@ from google.adk.artifacts import BaseArtifactService
 from google.adk.artifacts import InMemoryArtifactService
 from google.adk.auth.credential_service.base_credential_service import BaseCredentialService
 from google.adk.auth.credential_service.in_memory_credential_service import InMemoryCredentialService
-from google.adk.cli.utils import envs
 from google.adk.runners import Runner
 from google.adk.sessions.base_session_service import BaseSessionService
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.adk.sessions.session import Session
 
 from .utils.agent_loader import AgentLoader # Modified to use our packaged path
-from .utils.envs import load_dotenv_for_agent # Modified to use our packaged path
+from .utils import envs # Modified to use our packaged path
 from .utils.ui import get_cli_instance, get_textual_cli_instance
 from .utils.ui_common import UITheme
 
@@ -47,9 +46,6 @@ from .utils.ui_common import UITheme
 class InputFile(BaseModel):
   state: dict[str, object]
   queries: list[str]
-
-
-# This function is now replaced by the UI module functionality
 
 
 async def run_input_file(
@@ -440,19 +436,25 @@ async def run_cli(
     tui: bool, whether to use the Textual CLI with persistent
       input and agent interruption capabilities.
   """
+
+  artifact_service = InMemoryArtifactService()
+  session_service = InMemorySessionService()
+  credential_service = InMemoryCredentialService()
+
+
+  user_id = 'test_user'
+  session = await session_service.create_session(
+      app_name=agent_module_name, user_id=user_id
+  )
+  # Use AgentLoader instance to load the agent
+  agent_loader = AgentLoader()
+  root_agent = agent_loader.load_agent(agent_module_name)
   # Load environment variables specific to the agent
-  load_dotenv_for_agent(agent_module_name)
+  envs.load_dotenv_for_agent(agent_module_name)
 
   if input_file and saved_session_file:
     print("Error: Cannot specify both --input-file and --saved-session.")
     sys.exit(1)
-
-  # Use AgentLoader instance to load the agent
-  agent_loader = AgentLoader()
-  root_agent = agent_loader.load_agent(agent_module_name)
-  
-  artifact_service = InMemoryArtifactService()
-  session_service = InMemorySessionService()
 
   if input_file:
     await run_input_file(

@@ -28,12 +28,12 @@ import rich_click as click
 from fastapi import FastAPI
 import uvicorn
 
-from . import cli_create
-from . import cli_deploy
-from .. import version
 from .cli import run_cli
 from .fast_api import get_fast_api_app
 from .utils import logs
+from . import cli_create
+from . import cli_deploy
+from .. import version
 
 
 LOG_LEVELS = click.Choice(
