@@ -25,10 +25,10 @@ classifiers = [
 ]
 dependencies = [
   "chromadb>=1.0.12", # Using newer version that might be compatible
-  "fastapi>=0.115.13", # For web UI functionality
-  "google-genai~=1.19.0", # Migrated from google-generativeai
-  "google-api-core>=2.19.0", # Updated for protobuf 5.x compatibility
-  "protobuf>=5.0,<6.0", # Updated for OpenTelemetry compatibility
+  # "fastapi>=0.115.13", # For web UI functionality
+  # "google-genai~=1.19.0", # Migrated from google-generativeai
+  # "google-api-core>=2.19.0", # Updated for protobuf 5.x compatibility
+  # "protobuf>=5.0,<6.0", # Updated for OpenTelemetry compatibility
   "openai>=1.10.0", # Using latest stable version
   "openlit>=1.33.20", # Using latest stable version
   "opentelemetry-api>=1.30.0,<2.0.0", # OpenTelemetry core - compatible with openlit
