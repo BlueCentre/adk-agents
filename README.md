@@ -50,7 +50,7 @@ To get started with the DevOps Agent, ensure you have Python 3.13 (or a compatib
     Run the CLI: Execute the following command in your terminal:
     
     ```bash
-    uvx --refresh --from git+https://github.com/BlueCentre/adk-agents.git@main agent run agents.devops.agent
+    uvx --refresh --from git+https://github.com/BlueCentre/adk-agents.git@main agent run agents.devops --tui
     ```
     
     *Note:* The `PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python` part is a workaround for a compatibility issue between recent `protobuf` versions and older pre-compiled code in some dependencies (`chromadb` via `opentelemetry` components).
