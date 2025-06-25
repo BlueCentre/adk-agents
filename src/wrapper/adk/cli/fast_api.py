@@ -602,7 +602,7 @@ def get_fast_api_app(
       app_name: str, eval_set_id: str, req: RunEvalRequest
   ) -> list[RunEvalResult]:
     """Runs an eval given the details in the eval request."""
-    from .cli_eval import run_evals
+    from google.adk.cli.cli_eval import run_evals
 
     # Create a mapping from eval set file to all the evals that needed to be
     # run.
