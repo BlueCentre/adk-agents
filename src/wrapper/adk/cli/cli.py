@@ -37,8 +37,8 @@ from google.adk.sessions.base_session_service import BaseSessionService
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.adk.sessions.session import Session
 
-from .utils.agent_loader import AgentLoader # Modified to use our packaged path
 from .utils import envs # Modified to use our packaged path
+from .utils.agent_loader import AgentLoader # Modified to use our packaged path
 from .utils.ui import get_cli_instance, get_textual_cli_instance
 from .utils.ui_common import UITheme
 

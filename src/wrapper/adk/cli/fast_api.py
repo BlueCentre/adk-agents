@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager
-import json
 import logging
 import os
 from pathlib import Path
@@ -51,40 +50,45 @@ from pydantic import ValidationError
 from starlette.types import Lifespan
 from typing_extensions import override
 
+from google.adk.agents import RunConfig
 from google.adk.agents.live_request_queue import LiveRequest
 from google.adk.agents.live_request_queue import LiveRequestQueue
 from google.adk.agents.llm_agent import Agent
-from google.adk.agents.run_config import RunConfig
 from google.adk.agents.run_config import StreamingMode
 from google.adk.artifacts.gcs_artifact_service import GcsArtifactService
 from google.adk.artifacts.in_memory_artifact_service import InMemoryArtifactService
 from google.adk.auth.credential_service.in_memory_credential_service import InMemoryCredentialService
+# from google.adk.cli.utils.agent_loader import AgentLoader
 from google.adk.cli.cli_eval import EVAL_SESSION_ID_PREFIX
-from google.adk.cli.utils.agent_loader import AgentLoader
+from google.adk.cli.cli_eval import EvalStatus
 from google.adk.cli.utils import cleanup
 from google.adk.cli.utils import common
 from google.adk.cli.utils import create_empty_state
-from google.adk.cli.utils import envs
 from google.adk.cli.utils import evals
-from google.adk.evaluation.evaluator import EvalStatus
+# from google.adk.cli.utils import envs
 from google.adk.errors.not_found_error import NotFoundError
-from google.adk.events.event import Event
 from google.adk.evaluation.eval_case import EvalCase
 from google.adk.evaluation.eval_case import SessionInput
 from google.adk.evaluation.eval_metrics import EvalMetric
 from google.adk.evaluation.eval_metrics import EvalMetricResult
 from google.adk.evaluation.eval_metrics import EvalMetricResultPerInvocation
 from google.adk.evaluation.eval_result import EvalSetResult
+from google.adk.evaluation.gcs_eval_set_results_manager import GcsEvalSetResultsManager
+from google.adk.evaluation.gcs_eval_sets_manager import GcsEvalSetsManager
 from google.adk.evaluation.local_eval_set_results_manager import LocalEvalSetResultsManager
 from google.adk.evaluation.local_eval_sets_manager import LocalEvalSetsManager
 from google.adk.events.event import Event
 from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
+# from google.adk.memory.vertex_ai_memory_bank_service import VertexAiMemoryBankService
 from google.adk.memory.vertex_ai_rag_memory_service import VertexAiRagMemoryService
 from google.adk.runners import Runner
 from google.adk.sessions.database_session_service import DatabaseSessionService
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.adk.sessions.session import Session
 from google.adk.sessions.vertex_ai_session_service import VertexAiSessionService
+
+from .utils import envs # Modified to use our packaged path
+from .utils.agent_loader import AgentLoader # Modified to use our packaged path
 
 logger = logging.getLogger("google_adk." + __name__)
 
@@ -200,6 +204,7 @@ def get_fast_api_app(
     session_service_uri: Optional[str] = None,
     artifact_service_uri: Optional[str] = None,
     memory_service_uri: Optional[str] = None,
+    eval_storage_uri: Optional[str] = None,
     allow_origins: Optional[list[str]] = None,
     web: bool,
     trace_to_cloud: bool = False,
@@ -258,8 +263,18 @@ def get_fast_api_app(
 
   runner_dict = {}
 
-  eval_sets_manager = LocalEvalSetsManager(agents_dir=agents_dir)
-  eval_set_results_manager = LocalEvalSetResultsManager(agents_dir=agents_dir)
+  # Set up eval managers.
+  eval_sets_manager = None
+  eval_set_results_manager = None
+  if eval_storage_uri:
+    gcs_eval_managers = evals.create_gcs_eval_managers_from_uri(
+        eval_storage_uri
+    )
+    eval_sets_manager = gcs_eval_managers.eval_sets_manager
+    eval_set_results_manager = gcs_eval_managers.eval_set_results_manager
+  else:
+    eval_sets_manager = LocalEvalSetsManager(agents_dir=agents_dir)
+    eval_set_results_manager = LocalEvalSetResultsManager(agents_dir=agents_dir)
 
   # Build the Memory service
   if memory_service_uri:
@@ -270,6 +285,16 @@ def get_fast_api_app(
       envs.load_dotenv_for_agent("", agents_dir)
       memory_service = VertexAiRagMemoryService(
           rag_corpus=f'projects/{os.environ["GOOGLE_CLOUD_PROJECT"]}/locations/{os.environ["GOOGLE_CLOUD_LOCATION"]}/ragCorpora/{rag_corpus}'
+      )
+    elif memory_service_uri.startswith("agentengine://"):
+      agent_engine_id = memory_service_uri.split("://")[1]
+      if not agent_engine_id:
+        raise click.ClickException("Agent engine id can not be empty.")
+      envs.load_dotenv_for_agent("", agents_dir)
+      memory_service = VertexAiMemoryBankService(
+          project=os.environ["GOOGLE_CLOUD_PROJECT"],
+          location=os.environ["GOOGLE_CLOUD_LOCATION"],
+          agent_engine_id=agent_engine_id,
       )
     else:
       raise click.ClickException(
@@ -820,7 +845,7 @@ def get_fast_api_app(
     if not event:
       return {}
 
-    from . import agent_graph
+    from google.adk.cli import agent_graph
 
     function_calls = event.get_function_calls()
     function_responses = event.get_function_responses()
@@ -947,6 +972,8 @@ def get_fast_api_app(
     mimetypes.add_type("application/javascript", ".js", True)
     mimetypes.add_type("text/javascript", ".js", True)
 
+    # BASE_DIR = Path(__file__).parent.resolve()
+    # ANGULAR_DIST_PATH = BASE_DIR / "browser"
     browser_dir = os.path.join(os.path.dirname(__file__), "browser")
 
     @app.get("/")
@@ -959,6 +986,7 @@ def get_fast_api_app(
 
     app.mount(
       "/dev-ui/",
+      # StaticFiles(directory=ANGULAR_DIST_PATH, html=True),
       StaticFiles(directory=browser_dir, html=True),
       name="static"
     )
