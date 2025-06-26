@@ -58,14 +58,12 @@ from google.adk.agents.run_config import StreamingMode
 from google.adk.artifacts.gcs_artifact_service import GcsArtifactService
 from google.adk.artifacts.in_memory_artifact_service import InMemoryArtifactService
 from google.adk.auth.credential_service.in_memory_credential_service import InMemoryCredentialService
-# from google.adk.cli.utils.agent_loader import AgentLoader
 from google.adk.cli.cli_eval import EVAL_SESSION_ID_PREFIX
 from google.adk.cli.cli_eval import EvalStatus
 from google.adk.cli.utils import cleanup
 from google.adk.cli.utils import common
 from google.adk.cli.utils import create_empty_state
 from google.adk.cli.utils import evals
-# from google.adk.cli.utils import envs
 from google.adk.errors.not_found_error import NotFoundError
 from google.adk.evaluation.eval_case import EvalCase
 from google.adk.evaluation.eval_case import SessionInput
