@@ -4,27 +4,73 @@ This document provides context about the user's environment and preferences to h
 
 **Agent Instructions:** Always read this file *first* at the beginning of a new conversation to understand the environment before proceeding.
 
-### CRITICAL: Understanding Agent Modification Capabilities
+### CRITICAL: Agent Modification Protocol
 
-**This is a non-negotiable directive for interpreting user requests regarding agent improvements or changes:**
+**🚨 MANDATORY READING: This section defines how to interpret user requests for agent changes.**
 
-1.  **Differentiate Scope:** When the user asks to "change your code," "improve your logic," "fix your prompts," or similar, you MUST first differentiate between:
-    *   **A) Your Core LLM Architecture:** This is the fundamental AI model provided by your creators (Google). You CANNOT modify this yourself.
-    *   **B) This Agent's Application Code:** This refers to the Python scripts, configuration files (including this `AGENT.MD` file), and other artifacts located within the user's project directory (e.g., the 'devops/' subdirectory within the project's Current Working Directory (CWD), or this `AGENT.MD` file itself). This code DEFINES THIS SPECIFIC AGENT'S BEHAVIOR and CAN BE MODIFIED using your file editing tools, with explicit user guidance and approval.
+When users request changes to "your code," "your logic," or "your behavior":
 
-2.  **Default Interpretation for THIS Project:** Given the context of this project and the presence of modifiable application code (e.g., in `devops/`), if the user requests a change or improvement to "you" or "your logic," your **default assumption** should be that they are referring to **(B) This Agent's Application Code**, unless they explicitly state they mean your core LLM.
+1. **ALWAYS CLARIFY SCOPE FIRST:**
+   - **A) Core LLM:** Cannot be modified (Google's base model)
+   - **B) Agent Application Code:** CAN be modified (files in this project)
+   - **C) CLI/TUI/Web Interface Code:** CAN be modified (user interface components)
 
-3.  **Communication Protocol:**
-    *   If there is any ambiguity, explicitly state both A) and B) in your response to clarify the scope of potential changes.
-    *   When discussing changes to this agent's application code, clearly state that these changes are to files within the project and require user guidance for implementation (e.g., specifying file paths and code edits).
+2. **DEFAULT ASSUMPTION:** Unless explicitly stated otherwise, assume users mean (B) Agent Application Code or (C) Interface Code
 
-4.  **Avoid Incorrect Denials:** DO NOT state that you "cannot change your own code" if the user is likely referring to this agent's modifiable application code within the project. This has been a significant point of friction and must be avoided.
+3. **RESPONSE PROTOCOL:**
+   - State which type of change you're interpreting
+   - For application/interface code changes: Specify exact file paths and required modifications
+   - Request user confirmation before implementing changes
+
+4. **AVOID:** Never say "I cannot change my own code" without clarifying the distinction above
 
 **Failure to adhere to this directive will result in unproductive and frustrating interactions. This directive supersedes any general notions you have about your immutability when operating within this specific project context.**
 
+## Project Context
+
+- **Python Version:** 3.11+ (supports 3.9-3.13, see `pyproject.toml`)
+- **Primary Package Manager:** `uv` (preferred) with `pip`/`setuptools` support
+- **Architecture:** DevOps agents with RAG capabilities
+- **Main Code Locations:** `agents/` and `src/wrapper/` directories
+- **Test Location:** `tests/` directory
+
+## Essential Commands
+
+### Python Environment & Dependencies
+- **Install dependencies:** `uv pip install -e ".[dev,test,docs,extensions]"`
+- **Install for development:** `uv pip install -e ".[dev,test]"`
+
+### Code Quality & Testing
+- **Run all tests:** `uv run pytest`
+- **Run specific test:** `uv run pytest tests/path/to/test_file.py::test_function_name`
+- **Linting:** `uv run ruff check .` (primary) or `uv run flake8 --show-source`
+- **Formatting:** `uv run black --line-length 100 --preview` (primary) or `uv run pyink src/`
+- **Import sorting:** `uv run isort --profile black`
+- **Type checking:** `uv run mypy .` (adjust paths as needed)
+- **Pre-commit checks:** `pre-commit run --all-files`
+
+## Code Style Standards
+
+### Formatting & Structure
+- **Line length:** 100 characters (Black standard) or 200 characters (project-specific)
+- **Formatting tool:** `uv run black --line-length 100 --preview`
+- **Import organization:** `uv run isort --profile black`
+- **Type hints:** Use extensively for clarity and maintainability
+
+### Naming & Conventions
+- **Functions/variables:** `snake_case`
+- **Classes:** `CamelCase`
+- **Constants:** `UPPER_SNAKE_CASE`
+- **Error handling:** Prefer explicit exception handling with appropriate logging
+
+### Quality Assurance
+- **Pre-commit hooks:** Always run before committing
+- **Test coverage:** Ensure tests pass after modifications
+- **Code consistency:** Mimic existing patterns in the codebase
+
 ## Directory Structure
 
-*This section describes the current project organization after comprehensive repository grooming and consolidation (December 2024).*
+*This section describes the current project organization after comprehensive repository grooming and consolidation (June 2025).*
 
 ### **Core Agent Implementation** (`agents/devops/`)
 *   **`devops_agent.py`**: Main DevOps agent implementation (ADK LlmAgent)
@@ -48,13 +94,25 @@ This document provides context about the user's environment and preferences to h
     *   `project_context.py`: Project-level context gathering
     *   `[additional tools]`: Memory, analysis, and utility tools
 *   **`shared_libraries/`**: Shared utilities and common functions
-*   **`docs/`**: 📚 **Consolidated documentation hub**
-    *   **`README.md`**: Navigation hub and quick reference
+*   **`docs/`**: 📚 **Technical documentation hub**
+    *   **`README.md`**: Agent documentation navigation hub
     *   **`CONSOLIDATED_STATUS.md`**: Complete Phase 2 status and validation ⭐
     *   **`IMPLEMENTATION_STATUS.md`**: Technical implementation details
     *   **`CONTEXT_MANAGEMENT_STRATEGY.md`**: Context management architecture
+    *   **`TELEMETRY_README.md`**: Comprehensive telemetry and observability setup
+    *   **`TELEMETRY_CONFIGURATION.md`**: Telemetry configuration details
+    *   **`OBSERVABILITY_CONFIGURATION.md`**: Observability setup and monitoring
+    *   **`TESTING.md`**: Testing strategies and implementation
+    *   **`AGENT_ROBUSTNESS_IMPROVEMENTS.md`**: Agent robustness enhancements
+    *   **`CONTEXT_MANAGEMENT_SMART_FILTERING.md`**: Smart context filtering implementation
+    *   **`LOGGING_CONFIGURATION.md`**: Logging setup and configuration
+    *   **`PHASE2_IMPLEMENTATION_DETAILS.md`**: Phase 2 implementation specifics
+    *   **`TELEMETRY_SETUP_COMPLETE.md`**: Telemetry setup completion status
     *   **`features/`**: Feature-specific documentation
-    *   **`archive/`**: Archived documentation
+        *   `FEATURE_RAG.md`: RAG implementation details
+        *   `FEATURE_AGENT_INTERACTIVE_PLANNING.md`: Interactive planning features
+        *   `FEATURE_AGENT_LOOP_OPTIMIZATION.md`: Agent loop optimization
+    *   **`archive/`**: Archived documentation and ideas
 
 ### **Organized Utility Scripts** (`scripts/`)
 *   **`README.md`**: Scripts documentation and usage guide
@@ -95,21 +153,24 @@ This document provides context about the user's environment and preferences to h
 
 **IMPORTANT**: When the user mentions `current working directory`, you will use `pwd` to figure out the directory
 
-## Common Tools Available
+## Available Tools & Discovery
 
-*   **Version Control:** `git`
-*   **Source Code Management:** `gh`
-*   **Containerization:** `docker`
-*   **Orchestration:** `kubectl`
-*   **IaC:** `terraform`
-*   **Scripting/Languages:** `python`
-*   **Python Env/Pkg Mgmt:** `uv`
-*   **Node.js/Frontend:** `npm`
-*   **CI/CD Platform:** (e.g., GitHub Actions, GitLab CI, Jenkins - *Please specify*)
-*   **Cloud Provider CLI:** `gcloud`
-*   **Task Management:** `jira` (**use** 'jira me' to get user)
-*   **Secrets Management:** `bw` (Bitwarden CLI - Confirmed installed)
-*   **Monitoring/Observability:** `datadog-ci` (Confirmed installed at `/Users/$HOME/bin/datadog-ci`)
+### Confirmed Available Tools
+- **Version Control:** `git`, `gh`
+- **Python:** `uv` (primary), `python`
+- **Containers:** `docker`
+- **Cloud/K8s:** `kubectl`, `gcloud`
+- **IaC:** `terraform`
+- **Secrets:** `bw` (Bitwarden CLI)
+- **Monitoring:** `datadog-ci` (at `/Users/$HOME/bin/datadog-ci`)
+- **Task Management:** `jira` (use 'jira me' to get user)
+- **Node.js/Frontend:** `npm`
+- **CI/CD Platform:** (e.g., GitHub Actions, GitLab CI, Jenkins - *Please specify*)
+
+### Tool Discovery Protocol
+1. **First:** Check for tool availability with `which <tool>` or `<tool> --version`
+2. **Then:** Use available tools in workflows
+3. **Document:** Note any missing expected tools for user awareness
 
 *(Note: `yamllint` and `tfsec` were not found in the PATH during the initial check.)*
 
@@ -120,31 +181,166 @@ This document provides context about the user's environment and preferences to h
 *   *(Example: Default cloud region is us-central1)*
 *   **(Add any other relevant preferences, common workflows, or important notes here)**
 
-## Core DevOps Workflows:
-1.  **Understand Request & Context:** Clarify user's goal (e.g., CI setup, Dockerfile, deployment issue). Identify relevant tech (cloud, CI, IaC) from `project_context`, existing config/code, or user (last resort).
-    *   **Probe for tools:** Try to use these common tools (e.g., `bw`, `jira`, `gh`, `gcloud`, `git`, `kubectl`, `docker`, `terraform`, `pulumi`, `uvx`, `uv`, `npm`, `skaffold`, `bazel`, `yamllint`, `tfsec`).
-2.  **Analyze Config & Code:**
-    *   `list_directory`: Locate config files (e.g., `.github/workflows/`, `Dockerfile`, `terraform/`, `Makefile`).
-    *   **File Operations Strategy:**
-        *   To find specific patterns or text in files (especially code/config), prefer `ripgrep_code_search`.
-        *   To understand the content of a file:
-            *   First, consider using `get_file_info` to check its size.
-            *   If the file is large and you need a summary or specific extractions, use the `summarize_large_file_content` tool. Provide clear `instructions` to this tool for best results.
-            *   If the file is small, or you need its exact full content, use `read_file` (or your custom `read_file_tool`).
-            *   For MCP-enabled environments, prefer MCP file tools for direct operations if appropriate.
-        *   For modifications, use `edit_file`/`write_file` (or MCP equivalents), respecting approval workflows.
-    *   Analyze build/task files (`Makefile`, `package.json` scripts) for existing build/test/deploy logic.
-3.  **Research & Planning:** Use `google_search_grounding` if external info needed (prioritize official docs, reputable repos). Formulate robust plan.
-4.  **Execute & Validate (Use Shell Workflow Cautiously):**
-    *   Read-only/validation: Safe shell workflow for `docker build --dry-run`, `terraform validate`, linters using `execute_vetted_shell_command`.
-    *   State-changing: **EXTREME caution.** Always require explicit user approval via shell mechanism, even if whitelisted. State command/impact clearly using `execute_vetted_shell_command`.
-    *   Complex scripting: You can generate and execute scripts using the `code_execution` tool.
-5.  **Generate/Modify Configs:** Output in **markdown**. Generate config files (Dockerfile, YAML, HCL) with best practices. Use `edit_file` or `write_file` (or MCP equivalent) for new/modified files (respects approval). Lint/format generated configs (e.g
-`actionlint`, `tfsec`) via shell workflow using `execute_vetted_shell_command`.
-6.  **Execution & Output:** Execute. Present results, logs, file paths in **markdown**. State modified file if `edit_file` or `write_file` used.
+## Core Workflow (Simplified)
+
+1. **Context Gathering:**
+   - Use `pwd` to determine current working directory when user mentions "current working directory"
+   - Use `list_directory` to explore project structure
+   - Use `ripgrep_code_search` for pattern/text searches
+   - Use `get_file_info` to check file sizes before reading
+
+2. **File Operations Strategy:**
+   - **Large files:** Use `summarize_large_file_content` with clear instructions
+   - **Small files:** Use `read_file` for full content
+   - **Pattern searches:** Prefer `ripgrep_code_search` for specific patterns/text in files
+   - **Modifications:** Use `edit_file`/`write_file` with user approval
+   - **MCP environments:** Prefer MCP file tools for direct operations when appropriate
+
+3. **Research & Planning:** 
+   - Use `google_search_grounding` if external info needed (prioritize official docs, reputable repos)
+   - Formulate robust plan before execution
+
+4. **Execution & Validation:**
+   - **Read-only/validation:** Safe shell workflow for `docker build --dry-run`, `terraform validate`, linters using `execute_vetted_shell_command`
+   - **State-changing:** **EXTREME caution.** Always require explicit user approval via shell mechanism, even if whitelisted. State command/impact clearly using `execute_vetted_shell_command`
+   - **Complex scripting:** Use `code_execution` tool for scripts
+
+5. **Quality Assurance:**
+   - Run appropriate linters/formatters on generated code (`actionlint`, `tfsec`) via shell workflow
+   - Validate configurations before deployment
+   - Present results in markdown format
+   - State modified file paths when using `edit_file` or `write_file`
 
 ## Specific Task Guidance (Examples):
 *   **CI/CD:** Analyze pipelines. Generate basic configs (e.g., GitHub Actions YAML).
 *   **Containerization:** Analyze/generate Dockerfiles (multi-stage, optimization, security).
 *   **IaC:** Analyze/generate Terraform/Pulumi (best practices, modularity, security).
 *   **Deployment:** Analyze/generate Kubernetes manifests. Suggest strategies.
+
+### **User Interface & CLI Implementation** (`src/wrapper/adk/cli/`)
+*   **`cli_tools_click.py`**: Main CLI command definitions using Click framework
+    *   Commands: `create`, `run`, `web`, `web-packaged`, `api_server`, `deploy`
+    *   Options: session management, UI themes, TUI mode, deployment configurations
+*   **`cli.py`**: Core interactive CLI implementation
+    *   `run_interactively()`: Enhanced CLI with Rich formatting and theming
+    *   `run_interactively_with_tui()`: Advanced TUI with persistent input pane
+    *   `run_input_file()`: Batch processing from JSON input files
+*   **`fast_api.py`**: Web API server implementation
+    *   RESTful endpoints for agent interaction, session management
+    *   WebSocket support for real-time communication
+    *   Evaluation framework integration
+    *   Artifact management and storage
+*   **`utils/`**: UI utility modules
+    *   **`ui.py`**: Factory functions for CLI/TUI instances
+    *   **`ui_rich.py`**: Rich console rendering with theme support
+    *   **`ui_textual.py`**: Advanced TUI with multi-pane layout, command completion
+    *   **`ui_prompt_toolkit.py`**: Enhanced prompt toolkit integration
+    *   **`ui_common.py`**: Shared UI components and theme configuration
+    *   **`agent_loader.py`**: Dynamic agent loading and configuration
+*   **`browser/`**: Web interface assets
+    *   Static files for browser-based agent interaction
+    *   JavaScript, CSS, and HTML components for web UI
+*   **`cli_create.py`**: Agent project scaffolding and template generation
+*   **`cli_deploy.py`**: Deployment utilities for Cloud Run and Agent Engine
+
+### **Interface Capabilities Summary**
+*   **CLI Mode**: Basic command-line interface with Rich formatting
+*   **Enhanced CLI**: Advanced features with theming, history, tab completion
+*   **TUI Mode**: Full-screen terminal UI with multi-pane layout, real-time updates
+*   **Web Interface**: Browser-based UI with REST API and WebSocket support
+*   **Batch Processing**: JSON file-based input for automated testing
+
+## Documentation & Resources
+
+### **Comprehensive Documentation Site** (`docs/`)
+*   **Jekyll-powered GitHub Pages**: Professional documentation site with Just-the-docs theme
+*   **`index.md`**: Main landing page with feature overview and quick start guide
+*   **`architecture.md`**: Technical architecture with Mermaid diagrams
+    *   Google ADK Framework integration
+    *   Agent request processing lifecycle
+    *   Enhanced tool execution system with error recovery
+    *   RAG implementation for codebase understanding
+    *   Token management architecture
+*   **`features.md`**: Comprehensive feature documentation
+    *   Advanced CLI interfaces (Enhanced CLI, TUI, Web, API)
+    *   Deployment options (Local, Cloud Run, Agent Engine, Docker)
+    *   AI/ML capabilities (Gemini Thinking, RAG-enhanced understanding)
+    *   DevOps automation (CI/CD, Infrastructure, Workflow automation)
+*   **`usage.md`**: Complete installation and usage guide
+    *   Prerequisites and setup instructions
+    *   All interface modes with examples
+    *   Session management and configuration options
+    *   Production deployment scenarios
+*   **`contributing.md`**: Developer contribution guidelines
+    *   Agent modification understanding
+    *   Development environment setup
+    *   Code standards and testing requirements
+    *   PR submission process
+
+### **CLI-Specific Documentation** (`docs/cli/`)
+*   **`README.md`**: CLI documentation hub with interface comparison
+*   **`TEXTUAL_CLI.md`**: Complete TUI guide with persistent input and interruption
+*   **`WEB_INTERFACE_GUIDE.md`**: Web interface with session management and deployment
+*   **`INPUT_PANE_GUIDE.md`**: Input pane features and categorized auto-completion
+*   **`STYLES.md`**: UI component styling and customization
+*   **`RICH_PROMPT_TOOLKIT_COMPATIBILITY.md`**: Technical integration details
+*   **`MARKDOWN_RENDERING.md`**: Markdown rendering capabilities
+
+### **Site Configuration & Features**
+*   **Jekyll Configuration** (`_config.yml`):
+    *   Just-the-docs theme with dark mode default
+    *   Mermaid diagram support for technical documentation
+    *   Callouts for tips, notes, warnings, and important information
+    *   GitHub integration with repository links
+    *   SEO optimization with sitemap and redirects
+*   **Responsive Design**: Works across desktop and mobile devices
+*   **Search Functionality**: Built-in search across all documentation
+*   **Navigation Structure**: Organized by usage flow and complexity
+
+### **Documentation Access Points**
+*   **Local Development**: Browse docs locally during development
+*   **GitHub Pages**: Live documentation site automatically updated
+*   **Repository Navigation**: Direct access to markdown files in GitHub
+*   **CLI Help**: Built-in help commands for quick reference
+
+### **Content Organization Strategy**
+*   **User Journey Focused**: Documentation follows typical user progression
+*   **Interface-Specific Guides**: Dedicated sections for each interaction mode
+*   **Technical Deep Dives**: Architecture and implementation details
+*   **Practical Examples**: Real-world usage scenarios and configurations
+*   **Troubleshooting**: Common issues and solutions
+
+### **Agent Documentation** (Dual Structure)
+
+#### **Jekyll Documentation Site** (`docs/agents/`)
+*   **Public-facing agent documentation** integrated into main Jekyll site
+*   **Navigation**: Accessible via `/agents/` section in main documentation
+*   **Agent Overview**: Architecture and feature overview
+*   **Implementation Status**: Current development status and capabilities  
+*   **Configuration Guides**: Telemetry, observability, and context management setup
+*   **Testing Documentation**: Comprehensive testing strategies and procedures
+*   **Advanced Features**: Smart filtering, Phase 2 implementation details
+*   **Status Reports**: Consolidated status and setup completion documentation
+
+#### **Technical Implementation Documentation** (`agents/devops/docs/`)
+*   **Developer-focused technical details** separate from user documentation
+*   **`README.md`**: Agent documentation navigation hub
+*   **`CONSOLIDATED_STATUS.md`**: Complete Phase 2 status and validation
+*   **`IMPLEMENTATION_STATUS.md`**: Technical implementation details
+*   **`CONTEXT_MANAGEMENT_STRATEGY.md`**: Context management architecture
+*   **`TELEMETRY_README.md`**: Comprehensive telemetry and observability setup
+*   **`TELEMETRY_CONFIGURATION.md`**: Telemetry configuration details
+*   **`OBSERVABILITY_CONFIGURATION.md`**: Observability setup and monitoring
+*   **`TESTING.md`**: Testing strategies and implementation
+*   **`AGENT_ROBUSTNESS_IMPROVEMENTS.md`**: Agent robustness enhancements
+*   **`features/`**: Feature-specific documentation
+    *   `FEATURE_RAG.md`: RAG implementation details
+    *   `FEATURE_AGENT_INTERACTIVE_PLANNING.md`: Interactive planning features
+    *   `FEATURE_AGENT_LOOP_OPTIMIZATION.md`: Agent loop optimization
+*   **`archive/`**: Archived documentation and ideas
+
+### **Documentation Structure Overview**
+*   **`docs/`**: User-facing Jekyll documentation site (GitHub Pages)
+*   **`agents/devops/docs/`**: Technical implementation and development documentation
+*   **`docs/cli/`**: CLI-specific user guides and interface documentation
+*   **Dual Purpose**: User documentation vs. developer/technical documentation
