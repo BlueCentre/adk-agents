@@ -43,20 +43,26 @@ The DevOps Agent is designed to assist with:
 
 ## Getting Started
 
+Setup your API key
+
+```bash
+export GOOGLE_API_KEY=your_api_key_here
+```
+
 Choose your preferred interface:
 
 ```bash
 # Enhanced CLI with rich features
-adk run agents/devops
+uvx --refresh --from git+https://github.com/BlueCentre/adk-agents.git@main agent run agents.devops
 
 # Full-featured TUI with persistent input
-adk run agents/devops --tui
+uvx --refresh --from git+https://github.com/BlueCentre/adk-agents.git@main agent run agents.devops --tui
 
 # Web interface for browser-based interaction
-adk web agents/
+uvx --refresh --from git+https://github.com/BlueCentre/adk-agents.git@main agent web
 
 # API server for programmatic access
-adk api_server agents/
+uvx --refresh --from git+https://github.com/BlueCentre/adk-agents.git@main agent api_server
 ```
 
 Dive into the documentation to explore how the DevOps Agent can streamline your workflows and enhance your productivity.

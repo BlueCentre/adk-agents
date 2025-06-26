@@ -47,13 +47,31 @@ To get started with the DevOps Agent, ensure you have Python 3.13 (or a compatib
 
     This is required for the agent to create a GenAI client when running with the ADK. The key is loaded via the configuration system in `config.py`.
 
-    Run the CLI: Execute the following command in your terminal:
+    Run the simple CLI: Execute the following command in your terminal:
+    
+    ```bash
+    uvx --refresh --from git+https://github.com/BlueCentre/adk-agents.git@main agent run agents.devops
+    ```
+
+    Run the Full-featured TUI: Execute the following command in your terminal:
     
     ```bash
     uvx --refresh --from git+https://github.com/BlueCentre/adk-agents.git@main agent run agents.devops --tui
     ```
 
-    This command will set up a virtual environment with the required packages and start an interactive CLI session with the DevOps agent.
+    Run agent with a web interface:
+
+    ```bash
+    uvx --refresh --from git+https://github.com/BlueCentre/adk-agents.git@main agent web
+    ```
+
+    Run agent with an API interface:
+
+    ```bash
+    uvx --refresh --from git+https://github.com/BlueCentre/adk-agents.git@main agent api_server
+    ```
+
+    These commands will set up a virtual environment with the required packages and start an interactive CLI session with the DevOps agent.
 
 2.  **Deploy to Google Cloud Run: (WORK-IN-PROGRESS)**
 
@@ -62,6 +80,7 @@ To get started with the DevOps Agent, ensure you have Python 3.13 (or a compatib
     ```bash
     adk deploy cloud_run --project=[YOUR_GCP_PROJECT] --region=[YOUR_GCP_REGION] agents/devops/
     ```
+
     Replace `[YOUR_GCP_PROJECT]` and `[YOUR_GCP_REGION]` with your Google Cloud project ID and desired region. This command packages the agent and deploys it, making it accessible via an HTTP endpoint.
 
 ## Advanced Configuration
