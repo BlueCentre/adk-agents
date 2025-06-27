@@ -33,6 +33,7 @@ The `adk-agents` project is a Python-based initiative focused on DevOps agents w
 
 ## Notes for Gemini
 
+*   For specific project details, refer to `AGENT.md`. Always check `AGENT.md` before responding to the user about project specifics.
 *   When making changes, please adhere to the existing code style and conventions.
 *   Ensure that all tests pass after making modifications.
 *   Run linters and formatters before committing changes.
