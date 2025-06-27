@@ -14,6 +14,7 @@ from google.adk.tools import (
 )
 
 from .. import config as agent_config
+from ..components.learning_system import learning_system # Import the learning system
 
 logger = logging.getLogger(__name__)
 
@@ -474,18 +475,25 @@ def execute_vetted_shell_command(args: dict, tool_context: ToolContext) -> Execu
 
 # --- Command Reconstruction Utilities --- #
 
-def suggest_command_alternatives(original_command: str) -> List[str]:
+def suggest_command_alternatives(original_command: str, error_type: str = "parsing_error", context_keywords: list[str] = None) -> List[str]:
     """Suggests alternative command formulations for commands that failed due to parsing issues.
     
     This is particularly useful for git commit commands with complex messages.
     
     Args:
         original_command (str): The original command that failed
+        error_type (str): The type of error encountered (e.g., "parsing_error").
+        context_keywords (list[str]): Keywords from the command context for better suggestions.
         
     Returns:
         List[str]: List of alternative command formulations
     """
-    alternatives = []
+    if context_keywords is None:
+        context_keywords = []
+
+    # Get suggestions from the learning system first
+    learned_suggestions = learning_system.get_suggestions(original_command, error_type, context_keywords)
+    alternatives = list(learned_suggestions)
     
     # Handle git commit commands specifically
     if original_command.startswith('git commit'):
@@ -606,7 +614,7 @@ def execute_vetted_shell_command_with_retry(args: dict, tool_context: ToolContex
     
     # If it failed and auto_retry is disabled, return with suggestions
     if not auto_retry:
-        suggestions = suggest_command_alternatives(command)
+        suggestions = suggest_command_alternatives(command, error_type="unknown_error")
         return ExecuteVettedShellCommandWithRetryOutput(
             status="failed_with_suggestions",
             command_executed=command,
@@ -618,7 +626,7 @@ def execute_vetted_shell_command_with_retry(args: dict, tool_context: ToolContex
     if "parsing" in standard_result.message.lower() or "quotation" in standard_result.message.lower():
         logger.info(f"Command failed with parsing error, trying alternative approaches: {command}")
         
-        alternatives = suggest_command_alternatives(command)
+        alternatives = suggest_command_alternatives(command, error_type="parsing_error")
         alternatives_tried = []
         
         for alternative in alternatives:
@@ -634,6 +642,13 @@ def execute_vetted_shell_command_with_retry(args: dict, tool_context: ToolContex
             alt_result = execute_vetted_shell_command(alt_args, tool_context)
             
             if alt_result.status == "executed":
+                # Record the successful alternative
+                learning_system.record_success(
+                    original_command=command,
+                    error_type="parsing_error", # Assuming parsing error for now
+                    successful_alternative=alternative,
+                    context_keywords=[] # Can add more context later if needed
+                )
                 return ExecuteVettedShellCommandWithRetryOutput(
                     stdout=alt_result.stdout,
                     stderr=alt_result.stderr,
