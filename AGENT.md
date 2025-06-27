@@ -163,7 +163,7 @@ When users request changes to "your code," "your logic," or "your behavior":
 - **IaC:** `terraform`
 - **Secrets:** `bw` (Bitwarden CLI)
 - **Monitoring:** `datadog-ci` (at `/Users/$HOME/bin/datadog-ci`)
-- **Task Management:** `jira` (use 'jira me' to get user)
+- **Task Management:** `acli` (preferred), `jira` (use 'jira me' to get user)
 - **Node.js/Frontend:** `npm`
 - **CI/CD Platform:** (e.g., GitHub Actions, GitLab CI, Jenkins - *Please specify*)
 
