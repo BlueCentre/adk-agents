@@ -1,8 +1,9 @@
-import pytest
-import os
 import io
+import os
 import sys
 from unittest.mock import patch
+
+import pytest
 
 # Skip all CLI tests due to missing dependencies
 pytestmark = pytest.mark.skip(

@@ -5,18 +5,20 @@ This module provides common utilities, fixtures, and helper functions
 used across the test suite.
 """
 
-import time
 import asyncio
-from typing import Dict, List, Any, Optional, AsyncGenerator
-from unittest.mock import Mock, AsyncMock
 from dataclasses import dataclass
-
+from dataclasses import field
 # Note: These imports would normally be from devops_agent
 # For testing purposes, we'll define minimal versions here
 from enum import Enum
-from dataclasses import dataclass, field
-from typing import Optional, List, Dict, Any
 import time
+from typing import Any
+from typing import AsyncGenerator
+from typing import Dict
+from typing import List
+from typing import Optional
+from unittest.mock import AsyncMock
+from unittest.mock import Mock
 
 
 class TurnPhase(Enum):

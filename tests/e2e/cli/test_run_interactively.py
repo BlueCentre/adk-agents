@@ -1,6 +1,9 @@
-import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
 import asyncio
+from unittest.mock import AsyncMock
+from unittest.mock import MagicMock
+from unittest.mock import patch
+
+import pytest
 
 from src.wrapper.adk.cli.cli import run_interactively
 

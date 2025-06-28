@@ -4,30 +4,31 @@ Unit tests for cli_tools_click.py
 Tests all CLI commands, decorators, and utility classes in the CLI module.
 """
 
-import pytest
 import os
 import tempfile
+from unittest.mock import AsyncMock
+from unittest.mock import MagicMock
+from unittest.mock import Mock
+from unittest.mock import patch
 import warnings
-from unittest.mock import Mock, patch, MagicMock, AsyncMock
-from click.testing import CliRunner
+
 import click
+from click.testing import CliRunner
+import pytest
 
-from src.wrapper.adk.cli.cli_tools_click import (
-    main,
-    cli_create_cmd,
-    cli_run,
-    cli_web,
-    cli_web_packaged,
-    cli_api_server,
-    cli_deploy_cloud_run,
-    cli_deploy_agent_engine,
-    HelpfulCommand,
-    validate_exclusive,
-    adk_services_options,
-    fast_api_common_options,
-    deploy,
-)
-
+from src.wrapper.adk.cli.cli_tools_click import adk_services_options
+from src.wrapper.adk.cli.cli_tools_click import cli_api_server
+from src.wrapper.adk.cli.cli_tools_click import cli_create_cmd
+from src.wrapper.adk.cli.cli_tools_click import cli_deploy_agent_engine
+from src.wrapper.adk.cli.cli_tools_click import cli_deploy_cloud_run
+from src.wrapper.adk.cli.cli_tools_click import cli_run
+from src.wrapper.adk.cli.cli_tools_click import cli_web
+from src.wrapper.adk.cli.cli_tools_click import cli_web_packaged
+from src.wrapper.adk.cli.cli_tools_click import deploy
+from src.wrapper.adk.cli.cli_tools_click import fast_api_common_options
+from src.wrapper.adk.cli.cli_tools_click import HelpfulCommand
+from src.wrapper.adk.cli.cli_tools_click import main
+from src.wrapper.adk.cli.cli_tools_click import validate_exclusive
 
 # Configure warning filters at the module level
 # Suppress duplicate parameter warnings from Click during testing
@@ -788,7 +789,6 @@ class TestDirectFunctionCoverage:
     # Simulate the pattern of calls that would happen in the lifespan functions
     # This tests the general pattern of message output similar to what happens
     # in the _lifespan functions without needing to execute them directly
-
     # Simulate startup message pattern (like lines 437-442)
     mock_secho(
         f"""
@@ -819,9 +819,10 @@ class TestDirectFunctionCoverage:
   @patch('src.wrapper.adk.cli.cli_tools_click.click.secho')
   async def test_extracted_lifespan_function(self, mock_secho):
     """Test the lifespan function by extracting it from CLI commands."""
-    from unittest.mock import Mock
-    from fastapi import FastAPI
     import tempfile
+    from unittest.mock import Mock
+
+    from fastapi import FastAPI
 
     # Extract lifespan function from cli_web
     with patch('src.wrapper.adk.cli.cli_tools_click.uvicorn.Server'):
