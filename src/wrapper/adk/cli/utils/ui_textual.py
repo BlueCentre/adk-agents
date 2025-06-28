@@ -91,7 +91,7 @@ class AgentTUI(App):
                 'create new feature branch', 'merge pull request', 'tag new release',
                 'update changelog', 'bump version number', 'execute regression tests',
                 'run security scan', 'run performance tests', 'generate documentation',
-                'summarize git status & diff using https://www.conventionalcommits.org/en/v1.0.0/#specification, stage, commit, and push chnages',
+                'summarize git status & diff using https://www.conventionalcommits.org/en/v1.0.0/#specification, commit, and push chnages',
                 'push changes',
             ],
             '⚙️ CLI Commands': [
