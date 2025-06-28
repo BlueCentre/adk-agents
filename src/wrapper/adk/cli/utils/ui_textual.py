@@ -91,7 +91,7 @@ class AgentTUI(App):
                 'create new feature branch', 'merge pull request', 'tag new release',
                 'update changelog', 'bump version number', 'execute regression tests',
                 'run security scan', 'run performance tests', 'generate documentation',
-                'summarize git status & diff using https://www.conventionalcommits.org/en/v1.0.0/#specification, commit, and push chnages',
+                'summarize git status & diff using https://www.conventionalcommits.org/en/v1.0.0/#specification, commit, and push changes',
                 'push changes',
             ],
             '⚙️ CLI Commands': [
@@ -555,33 +555,33 @@ class AgentTUI(App):
         self.agent_running = False
 
     async def on_input_submitted(self, event: Input.Submitted) -> None:
-        """Handle user input submitted from the input area."""
-        content = event.value.strip()
-        input_widget = self.query_one("#input-area")
-        
-        # Clear the input widget (handling both types)
-        if hasattr(input_widget, 'clear'):
-            input_widget.clear()
-        elif hasattr(input_widget, 'text'):
-            input_widget.text = ""
+        """Handle submission of input from the user."""
+        await self._submit_input(event.value)
 
-        if content:
+    async def on_submittable_text_area_submitted(self, event: SubmittableTextArea.Submitted):
+        """Handle submission from the multi-line text area."""
+        await self._submit_input(event.text_area.text)
+
+    async def _submit_input(self, text: str):
+        """Process the submitted text, handling commands and callbacks."""
+        text = text.strip()
+        if text:
             # Handle built-in commands
-            if content.lower() in ['exit', 'quit', 'bye']:
+            if text.lower() in ['exit', 'quit', 'bye']:
                 self.add_output("👋 Goodbye!", rich_format=True, style="info")
                 self.exit()
                 return
-            elif content.lower() == 'clear':
+            elif text.lower() == 'clear':
                 self.action_clear_output()
                 return
-            elif content.lower() == 'help':
+            elif text.lower() == 'help':
                 self.display_user_help()
                 return
-            elif content.lower() == 'toggle':
+            elif text.lower() == 'toggle':
                 self.action_toggle_user_multiline_input()
                 return
-            elif content.lower().startswith('theme'):
-                parts = content.lower().split()
+            elif text.lower().startswith('theme'):
+                parts = text.lower().split()
                 if len(parts) == 1 or parts[1] == 'toggle':
                     self.action_toggle_theme()
                 elif parts[1] == 'dark':
@@ -597,10 +597,10 @@ class AgentTUI(App):
                 return
 
             # Add to history (both app and input widget)
-            self.user_input_history.append(content)
+            self.user_input_history.append(text)
             self.user_input_history_index = len(self.user_input_history)
-            if hasattr(input_widget, 'add_to_history'):
-                input_widget.add_to_history(content)
+            if hasattr(self.query_one("#input-area"), 'add_to_history'):
+                self.query_one("#input-area").add_to_history(text)
 
             # Process user input through callback
             if self.input_callback:
@@ -608,7 +608,7 @@ class AgentTUI(App):
                 self.start_thinking()
                 try:
                     # Create task properly for async callback
-                    await self.input_callback(content)
+                    await self.input_callback(text)
                 except Exception as e:
                     self.add_output(f"❌ Error processing input: {str(e)}", rich_format=True, style="error")
                 finally:

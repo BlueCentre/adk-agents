@@ -235,7 +235,7 @@ class EnhancedCLI:
                 'create new feature branch', 'merge pull request', 'tag new release',
                 'update changelog', 'bump version number', 'execute regression tests',
                 'run security scan', 'run performance tests', 'generate documentation',
-                'summarize git diff using https://www.conventionalcommits.org/en/v1.0.0/#specification, stage, commit, and push chnages',
+                'summarize git diff using https://www.conventionalcommits.org/en/v1.0.0/#specification, commit, and push changes',
                 'push changes',
             ],
             '⚙️ CLI Commands': [

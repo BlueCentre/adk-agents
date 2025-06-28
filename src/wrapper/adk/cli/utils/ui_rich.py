@@ -22,6 +22,19 @@ class RichRenderer:
         self.console = Console(theme=self.rich_theme, force_interactive=True)
         self.markdown_enabled = True
 
+    def format_message(self, text: str | Text, author: str, rich_format: bool = False, style: str = "") -> Text:
+        if isinstance(text, Text):
+            return text
+
+        if rich_format:
+            return Text.from_markup(text)
+
+        # Simple text with author prefix
+        message = Text()
+        if author:
+            message.append(f"{author}: ", style="bold")
+        message.append(text, style=style)
+        return message
 
     def format_agent_response(self, text: str, author: str = "Agent") -> Panel:
         markdown = Markdown(text, style="agent")
