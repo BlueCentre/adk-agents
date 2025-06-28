@@ -28,11 +28,12 @@ import rich_click as click
 from fastapi import FastAPI
 import uvicorn
 
+from google.adk.cli import cli_create
+from google.adk.cli import cli_deploy
+from google.adk.cli.utils import logs
+
 from .cli import run_cli
 from .fast_api import get_fast_api_app
-from .utils import logs
-from . import cli_create
-from . import cli_deploy
 from .. import version
 
 
