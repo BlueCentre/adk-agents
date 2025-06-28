@@ -18,4 +18,10 @@ This document outlines essential commands and code style guidelines for agents o
 -   **Types:** Use Python type hints extensively for clarity and maintainability.
 -   **Naming Conventions:** Follow standard Python naming conventions (e.g., `snake_case` for functions/variables, `CamelCase` for classes).
 -   **Error Handling:** Prefer explicit exception handling over silent failures. Log errors appropriately.
--   **General:** Mimic existing code style and patterns within the codebase. Avoid adding comments unless explici
+-   **General:** Mimic existing code style and patterns within the codebase. Avoid adding comments unless explicitly required.
+
+## Project Guidelines
+
+- **Semantic Versioning:** https://semver.org/spec/v2.0.0.html#semantic-versioning-specification-semver
+- **Changelog:** https://keepachangelog.com/en/1.1.0/
+- **Git Commit Messages:** https://www.conventionalcommits.org/en/v1.0.0/#specification
