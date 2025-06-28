@@ -45,9 +45,6 @@ jobs:
         else
           echo "Running tests for all modules with coverage"
           uv run pytest tests/ \
-          # --cov=agents \
-          # --cov=src.wrapper.adk \
-          # --cov-config=pyproject.toml \
           --cov-report=xml --cov-report=term --cov-fail-under=80 \
           --junitxml=test-results.xml
         fi
@@ -64,9 +61,6 @@ jobs:
       run: |
         # Generate HTML coverage report for detailed analysis
         uv run pytest tests/ \
-        # --cov=agents \
-        # --cov=src.wrapper.adk \
-        # --cov-config=pyproject.toml \
         --cov-report=html
 
     - name: Upload HTML coverage report
