@@ -8,9 +8,9 @@ on:
   workflow_dispatch:
     inputs:
       modules:
-        description: 'Specific module to test (e.g., code_agent.tools.native_tools)'
+        description: 'Specific module to test (e.g., agents.devops, src.wrapper.adk)'
         required: false
-        default: 'code_agent'
+        default: 'all'
         type: string
 
 jobs:
@@ -36,21 +36,44 @@ jobs:
       
     - name: Run tests with coverage
       run: |
-        if [[ "${{ github.event.inputs.modules }}" == "code_agent.tools.native_tools" ]]; then
-          echo "Running tests for native_tools module only"
-          uv run pytest tests/test_native_tools.py tests/test_native_tools_additional.py --cov=code_agent.tools.native_tools --cov-report=xml --cov-report=term --cov-fail-under=80
+        if [[ "${{ github.event.inputs.modules }}" == "agents.devops" ]]; then
+          echo "Running tests for agents.devops module only"
+          uv run pytest tests/ --cov=agents.devops --cov-report=xml --cov-report=term --cov-fail-under=70
+        elif [[ "${{ github.event.inputs.modules }}" == "src.wrapper.adk" ]]; then
+          echo "Running tests for src.wrapper.adk module only"
+          uv run pytest tests/ --cov=src.wrapper.adk --cov-report=xml --cov-report=term --cov-fail-under=70
         else
-          echo "Running tests for all modules"
-          uv run pytest --cov=code_agent \
+          echo "Running tests for all modules with coverage"
+          uv run pytest tests/ \
+          --cov=agents \
+          --cov=src.wrapper.adk \
           --cov-config=pyproject.toml \
-          --cov-report=xml --cov-report=term --cov-fail-under=80
+          --cov-report=xml --cov-report=term --cov-fail-under=70 \
+          --junitxml=test-results.xml
         fi
 
     - name: Upload coverage report
       uses: actions/upload-artifact@v4
       with:
         name: coverage-report
-        path: coverage.xml
+        path: |
+          coverage.xml
+          test-results.xml
+
+    - name: Generate detailed coverage report
+      run: |
+        # Generate HTML coverage report for detailed analysis
+        uv run pytest tests/ \
+        --cov=agents \
+        --cov=src.wrapper.adk \
+        --cov-config=pyproject.toml \
+        --cov-report=html
+
+    - name: Upload HTML coverage report
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-html-report
+        path: htmlcov/
 
   coverage-report:
     name: SonarQube

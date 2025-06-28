@@ -177,4 +177,5 @@ follow_imports = "skip"
 dev = [
   "pytest>=8.3.5",
   "pytest-asyncio>=1.0.0",
+  "pytest-cov>=6.2.1",
 ]
