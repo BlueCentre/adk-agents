@@ -44,11 +44,11 @@ dependencies = [
 ]
 dynamic = ["version"]
 
-#[project.urls]
-#homepage = "https://google.github.io/adk-docs/"
-#repository = "https://github.com/google/adk-python"
-#changelog = "https://github.com/google/adk-python/blob/main/CHANGELOG.md"
-#documentation = "https://google.github.io/adk-docs/"
+[project.urls]
+homepage = "https://adk-agents.vitruviansoftware.dev/"
+repository = "https://github.com/BlueCentre/adk-agents"
+changelog = "https://github.com/BlueCentre/adk-agents/blob/main/CHANGELOG.md"
+documentation = "https://adk-agents.vitruviansoftware.dev/"
 
 [project.scripts]
 agent = "wrapper.adk.cli:main"
@@ -119,12 +119,10 @@ extensions = [
   "toolbox-core>=0.1.0",                  # For tools.toolbox_toolset.ToolboxToolset
 ]
 
+
 [build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
-
-#[tool.uv.sources] # Removed this section
-#google-adk = { git = "https://github.com/google/adk-python.git", rev = "main" }
 
 [tool.setuptools.packages.find]
 where = ["src", "."]
@@ -135,6 +133,7 @@ include = ["wrapper*", "agents*"]
 "wrapper.adk.cli.utils" = ["*.tcss"]
 "wrapper.adk.cli" = ["browser/*", "browser/**/*"]
 "agents" = ["**/*"]
+
 
 [tool.pyink]
 # Format py files following Google style-guide
