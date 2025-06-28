@@ -1,1 +1,1 @@
-"""CLI end-to-end tests package.""" 
+"""CLI end-to-end tests package."""
