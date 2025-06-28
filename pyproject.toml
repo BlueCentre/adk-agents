@@ -137,7 +137,7 @@ include = ["wrapper*", "agents*"]
 
 [tool.pyink]
 # Format py files following Google style-guide
-line-length = 80
+line-length = 100
 unstable = true
 pyink-indentation = 2
 pyink-use-majority-quotes = true
@@ -154,7 +154,7 @@ pyink-annotation-pragmas = [
 [tool.isort]
 profile = "google"
 single_line_exclusions = []
-line_length = 200                  # Prevent line wrap flickering.
+line_length = 100                  # Prevent line wrap flickering.
 known_third_party = ["google.adk"]
 
 [tool.pytest.ini_options]
@@ -178,3 +178,55 @@ dev = [
   "pytest-asyncio>=1.0.0",
   "pytest-cov>=6.2.1",
 ]
+
+[tool.coverage.run]
+# Only include source code from the src/ directory
+source = ["src"]
+
+# Exclude files that shouldn't be included in coverage
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "*/__pycache__/*",
+    "*/venv/*",
+    "*/.venv/*",
+    "*/build/*",
+    "*/dist/*",
+    "setup.py",
+    "conftest.py",
+]
+
+[tool.coverage.report]
+# Minimum coverage percentage required
+fail_under = 80
+
+# Show missing lines in the report
+show_missing = true
+
+# Skip covered files in the report
+skip_covered = false
+
+# Skip empty files
+skip_empty = true
+
+# Exclude lines with these patterns from coverage
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+[tool.coverage.html]
+# Directory for HTML coverage reports
+directory = "htmlcov"
+
+[tool.coverage.xml]
+# XML coverage report filename
+output = "coverage.xml"

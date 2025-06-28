@@ -29,7 +29,10 @@ The `adk-agents` project is a Python-based initiative focused on DevOps agents w
     *   `uv run black . --line-length 100 --preview`
     *   `uv run isort . --profile black`
 *   **Run Tests:** `uv run pytest`
+*   **Run Tests (individually):** `uv run pytest tests/path/to/test_file.py::test_function_name`
+*   **Run Tests with Coverage:** `uv run pytest --cov --cov-fail-under=80`
 *   **Run Type Checker:** `uv run mypy .` (adjust path if needed, e.g., `mypy src agents tests`)
+*   **Run Agent:** `echo "What is the current time?" | uv run agent run agents.devops`
 
 ## Notes for Gemini
 

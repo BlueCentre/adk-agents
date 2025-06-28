@@ -7,9 +7,11 @@ This document outlines essential commands and code style guidelines for agents o
 -   **Install dependencies:** `uv pip install -e ".[dev,test]"`
 -   **Run all tests:** `uv run pytest`
 -   **Run a single test:** `uv run pytest tests/path/to/your_test_file.py::test_function_name`
+-   **Run Tests with Coverage:** `uv run pytest --cov --cov-fail-under=80`
 -   **Linting (Python):** `uv run pylint src/` or `uv run flake8 src/` (max line length 200)
 -   **Formatting (Python):** `uv run pyink src/`
 -   **Type Checking (Python):** `uv run mypy src/`
+-   **Run Agent:** `echo "What is the current time?" | uv run agent run agents.devops`
 
 ## Code Style Guidelines
 
