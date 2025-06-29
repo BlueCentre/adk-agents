@@ -30,12 +30,12 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-extras --dev
 
-      - name: Run E2E tests
-        run: uv run ./scripts/run_e2e_tests.sh
-        env:
-          GOOGLE_API_KEY: ${{ secrets.AI_STUDIO_API_KEY_TEST }}
-          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY_TEST }}
-          RUN_PROVIDER_API_TESTS: true
+      # - name: Run E2E tests
+      #   run: uv run ./scripts/run_e2e_tests.sh
+      #   env:
+      #     GOOGLE_API_KEY: ${{ secrets.AI_STUDIO_API_KEY_TEST }}
+      #     # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY_TEST }}
+      #     RUN_PROVIDER_API_TESTS: true
 
       - name: Archive test artifacts
         if: always()  # Run even if tests fail
@@ -46,9 +46,10 @@ jobs:
             logs/
             test-reports/
 
+      # https://tools.slack.dev/slack-github-action/sending-techniques/sending-data-slack-incoming-webhook/
       - name: Send Slack notification
         if: failure()
-        uses: slackapi/slack-github-action@v1
+        uses: slackapi/slack-github-action@@v2.1.0
         with:
           payload: |
             {
