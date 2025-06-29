@@ -85,7 +85,7 @@ jobs:
 
       - name: Make extract_version.sh executable
         run: |
-          chmod +x scripts/extract_version.sh
+          chmod +x scripts/ci/extract_version.sh
 
       - name: Extract version
         id: get_version
