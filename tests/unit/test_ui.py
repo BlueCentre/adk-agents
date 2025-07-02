@@ -1,12 +1,9 @@
-from unittest.mock import MagicMock
-from unittest.mock import Mock
-from unittest.mock import patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
 # Import the functions we're testing
-from src.wrapper.adk.cli.utils.ui import get_cli_instance
-from src.wrapper.adk.cli.utils.ui import get_textual_cli_instance
+from src.wrapper.adk.cli.utils.ui import get_cli_instance, get_textual_cli_instance
 
 
 class TestGetCliInstance:

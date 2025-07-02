@@ -153,3 +153,4 @@ celerybeat.pid
 
 # Temporary
 slack/
+agents/.wip/

@@ -1,18 +1,15 @@
 """Test ui_prompt_toolkit.py module."""
 
 from datetime import datetime
-from unittest.mock import MagicMock
-from unittest.mock import Mock
-from unittest.mock import patch
+from unittest.mock import MagicMock, Mock, patch
 
+import pytest
 from prompt_toolkit import PromptSession
 from prompt_toolkit.styles import Style
-import pytest
 from rich.console import Console
 from rich.panel import Panel
 
-from src.wrapper.adk.cli.utils.ui_common import StatusBar
-from src.wrapper.adk.cli.utils.ui_common import UITheme
+from src.wrapper.adk.cli.utils.ui_common import StatusBar, UITheme
 from src.wrapper.adk.cli.utils.ui_prompt_toolkit import EnhancedCLI
 from src.wrapper.adk.cli.utils.ui_rich import RichRenderer
 

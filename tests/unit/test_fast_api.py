@@ -7,42 +7,36 @@ mocking to avoid external dependencies.
 """
 
 import asyncio
-from contextlib import asynccontextmanager
 import json
 import os
-from pathlib import Path
 import tempfile
 import time
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
-from unittest.mock import AsyncMock
-from unittest.mock import MagicMock
-from unittest.mock import Mock
-from unittest.mock import patch
+from contextlib import asynccontextmanager
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
+import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
-from google.adk.cli.cli_eval import EVAL_SESSION_ID_PREFIX
-from google.adk.cli.cli_eval import EvalStatus
-from google.adk.evaluation.eval_case import EvalCase
-from google.adk.evaluation.eval_case import SessionInput
+from google.adk.cli.cli_eval import EVAL_SESSION_ID_PREFIX, EvalStatus
+from google.adk.evaluation.eval_case import EvalCase, SessionInput
 from google.adk.evaluation.eval_metrics import EvalMetric
 from google.adk.events.event import Event
 from google.adk.sessions.session import Session
 from google.genai import types
-import pytest
 
 # Import the function under test
-from src.wrapper.adk.cli.fast_api import AddSessionToEvalSetRequest
-from src.wrapper.adk.cli.fast_api import AgentRunRequest
-from src.wrapper.adk.cli.fast_api import ApiServerSpanExporter
-from src.wrapper.adk.cli.fast_api import get_fast_api_app
-from src.wrapper.adk.cli.fast_api import GetEventGraphResult
-from src.wrapper.adk.cli.fast_api import InMemoryExporter
-from src.wrapper.adk.cli.fast_api import RunEvalRequest
-from src.wrapper.adk.cli.fast_api import RunEvalResult
+from src.wrapper.adk.cli.fast_api import (
+    AddSessionToEvalSetRequest,
+    AgentRunRequest,
+    ApiServerSpanExporter,
+    GetEventGraphResult,
+    InMemoryExporter,
+    RunEvalRequest,
+    RunEvalResult,
+    get_fast_api_app,
+)
 
 
 class TestApiServerSpanExporter:

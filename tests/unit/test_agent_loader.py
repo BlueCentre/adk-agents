@@ -1,16 +1,13 @@
 import os
-from pathlib import Path
 import sys
 import tempfile
-from unittest.mock import MagicMock
-from unittest.mock import Mock
-from unittest.mock import patch
+from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
 # Import the classes and functions we're testing
-from src.wrapper.adk.cli.utils.agent_loader import AgentLoader
-from src.wrapper.adk.cli.utils.agent_loader import load_agent_from_module
+from src.wrapper.adk.cli.utils.agent_loader import AgentLoader, load_agent_from_module
 
 
 class MockBaseAgent:

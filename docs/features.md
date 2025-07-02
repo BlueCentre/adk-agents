@@ -183,10 +183,12 @@ Advanced reasoning capabilities with Gemini 2.5 series models:
 ### RAG-Enhanced Codebase Understanding
 Deep semantic search and retrieval using ChromaDB:
 - **Vector Storage**: ChromaDB with Google embeddings for semantic search
-- **Automatic Indexing**: Project files, documentation, and Git history
+- **Automatic Indexing**: Project files and documentation.
 - **Contextual Retrieval**: Intelligent context gathering for relevant information
 - **Code Analysis**: Deep understanding of code structure and relationships
 - **Documentation Integration**: Seamless integration with project documentation
+
+> **Note:** This feature requires configuration. See the [[Getting Started Guide|getting_started]] for a tutorial and the [[Configuration Reference|configuration]] for all available options.
 
 ## 🛠️ DevOps Automation
 
@@ -311,6 +313,8 @@ Tackle complex tasks with confidence through interactive planning:
 - **Step-by-step Execution**: Guided execution with progress tracking
 - **Modification Support**: Real-time plan modification and adaptation
 - **Rollback Capabilities**: Safe rollback of partially executed plans
+
+> **Note:** This feature is disabled by default. To learn how to enable and use it, see the `ENABLE_INTERACTIVE_PLANNING` flag in the [[Configuration Reference|configuration]]. A detailed usage guide is forthcoming.
 
 ### Session Management
 Comprehensive session handling for continuous workflows:

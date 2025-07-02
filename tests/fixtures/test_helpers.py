@@ -6,19 +6,14 @@ used across the test suite.
 """
 
 import asyncio
-from dataclasses import dataclass
-from dataclasses import field
+import time
+from dataclasses import dataclass, field
+
 # Note: These imports would normally be from devops_agent
 # For testing purposes, we'll define minimal versions here
 from enum import Enum
-import time
-from typing import Any
-from typing import AsyncGenerator
-from typing import Dict
-from typing import List
-from typing import Optional
-from unittest.mock import AsyncMock
-from unittest.mock import Mock
+from typing import Any, AsyncGenerator, Dict, List, Optional
+from unittest.mock import AsyncMock, Mock
 
 
 class TurnPhase(Enum):

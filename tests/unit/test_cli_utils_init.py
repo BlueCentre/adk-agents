@@ -5,8 +5,7 @@ Tests the utility functions for creating empty states for agents.
 """
 
 import re
-from typing import Any
-from typing import Optional
+from typing import Any, Optional
 
 import pytest
 
@@ -148,8 +147,7 @@ def test_exported_functions():
 def test_imports_available():
   """Test that we can import the main functions."""
   # This verifies the module structure
-  from src.wrapper.adk.cli.utils import _create_empty_state
-  from src.wrapper.adk.cli.utils import create_empty_state
+  from src.wrapper.adk.cli.utils import _create_empty_state, create_empty_state
 
   # Functions should be callable
   assert callable(create_empty_state)

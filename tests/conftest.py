@@ -7,26 +7,26 @@ used across all test modules.
 
 import asyncio
 import logging
-from typing import Any
-from typing import Dict
-from unittest.mock import Mock
-from unittest.mock import patch
+from typing import Any, Dict
+from unittest.mock import Mock, patch
 
 import pytest
 
 # Note: For now, we'll use the minimal versions from test_helpers
 # to avoid importing the full devops_agent with its dependencies
-from tests.fixtures.test_helpers import create_populated_state_manager
-from tests.fixtures.test_helpers import create_sample_legacy_state
-from tests.fixtures.test_helpers import MetricsCollector
-from tests.fixtures.test_helpers import MockCallbackContext
-from tests.fixtures.test_helpers import MockInvocationContext
-from tests.fixtures.test_helpers import MockLlmRequest
-from tests.fixtures.test_helpers import MockLlmResponse
-from tests.fixtures.test_helpers import MockTool
-from tests.fixtures.test_helpers import MockToolContext
-from tests.fixtures.test_helpers import StateManager
-from tests.fixtures.test_helpers import StateValidationError
+from tests.fixtures.test_helpers import (
+    MetricsCollector,
+    MockCallbackContext,
+    MockInvocationContext,
+    MockLlmRequest,
+    MockLlmResponse,
+    MockTool,
+    MockToolContext,
+    StateManager,
+    StateValidationError,
+    create_populated_state_manager,
+    create_sample_legacy_state,
+)
 
 # Configure logging for tests
 logging.basicConfig(level=logging.DEBUG)

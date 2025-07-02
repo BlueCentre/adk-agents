@@ -7,8 +7,7 @@ Tests the main entry point module for the CLI package.
 import importlib
 import subprocess
 import sys
-from unittest.mock import Mock
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 

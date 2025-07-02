@@ -29,15 +29,17 @@ dependencies = [
   # "google-genai~=1.19.0", # Migrated from google-generativeai
   # "google-api-core>=2.19.0", # Updated for protobuf 5.x compatibility
   # "protobuf>=5.0,<6.0", # Updated for OpenTelemetry compatibility
-  "openai>=1.10.0", # Using latest stable version
-  "openlit>=1.33.20", # Using latest stable version
-  "opentelemetry-api>=1.30.0,<2.0.0", # OpenTelemetry core - compatible with openlit
-  "opentelemetry-sdk>=1.30.0,<2.0.0", # OpenTelemetry SDK - compatible with openlit
+  "litellm>=1.71.2",                            # For LiteLLM support (required by software_engineer agent)
+  "openai>=1.10.0",                             # Using latest stable version
+  "openlit>=1.33.20",                           # Using latest stable version
+  "opentelemetry-api>=1.30.0,<2.0.0",           # OpenTelemetry core - compatible with openlit
+  "opentelemetry-sdk>=1.30.0,<2.0.0",           # OpenTelemetry SDK - compatible with openlit
   "opentelemetry-exporter-otlp>=1.30.0,<2.0.0", # OTLP exporter for Grafana Cloud
-  "psutil~=5.9.0", # System monitoring
-  "rich>=13.7.0,<14.0.0", # Console output (for local dashboard if needed) - updated for crewai compatibility
+  "psutil~=5.9.0",                              # System monitoring
+  "rich>=13.7.0,<14.0.0",                       # Console output (for local dashboard if needed) - updated for crewai compatibility
+  # "ollama>=0.5.1",
   "prompt_toolkit~=3.0.0", # For enhanced command-line input
-  "textual~=3.4.0", # For enhanced TUI
+  "textual~=3.4.0",        # For enhanced TUI
   "pexpect>=4.9.0",
   # "google-adk @ git+https://github.com/google/adk-python.git@main", # Added google-adk as a direct dependency
   "google-adk @ git+https://github.com/BlueCentre/adk-python.git@feat/rich-click", # Added google-adk as a direct dependency
@@ -107,16 +109,16 @@ docs = [
 
 # Optional extensions
 extensions = [
-  "anthropic>=0.43.0",                    # For anthropic model support
-  "beautifulsoup4>=3.2.2",                # For load_web_page tool.
+  "anthropic>=0.43.0",     # For anthropic model support
+  "beautifulsoup4>=3.2.2", # For load_web_page tool.
   # "crewai[tools];python_version>='3.10'", # Temporarily disabled due to dependency conflicts
-  "docker>=7.0.0",                        # For ContainerCodeExecutor
-  "langgraph>=0.2.60",                    # For LangGraphAgent
-  "litellm>=1.63.11",                     # For LiteLLM support
-  "llama-index-readers-file>=0.4.0",      # For retrieval using LlamaIndex.
-  "lxml>=5.3.0",                          # For load_web_page tool.
-  "tiktoken>=0.7.0,<0.8.0",               # Using latest stable version
-  "toolbox-core>=0.1.0",                  # For tools.toolbox_toolset.ToolboxToolset
+  "docker>=7.0.0",                   # For ContainerCodeExecutor
+  "langgraph>=0.2.60",               # For LangGraphAgent
+  "litellm>=1.71.2",                 # For LiteLLM support
+  "llama-index-readers-file>=0.4.0", # For retrieval using LlamaIndex.
+  "lxml>=5.3.0",                     # For load_web_page tool.
+  "tiktoken>=0.7.0,<0.8.0",          # Using latest stable version
+  "toolbox-core>=0.1.0",             # For tools.toolbox_toolset.ToolboxToolset
 ]
 
 
@@ -173,11 +175,7 @@ follow_imports = "skip"
 
 
 [dependency-groups]
-dev = [
-  "pytest>=8.3.5",
-  "pytest-asyncio>=1.0.0",
-  "pytest-cov>=6.2.1",
-]
+dev = ["pytest>=8.3.5", "pytest-asyncio>=1.0.0", "pytest-cov>=6.2.1"]
 
 [tool.coverage.run]
 # Only include source code from the src/ directory
@@ -185,15 +183,15 @@ source = ["src"]
 
 # Exclude files that shouldn't be included in coverage
 omit = [
-    "*/tests/*",
-    "*/test_*",
-    "*/__pycache__/*",
-    "*/venv/*",
-    "*/.venv/*",
-    "*/build/*",
-    "*/dist/*",
-    "setup.py",
-    "conftest.py",
+  "*/tests/*",
+  "*/test_*",
+  "*/__pycache__/*",
+  "*/venv/*",
+  "*/.venv/*",
+  "*/build/*",
+  "*/dist/*",
+  "setup.py",
+  "conftest.py",
 ]
 
 [tool.coverage.report]
@@ -211,16 +209,16 @@ skip_empty = true
 
 # Exclude lines with these patterns from coverage
 exclude_lines = [
-    "pragma: no cover",
-    "def __repr__",
-    "if self.debug:",
-    "if settings.DEBUG",
-    "raise AssertionError",
-    "raise NotImplementedError",
-    "if 0:",
-    "if __name__ == .__main__.:",
-    "class .*\\bProtocol\\):",
-    "@(abc\\.)?abstractmethod",
+  "pragma: no cover",
+  "def __repr__",
+  "if self.debug:",
+  "if settings.DEBUG",
+  "raise AssertionError",
+  "raise NotImplementedError",
+  "if 0:",
+  "if __name__ == .__main__.:",
+  "class .*\\bProtocol\\):",
+  "@(abc\\.)?abstractmethod",
 ]
 
 [tool.coverage.html]

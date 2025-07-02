@@ -1,16 +1,12 @@
 """Test ui_common.py module."""
 
-from datetime import datetime
-from datetime import timedelta
-from unittest.mock import Mock
-from unittest.mock import patch
+from datetime import datetime, timedelta
+from unittest.mock import Mock, patch
 
 import pytest
 from rich.theme import Theme
 
-from src.wrapper.adk.cli.utils.ui_common import StatusBar
-from src.wrapper.adk.cli.utils.ui_common import ThemeConfig
-from src.wrapper.adk.cli.utils.ui_common import UITheme
+from src.wrapper.adk.cli.utils.ui_common import StatusBar, ThemeConfig, UITheme
 
 
 class TestUITheme:

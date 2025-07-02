@@ -1,21 +1,20 @@
 import asyncio
-from unittest.mock import AsyncMock
-from unittest.mock import Mock
-from unittest.mock import patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
-from textual.widgets import Input
-from textual.widgets import RichLog
+from textual.widgets import Input, RichLog
 
 from src.wrapper.adk.cli.utils.ui_common import UITheme
 from src.wrapper.adk.cli.utils.ui_rich import RichRenderer
-from src.wrapper.adk.cli.utils.ui_textual import AgentTUI
-from src.wrapper.adk.cli.utils.ui_textual import CategorizedInput
-from src.wrapper.adk.cli.utils.ui_textual import CompletionWidget
-from src.wrapper.adk.cli.utils.ui_textual import SubmittableTextArea
+from src.wrapper.adk.cli.utils.ui_textual import (
+    AgentTUI,
+    CategorizedInput,
+    CompletionWidget,
+    SubmittableTextArea,
+)
 
 
 def get_log_text(log: RichLog) -> str:

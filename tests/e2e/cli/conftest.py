@@ -1,9 +1,8 @@
-from unittest.mock import AsyncMock
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.sessions.session import Session
-import pytest
 
 
 @pytest.fixture
