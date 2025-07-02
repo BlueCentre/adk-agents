@@ -1,22 +1,21 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Optional, Callable, Any, Awaitable, Union
-
-from textual import work
-from textual.app import App, ComposeResult
-from textual.containers import Container, Vertical, Horizontal
-from textual.widgets import Input, TextArea, RichLog, Label, Static, OptionList
-from textual.widgets.option_list import Option
-from textual.binding import Binding
-from textual.events import Key
-from textual.reactive import reactive
-from textual.screen import ModalScreen
+from typing import Any, Awaitable, Callable, Optional, Union
 
 from rich.console import Console
 from rich.text import Text
+from textual import work
+from textual.app import App, ComposeResult
+from textual.binding import Binding
+from textual.containers import Container, Horizontal, Vertical
+from textual.events import Key
+from textual.reactive import reactive
+from textual.screen import ModalScreen
+from textual.widgets import Input, Label, OptionList, RichLog, Static, TextArea
+from textual.widgets.option_list import Option
 
-from .ui_common import UITheme, ThemeConfig
+from .ui_common import ThemeConfig, UITheme
 from .ui_rich import RichRenderer
 
 
@@ -557,10 +556,14 @@ class AgentTUI(App):
     async def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle submission of input from the user."""
         await self._submit_input(event.value)
+        # Clear the input after successful submission
+        event.input.value = ""
 
     async def on_submittable_text_area_submitted(self, event: SubmittableTextArea.Submitted):
         """Handle submission from the multi-line text area."""
         await self._submit_input(event.text_area.text)
+        # Clear the text area after successful submission
+        event.text_area.text = ""
 
     async def _submit_input(self, text: str):
         """Process the submitted text, handling commands and callbacks."""
