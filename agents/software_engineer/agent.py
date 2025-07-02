@@ -2,6 +2,7 @@
 
 import logging
 
+import litellm
 from google.adk.agents import Agent
 from google.adk.models.lite_llm import LiteLlm
 from google.adk.tools import load_memory
@@ -15,6 +16,7 @@ from .sub_agents.code_quality.agent import code_quality_agent
 # from .sub_agents.devops.agent import devops_agent
 # from .sub_agents.documentation.agent import documentation_agent
 # from .sub_agents.testing.agent import testing_agent
+from .sub_agents.ollama.agent import ollama_agent
 from .tools import (
     codebase_search_tool,
     edit_file_tool,
@@ -30,8 +32,10 @@ from .tools import (
 # from .tools.memory_tools import add_memory_fact, search_memory_facts
 # from .tools.project_context import load_project_context
 
-logger = logging.getLogger(__name__)
+# litellm.turn_off_message_logging()
 
+logging.getLogger("LiteLLM").setLevel(logging.WARNING)
+logger = logging.getLogger(__name__)
 
 # def initialize_session_memory(tool_context):
 #     """Initialize session memory in tool_context if it doesn't exist."""
@@ -62,7 +66,9 @@ logger = logging.getLogger(__name__)
 # REF: https://google.github.io/adk-docs/agents/models/#ollama-integration
 # Create the agent using LiteLlm wrapper for Ollama integration
 root_agent = Agent(
-    model=LiteLlm(model="ollama_chat/llama3.2"),  # Use ollama_chat provider with LiteLlm
+    # model=LiteLlm(model="ollama_chat/llama3.2"),  # Use ollama_chat provider with LiteLlm
+    model=LiteLlm(model="gemini/gemini-2.5-flash-preview-05-20", metadata={"no-log": True}),  # Use ollama_chat provider with LiteLlm
+    # model="gemini-2.5-flash-preview-05-20",  # Changed from Ollama to Gemini to match sub-agents
     name="software_engineer",
     description="An AI software engineer assistant that helps with various software development tasks",
     instruction=prompt.SOFTWARE_ENGINEER_INSTR,
@@ -74,6 +80,7 @@ root_agent = Agent(
         # testing_agent,
         # debugging_agent,
         # devops_agent,  # TODO: Move command tools to devops_agent with more guardrails
+        ollama_agent,
     ],
     tools=[
         read_file_tool,
