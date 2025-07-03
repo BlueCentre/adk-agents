@@ -14,31 +14,28 @@
 
 from __future__ import annotations
 
-# import asyncio
+import time
 from datetime import datetime
 from typing import Optional
-import time
-# import re
-# import sys
 
 import rich_click as click
-from rich.console import Console
-from prompt_toolkit.patch_stdout import patch_stdout
-from google.genai import types
-from pydantic import BaseModel
-
 from google.adk.agents.llm_agent import LlmAgent
-from google.adk.artifacts import BaseArtifactService
-from google.adk.artifacts import InMemoryArtifactService
+from google.adk.artifacts import BaseArtifactService, InMemoryArtifactService
 from google.adk.auth.credential_service.base_credential_service import BaseCredentialService
-from google.adk.auth.credential_service.in_memory_credential_service import InMemoryCredentialService
+from google.adk.auth.credential_service.in_memory_credential_service import (
+    InMemoryCredentialService,
+)
 from google.adk.runners import Runner
 from google.adk.sessions.base_session_service import BaseSessionService
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.adk.sessions.session import Session
+from google.genai import types
+from prompt_toolkit.patch_stdout import patch_stdout
+from pydantic import BaseModel
+from rich.console import Console
 
-from .utils import envs # Modified to use our packaged path
-from .utils.agent_loader import AgentLoader # Modified to use our packaged path
+from .utils import envs  # Modified to use our packaged path
+from .utils.agent_loader import AgentLoader  # Modified to use our packaged path
 from .utils.ui import get_cli_instance, get_textual_cli_instance
 from .utils.ui_common import UITheme
 
@@ -141,7 +138,7 @@ async def run_interactively(
     except (EOFError, KeyboardInterrupt):
       # Handle Ctrl+D and Ctrl+C gracefully
       output_console = console if fallback_mode else (cli.console if cli else console)
-      output_console.print("\n[warning]Goodbye! 👋[/warning]")
+      output_console.print("\n👋 [warning]Goodbye![/warning]")
       break
     except Exception as e:
       # Handle other prompt-related errors gracefully
@@ -153,14 +150,14 @@ async def run_interactively(
         query = input('😜 user > ')
       except (EOFError, KeyboardInterrupt):
         output_console = console if fallback_mode else (cli.console if cli else console)
-        output_console.print("\n[warning]Goodbye! 👋[/warning]")
+        output_console.print("\n👋 [warning]Goodbye![/warning]")
         break
 
     if not query or not query.strip():
       continue
     if query.strip().lower() in ['exit', 'quit', 'bye']:
       output_console = console if fallback_mode else (cli.console if cli else console)
-      output_console.print("[warning]Goodbye! 👋[/warning]")
+      output_console.print("👋 [warning]Goodbye![/warning]")
       break
 
     # Handle special commands

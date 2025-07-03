@@ -2,14 +2,14 @@ from __future__ import annotations
 
 # import shutil
 # from io import StringIO
-from typing import Optional, Any
+from typing import Any, Optional
 
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.text import Text
 
-from .ui_common import UITheme, ThemeConfig
+from .ui_common import ThemeConfig, UITheme
 
 
 class RichRenderer:
@@ -19,7 +19,8 @@ class RichRenderer:
     def __init__(self, theme: Optional[UITheme] = None):
         self.theme = theme or UITheme.DARK
         self.rich_theme = ThemeConfig.get_rich_theme(self.theme)
-        self.console = Console(theme=self.rich_theme, force_interactive=True)
+        # self.console = Console(theme=self.rich_theme, force_interactive=True)
+        self.console = Console(theme=self.rich_theme)
         self.markdown_enabled = True
 
     def format_message(self, text: str | Text, author: str, rich_format: bool = False, style: str = "") -> Text:
