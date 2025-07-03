@@ -3,19 +3,20 @@ This file is used to load the core tools and toolsets for the devops agent.
 It is used in the devops_agent.py file to load the core tools and toolsets.
 """
 
-import logging
-import json
-import os
 import asyncio
-import atexit
+import json
+import logging
+import os
 from contextlib import AsyncExitStack
 
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.tools.agent_tool import AgentTool
 from google.adk.tools.google_search_tool import google_search
-from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset
-from google.adk.tools.mcp_tool.mcp_toolset import StdioServerParameters
-from google.adk.tools.mcp_tool.mcp_toolset import SseConnectionParams
+from google.adk.tools.mcp_tool.mcp_toolset import (
+    MCPToolset,
+    SseConnectionParams,
+    StdioServerParameters,
+)
 
 from .. import config as agent_config
 from .. import prompts
@@ -25,34 +26,23 @@ if agent_config.ENABLE_CODE_EXECUTION:
 
 # Import specific tools from the current package (tools/)
 from . import (
-    index_directory_tool,
-    retrieve_code_context_tool,
-    purge_rag_index_tool,
+    check_command_exists_tool,
     codebase_search_tool,
     execute_vetted_shell_command_tool,
-    check_command_exists_tool,
+    index_directory_tool,
+    purge_rag_index_tool,
+    retrieve_code_context_tool,
 )
-from .file_summarizer_tool import FileSummarizerTool
 from .code_analysis import (
     analyze_code_tool,
     get_analysis_issues_by_severity_tool,
     suggest_code_fixes_tool,
 )
-from .shell_command import (
-    check_command_exists_tool,
-    execute_vetted_shell_command_tool,
-)
-from .search import google_search_grounding
-from .rag_tools import (
-    index_directory_tool,
-    retrieve_code_context_tool,
-    purge_rag_index_tool,
-)
-from .persistent_memory_tool import (
-    save_current_session_to_file_tool,
-    load_memory_from_file_tool,
-)
 from .file_summarizer_tool import FileSummarizerTool
+from .persistent_memory_tool import load_memory_from_file_tool, save_current_session_to_file_tool
+from .rag_tools import index_directory_tool, purge_rag_index_tool, retrieve_code_context_tool
+from .search import google_search_grounding
+from .shell_command import check_command_exists_tool, execute_vetted_shell_command_tool
 
 logger = logging.getLogger(__name__)
 
