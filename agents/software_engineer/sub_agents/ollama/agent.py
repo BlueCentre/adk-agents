@@ -3,11 +3,12 @@
 from google.adk.agents import Agent
 from google.adk.models.lite_llm import LiteLlm
 
-from ...tools.code_search import codebase_search_tool
-
 # Import tools from the parent tools module
 from ...tools.filesystem import edit_file_tool, list_dir_tool, read_file_tool
 from ...tools.shell_command import execute_shell_command_tool
+
+# from ...tools.code_search import codebase_search_tool
+
 
 # REF: https://google.github.io/adk-docs/agents/models/#ollama-integration
 ollama_agent = Agent(
@@ -21,8 +22,8 @@ ollama_agent = Agent(
     #     max_output_tokens=250
     # ),
     name="ollama_agent",
-    description="Agent specialized in code analysis, testing, and general software development assistance using Llama 3.2",
-    instruction="""You are a helpful software development assistant. 
+    description="Agent that runs local ollama models in sandboxed environment",
+    instruction="""You are a helpful development assistant. 
 
 For general questions, conversations, or when providing information, respond directly in clear, readable text using markdown formatting when helpful.
 
@@ -34,12 +35,12 @@ Only use function calls when you need to:
 
 When you do need to call a function, respond with the appropriate JSON format for the function call.
 
-Be helpful, concise, and focus on providing practical software development assistance.""",
+Be helpful, concise, and focus on providing practical development assistance.""",
     tools=[
         read_file_tool,
         list_dir_tool,
         edit_file_tool,
-        codebase_search_tool,
+        # codebase_search_tool,
         execute_shell_command_tool,
     ],
     output_key="ollama",

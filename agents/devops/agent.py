@@ -1,16 +1,16 @@
 """DevOps Agent Implementation."""
 
 import logging
-import asyncio
 
 from google import genai
 
-from .devops_agent import MyDevopsAgent
-from .tools.setup import load_all_tools_and_toolsets_async
-# from .logging_config import set_interactive_mode
-
 from . import config as agent_config
 from . import prompts as agent_prompts
+from .devops_agent import MyDevopsAgent
+from .tools.setup import load_all_tools_and_toolsets_async
+
+# from .logging_config import set_interactive_mode
+
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ OBSERVABILITY_ENABLED = agent_config.should_enable_observability()
 
 if OBSERVABILITY_ENABLED:
     import openlit
-    
+
     # Enhanced OpenLIT configuration with GPU monitoring
     # https://docs.openlit.io/latest/sdk-configuration
     # https://docs.openlit.io/latest/features/metrics
@@ -120,7 +120,7 @@ async def create_agent():
 try:
     # Import the synchronous loading function that handles async context detection
     from .tools.setup import load_all_tools_and_toolsets
-    
+
     # Load tools synchronously (MCP tools will be loaded later if in async context)
     tools = load_all_tools_and_toolsets()
     

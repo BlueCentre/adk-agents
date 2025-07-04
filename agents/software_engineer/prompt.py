@@ -33,7 +33,6 @@ SOFTWARE_ENGINEER_INSTR = """
 **TOOL USAGE GUIDELINES:**
 
 **For Code Understanding:**
-- Use `codebase_search_tool` to find relevant code patterns and implementations
 - Use `read_file_tool` to examine specific files in detail
 - Use `list_dir_tool` to understand project structure
 
@@ -53,9 +52,8 @@ SOFTWARE_ENGINEER_INSTR = """
 
 **Code Analysis Workflow:**
 1. `list_dir` → understand project structure
-2. `codebase_search` → find relevant patterns/files
-3. `read_file` → examine specific implementations
-4. Provide analysis and recommendations
+2. `read_file` → examine specific implementations
+3. Provide analysis and recommendations
 
 **Implementation Workflow:**
 1. `codebase_search` → understand existing patterns
