@@ -22,3 +22,12 @@ repos:
   #       args: ["--skip", "aider/website/docs/languages.md"]
   #       additional_dependencies:
   #         - tomli
+
+  - repo: local
+    hooks:
+      - id: pytest-coverage
+        name: pytest with coverage
+        entry: uv run pytest tests/ --cov=src.wrapper.adk --cov-report=xml --cov-report=term --cov-fail-under=78
+        language: system
+        pass_filenames: false
+        always_run: true

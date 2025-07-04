@@ -791,7 +791,7 @@ class TestErrorHandling:
         )
 
         # Verify goodbye message was printed
-        mock_cli.console.print.assert_any_call("\n[warning]Goodbye! 👋[/warning]")
+        mock_cli.console.print.assert_any_call("\n👋 [warning]Goodbye![/warning]")
 
     @pytest.mark.asyncio
     @patch("src.wrapper.adk.cli.cli.get_cli_instance")
@@ -839,7 +839,7 @@ class TestErrorHandling:
         )
 
         # Verify goodbye message was printed
-        mock_cli.console.print.assert_any_call("\n[warning]Goodbye! 👋[/warning]")
+        mock_cli.console.print.assert_any_call("\n👋 [warning]Goodbye![/warning]")
 
     @pytest.mark.asyncio
     @patch("src.wrapper.adk.cli.cli.get_cli_instance")
