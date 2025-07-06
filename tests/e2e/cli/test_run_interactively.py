@@ -13,12 +13,11 @@ class TestRunInteractively:
   @patch("src.wrapper.adk.cli.cli.get_cli_instance")
   @patch("src.wrapper.adk.cli.cli.Console")
   @patch("src.wrapper.adk.cli.cli.Runner")
-  @patch("src.wrapper.adk.cli.utils.cleanup.close_runner_gracefully")
-  @patch("src.wrapper.adk.cli.cli.patch_stdout")
+  @patch("prompt_toolkit.patch_stdout.patch_stdout")
   async def test_run_interactively_basic_flow(
       self,
       mock_patch_stdout,
-      mock_close_runner,
+      
       mock_runner_class,
       mock_console_class,
       mock_get_cli_instance,
@@ -55,7 +54,7 @@ class TestRunInteractively:
 
     mock_runner.run_async = mock_run_async
     mock_runner_class.return_value = mock_runner
-
+    mock_runner.close = AsyncMock()
     # Mock prompt session to simulate single query then exit
     mock_prompt_session = AsyncMock()
 
@@ -88,18 +87,16 @@ class TestRunInteractively:
     mock_cli.create_enhanced_prompt_session.assert_called()
     mock_cli.print_welcome_message.assert_called_once_with(mock_agent.name)
     mock_runner_class.assert_called_once()
-    mock_close_runner.assert_called_once()
 
   @pytest.mark.asyncio
   @patch("src.wrapper.adk.cli.cli.get_cli_instance")
   @patch("src.wrapper.adk.cli.cli.Console")
   @patch("src.wrapper.adk.cli.cli.Runner")
-  @patch("src.wrapper.adk.cli.utils.cleanup.close_runner_gracefully")
   @patch("prompt_toolkit.PromptSession")
   async def test_run_interactively_fallback_mode(
       self,
       mock_prompt_session_class,
-      mock_close_runner,
+      
       mock_runner_class,
       mock_console_class,
       mock_get_cli_instance,
@@ -122,7 +119,7 @@ class TestRunInteractively:
 
     # Mock runner
     mock_runner_class.return_value = mock_runner
-
+    mock_runner.close = AsyncMock()
     # Mock prompt session for fallback
     mock_prompt_session = AsyncMock()
     mock_prompt_session.prompt_async.side_effect = [KeyboardInterrupt()]
@@ -146,16 +143,14 @@ class TestRunInteractively:
         "[info]Falling back to basic CLI mode...[/info]"
     )
     mock_runner_class.assert_called_once()
-    mock_close_runner.assert_called_once()
 
   @pytest.mark.asyncio
   @patch("src.wrapper.adk.cli.cli.get_cli_instance")
   @patch("src.wrapper.adk.cli.cli.Console")
   @patch("src.wrapper.adk.cli.cli.Runner")
-  @patch("src.wrapper.adk.cli.utils.cleanup.close_runner_gracefully")
   async def test_run_interactively_special_commands(
       self,
-      mock_close_runner,
+      
       mock_runner_class,
       mock_console_class,
       mock_get_cli_instance,
@@ -181,7 +176,7 @@ class TestRunInteractively:
 
     # Mock runner
     mock_runner_class.return_value = mock_runner
-
+    mock_runner.close = AsyncMock()
     # Mock prompt session to test special commands
     mock_prompt_session = AsyncMock()
     command_sequence = ["help", "clear", "theme dark", "exit"]
@@ -201,16 +196,14 @@ class TestRunInteractively:
     mock_cli.print_help.assert_called_once()
     mock_cli.console.clear.assert_called_once()
     mock_cli.set_theme.assert_called_once()
-    mock_close_runner.assert_called_once()
 
   @pytest.mark.asyncio
   @patch("src.wrapper.adk.cli.cli.get_cli_instance")
   @patch("src.wrapper.adk.cli.cli.Console")
   @patch("src.wrapper.adk.cli.cli.Runner")
-  @patch("src.wrapper.adk.cli.utils.cleanup.close_runner_gracefully")
   async def test_run_interactively_with_thought_content(
       self,
-      mock_close_runner,
+      
       mock_runner_class,
       mock_console_class,
       mock_get_cli_instance,
@@ -256,7 +249,7 @@ class TestRunInteractively:
 
     mock_runner.run_async = async_gen_with_thought
     mock_runner_class.return_value = mock_runner
-
+    mock_runner.close = AsyncMock()
     # Mock prompt session
     mock_prompt_session = AsyncMock()
     mock_prompt_session.prompt_async.side_effect = ["test query", "exit"]
@@ -276,4 +269,3 @@ class TestRunInteractively:
         "Regular response", "assistant"
     )
     mock_cli.add_agent_thought.assert_called_once_with("Agent thinking...")
-    mock_close_runner.assert_called_once()

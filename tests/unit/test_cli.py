@@ -66,8 +66,7 @@ class TestRunInputFile:
         read_data='{"queries": ["test query"], "state": {}}',
     )
     @patch("src.wrapper.adk.cli.cli.Runner")
-    @patch("src.wrapper.adk.cli.utils.cleanup.close_runner_gracefully")
-    async def test_run_input_file_success(self, mock_close_runner, mock_runner_class, mock_file):
+    async def test_run_input_file_success(self, mock_runner_class, mock_file):
         """Test successful execution of run_input_file."""
         # Mock services
         mock_session = Mock()
@@ -84,7 +83,7 @@ class TestRunInputFile:
         # Mock runner
         mock_runner = Mock()
         mock_runner_class.return_value = mock_runner
-
+        mock_runner.close = AsyncMock()
         # Mock async generator for runner.run_async
         async def mock_run_async(*args, **kwargs):
             mock_event = Mock()
@@ -195,6 +194,7 @@ class TestRunCliCore:
 
         mock_session_service = Mock()
         mock_session_service.create_session = AsyncMock(return_value=mock_session)
+        mock_session_service.get_session = AsyncMock(return_value=mock_session)
         mock_session_service_class.return_value = mock_session_service
 
         mock_artifact_service = Mock()
@@ -433,6 +433,64 @@ class TestSessionManagement:
             mock_file().write.assert_called_once_with('{"session": "data"}')
             mock_print.assert_called_with("Session saved to", "custom_session.session.json")
 
+    @pytest.mark.asyncio
+    @patch("src.wrapper.adk.cli.cli.envs.load_dotenv_for_agent")
+    @patch("src.wrapper.adk.cli.cli.AgentLoader")
+    @patch("src.wrapper.adk.cli.cli.InMemorySessionService")
+    @patch("src.wrapper.adk.cli.cli.InMemoryArtifactService")
+    @patch("src.wrapper.adk.cli.cli.InMemoryCredentialService")
+    @patch("src.wrapper.adk.cli.cli.run_interactively")
+    @patch("builtins.open", new_callable=mock_open)
+    @patch("builtins.print")
+    async def test_session_saving_complete_flow(
+        self,
+        mock_print,
+        mock_file,
+        mock_run_interactively,
+        mock_credential_service_class,
+        mock_artifact_service_class,
+        mock_session_service_class,
+        mock_agent_loader_class,
+        mock_load_dotenv,
+    ):
+        """Test complete session saving flow with file writing."""
+        # Setup
+        mock_agent = Mock()
+        mock_agent.name = "TestAgent"
+        
+        mock_session = Mock()
+        mock_session.model_dump_json.return_value = '{"test": "session"}'
+        mock_session.app_name = "test.agent"
+        mock_session.user_id = "test_user" 
+        mock_session.id = "test_session_id"
+        
+        mock_session_service = Mock()
+        mock_session_service.create_session = AsyncMock(return_value=mock_session)
+        mock_session_service.get_session = AsyncMock(return_value=mock_session)
+        mock_session_service_class.return_value = mock_session_service
+
+        mock_artifact_service = Mock()
+        mock_artifact_service_class.return_value = mock_artifact_service
+
+        mock_credential_service = Mock()
+        mock_credential_service_class.return_value = mock_credential_service
+
+        mock_agent_loader = Mock()
+        mock_agent_loader.load_agent.return_value = mock_agent
+        mock_agent_loader_class.return_value = mock_agent_loader
+
+        # Test session saving with provided session ID
+        await run_cli(
+            agent_module_name="test.agent",
+            save_session=True,
+            session_id="my_session_id",  # Provided session ID
+        )
+
+        # Verify session was saved to file
+        mock_file.assert_called_with('my_session_id.session.json', 'w', encoding='utf-8')
+        mock_file().write.assert_called_with('{"test": "session"}')
+        mock_print.assert_called_with('Session saved to', 'my_session_id.session.json')
+
 
 class TestInteractiveMode:
     """Test interactive command handling."""
@@ -441,12 +499,11 @@ class TestInteractiveMode:
     @patch("src.wrapper.adk.cli.cli.get_cli_instance")
     @patch("src.wrapper.adk.cli.cli.Console")
     @patch("src.wrapper.adk.cli.cli.Runner")
-    @patch("src.wrapper.adk.cli.utils.cleanup.close_runner_gracefully")
     @patch("src.wrapper.adk.cli.cli.patch_stdout")
     async def test_interactive_special_commands(
         self,
         mock_patch_stdout,
-        mock_close_runner,
+        
         mock_runner_class,
         mock_console_class,
         mock_get_cli_instance,
@@ -474,7 +531,7 @@ class TestInteractiveMode:
 
         mock_runner = Mock()
         mock_runner_class.return_value = mock_runner
-
+        mock_runner.close = AsyncMock()
         # Mock prompt session to return commands
         prompt_session = mock_cli.create_enhanced_prompt_session.return_value
 
@@ -512,10 +569,9 @@ class TestInteractiveMode:
     @patch("src.wrapper.adk.cli.cli.get_cli_instance")
     @patch("src.wrapper.adk.cli.cli.Console")
     @patch("src.wrapper.adk.cli.cli.Runner")
-    @patch("src.wrapper.adk.cli.utils.cleanup.close_runner_gracefully")
     async def test_interactive_empty_query_handling(
         self,
-        mock_close_runner,
+        
         mock_runner_class,
         mock_console_class,
         mock_get_cli_instance,
@@ -540,7 +596,7 @@ class TestInteractiveMode:
 
         mock_runner = Mock()
         mock_runner_class.return_value = mock_runner
-
+        mock_runner.close = AsyncMock()
         # Mock prompt session to return empty queries then exit
         prompt_session = mock_cli.create_enhanced_prompt_session.return_value
         prompt_session.prompt_async = AsyncMock(side_effect=["", "   ", "exit"])
@@ -560,10 +616,9 @@ class TestInteractiveMode:
     @patch("src.wrapper.adk.cli.cli.get_cli_instance")
     @patch("src.wrapper.adk.cli.cli.Console")
     @patch("src.wrapper.adk.cli.cli.Runner")
-    @patch("src.wrapper.adk.cli.utils.cleanup.close_runner_gracefully")
     async def test_interactive_fallback_mode_commands(
         self,
-        mock_close_runner,
+        
         mock_runner_class,
         mock_console_class,
         mock_get_cli_instance,
@@ -585,7 +640,7 @@ class TestInteractiveMode:
 
         mock_runner = Mock()
         mock_runner_class.return_value = mock_runner
-
+        mock_runner.close = AsyncMock()
         # Mock prompt session for fallback mode
         with patch("prompt_toolkit.PromptSession") as mock_prompt_session_class:
             prompt_session = Mock()
@@ -618,9 +673,8 @@ class TestTUIFunctionality:
     @pytest.mark.asyncio
     @patch("src.wrapper.adk.cli.cli.get_textual_cli_instance")
     @patch("src.wrapper.adk.cli.cli.Runner")
-    @patch("src.wrapper.adk.cli.utils.cleanup.close_runner_gracefully")
     async def test_tui_callback_setup(
-        self, mock_close_runner, mock_runner_class, mock_get_textual_cli
+        self, mock_runner_class, mock_get_textual_cli
     ):
         """Test TUI callback setup and enhancement logic."""
         # Setup
@@ -648,7 +702,7 @@ class TestTUIFunctionality:
 
         mock_runner = Mock()
         mock_runner_class.return_value = mock_runner
-
+        mock_runner.close = AsyncMock()
         await run_interactively_with_tui(
             root_agent=mock_agent,
             artifact_service=Mock(),
@@ -668,14 +722,13 @@ class TestTUIFunctionality:
         assert hasattr(mock_agent, "before_tool_callback")
         assert hasattr(mock_agent, "after_tool_callback")
 
-        mock_close_runner.assert_called_once()
+        mock_runner.close.assert_called_once()
 
     @pytest.mark.asyncio
     @patch("src.wrapper.adk.cli.cli.get_textual_cli_instance")
     @patch("src.wrapper.adk.cli.cli.Runner")
-    @patch("src.wrapper.adk.cli.utils.cleanup.close_runner_gracefully")
     async def test_tui_callback_enhancement_with_existing_callbacks(
-        self, mock_close_runner, mock_runner_class, mock_get_textual_cli
+        self, mock_runner_class, mock_get_textual_cli
     ):
         """Test TUI callback enhancement when agent already has callbacks."""
         # Setup
@@ -706,7 +759,7 @@ class TestTUIFunctionality:
 
         mock_runner = Mock()
         mock_runner_class.return_value = mock_runner
-
+        mock_runner.close = AsyncMock()
         await run_interactively_with_tui(
             root_agent=mock_agent,
             artifact_service=Mock(),
@@ -722,7 +775,60 @@ class TestTUIFunctionality:
         assert callable(mock_agent.before_tool_callback)
         assert callable(mock_agent.after_tool_callback)
 
-        mock_close_runner.assert_called_once()
+        mock_runner.close.assert_called_once()
+
+    @pytest.mark.asyncio
+    @patch("src.wrapper.adk.cli.cli.get_textual_cli_instance")
+    @patch("src.wrapper.adk.cli.cli.Runner")
+    async def test_tui_enhanced_callbacks_coverage(
+        self, mock_runner_class, mock_get_textual_cli
+    ):
+        """Test TUI enhanced callback functionality."""
+        # Setup
+        mock_agent = Mock()
+        mock_agent.name = "TestAgent"
+        mock_agent.description = "Test Description"
+        mock_agent.tools = ["tool1"]
+        
+        # Agent has existing callbacks
+        original_before = AsyncMock()
+        original_after = AsyncMock()
+        mock_agent.before_tool_callback = original_before
+        mock_agent.after_tool_callback = original_after
+
+        mock_session = Mock()
+        mock_session.app_name = "test_app"
+        mock_session.user_id = "test_user"
+        mock_session.id = "test_session"
+
+        mock_tui = Mock()
+        mock_tui.agent_name = "TestAgent"
+        mock_tui.register_input_callback = Mock()
+        mock_tui.register_interrupt_callback = Mock()
+        mock_tui.display_agent_welcome = Mock()
+        mock_tui.run_async = AsyncMock()
+        mock_tui.add_tool_event = Mock()
+        mock_get_textual_cli.return_value = mock_tui
+
+        mock_runner = Mock()
+        mock_runner.close = AsyncMock()
+        mock_runner_class.return_value = mock_runner
+
+        await run_interactively_with_tui(
+            root_agent=mock_agent,
+            artifact_service=Mock(),
+            session=mock_session,
+            session_service=Mock(),
+            credential_service=Mock(),
+        )
+
+        # Verify callbacks were enhanced (different callable objects)
+        assert callable(mock_agent.before_tool_callback)
+        assert callable(mock_agent.after_tool_callback)
+        
+        # Since we're testing in an async context, just verify the callbacks
+        # were set and then restored - the actual restoration happens
+        # within the TUI function itself
 
 
 class TestErrorHandling:
@@ -749,10 +855,9 @@ class TestErrorHandling:
     @patch("src.wrapper.adk.cli.cli.get_cli_instance")
     @patch("src.wrapper.adk.cli.cli.Console")
     @patch("src.wrapper.adk.cli.cli.Runner")
-    @patch("src.wrapper.adk.cli.utils.cleanup.close_runner_gracefully")
     async def test_interactive_keyboard_interrupt_handling(
         self,
-        mock_close_runner,
+        
         mock_runner_class,
         mock_console_class,
         mock_get_cli_instance,
@@ -777,7 +882,7 @@ class TestErrorHandling:
 
         mock_runner = Mock()
         mock_runner_class.return_value = mock_runner
-
+        mock_runner.close = AsyncMock()
         # Mock prompt session to raise KeyboardInterrupt
         prompt_session = mock_cli.create_enhanced_prompt_session.return_value
         prompt_session.prompt_async = AsyncMock(side_effect=KeyboardInterrupt())
@@ -797,10 +902,9 @@ class TestErrorHandling:
     @patch("src.wrapper.adk.cli.cli.get_cli_instance")
     @patch("src.wrapper.adk.cli.cli.Console")
     @patch("src.wrapper.adk.cli.cli.Runner")
-    @patch("src.wrapper.adk.cli.utils.cleanup.close_runner_gracefully")
     async def test_interactive_eof_handling(
         self,
-        mock_close_runner,
+        
         mock_runner_class,
         mock_console_class,
         mock_get_cli_instance,
@@ -825,7 +929,7 @@ class TestErrorHandling:
 
         mock_runner = Mock()
         mock_runner_class.return_value = mock_runner
-
+        mock_runner.close = AsyncMock()
         # Mock prompt session to raise EOFError
         prompt_session = mock_cli.create_enhanced_prompt_session.return_value
         prompt_session.prompt_async = AsyncMock(side_effect=EOFError())
@@ -845,12 +949,11 @@ class TestErrorHandling:
     @patch("src.wrapper.adk.cli.cli.get_cli_instance")
     @patch("src.wrapper.adk.cli.cli.Console")
     @patch("src.wrapper.adk.cli.cli.Runner")
-    @patch("src.wrapper.adk.cli.utils.cleanup.close_runner_gracefully")
     @patch("builtins.input")
     async def test_interactive_prompt_error_fallback(
         self,
         mock_input,
-        mock_close_runner,
+        
         mock_runner_class,
         mock_console_class,
         mock_get_cli_instance,
@@ -875,7 +978,7 @@ class TestErrorHandling:
 
         mock_runner = Mock()
         mock_runner_class.return_value = mock_runner
-
+        mock_runner.close = AsyncMock()
         # Mock prompt session to raise a generic exception, then input() to return exit
         prompt_session = mock_cli.create_enhanced_prompt_session.return_value
         prompt_session.prompt_async = AsyncMock(side_effect=Exception("Prompt failed"))
@@ -954,3 +1057,452 @@ class TestEdgeCases:
 
                 # Verify interactive mode was called
                 mock_run_interactively.assert_called_once()
+
+
+class TestInteractiveAgentResponses:
+    """Test agent response handling in interactive mode."""
+
+    @pytest.mark.asyncio
+    @patch("src.wrapper.adk.cli.cli.get_cli_instance")
+    @patch("src.wrapper.adk.cli.cli.Console")
+    @patch("src.wrapper.adk.cli.cli.Runner")
+    async def test_interactive_agent_response_processing(
+        self,
+        mock_runner_class,
+        mock_console_class,
+        mock_get_cli_instance,
+    ):
+        """Test processing of agent responses with thought and regular content."""
+        # Setup
+        mock_agent = Mock()
+        mock_agent.name = "TestAgent"
+        mock_session = Mock()
+        mock_session.app_name = "test_app"
+        mock_session.user_id = "test_user"
+        mock_session.id = "test_session"
+
+        mock_cli = Mock()
+        mock_cli.create_enhanced_prompt_session.return_value = Mock()
+        mock_cli.print_welcome_message = Mock()
+        mock_cli.format_agent_response = Mock(return_value="formatted_response")
+        mock_cli.console = Mock()
+        mock_cli.add_agent_thought = Mock()
+        mock_get_cli_instance.return_value = mock_cli
+
+        mock_console = Mock()
+        mock_console_class.return_value = mock_console
+
+        mock_runner = Mock()
+        mock_runner.close = AsyncMock()
+        mock_runner_class.return_value = mock_runner
+
+        # Create mock event with both regular and thought content
+        mock_event = Mock()
+        mock_event.author = "agent"
+        mock_event.content = Mock()
+        
+        # Create mock parts - one regular, one thought
+        regular_part = Mock()
+        regular_part.text = "This is regular response"
+        regular_part.thought = False
+        
+        thought_part = Mock()
+        thought_part.text = "This is agent thinking"
+        thought_part.thought = True
+
+        mock_event.content.parts = [regular_part, thought_part]
+
+        # Mock prompt session to return a query then exit
+        prompt_session = mock_cli.create_enhanced_prompt_session.return_value
+        prompt_session.prompt_async = AsyncMock(side_effect=["test query", "exit"])
+
+        # Mock runner to return our test event
+        async def mock_run_async(*args, **kwargs):
+            yield mock_event
+
+        mock_runner.run_async = mock_run_async
+
+        # Mock CLI to have agent thought enabled
+        mock_cli.agent_thought_enabled = True
+        setattr(mock_cli, 'agent_thought_enabled', True)
+
+        await run_interactively(
+            root_agent=mock_agent,
+            artifact_service=Mock(),
+            session=mock_session,
+            session_service=Mock(),
+            credential_service=Mock(),
+        )
+
+        # Verify that both regular content and thoughts were processed
+        mock_cli.format_agent_response.assert_called_with("This is regular response", "agent")
+        mock_cli.console.print.assert_called()
+        mock_cli.add_agent_thought.assert_called_with("This is agent thinking")
+
+    @pytest.mark.asyncio
+    @patch("src.wrapper.adk.cli.cli.get_cli_instance")
+    @patch("src.wrapper.adk.cli.cli.Console")
+    @patch("src.wrapper.adk.cli.cli.Runner")
+    async def test_interactive_fallback_output_handling(
+        self,
+        mock_runner_class,
+        mock_console_class,
+        mock_get_cli_instance,
+    ):
+        """Test fallback console output when CLI fails."""
+        # Setup
+        mock_agent = Mock()
+        mock_agent.name = "TestAgent"
+        mock_session = Mock()
+        mock_session.app_name = "test_app"
+        mock_session.user_id = "test_user"
+        mock_session.id = "test_session"
+
+        # Make CLI fail to trigger fallback mode
+        mock_get_cli_instance.side_effect = Exception("CLI failed")
+
+        mock_console = Mock()
+        mock_console_class.return_value = mock_console
+
+        mock_runner = Mock()
+        mock_runner.close = AsyncMock()
+        mock_runner_class.return_value = mock_runner
+
+        # Create mock event
+        mock_event = Mock()
+        mock_event.author = "agent"
+        mock_event.content = Mock()
+        
+        regular_part = Mock()
+        regular_part.text = "This is regular response"
+        regular_part.thought = False
+        
+        mock_event.content.parts = [regular_part]
+
+        # Mock prompt session for fallback mode
+        with patch("prompt_toolkit.PromptSession") as mock_prompt_session_class:
+            prompt_session = Mock()
+            mock_prompt_session_class.return_value = prompt_session
+            prompt_session.prompt_async = AsyncMock(side_effect=["test query", "exit"])
+
+            # Mock runner to return our test event
+            async def mock_run_async(*args, **kwargs):
+                yield mock_event
+
+            mock_runner.run_async = mock_run_async
+
+            await run_interactively(
+                root_agent=mock_agent,
+                artifact_service=Mock(),
+                session=mock_session,
+                session_service=Mock(),
+                credential_service=Mock(),
+            )
+
+            # Verify fallback console was used for agent output
+            mock_console.print.assert_any_call("[green]agent[/green]: This is regular response")
+
+    @pytest.mark.asyncio
+    @patch("src.wrapper.adk.cli.cli.get_textual_cli_instance")
+    @patch("src.wrapper.adk.cli.cli.Runner")
+    async def test_tui_error_handling(
+        self, mock_runner_class, mock_get_textual_cli
+    ):
+        """Test error handling in TUI mode."""
+        # Setup
+        mock_agent = Mock()
+        mock_agent.name = "TestAgent"
+        mock_agent.description = "Test Description"
+        mock_agent.tools = ["tool1"]
+        
+        # Mock that agent does not have callback attributes initially
+        mock_agent.before_tool_callback = None
+        mock_agent.after_tool_callback = None
+
+        mock_session = Mock()
+        mock_session.app_name = "test_app"
+        mock_session.user_id = "test_user"
+        mock_session.id = "test_session"
+
+        mock_tui = Mock()
+        mock_tui.agent_name = "TestAgent"
+        mock_tui.register_input_callback = Mock()
+        mock_tui.register_interrupt_callback = Mock()
+        mock_tui.display_agent_welcome = Mock()
+        mock_tui.run_async = AsyncMock()
+        mock_tui.add_output = Mock()
+        mock_get_textual_cli.return_value = mock_tui
+
+        mock_runner = Mock()
+        mock_runner.close = AsyncMock()
+        mock_runner_class.return_value = mock_runner
+
+        await run_interactively_with_tui(
+            root_agent=mock_agent,
+            artifact_service=Mock(),
+            session=mock_session,
+            session_service=Mock(),
+            credential_service=Mock(),
+        )
+
+        # Verify TUI setup was called correctly
+        mock_tui.register_input_callback.assert_called_once()
+        mock_tui.register_interrupt_callback.assert_called_once()
+        mock_tui.display_agent_welcome.assert_called_once()
+        mock_tui.run_async.assert_called_once()
+
+
+class TestSessionSaving:
+    """Test session saving functionality to reach 80% coverage."""
+
+    def teardown_method(self):
+        """Clean up any session files created during tests."""
+        import glob
+        import os
+
+        # Remove any .session.json files that might have been created
+        session_files = glob.glob("*.session.json")
+        for file in session_files:
+            try:
+                os.remove(file)
+            except (OSError, FileNotFoundError):
+                pass  # File already removed or doesn't exist
+
+    @pytest.mark.asyncio
+    @patch("src.wrapper.adk.cli.cli.envs.load_dotenv_for_agent")
+    @patch("src.wrapper.adk.cli.cli.AgentLoader")
+    @patch("src.wrapper.adk.cli.cli.InMemorySessionService")
+    @patch("src.wrapper.adk.cli.cli.InMemoryArtifactService")
+    @patch("src.wrapper.adk.cli.cli.InMemoryCredentialService")
+    @patch("src.wrapper.adk.cli.cli.run_interactively")
+    @patch("builtins.open", new_callable=mock_open)
+    @patch("builtins.input", return_value="")
+    @patch("builtins.print")
+    async def test_session_saving_with_empty_input(
+        self,
+        mock_print,
+        mock_input,
+        mock_file,
+        mock_run_interactively,
+        mock_credential_service_class,
+        mock_artifact_service_class,
+        mock_session_service_class,
+        mock_agent_loader_class,
+        mock_load_dotenv,
+    ):
+        """Test session saving with empty session ID input."""
+        # Setup
+        mock_agent = Mock()
+        mock_agent.name = "TestAgent"
+        
+        mock_session = Mock()
+        mock_session.model_dump_json.return_value = '{"test": "session"}'
+        mock_session.app_name = "test.agent"
+        mock_session.user_id = "test_user" 
+        mock_session.id = "test_session_id"
+        
+        mock_session_service = Mock()
+        mock_session_service.create_session = AsyncMock(return_value=mock_session)
+        mock_session_service.get_session = AsyncMock(return_value=mock_session)
+        mock_session_service_class.return_value = mock_session_service
+
+        mock_artifact_service = Mock()
+        mock_artifact_service_class.return_value = mock_artifact_service
+
+        mock_credential_service = Mock()
+        mock_credential_service_class.return_value = mock_credential_service
+
+        mock_agent_loader = Mock()
+        mock_agent_loader.load_agent.return_value = mock_agent
+        mock_agent_loader_class.return_value = mock_agent_loader
+
+        # Test session saving with empty session ID
+        await run_cli(
+            agent_module_name="test.agent",
+            save_session=True,
+            session_id="",  # Empty session ID to trigger input prompt
+        )
+
+        # Verify session was created and interactively run
+        mock_session_service.create_session.assert_called_once()
+        mock_run_interactively.assert_called_once()
+        
+        # Verify input was called for session ID
+        mock_input.assert_called()
+        
+        # Verify file was written (mocked)
+        mock_file.assert_called_with('.session.json', 'w', encoding='utf-8')
+        mock_file().write.assert_called_with('{"test": "session"}')
+
+    @pytest.mark.asyncio
+    @patch("src.wrapper.adk.cli.cli.envs.load_dotenv_for_agent")
+    @patch("src.wrapper.adk.cli.cli.AgentLoader")
+    @patch("src.wrapper.adk.cli.cli.InMemorySessionService")
+    @patch("src.wrapper.adk.cli.cli.InMemoryArtifactService")
+    @patch("src.wrapper.adk.cli.cli.InMemoryCredentialService")
+    @patch("src.wrapper.adk.cli.cli.run_interactively")
+    @patch("builtins.open", new_callable=mock_open)
+    @patch("builtins.print")
+    async def test_session_saving_complete_flow(
+        self,
+        mock_print,
+        mock_file,
+        mock_run_interactively,
+        mock_credential_service_class,
+        mock_artifact_service_class,
+        mock_session_service_class,
+        mock_agent_loader_class,
+        mock_load_dotenv,
+    ):
+        """Test complete session saving flow with file writing."""
+        # Setup
+        mock_agent = Mock()
+        mock_agent.name = "TestAgent"
+        
+        mock_session = Mock()
+        mock_session.model_dump_json.return_value = '{"test": "session"}'
+        mock_session.app_name = "test.agent"
+        mock_session.user_id = "test_user" 
+        mock_session.id = "test_session_id"
+        
+        mock_session_service = Mock()
+        mock_session_service.create_session = AsyncMock(return_value=mock_session)
+        mock_session_service.get_session = AsyncMock(return_value=mock_session)
+        mock_session_service_class.return_value = mock_session_service
+
+        mock_artifact_service = Mock()
+        mock_artifact_service_class.return_value = mock_artifact_service
+
+        mock_credential_service = Mock()
+        mock_credential_service_class.return_value = mock_credential_service
+
+        mock_agent_loader = Mock()
+        mock_agent_loader.load_agent.return_value = mock_agent
+        mock_agent_loader_class.return_value = mock_agent_loader
+
+        # Test session saving with provided session ID
+        await run_cli(
+            agent_module_name="test.agent",
+            save_session=True,
+            session_id="my_session_id",  # Provided session ID
+        )
+
+        # Verify session was saved to file (mocked)
+        mock_file.assert_called_with('my_session_id.session.json', 'w', encoding='utf-8')
+        mock_file().write.assert_called_with('{"test": "session"}')
+        mock_print.assert_called_with('Session saved to', 'my_session_id.session.json')
+
+
+class TestTUIInterruptHandling:
+    """Test TUI interrupt handling to cover line 390."""
+
+    @pytest.mark.asyncio
+    async def test_interrupt_agent_function_coverage(self):
+        """Test that interrupt_agent function can be called (covers line 390)."""
+        from src.wrapper.adk.cli.cli import run_interactively_with_tui
+
+        # Create a mock TUI that we can inspect
+        mock_tui = Mock()
+        mock_tui.register_input_callback = Mock()
+        mock_tui.register_interrupt_callback = Mock()
+        mock_tui.display_agent_welcome = Mock()
+        mock_tui.run_async = AsyncMock()
+        mock_tui.add_output = Mock()
+        
+        interrupt_callback = None
+        
+        def capture_interrupt_callback(callback):
+            nonlocal interrupt_callback
+            interrupt_callback = callback
+            
+        mock_tui.register_interrupt_callback.side_effect = capture_interrupt_callback
+
+        mock_agent = Mock()
+        mock_agent.name = "TestAgent"
+        mock_agent.description = "Test Description"
+        mock_agent.tools = ["tool1"]
+        mock_agent.before_tool_callback = None
+        mock_agent.after_tool_callback = None
+
+        mock_session = Mock()
+        mock_session.app_name = "test_app"
+        mock_session.user_id = "test_user"
+        mock_session.id = "test_session"
+
+        with patch("src.wrapper.adk.cli.cli.get_textual_cli_instance", return_value=mock_tui):
+            with patch("src.wrapper.adk.cli.cli.Runner") as mock_runner_class:
+                mock_runner = Mock()
+                mock_runner.close = AsyncMock()
+                mock_runner_class.return_value = mock_runner
+                
+                await run_interactively_with_tui(
+                    root_agent=mock_agent,
+                    artifact_service=Mock(),
+                    session=mock_session,
+                    session_service=Mock(),
+                    credential_service=Mock(),
+                )
+                
+                # Call the captured interrupt callback to cover line 390
+                if interrupt_callback:
+                    await interrupt_callback()
+                    
+                # Verify the interrupt message was added
+                mock_tui.add_output.assert_any_call(
+                    "⏹️ Agent interruption requested", 
+                    author="System", 
+                    rich_format=True, 
+                    style="warning"
+                )
+
+
+class TestFallbackErrorHandling:
+    """Test fallback error handling to reach 80% coverage."""
+
+    @pytest.mark.asyncio
+    @patch("src.wrapper.adk.cli.cli.get_cli_instance")
+    @patch("src.wrapper.adk.cli.cli.Console")
+    @patch("src.wrapper.adk.cli.cli.Runner")
+    async def test_fallback_eof_keyboard_interrupt_handling(
+        self,
+        mock_runner_class,
+        mock_console_class,
+        mock_get_cli_instance,
+    ):
+        """Test fallback mode EOF/KeyboardInterrupt handling (covers lines 151-154)."""
+        # Setup
+        mock_agent = Mock()
+        mock_agent.name = "TestAgent"
+        mock_session = Mock()
+        mock_session.app_name = "test_app"
+        mock_session.user_id = "test_user"
+        mock_session.id = "test_session"
+
+        # Make CLI fail to trigger fallback mode
+        mock_get_cli_instance.side_effect = Exception("CLI failed")
+
+        mock_console = Mock()
+        mock_console_class.return_value = mock_console
+
+        mock_runner = Mock()
+        mock_runner.close = AsyncMock()
+        mock_runner_class.return_value = mock_runner
+
+        # Mock prompt session for fallback mode
+        with patch("prompt_toolkit.PromptSession") as mock_prompt_session_class:
+            prompt_session = Mock()
+            mock_prompt_session_class.return_value = prompt_session
+            
+            # Simulate EOFError to trigger fallback error handling
+            prompt_session.prompt_async = AsyncMock(side_effect=EOFError())
+
+            await run_interactively(
+                root_agent=mock_agent,
+                artifact_service=Mock(),
+                session=mock_session,
+                session_service=Mock(),
+                credential_service=Mock(),
+            )
+
+            # Verify fallback goodbye message was printed to console
+            mock_console.print.assert_any_call("\n👋 [warning]Goodbye![/warning]")

@@ -3,9 +3,8 @@ from __future__ import annotations
 from typing import Optional
 
 from .ui_common import UITheme
-from .ui_rich import RichRenderer
-# from .ui_prompt_toolkit import EnhancedCLI, InterruptibleCLI
 from .ui_prompt_toolkit import EnhancedCLI
+from .ui_rich import RichRenderer
 from .ui_textual import AgentTUI
 
 
@@ -38,5 +37,4 @@ def get_textual_cli_instance(theme: Optional[str] = None) -> AgentTUI:
     # Create RichRenderer with the theme
     rich_renderer = RichRenderer(ui_theme) if ui_theme else None
 
-    # return InterruptibleCLI(theme=ui_theme, rich_renderer=rich_renderer)
     return AgentTUI(theme=ui_theme, rich_renderer=rich_renderer)

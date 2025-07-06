@@ -218,9 +218,10 @@ async def run_interactively(
             if part.text:
               cli.add_agent_thought(part.text)
 
+  await runner.close()
   # Use graceful cleanup to handle MCP session cleanup errors
-  from .utils.cleanup import close_runner_gracefully
-  await close_runner_gracefully(runner)
+  # from .utils.cleanup import close_runner_gracefully
+  # await close_runner_gracefully(runner)
 
 
 async def run_interactively_with_tui(
@@ -406,9 +407,10 @@ async def run_interactively_with_tui(
   if hasattr(root_agent, 'after_tool_callback'):
     root_agent.after_tool_callback = original_after_tool
 
+  await runner.close()
   # Use graceful cleanup to handle MCP session cleanup errors
-  from .utils.cleanup import close_runner_gracefully
-  await close_runner_gracefully(runner)
+  # from .utils.cleanup import close_runner_gracefully
+  # await close_runner_gracefully(runner)
 
 
 async def run_cli(

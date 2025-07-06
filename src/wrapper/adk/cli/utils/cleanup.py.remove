@@ -40,25 +40,25 @@ async def close_runners(runners: List[Runner]) -> None:
         task.cancel()
 
 
-async def close_runner_gracefully(runner: Runner) -> None:
-  """
-  Gracefully close a single runner, handling MCP cleanup errors.
+# async def close_runner_gracefully(runner: Runner) -> None:
+#   """
+#   Gracefully close a single runner, handling MCP cleanup errors.
   
-  This function specifically handles the common "cancel scope" error
-  that occurs during MCP session cleanup when exiting agents.
-  """
-  try:
-    await runner.close()
-  except asyncio.CancelledError as e:
-    # Handle asyncio.CancelledError specifically (common in MCP cleanup)
-    logger.warning(f"MCP session cleanup completed with cancellation (this is normal): {e}")
-  except Exception as e:
-    error_msg = str(e)
-    # Handle known MCP cleanup issues gracefully
-    if ("cancel scope" in error_msg.lower() or 
-        "mcp" in error_msg.lower()):
-      logger.warning(f"MCP session cleanup completed with warning (this is normal): {error_msg}")
-    else:
-      # For other errors, log them but don't fail the cleanup
-      logger.error(f"Runner cleanup error: {error_msg}", exc_info=True)
-      raise  # Re-raise non-MCP errors
+#   This function specifically handles the common "cancel scope" error
+#   that occurs during MCP session cleanup when exiting agents.
+#   """
+#   try:
+#     await runner.close()
+#   except asyncio.CancelledError as e:
+#     # Handle asyncio.CancelledError specifically (common in MCP cleanup)
+#     logger.warning(f"MCP session cleanup completed with cancellation (this is normal): {e}")
+#   except Exception as e:
+#     error_msg = str(e)
+#     # Handle known MCP cleanup issues gracefully
+#     if ("cancel scope" in error_msg.lower() or 
+#         "mcp" in error_msg.lower()):
+#       logger.warning(f"MCP session cleanup completed with warning (this is normal): {error_msg}")
+#     else:
+#       # For other errors, log them but don't fail the cleanup
+#       logger.error(f"Runner cleanup error: {error_msg}", exc_info=True)
+#       raise  # Re-raise non-MCP errors
