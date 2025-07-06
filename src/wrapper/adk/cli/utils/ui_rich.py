@@ -44,7 +44,7 @@ class RichRenderer:
             title=f"[bold {self.rich_theme.styles.get('agent.border_color', 'green')}]🤖 {author} Response[/bold {self.rich_theme.styles.get('agent.border_color', 'green')}]",
             title_align="left",
             border_style=self.rich_theme.styles.get("agent.border_color", "green"),
-            # expand=True,
+            expand=True,
             # highlight=True,
             # padding=(0, 0),
         )

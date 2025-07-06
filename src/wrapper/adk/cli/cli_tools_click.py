@@ -15,27 +15,23 @@
 from __future__ import annotations
 
 import asyncio
-import collections
-from contextlib import asynccontextmanager
-from datetime import datetime
 import functools
 import logging
 import os
 import tempfile
+from contextlib import asynccontextmanager
+from datetime import datetime
 from typing import Optional
 
 import rich_click as click
-from fastapi import FastAPI
 import uvicorn
-
-from google.adk.cli import cli_create
-from google.adk.cli import cli_deploy
+from fastapi import FastAPI
+from google.adk.cli import cli_create, cli_deploy
 from google.adk.cli.utils import logs
 
+from .. import version
 from .cli import run_cli
 from .fast_api import get_fast_api_app
-from .. import version
-
 
 LOG_LEVELS = click.Choice(
     ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],

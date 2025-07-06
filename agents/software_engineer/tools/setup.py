@@ -19,7 +19,7 @@ from google.adk.tools.mcp_tool.mcp_toolset import (
 )
 
 from .. import config as agent_config
-from .. import prompts
+from .. import prompt
 
 if agent_config.ENABLE_CODE_EXECUTION:
     from google.adk.code_executors import BuiltInCodeExecutor
@@ -62,7 +62,7 @@ def load_core_tools_and_toolsets():
         model=agent_config.DEFAULT_SUB_AGENT_MODEL,
         name="google_search_grounding",
         description="An agent providing Google-search grounding capability",
-        instruction=prompts.SEARCH_AGENT_INSTR,
+        instruction=prompt.SEARCH_AGENT_INSTR,
         tools=[google_search],
     )
     devops_core_tools_list.append(AgentTool(agent=_search_agent))
@@ -75,7 +75,7 @@ def load_core_tools_and_toolsets():
             model=agent_config.DEFAULT_SUB_AGENT_MODEL,
             name="code_execution",
             description="An agent specialized in code execution",
-            instruction=prompts.CODE_EXECUTION_AGENT_INSTR,
+            instruction=prompt.CODE_EXECUTION_AGENT_INSTR,
             code_executor=[BuiltInCodeExecutor],
         )
         devops_core_tools_list.append(AgentTool(agent=_code_execution_agent))

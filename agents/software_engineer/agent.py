@@ -10,14 +10,13 @@ from google.adk.tools import load_memory
 from . import config as agent_config
 from . import prompt
 from .sub_agents.code_quality.agent import code_quality_agent
-
-# from .sub_agents.code_review.agent import code_review_agent
-# from .sub_agents.debugging.agent import debugging_agent
-# from .sub_agents.design_pattern.agent import design_pattern_agent
-# from .sub_agents.devops.agent import devops_agent
-# from .sub_agents.documentation.agent import documentation_agent
-# from .sub_agents.testing.agent import testing_agent
+from .sub_agents.code_review.agent import code_review_agent
+from .sub_agents.debugging.agent import debugging_agent
+from .sub_agents.design_pattern.agent import design_pattern_agent
+from .sub_agents.devops.agent import devops_agent
+from .sub_agents.documentation.agent import documentation_agent
 from .sub_agents.ollama.agent import ollama_agent
+from .sub_agents.testing.agent import testing_agent
 from .tools.setup import load_all_tools_and_toolsets
 
 # from .tools import (
@@ -34,6 +33,7 @@ from .tools.setup import load_all_tools_and_toolsets
 
 # from .tools.memory_tools import add_memory_fact, search_memory_facts
 # from .tools.project_context import load_project_context
+
 
 # litellm.turn_off_message_logging()
 
@@ -78,14 +78,15 @@ root_agent = Agent(
     description="An AI software engineer assistant that helps with various software development tasks",
     instruction=prompt.SOFTWARE_ENGINEER_INSTR,
     sub_agents=[
-        # design_pattern_agent,
-        # documentation_agent,
-        # code_review_agent,
-        code_quality_agent,
-        # testing_agent,
-        # debugging_agent,
-        # devops_agent,  # TODO: Move command tools to devops_agent with more guardrails
-        ollama_agent,
+        # Ordered by typical workflow dependencies
+        design_pattern_agent,      # 1. Architecture and design decisions
+        code_review_agent,         # 2. Code analysis and implementation guidance
+        code_quality_agent,        # 3. Quality validation and improvement suggestions
+        testing_agent,             # 4. Test strategy and implementation
+        debugging_agent,           # 5. Issue identification and resolution
+        documentation_agent,       # 6. Documentation after code stabilization
+        devops_agent,             # 7. Deployment and operational considerations
+        ollama_agent,             # 8. Local model sandbox environment
     ],
     tools=tools,
     # tools=[
