@@ -105,7 +105,7 @@ async def run_interactively(
     fallback_mode = False
   except Exception as e:
     # Fallback to basic CLI if enhanced UI fails
-    console.print(f"[warning]⚠️  Enhanced UI initialization failed: {str(e)}[/warning]")
+    console.print(f"[warning]⚠️ Enhanced UI initialization failed: {str(e)}[/warning]")
     console.print("[info]Falling back to basic CLI mode...[/info]")
     # Create a minimal prompt session
     from prompt_toolkit import PromptSession
@@ -240,95 +240,10 @@ async def run_interactively_with_tui(
   # Set agent info
   app_tui.agent_name = root_agent.name
 
-  # Create runner
-  runner = Runner(
-      app_name=session.app_name,
-      agent=root_agent,
-      artifact_service=artifact_service,
-      session_service=session_service,
-      credential_service=credential_service,
-  )
+  # Display welcome message through the Textual app
+  app_tui.display_agent_welcome(root_agent.name, root_agent.description, getattr(root_agent, 'tools', []))
 
-  # Store original agent console and replace it with a custom one that redirects to Textual UI
-  # original_console = getattr(root_agent, '_console', None)
-  # if original_console:
-  #   # Create a custom console that intercepts agent thought output
-  #   class TextualConsoleRedirect:
-  #     def __init__(self, original_console, textual_ui):
-  #       self.original_console = original_console
-  #       self.textual_ui = textual_ui
-
-  #     def print(self, *args, **kwargs):
-  #       # Check if this is an agent thought panel
-  #       if args and hasattr(args[0], 'title') and '🧠 Agent Thought' in str(args[0].title):
-  #         # Extract the thought content and send to Textual UI
-  #         if hasattr(args[0], 'renderable') and hasattr(args[0].renderable, 'plain'):
-  #           thought_text = args[0].renderable.plain
-  #           self.textual_ui.add_agent_thought(thought_text)
-  #         elif hasattr(args[0], 'renderable'):
-  #           # Fallback: convert to string
-  #           thought_text = str(args[0].renderable)
-  #           self.textual_ui.add_agent_thought(thought_text)
-  #       else:
-  #         # For non-thought output, pass through to original console
-  #         self.original_console.print(*args, **kwargs)
-
-  #     def __getattr__(self, name):
-  #       # Delegate all other methods to the original console
-  #       return getattr(self.original_console, name)
-
-  #   # Replace the agent's console
-  #   root_agent._console = TextualConsoleRedirect(original_console, app_tui)
-
-  # Tool execution tracking
-  tool_start_times = {}
-
-  # Store original agent callbacks
-  original_before_tool = getattr(root_agent, 'before_tool_callback', None)
-  original_after_tool = getattr(root_agent, 'after_tool_callback', None)
-  # original_after_model = getattr(root_agent, 'after_model_callback', None)
-
-  async def enhanced_before_tool(tool, args, tool_context, callback_context=None):
-    """Enhanced before_tool callback that also sends events to Textual UI."""
-    # Record start time for duration calculation
-    tool_start_times[tool.name] = time.time()
-
-    # Send tool start event to Textual UI
-    app_tui.add_tool_event(tool.name, "start", args=args)
-
-    # Call original callback if it exists
-    if original_before_tool:
-      return await original_before_tool(tool, args, tool_context, callback_context)
-    return None
-
-  async def enhanced_after_tool(tool, tool_response, callback_context=None, args=None, tool_context=None):
-    """Enhanced after_tool callback that also sends events to Textual UI."""
-    # Calculate duration
-    start_time = tool_start_times.get(tool.name, time.time())
-    duration = time.time() - start_time
-
-    # Determine if this was an error
-    is_error = False
-    if isinstance(tool_response, dict):
-      is_error = tool_response.get("status") == "error" or tool_response.get("error") is not None
-
-    # Send tool finish/error event to Textual UI
-    if is_error:
-      app_tui.add_tool_event(tool.name, "error", result=tool_response, duration=duration)
-    else:
-      app_tui.add_tool_event(tool.name, "finish", result=tool_response, duration=duration)
-
-    # Call original callback if it exists
-    if original_after_tool:
-      return await original_after_tool(tool, tool_response, callback_context, args, tool_context)
-    return None
-
-  # Replace agent callbacks with enhanced versions (if the agent supports it)
-  if hasattr(root_agent, 'before_tool_callback'):
-    root_agent.before_tool_callback = enhanced_before_tool
-  if hasattr(root_agent, 'after_tool_callback'):
-    root_agent.after_tool_callback = enhanced_after_tool
-
+  # App TUI handlers for user input and interruption
   async def handle_user_input(user_input: str):
     """Handle user input by running the agent and processing output."""
     try:
@@ -393,8 +308,63 @@ async def run_interactively_with_tui(
   app_tui.register_input_callback(handle_user_input)
   app_tui.register_interrupt_callback(interrupt_agent)
 
-  # Display welcome message through the Textual app
-  app_tui.display_agent_welcome(root_agent.name, root_agent.description, getattr(root_agent, 'tools', []))
+  # Create runner
+  runner = Runner(
+      app_name=session.app_name,
+      agent=root_agent,
+      artifact_service=artifact_service,
+      session_service=session_service,
+      credential_service=credential_service,
+  )
+
+  # Tool execution tracking
+  tool_start_times = {}
+
+  # Store original agent callbacks
+  original_before_tool = getattr(root_agent, 'before_tool_callback', None)
+  original_after_tool = getattr(root_agent, 'after_tool_callback', None)
+  # original_after_model = getattr(root_agent, 'after_model_callback', None)
+
+  async def enhanced_before_tool(tool, args, tool_context, callback_context=None):
+    """Enhanced before_tool callback that also sends events to Textual UI."""
+    # Record start time for duration calculation
+    tool_start_times[tool.name] = time.time()
+
+    # Send tool start event to Textual UI
+    app_tui.add_tool_event(tool.name, "start", args=args)
+
+    # Call original callback if it exists
+    if original_before_tool:
+      return await original_before_tool(tool, args, tool_context, callback_context)
+    return None
+
+  async def enhanced_after_tool(tool, tool_response, callback_context=None, args=None, tool_context=None):
+    """Enhanced after_tool callback that also sends events to Textual UI."""
+    # Calculate duration
+    start_time = tool_start_times.get(tool.name, time.time())
+    duration = time.time() - start_time
+
+    # Determine if this was an error
+    is_error = False
+    if isinstance(tool_response, dict):
+      is_error = tool_response.get("status") == "error" or tool_response.get("error") is not None
+
+    # Send tool finish/error event to Textual UI
+    if is_error:
+      app_tui.add_tool_event(tool.name, "error", result=tool_response, duration=duration)
+    else:
+      app_tui.add_tool_event(tool.name, "finish", result=tool_response, duration=duration)
+
+    # Call original callback if it exists
+    if original_after_tool:
+      return await original_after_tool(tool, tool_response, callback_context, args, tool_context)
+    return None
+
+  # Replace agent callbacks with enhanced versions (if the agent supports it)
+  if hasattr(root_agent, 'before_tool_callback'):
+    root_agent.before_tool_callback = enhanced_before_tool
+  if hasattr(root_agent, 'after_tool_callback'):
+    root_agent.after_tool_callback = enhanced_after_tool
 
   # Run the Textual application
   await app_tui.run_async()

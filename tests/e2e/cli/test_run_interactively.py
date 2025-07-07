@@ -137,7 +137,7 @@ class TestRunInteractively:
     # Assertions
     mock_get_cli_instance.assert_called_once_with(None)
     mock_console.print.assert_any_call(
-        "[warning]⚠️  Enhanced UI initialization failed: UI failed[/warning]"
+        "[warning]⚠️ Enhanced UI initialization failed: UI failed[/warning]"
     )
     mock_console.print.assert_any_call(
         "[info]Falling back to basic CLI mode...[/info]"
