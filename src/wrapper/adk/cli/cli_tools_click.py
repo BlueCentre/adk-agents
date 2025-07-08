@@ -19,6 +19,7 @@ import functools
 import logging
 import os
 import tempfile
+import warnings
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Optional
@@ -32,6 +33,13 @@ from google.adk.cli.utils import logs
 from .. import version
 from .cli import run_cli
 from .fast_api import get_fast_api_app
+
+# Suppress experimental service warnings
+warnings.filterwarnings('ignore', '.*EXPERIMENTAL.*BaseAuthenticatedTool.*')
+warnings.filterwarnings('ignore', '.*EXPERIMENTAL.*BaseCredentialService.*')
+warnings.filterwarnings('ignore', '.*EXPERIMENTAL.*InMemoryArtifactService.*')
+warnings.filterwarnings('ignore', '.*EXPERIMENTAL.*InMemoryCredentialService.*')
+warnings.filterwarnings('ignore', '.*EXPERIMENTAL.*InMemorySessionService.*')
 
 LOG_LEVELS = click.Choice(
     ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
