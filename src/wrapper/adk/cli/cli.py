@@ -14,6 +14,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import logging
 import time
 from datetime import datetime
 from typing import Optional
@@ -38,6 +40,8 @@ from .utils import envs  # Modified to use our packaged path
 from .utils.agent_loader import AgentLoader  # Modified to use our packaged path
 from .utils.ui import get_cli_instance, get_textual_cli_instance
 from .utils.ui_common import UITheme
+
+logger = logging.getLogger(__name__)
 
 
 class InputFile(BaseModel):
@@ -241,10 +245,31 @@ async def run_interactively(
                         if part.text:
                             cli.add_agent_thought(part.text)
 
-    await runner.close()
-    # Use graceful cleanup to handle MCP session cleanup errors
-    # from .utils.cleanup import close_runner_gracefully
-    # await close_runner_gracefully(runner)
+    try:
+        await runner.close()
+    except (asyncio.CancelledError, Exception) as e:
+        # Handle MCP client library cleanup errors gracefully
+        # These errors are harmless but occur due to async context mismatches
+        # in the MCP client library during cleanup
+        error_msg = str(e)
+        exception_str = str(type(e).__name__)
+        
+        # Check if this is a known MCP cleanup error
+        is_mcp_cleanup_error = any([
+            "Attempted to exit cancel scope in a different task" in error_msg,
+            "stdio_client" in error_msg,
+            "MCP session cleanup" in error_msg,
+            "CancelledError" in error_msg,
+            "CancelledError" in exception_str,
+            "cancel scope" in error_msg.lower(),
+            isinstance(e, asyncio.CancelledError)
+        ])
+        
+        if is_mcp_cleanup_error:
+            logger.warning(f"MCP cleanup completed with expected async context warnings: {error_msg}")
+        else:
+            # Re-raise unexpected errors
+            raise
 
 
 async def run_interactively_with_tui(
@@ -427,10 +452,31 @@ async def run_interactively_with_tui(
     if hasattr(root_agent, "after_tool_callback"):
         root_agent.after_tool_callback = original_after_tool
 
-    await runner.close()
-    # Use graceful cleanup to handle MCP session cleanup errors
-    # from .utils.cleanup import close_runner_gracefully
-    # await close_runner_gracefully(runner)
+    try:
+        await runner.close()
+    except (asyncio.CancelledError, Exception) as e:
+        # Handle MCP client library cleanup errors gracefully
+        # These errors are harmless but occur due to async context mismatches
+        # in the MCP client library during cleanup
+        error_msg = str(e)
+        exception_str = str(type(e).__name__)
+        
+        # Check if this is a known MCP cleanup error
+        is_mcp_cleanup_error = any([
+            "Attempted to exit cancel scope in a different task" in error_msg,
+            "stdio_client" in error_msg,
+            "MCP session cleanup" in error_msg,
+            "CancelledError" in error_msg,
+            "CancelledError" in exception_str,
+            "cancel scope" in error_msg.lower(),
+            isinstance(e, asyncio.CancelledError)
+        ])
+        
+        if is_mcp_cleanup_error:
+            logger.warning(f"MCP cleanup completed with expected async context warnings: {error_msg}")
+        else:
+            # Re-raise unexpected errors
+            raise
 
 
 async def run_cli(

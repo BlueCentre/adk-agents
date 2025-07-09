@@ -207,48 +207,58 @@ def load_user_tools_and_toolsets():
 
     logger.info(f"Found {len(servers)} MCP servers in mcp.json. Attempting to load them...")
 
-    # Try to load MCP tools synchronously
-    try:
-        # Check if we're in an async context
+    # Check if MCPToolset.from_server is available (latest ADK)
+    has_from_server = hasattr(MCPToolset, 'from_server') and callable(getattr(MCPToolset, 'from_server'))
+    
+    # Always use the async pattern if available, regardless of context
+    # This ensures consistent cleanup behavior
+    if has_from_server:
         try:
-            asyncio.get_running_loop()
-            in_async_context = True
-        except RuntimeError:
-            in_async_context = False
-
-        if in_async_context:
-            # In async context - use MCPToolset without from_server (simple pattern)
-            logger.info("Loading MCP toolsets using simple pattern (async context detected)...")
-            for server_name, server_config in servers.items():
-                try:
-                    # Process config and create connection params (reuse existing logic)
-                    processed_config = _substitute_env_vars(server_config)
-                    connection_params = _create_connection_params(server_name, processed_config)
-
-                    if connection_params:
-                        # Use simple MCPToolset pattern
-                        mcp_toolset = MCPToolset(connection_params=connection_params)
-                        user_mcp_tools_list.append(mcp_toolset)
-                        logger.info(f"MCP Toolset '{server_name}' loaded successfully using simple pattern.")
-
-                except Exception as e:
-                    logger.warning(f"Failed to load MCP Toolset '{server_name}': {e}")
-                    continue
-        else:
-            # Not in async context - can use asyncio.run with from_server
-            logger.info("Loading MCP toolsets using async pattern...")
+            # Always use the async pattern with proper exit stack management
+            # This ensures the ADK Runner can properly cleanup MCP toolsets
+            logger.info("Loading MCP toolsets using async pattern with proper exit stack management...")
             tools, exit_stack = asyncio.run(load_user_tools_and_toolsets_async())
             global _global_mcp_exit_stack
             _global_mcp_exit_stack = exit_stack
             user_mcp_tools_list.extend(tools)
+            logger.info(f"MCP toolsets loaded using async pattern. Total: {len(tools)} tools.")
+            
+        except Exception as e:
+            logger.warning(f"Failed to load MCP toolsets using async pattern: {e}")
+            logger.info("Falling back to simple pattern...")
+            # Fallback to simple pattern if async pattern fails
+            user_mcp_tools_list = _load_mcp_tools_simple_pattern(servers)
+    else:
+        # Use simple pattern for older ADK versions
+        logger.info("Using simple pattern for older ADK version...")
+        user_mcp_tools_list = _load_mcp_tools_simple_pattern(servers)
 
-    except Exception as e:
-        logger.warning(f"Error loading MCP toolsets: {e}")
-        # Fallback to empty list
-        user_mcp_tools_list = []
-
-    logger.info(f"MCP toolsets loaded. Total: {len(user_mcp_tools_list)} tools.")
     return user_mcp_tools_list
+
+
+def _load_mcp_tools_simple_pattern(servers):
+    """Load MCP tools using the simple pattern for fallback or older ADK versions."""
+    user_mcp_tools_list = []
+    
+    for server_name, server_config in servers.items():
+        try:
+            # Process config and create connection params
+            processed_config = _substitute_env_vars(server_config)
+            connection_params = _create_connection_params(server_name, processed_config)
+
+            if connection_params:
+                # Use simple MCPToolset pattern
+                mcp_toolset = MCPToolset(connection_params=connection_params)
+                user_mcp_tools_list.append(mcp_toolset)
+                logger.info(f"MCP Toolset '{server_name}' loaded successfully using simple pattern.")
+
+        except Exception as e:
+            logger.warning(f"Failed to load MCP Toolset '{server_name}': {e}")
+            continue
+    
+    logger.info(f"MCP toolsets loaded using simple pattern. Total: {len(user_mcp_tools_list)} tools.")
+    return user_mcp_tools_list
+
 
 def _substitute_env_vars(value):
     """Recursively substitutes {{env.VAR_NAME}} placeholders with environment variable values."""
@@ -274,6 +284,7 @@ def _substitute_env_vars(value):
         return {k: _substitute_env_vars(v) for k, v in value.items()}
     else:
         return value
+
 
 def _create_connection_params(server_name, processed_config):
     """Create connection parameters for an MCP server."""
