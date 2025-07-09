@@ -72,21 +72,23 @@ tools = load_all_tools_and_toolsets()
 # Create the agent using LiteLlm wrapper for Ollama integration
 root_agent = Agent(
     # model=LiteLlm(model="ollama_chat/llama3.2"),  # Use ollama_chat provider with LiteLlm
-    model=LiteLlm(model=f"gemini/{agent_config.DEFAULT_AGENT_MODEL}"),  # Use ollama_chat provider with LiteLlm
+    model=LiteLlm(
+        model=f"gemini/{agent_config.DEFAULT_AGENT_MODEL}"
+    ),  # Use ollama_chat provider with LiteLlm
     # model="gemini-2.5-flash-preview-05-20",  # Changed from Ollama to Gemini to match sub-agents
     name="software_engineer",
     description="An AI software engineer assistant that helps with various software development tasks",
     instruction=prompt.SOFTWARE_ENGINEER_INSTR,
     sub_agents=[
         # Ordered by typical workflow dependencies
-        design_pattern_agent,      # 1. Architecture and design decisions
-        code_review_agent,         # 2. Code analysis and implementation guidance
-        code_quality_agent,        # 3. Quality validation and improvement suggestions
-        testing_agent,             # 4. Test strategy and implementation
-        debugging_agent,           # 5. Issue identification and resolution
-        documentation_agent,       # 6. Documentation after code stabilization
-        devops_agent,             # 7. Deployment and operational considerations
-        ollama_agent,             # 8. Local model sandbox environment
+        design_pattern_agent,  # 1. Architecture and design decisions
+        code_review_agent,  # 2. Code analysis and implementation guidance
+        code_quality_agent,  # 3. Quality validation and improvement suggestions
+        testing_agent,  # 4. Test strategy and implementation
+        debugging_agent,  # 5. Issue identification and resolution
+        documentation_agent,  # 6. Documentation after code stabilization
+        devops_agent,  # 7. Deployment and operational considerations
+        ollama_agent,  # 8. Local model sandbox environment
     ],
     tools=tools,
     # tools=[

@@ -53,11 +53,11 @@ def workflow_selector_tool(
     requires_approval: bool = False,
     parallel_capable: bool = False,
     iterative: bool = False,
-    tool_context: ToolContext = None
+    tool_context: ToolContext = None,
 ) -> Dict[str, Any]:
     """
     Tool that selects the appropriate workflow pattern based on task characteristics.
-    
+
     Args:
         task_type: Type of task (e.g., "feature_development", "bug_fix", "code_review")
         complexity: Complexity level (low, medium, high)
@@ -65,38 +65,35 @@ def workflow_selector_tool(
         parallel_capable: Whether task can benefit from parallel processing
         iterative: Whether task needs iterative refinement
         tool_context: ADK tool context
-    
+
     Returns:
         Dict containing selected workflow and configuration
     """
-    
+
     workflows = {
         # Sequential workflows
         "feature_development": "feature_development_workflow",
-        "bug_fix": "bug_fix_workflow", 
+        "bug_fix": "bug_fix_workflow",
         "code_review": "code_review_workflow",
         "refactoring": "refactoring_workflow",
-        
         # Parallel workflows
         "analysis": "parallel_analysis_workflow",
         "implementation": "parallel_implementation_workflow",
         "validation": "parallel_validation_workflow",
-        
         # Iterative workflows
         "refinement": "iterative_refinement_workflow",
         "debug": "iterative_debug_workflow",
         "test_improvement": "iterative_test_improvement_workflow",
         "code_generation": "iterative_code_generation_workflow",
-        
         # Human-in-the-loop workflows
         "approval": "approval_workflow",
         "collaborative_review": "collaborative_review_workflow",
         "architecture_decision": "architecture_decision_workflow",
-        "deployment": "deployment_approval_workflow"
+        "deployment": "deployment_approval_workflow",
     }
-    
+
     selected_workflow = workflows.get(task_type, "feature_development_workflow")
-    
+
     # Modify selection based on characteristics
     if requires_approval:
         if task_type == "code_review":
@@ -105,15 +102,15 @@ def workflow_selector_tool(
             selected_workflow = f"{task_type}_workflow"
         else:
             selected_workflow = "approval_workflow"
-    
+
     if parallel_capable and complexity in ["medium", "high"]:
         if task_type in ["analysis", "implementation", "validation"]:
             selected_workflow = f"parallel_{task_type}_workflow"
-    
+
     if iterative and complexity == "high":
         if task_type in ["refinement", "debug", "test_improvement", "code_generation"]:
             selected_workflow = f"iterative_{task_type}_workflow"
-    
+
     # Store workflow selection in session state
     if tool_context and tool_context.state:
         tool_context.state["selected_workflow"] = {
@@ -122,9 +119,9 @@ def workflow_selector_tool(
             "complexity": complexity,
             "requires_approval": requires_approval,
             "parallel_capable": parallel_capable,
-            "iterative": iterative
+            "iterative": iterative,
         }
-    
+
     return {
         "selected_workflow": selected_workflow,
         "task_characteristics": {
@@ -132,62 +129,59 @@ def workflow_selector_tool(
             "complexity": complexity,
             "requires_approval": requires_approval,
             "parallel_capable": parallel_capable,
-            "iterative": iterative
+            "iterative": iterative,
         },
-        "recommendation_reason": f"Selected {selected_workflow} based on task complexity and requirements"
+        "recommendation_reason": f"Selected {selected_workflow} based on task complexity and requirements",
     }
 
 
 def state_manager_tool(
-    action: str,
-    key: str = "",
-    value: str = "",
-    tool_context: ToolContext = None
+    action: str, key: str = "", value: str = "", tool_context: ToolContext = None
 ) -> Dict[str, Any]:
     """
     Tool for managing shared state between agents in workflows.
-    
+
     Args:
         action: Action to perform (get, set, update, delete, list_keys)
         key: State key to operate on
         value: String value to set (for set/update actions)
         tool_context: ADK tool context
-    
+
     Returns:
         Dict containing operation result
     """
-    
+
     if not tool_context or not tool_context.state:
         return {"status": "error", "message": "No session state available"}
-    
+
     try:
         if action == "get":
             result = tool_context.state.get(key)
             return {"status": "success", "key": key, "value": result}
-        
+
         elif action == "set":
             tool_context.state[key] = value
             return {"status": "success", "message": f"Set {key} = {value}"}
-        
+
         elif action == "update":
             # For simplicity, treat update as set for string values
             tool_context.state[key] = value
             return {"status": "success", "message": f"Updated {key}"}
-        
+
         elif action == "delete":
             if key in tool_context.state:
                 del tool_context.state[key]
                 return {"status": "success", "message": f"Deleted {key}"}
             else:
                 return {"status": "warning", "message": f"Key {key} not found"}
-        
+
         elif action == "list_keys":
             keys = list(tool_context.state.keys())
             return {"status": "success", "keys": keys}
-        
+
         else:
             return {"status": "error", "message": f"Unknown action: {action}"}
-    
+
     except Exception as e:
         return {"status": "error", "message": f"State operation failed: {str(e)}"}
 
@@ -200,27 +194,25 @@ state_manager_function_tool = FunctionTool(state_manager_tool)
 def create_enhanced_software_engineer_agent() -> Agent:
     """
     Creates an enhanced software engineer agent with intelligent workflow orchestration.
-    
+
     This agent provides:
     1. Traditional sub-agent delegation for simple tasks
     2. Workflow orchestration tools for complex tasks
     3. Shared state management
     4. Intelligent task routing and coordination
     """
-    
+
     # Load all tools
     tools = load_all_tools_and_toolsets()
-    
+
     # Add workflow and state management tools
-    tools.extend([
-        workflow_selector_function_tool,
-        state_manager_function_tool,
-        load_memory
-    ])
-    
+    tools.extend(
+        [workflow_selector_function_tool, state_manager_function_tool, load_memory]
+    )
+
     # Note: Workflows are created on-demand to avoid agent parent conflicts
     # This allows dynamic workflow creation without pre-instantiating all workflows
-    
+
     # Enhanced instruction that understands workflow patterns
     enhanced_instruction = """
     **ROLE:** You are an advanced software engineer orchestrator that uses sophisticated workflow patterns to coordinate complex software development tasks.
@@ -296,7 +288,7 @@ def create_enhanced_software_engineer_agent() -> Agent:
     
     Always explain your workflow selection reasoning and provide progress updates throughout execution.
     """
-    
+
     # Create the enhanced agent
     enhanced_agent = Agent(
         model=LiteLlm(model=f"gemini/{agent_config.DEFAULT_AGENT_MODEL}"),
@@ -313,14 +305,13 @@ def create_enhanced_software_engineer_agent() -> Agent:
             documentation_agent,
             devops_agent,
             ollama_agent,
-            
             # Note: Workflows are created on-demand using the workflow creation tools
             # This avoids agent parent conflicts while still providing workflow capabilities
         ],
         tools=tools,
-        output_key="enhanced_software_engineer"
+        output_key="enhanced_software_engineer",
     )
-    
+
     return enhanced_agent
 
 

@@ -1,7 +1,11 @@
 """Prompt for the Software Engineer Agent."""
 
 # Export the main instruction for consistency
-__all__ = ["SOFTWARE_ENGINEER_INSTR", "SEARCH_AGENT_INSTR", "CODE_EXECUTION_AGENT_INSTR"]
+__all__ = [
+    "SOFTWARE_ENGINEER_INSTR",
+    "SEARCH_AGENT_INSTR",
+    "CODE_EXECUTION_AGENT_INSTR",
+]
 
 SOFTWARE_ENGINEER_INSTR = """
 **ROLE:** You are an expert software engineer orchestrator that coordinates complex software development tasks by delegating to specialized sub-agents and synthesizing their results.
