@@ -90,7 +90,7 @@ jobs:
       - name: Extract version
         id: get_version
         run: |
-          VERSION=$(./scripts/extract_version.sh)
+          VERSION=$(./scripts/ci/extract_version.sh)
           echo "PROJECT_VERSION=$VERSION" >> $GITHUB_ENV
           echo "Extracted version: $VERSION"
 
