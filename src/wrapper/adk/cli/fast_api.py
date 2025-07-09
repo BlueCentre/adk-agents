@@ -408,6 +408,9 @@ def get_fast_api_app(
     )
     if not session:
       raise HTTPException(status_code=404, detail="Session not found")
+
+    global _app_name
+    _app_name = app_name
     return session
 
   @app.get(
@@ -965,6 +968,11 @@ def get_fast_api_app(
 
   async def _get_runner_async(app_name: str) -> Runner:
     """Returns the runner for the given app."""
+    if app_name in _runners_to_clean:
+      _runners_to_clean.remove(app_name)
+      runner = runner_dict.pop(app_name, None)
+      await cleanup.close_runners(list([runner]))
+
     envs.load_dotenv_for_agent(os.path.basename(app_name), agents_dir)
     if app_name in runner_dict:
       return runner_dict[app_name]

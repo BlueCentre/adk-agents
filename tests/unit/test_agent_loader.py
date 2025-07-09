@@ -564,6 +564,66 @@ class TestLoadAgentFromModule:
       with pytest.raises(ValueError, match='Failed to load agent from module'):
         load_agent_from_module('my.agent.module')
 
+  def test_load_agent_from_module_empty_string(self):
+    """Test loading with empty string as module name."""
+    with patch(
+        'src.wrapper.adk.cli.utils.agent_loader.importlib.import_module'
+    ) as mock_import:
+      mock_import.side_effect = ModuleNotFoundError("No module named ''")
+
+      with pytest.raises(ValueError, match='Agent module.*not found'):
+        load_agent_from_module('')
+
+  def test_load_agent_from_module_root_agent_is_none(self):
+    """Test loading when root_agent exists but is None."""
+    mock_module = Mock()
+    mock_module.root_agent = None
+
+    with patch(
+        'src.wrapper.adk.cli.utils.agent_loader.importlib'
+    ) as mock_importlib:
+      mock_importlib.import_module.return_value = mock_module
+
+      with pytest.raises(
+          ValueError,
+          match='Failed to load agent from module.*Error:.*is not an instance of BaseAgent'
+      ):
+        load_agent_from_module('my.agent.module')
+
+  def test_load_agent_from_module_complex_object_type(self):
+    """Test loading when root_agent is a complex object but not BaseAgent."""
+    class FakeAgent:
+      def __init__(self):
+        self.name = "fake"
+
+    mock_module = Mock()
+    mock_module.root_agent = FakeAgent()
+
+    with patch(
+        'src.wrapper.adk.cli.utils.agent_loader.importlib'
+    ) as mock_importlib:
+      mock_importlib.import_module.return_value = mock_module
+
+      with pytest.raises(
+          ValueError,
+          match='Failed to load agent from module.*Error:.*is not an instance of BaseAgent'
+      ):
+        load_agent_from_module('my.agent.module')
+
+  def test_load_agent_from_module_import_error_with_cause(self):
+    """Test loading when import fails with specific cause."""
+    with patch(
+        'src.wrapper.adk.cli.utils.agent_loader.importlib.import_module'
+    ) as mock_import:
+      original_error = ImportError("Circular import detected")
+      mock_import.side_effect = original_error
+
+      with pytest.raises(ValueError, match='Failed to load agent from module') as exc_info:
+        load_agent_from_module('my.agent.module')
+
+      # Check that the original exception is preserved as the cause
+      assert exc_info.value.__cause__ is original_error
+
 
 class TestIntegrationScenarios:
   """Test integration scenarios and edge cases."""

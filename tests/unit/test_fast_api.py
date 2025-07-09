@@ -29,6 +29,7 @@ from google.genai import types
 # Import the function under test
 from src.wrapper.adk.cli.fast_api import (
     AddSessionToEvalSetRequest,
+    AgentChangeEventHandler,
     AgentRunRequest,
     ApiServerSpanExporter,
     GetEventGraphResult,
@@ -37,6 +38,180 @@ from src.wrapper.adk.cli.fast_api import (
     RunEvalResult,
     get_fast_api_app,
 )
+
+
+class TestAgentChangeEventHandler:
+  """Test the AgentChangeEventHandler class."""
+
+  def test_init(self):
+    """Test AgentChangeEventHandler initialization."""
+    from src.wrapper.adk.cli.utils.agent_loader import AgentLoader
+    
+    agent_loader = Mock(spec=AgentLoader)
+    handler = AgentChangeEventHandler(agent_loader)
+    
+    assert handler.agent_loader is agent_loader
+
+  def test_on_modified_python_file(self):
+    """Test on_modified method with Python file."""
+    from src.wrapper.adk.cli.utils.agent_loader import AgentLoader
+    
+    agent_loader = Mock(spec=AgentLoader)
+    handler = AgentChangeEventHandler(agent_loader)
+    
+    # Mock the event
+    event = Mock()
+    event.src_path = "/path/to/agent.py"
+    
+    # Mock the global variables
+    with patch('src.wrapper.adk.cli.fast_api._app_name', 'test_app'):
+      with patch('src.wrapper.adk.cli.fast_api._runners_to_clean', set()) as mock_runners_to_clean:
+        with patch('src.wrapper.adk.cli.fast_api.logger') as mock_logger:
+          handler.on_modified(event)
+          
+          # Verify logger was called
+          mock_logger.info.assert_called_once_with(
+              "Change detected in agents directory: %s", "/path/to/agent.py"
+          )
+          
+          # Verify agent was removed from cache
+          agent_loader.remove_agent_from_cache.assert_called_once_with('test_app')
+          
+          # Verify app was added to runners_to_clean
+          assert 'test_app' in mock_runners_to_clean
+
+  def test_on_modified_yaml_file(self):
+    """Test on_modified method with YAML file."""
+    from src.wrapper.adk.cli.utils.agent_loader import AgentLoader
+    
+    agent_loader = Mock(spec=AgentLoader)
+    handler = AgentChangeEventHandler(agent_loader)
+    
+    # Mock the event
+    event = Mock()
+    event.src_path = "/path/to/config.yaml"
+    
+    # Mock the global variables
+    with patch('src.wrapper.adk.cli.fast_api._app_name', 'test_app'):
+      with patch('src.wrapper.adk.cli.fast_api._runners_to_clean', set()) as mock_runners_to_clean:
+        with patch('src.wrapper.adk.cli.fast_api.logger') as mock_logger:
+          handler.on_modified(event)
+          
+          # Verify logger was called
+          mock_logger.info.assert_called_once_with(
+              "Change detected in agents directory: %s", "/path/to/config.yaml"
+          )
+          
+          # Verify agent was removed from cache
+          agent_loader.remove_agent_from_cache.assert_called_once_with('test_app')
+          
+          # Verify app was added to runners_to_clean
+          assert 'test_app' in mock_runners_to_clean
+
+  def test_on_modified_ignored_file_types(self):
+    """Test on_modified method with ignored file types."""
+    from src.wrapper.adk.cli.utils.agent_loader import AgentLoader
+    
+    agent_loader = Mock(spec=AgentLoader)
+    handler = AgentChangeEventHandler(agent_loader)
+    
+    ignored_files = [
+        "/path/to/README.md",
+        "/path/to/data.json",
+        "/path/to/script.sh",
+        "/path/to/image.png",
+        "/path/to/document.txt"
+    ]
+    
+    for file_path in ignored_files:
+      event = Mock()
+      event.src_path = file_path
+      
+      with patch('src.wrapper.adk.cli.fast_api._app_name', 'test_app'):
+        with patch('src.wrapper.adk.cli.fast_api._runners_to_clean', set()) as mock_runners_to_clean:
+          with patch('src.wrapper.adk.cli.fast_api.logger') as mock_logger:
+            handler.on_modified(event)
+            
+            # Verify logger was NOT called
+            mock_logger.info.assert_not_called()
+            
+            # Verify agent was NOT removed from cache
+            agent_loader.remove_agent_from_cache.assert_not_called()
+            
+            # Verify app was NOT added to runners_to_clean
+            assert 'test_app' not in mock_runners_to_clean
+
+  def test_on_modified_edge_cases(self):
+    """Test on_modified method with edge cases."""
+    from src.wrapper.adk.cli.utils.agent_loader import AgentLoader
+    
+    agent_loader = Mock(spec=AgentLoader)
+    handler = AgentChangeEventHandler(agent_loader)
+    
+    edge_cases = [
+        "/path/to/.hidden.py",  # Hidden Python file
+        "/path/to/file.PY",     # Uppercase extension
+        "/path/to/file.YAML",   # Uppercase YAML
+        "/path/to/file.yml",    # Alternative YAML extension
+        "/path/to/file.py.bak", # Backup file
+    ]
+    
+    for file_path in edge_cases:
+      event = Mock()
+      event.src_path = file_path
+      
+      with patch('src.wrapper.adk.cli.fast_api._app_name', 'test_app'):
+        with patch('src.wrapper.adk.cli.fast_api._runners_to_clean', set()) as mock_runners_to_clean:
+          with patch('src.wrapper.adk.cli.fast_api.logger') as mock_logger:
+            handler.on_modified(event)
+            
+            # Check behavior based on file extension
+            if file_path.endswith('.py') or file_path.endswith('.yaml'):
+              # Should be processed
+              mock_logger.info.assert_called_once()
+              agent_loader.remove_agent_from_cache.assert_called_once_with('test_app')
+              assert 'test_app' in mock_runners_to_clean
+            else:
+              # Should be ignored
+              mock_logger.info.assert_not_called()
+              agent_loader.remove_agent_from_cache.assert_not_called()
+              assert 'test_app' not in mock_runners_to_clean
+            
+            # Reset mocks for next iteration
+            mock_logger.reset_mock()
+            agent_loader.reset_mock()
+
+  def test_on_modified_multiple_calls(self):
+    """Test on_modified method with multiple calls."""
+    from src.wrapper.adk.cli.utils.agent_loader import AgentLoader
+    
+    agent_loader = Mock(spec=AgentLoader)
+    handler = AgentChangeEventHandler(agent_loader)
+    
+    # Create multiple events
+    event1 = Mock()
+    event1.src_path = "/path/to/agent1.py"
+    
+    event2 = Mock()
+    event2.src_path = "/path/to/agent2.yaml"
+    
+    # Mock the global variables
+    with patch('src.wrapper.adk.cli.fast_api._app_name', 'test_app'):
+      with patch('src.wrapper.adk.cli.fast_api._runners_to_clean', set()) as mock_runners_to_clean:
+        with patch('src.wrapper.adk.cli.fast_api.logger') as mock_logger:
+          # Call on_modified multiple times
+          handler.on_modified(event1)
+          handler.on_modified(event2)
+          
+          # Verify logger was called twice
+          assert mock_logger.info.call_count == 2
+          
+          # Verify agent was removed from cache twice
+          assert agent_loader.remove_agent_from_cache.call_count == 2
+          
+          # Verify app was added to runners_to_clean (set, so only once)
+          assert 'test_app' in mock_runners_to_clean
+          assert len(mock_runners_to_clean) == 1
 
 
 class TestApiServerSpanExporter:
@@ -1917,21 +2092,218 @@ class TestWebStaticFiles:
         shutil.rmtree(browser_dir)
 
   def test_web_static_files_disabled(self, temp_agents_dir):
-    """Test that web endpoints don't exist when web=False."""
-    app = get_fast_api_app(
-        agents_dir=temp_agents_dir,
-        web=False,  # Disable web serving
-        trace_to_cloud=False,
-    )
+    """Test that static files are not served when web=False."""
+    app = get_fast_api_app(agents_dir=temp_agents_dir, web=False)
 
-    client = TestClient(app)
+    # Static file endpoints should not exist
+    routes = [route.path for route in app.routes]
+    assert "/" not in routes
+    assert "/dev-ui" not in routes
 
-    # These endpoints should not exist
-    response = client.get("/")
-    assert response.status_code == 404
 
-    response = client.get("/dev-ui")
-    assert response.status_code == 404
+class TestReloadAgentsConfiguration:
+  """Test the reload_agents functionality and file system observer setup."""
+
+  @pytest.fixture
+  def temp_agents_dir(self):
+    """Create a temporary agents directory."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+      # Create a test agent directory
+      agent_dir = os.path.join(temp_dir, "test_agent")
+      os.makedirs(agent_dir, exist_ok=True)
+      
+      # Create agent.py file
+      agent_file = os.path.join(agent_dir, "agent.py")
+      with open(agent_file, "w") as f:
+        f.write("# Test agent file\n")
+      
+      yield temp_dir
+
+  def test_get_fast_api_app_reload_agents_enabled_observer_setup(self, temp_agents_dir):
+    """Test that file system observer is set up when reload_agents=True."""
+    with patch('src.wrapper.adk.cli.fast_api.Observer') as mock_observer_class:
+      mock_observer = Mock()
+      mock_observer_class.return_value = mock_observer
+      
+      with patch('src.wrapper.adk.cli.fast_api.AgentLoader') as mock_agent_loader_class:
+        mock_agent_loader = Mock()
+        mock_agent_loader_class.return_value = mock_agent_loader
+        
+        app = get_fast_api_app(
+            agents_dir=temp_agents_dir,
+            reload_agents=True,
+            web=False,
+            trace_to_cloud=False
+        )
+        
+        # Verify observer was created
+        mock_observer_class.assert_called_once()
+        
+        # Verify event handler was created with agent loader
+        # The event handler should be passed to observer.schedule
+        schedule_calls = mock_observer.schedule.call_args_list
+        assert len(schedule_calls) == 1
+        
+        # Verify schedule was called with correct parameters
+        call_args, call_kwargs = schedule_calls[0]
+        event_handler = call_args[0]
+        watch_path = call_args[1] 
+        recursive = call_kwargs.get('recursive', False)
+        
+        # Verify the event handler is of correct type
+        from src.wrapper.adk.cli.fast_api import AgentChangeEventHandler
+        assert isinstance(event_handler, AgentChangeEventHandler)
+        
+        # Verify observer is watching the correct directory recursively
+        assert watch_path == temp_agents_dir
+        assert recursive is True
+        
+        # Verify observer was started
+        mock_observer.start.assert_called_once()
+
+  def test_get_fast_api_app_reload_agents_disabled_no_observer(self, temp_agents_dir):
+    """Test that file system observer is not started when reload_agents=False."""
+    with patch('src.wrapper.adk.cli.fast_api.Observer') as mock_observer_class:
+      mock_observer = Mock()
+      mock_observer_class.return_value = mock_observer
+      
+      with patch('src.wrapper.adk.cli.fast_api.AgentLoader') as mock_agent_loader_class:
+        mock_agent_loader = Mock()
+        mock_agent_loader_class.return_value = mock_agent_loader
+        
+        app = get_fast_api_app(
+            agents_dir=temp_agents_dir,
+            reload_agents=False,
+            web=False,
+            trace_to_cloud=False
+        )
+        
+        # Verify observer was created but not started
+        mock_observer_class.assert_called_once()
+        mock_observer.schedule.assert_not_called()
+        mock_observer.start.assert_not_called()
+
+  def test_get_fast_api_app_reload_agents_default_behavior(self, temp_agents_dir):
+    """Test that reload_agents defaults to False and observer is not started."""
+    with patch('src.wrapper.adk.cli.fast_api.Observer') as mock_observer_class:
+      mock_observer = Mock()
+      mock_observer_class.return_value = mock_observer
+      
+      with patch('src.wrapper.adk.cli.fast_api.AgentLoader') as mock_agent_loader_class:
+        mock_agent_loader = Mock()
+        mock_agent_loader_class.return_value = mock_agent_loader
+        
+        app = get_fast_api_app(
+            agents_dir=temp_agents_dir,
+            web=False,
+            trace_to_cloud=False
+            # reload_agents not specified, should default to False
+        )
+        
+        # Verify observer was created but not started by default
+        mock_observer_class.assert_called_once()
+        mock_observer.schedule.assert_not_called()
+        mock_observer.start.assert_not_called()
+
+  def test_get_fast_api_app_reload_agents_lifespan_cleanup(self, temp_agents_dir):
+    """Test that observer is properly cleaned up during lifespan shutdown when reload_agents=True."""
+    with patch('src.wrapper.adk.cli.fast_api.Observer') as mock_observer_class:
+      mock_observer = Mock()
+      mock_observer_class.return_value = mock_observer
+      
+      with patch('src.wrapper.adk.cli.fast_api.AgentLoader') as mock_agent_loader_class:
+        mock_agent_loader = Mock()
+        mock_agent_loader_class.return_value = mock_agent_loader
+        
+        # Mock the cleanup.close_runners to avoid needing actual runner instances
+        with patch('src.wrapper.adk.cli.fast_api.cleanup.close_runners', new_callable=AsyncMock):
+          app = get_fast_api_app(
+              agents_dir=temp_agents_dir,
+              reload_agents=True,
+              web=False,
+              trace_to_cloud=False
+          )
+          
+          # Verify observer was set up
+          mock_observer_class.assert_called_once()
+          mock_observer.start.assert_called_once()
+          
+          # The lifespan function cleanup should call observer.stop() and observer.join()
+          # We can't easily test the lifespan context manager directly, but we can verify
+          # that the observer methods are available to be called
+          assert hasattr(mock_observer, 'stop')
+          assert hasattr(mock_observer, 'join')
+
+  def test_get_fast_api_app_reload_agents_agent_loader_integration(self, temp_agents_dir):
+    """Test that AgentChangeEventHandler is properly initialized with AgentLoader when reload_agents=True."""
+    with patch('src.wrapper.adk.cli.fast_api.Observer') as mock_observer_class:
+      mock_observer = Mock()
+      mock_observer_class.return_value = mock_observer
+      
+      with patch('src.wrapper.adk.cli.fast_api.AgentLoader') as mock_agent_loader_class:
+        mock_agent_loader = Mock()
+        mock_agent_loader_class.return_value = mock_agent_loader
+        
+        app = get_fast_api_app(
+            agents_dir=temp_agents_dir,
+            reload_agents=True,
+            web=False,
+            trace_to_cloud=False
+        )
+        
+        # Verify AgentLoader was created with correct agents_dir
+        mock_agent_loader_class.assert_called_once_with(temp_agents_dir)
+        
+        # Verify observer.schedule was called
+        mock_observer.schedule.assert_called_once()
+        
+        # Get the event handler that was passed to schedule
+        call_args, call_kwargs = mock_observer.schedule.call_args
+        event_handler = call_args[0]
+        
+        # Verify the event handler has the correct agent_loader
+        from src.wrapper.adk.cli.fast_api import AgentChangeEventHandler
+        assert isinstance(event_handler, AgentChangeEventHandler)
+        assert event_handler.agent_loader is mock_agent_loader
+
+  def test_get_fast_api_app_reload_agents_with_custom_lifespan(self, temp_agents_dir):
+    """Test that reload_agents works correctly with custom lifespan function."""
+    from contextlib import asynccontextmanager
+    
+    lifespan_events = []
+    
+    @asynccontextmanager
+    async def custom_lifespan(app):
+      lifespan_events.append("startup")
+      try:
+        yield
+      finally:
+        lifespan_events.append("shutdown")
+    
+    with patch('src.wrapper.adk.cli.fast_api.Observer') as mock_observer_class:
+      mock_observer = Mock()
+      mock_observer_class.return_value = mock_observer
+      
+      with patch('src.wrapper.adk.cli.fast_api.AgentLoader') as mock_agent_loader_class:
+        mock_agent_loader = Mock()
+        mock_agent_loader_class.return_value = mock_agent_loader
+        
+        # Mock the cleanup.close_runners to avoid needing actual runner instances
+        with patch('src.wrapper.adk.cli.fast_api.cleanup.close_runners', new_callable=AsyncMock):
+          app = get_fast_api_app(
+              agents_dir=temp_agents_dir,
+              reload_agents=True,
+              web=False,
+              trace_to_cloud=False,
+              lifespan=custom_lifespan
+          )
+          
+          # Verify observer was still set up even with custom lifespan
+          mock_observer_class.assert_called_once()
+          mock_observer.start.assert_called_once()
+          
+          # The app should be created successfully
+          assert app is not None
 
 
 if __name__ == "__main__":

@@ -18,11 +18,12 @@ import importlib
 import logging
 import os
 import sys
-from typing import Optional
 from pathlib import Path
+from typing import Optional
+
+from google.adk.agents.base_agent import BaseAgent
 
 from . import envs
-from google.adk.agents.base_agent import BaseAgent
 
 logger = logging.getLogger("google_adk." + __name__)
 
@@ -40,12 +41,40 @@ class AgentLoader:
   """
 
   def __init__(self, agents_dir: Optional[str] = None):
+    """Initialize the AgentLoader with optional agents directory.
+    
+    This is an enhancement over the official ADK AgentLoader which requires
+    agents_dir to be provided. Our version supports loading agents from
+    installed Python packages when agents_dir is None.
+    
+    Args:
+      agents_dir: Optional path to the directory containing agent modules.
+                 If None, agents will be loaded from installed Python packages.
+    """
     self.agents_dir = agents_dir.rstrip("/") if agents_dir else None
     self._original_sys_path = None
     self._agent_cache: dict[str, BaseAgent] = {}
 
   @staticmethod
   def get_available_agent_modules(agents_dir: str) -> list[str]:
+    """Discover available agent modules in the specified directory.
+    
+    This is a new utility function not present in the official ADK version.
+    Scans the agents directory for valid agent modules and packages.
+    
+    Args:
+      agents_dir: Path to the directory containing agent modules.
+      
+    Returns:
+      Sorted list of agent module names found in the directory.
+      Returns empty list if directory doesn't exist or is not a directory.
+      
+    Note:
+      Discovers agents in the following structures:
+      - Directory packages: agents_dir/{agent_name}/
+      - Python modules: agents_dir/{agent_name}.py
+      Excludes hidden files, __pycache__, and __init__.py files.
+    """
     # List all immediate subdirectories and .py files in agents_dir
     base_path = Path(agents_dir)
     if not base_path.exists():
@@ -145,7 +174,25 @@ class AgentLoader:
     return None
 
   def _perform_load(self, agent_name: str) -> BaseAgent:
-    """Internal logic to load an agent"""
+    """Internal logic to load an agent with enhanced directory handling.
+    
+    This method diverges from the official ADK version by gracefully handling
+    the case where agents_dir is None, allowing loading from installed packages.
+    
+    Args:
+      agent_name: The name of the agent to load.
+      
+    Returns:
+      The loaded BaseAgent instance.
+      
+    Raises:
+      ValueError: If no root_agent is found after trying all loading patterns.
+      
+    Note:
+      Enhancement over official ADK:
+      - When agents_dir is None, loads .env files using package-based discovery
+      - When agents_dir is provided, maintains original ADK behavior
+    """
     # Add self.agents_dir to sys.path
     if self.agents_dir:
       if self.agents_dir not in sys.path:
@@ -184,9 +231,24 @@ class AgentLoader:
     self._agent_cache[agent_name] = agent
     return agent
 
+  def remove_agent_from_cache(self, agent_name: str):
+    # Clear module cache for the agent and its submodules
+    keys_to_delete = [
+        module_name
+        for module_name in sys.modules
+        if module_name == agent_name or module_name.startswith(f"{agent_name}.")
+    ]
+    for key in keys_to_delete:
+      logger.debug("Deleting module %s", key)
+      del sys.modules[key]
+    self._agent_cache.pop(agent_name, None)
 
 def load_agent_from_module(agent_module_name: str) -> BaseAgent:
   """Loads an agent directly from an installed Python module.
+
+  This is a new standalone utility function not present in the official ADK version.
+  It provides a simple way to load agents from installed Python packages without
+  requiring an AgentLoader instance or agents directory.
 
   Args:
     agent_module_name: The full module path to the agent, e.g., 'agents.devops'.
@@ -195,7 +257,20 @@ def load_agent_from_module(agent_module_name: str) -> BaseAgent:
     The loaded BaseAgent instance.
 
   Raises:
-    ValueError: If the agent module or `root_agent` is not found.
+    ValueError: If the agent module is not found, `root_agent` is missing,
+               or `root_agent` is not an instance of BaseAgent.
+    
+  Note:
+    Unlike AgentLoader.load_agent(), this function:
+    - Does not provide caching functionality
+    - Does not load .env files automatically
+    - Does not modify sys.path
+    - Requires the full module path to be importable
+    - Wraps all exceptions (including TypeError) in ValueError
+    
+  Example:
+    >>> agent = load_agent_from_module('agents.devops')
+    >>> # Loads root_agent from the agents.devops module
   """
   try:
     module = importlib.import_module(agent_module_name)
