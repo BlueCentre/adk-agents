@@ -69,34 +69,34 @@ jobs:
         name: coverage-html-report
         path: htmlcov/
 
-  # coverage-report:
-  #   name: SonarQube
-  #   needs: coverage-analysis
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #       with:
-  #         fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+  coverage-report:
+    name: SonarQube
+    needs: coverage-analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
 
-  #     - name: Download coverage report
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         name: coverage-report
+      - name: Download coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-report
 
-  #     - name: Make extract_version.sh executable
-  #       run: |
-  #         chmod +x scripts/ci/extract_version.sh
+      - name: Make extract_version.sh executable
+        run: |
+          chmod +x scripts/ci/extract_version.sh
 
-  #     - name: Extract version
-  #       id: get_version
-  #       run: |
-  #         VERSION=$(./scripts/extract_version.sh)
-  #         echo "PROJECT_VERSION=$VERSION" >> $GITHUB_ENV
-  #         echo "Extracted version: $VERSION"
+      - name: Extract version
+        id: get_version
+        run: |
+          VERSION=$(./scripts/extract_version.sh)
+          echo "PROJECT_VERSION=$VERSION" >> $GITHUB_ENV
+          echo "Extracted version: $VERSION"
 
-  #     - name: SonarQube Scan
-  #       uses: SonarSource/sonarqube-scan-action@v5
-  #       env:
-  #         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-  #         PROJECT_VERSION: ${{ env.PROJECT_VERSION }}
-  #         # SONAR_SCANNER_OPTS: "-Dsonar.branch.name=${{ github.ref_name }}"
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          PROJECT_VERSION: ${{ env.PROJECT_VERSION }}
+          # SONAR_SCANNER_OPTS: "-Dsonar.branch.name=${{ github.ref_name }}"
