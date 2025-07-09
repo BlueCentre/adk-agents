@@ -41,7 +41,9 @@ from .fast_api import get_fast_api_app
 # warnings.filterwarnings('ignore', '.*EXPERIMENTAL.*InMemoryCredentialService.*')
 # warnings.filterwarnings('ignore', '.*EXPERIMENTAL.*InMemorySessionService.*')
 # Ignore all warnings
-warnings.filterwarnings("ignore")
+# warnings.filterwarnings("ignore")
+# Ignore all UserWarnings
+warnings.filterwarnings('ignore', category=UserWarning)
 
 LOG_LEVELS = click.Choice(
     ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
