@@ -35,89 +35,93 @@ from .cli import run_cli
 from .fast_api import get_fast_api_app
 
 # Suppress experimental service warnings
-warnings.filterwarnings('ignore', '.*EXPERIMENTAL.*BaseAuthenticatedTool.*')
-warnings.filterwarnings('ignore', '.*EXPERIMENTAL.*BaseCredentialService.*')
-warnings.filterwarnings('ignore', '.*EXPERIMENTAL.*InMemoryArtifactService.*')
-warnings.filterwarnings('ignore', '.*EXPERIMENTAL.*InMemoryCredentialService.*')
-warnings.filterwarnings('ignore', '.*EXPERIMENTAL.*InMemorySessionService.*')
+# warnings.filterwarnings('ignore', '.*EXPERIMENTAL.*BaseAuthenticatedTool.*')
+# warnings.filterwarnings('ignore', '.*EXPERIMENTAL.*BaseCredentialService.*')
+# warnings.filterwarnings('ignore', '.*EXPERIMENTAL.*InMemoryArtifactService.*')
+# warnings.filterwarnings('ignore', '.*EXPERIMENTAL.*InMemoryCredentialService.*')
+# warnings.filterwarnings('ignore', '.*EXPERIMENTAL.*InMemorySessionService.*')
+# Ignore all warnings
+warnings.filterwarnings("ignore")
 
 LOG_LEVELS = click.Choice(
     ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
     case_sensitive=False,
 )
 
+
 class HelpfulCommand(click.Command):
-  """Command that shows full help on error instead of just the error message.
+    """Command that shows full help on error instead of just the error message.
 
-  A custom Click Command class that overrides the default error handling
-  behavior to display the full help text when a required argument is missing,
-  followed by the error message. This provides users with better context
-  about command usage without needing to run a separate --help command.
-
-  Args:
-    *args: Variable length argument list to pass to the parent class.
-    **kwargs: Arbitrary keyword arguments to pass to the parent class.
-
-  Returns:
-    None. Inherits behavior from the parent Click Command class.
-
-  Returns:
-  """
-
-  def __init__(self, *args, **kwargs):
-    super().__init__(*args, **kwargs)
-
-  @staticmethod
-  def _format_missing_arg_error(click_exception):
-    """Format the missing argument error with uppercase parameter name.
+    A custom Click Command class that overrides the default error handling
+    behavior to display the full help text when a required argument is missing,
+    followed by the error message. This provides users with better context
+    about command usage without needing to run a separate --help command.
 
     Args:
-      click_exception: The MissingParameter exception from Click.
+      *args: Variable length argument list to pass to the parent class.
+      **kwargs: Arbitrary keyword arguments to pass to the parent class.
 
     Returns:
-      str: Formatted error message with uppercase parameter name.
-    """
-    name = click_exception.param.name
-    return f"Missing required argument: {name.upper()}"
-
-  def parse_args(self, ctx, args):
-    """Override the parse_args method to show help text on error.
-
-    Args:
-      ctx: Click context object for the current command.
-      args: List of command-line arguments to parse.
+      None. Inherits behavior from the parent Click Command class.
 
     Returns:
-      The parsed arguments as returned by the parent class's parse_args method.
-
-    Raises:
-      click.MissingParameter: When a required parameter is missing, but this
-        is caught and handled by displaying the help text before exiting.
     """
-    try:
-      return super().parse_args(ctx, args)
-    except click.MissingParameter as exc:
-      error_message = self._format_missing_arg_error(exc)
 
-      click.echo(ctx.get_help())
-      click.secho(f"\nError: {error_message}", fg="red", err=True)
-      ctx.exit(2)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    @staticmethod
+    def _format_missing_arg_error(click_exception):
+        """Format the missing argument error with uppercase parameter name.
+
+        Args:
+          click_exception: The MissingParameter exception from Click.
+
+        Returns:
+          str: Formatted error message with uppercase parameter name.
+        """
+        name = click_exception.param.name
+        return f"Missing required argument: {name.upper()}"
+
+    def parse_args(self, ctx, args):
+        """Override the parse_args method to show help text on error.
+
+        Args:
+          ctx: Click context object for the current command.
+          args: List of command-line arguments to parse.
+
+        Returns:
+          The parsed arguments as returned by the parent class's parse_args method.
+
+        Raises:
+          click.MissingParameter: When a required parameter is missing, but this
+            is caught and handled by displaying the help text before exiting.
+        """
+        try:
+            return super().parse_args(ctx, args)
+        except click.MissingParameter as exc:
+            error_message = self._format_missing_arg_error(exc)
+
+            click.echo(ctx.get_help())
+            click.secho(f"\nError: {error_message}", fg="red", err=True)
+            ctx.exit(2)
 
 
+logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger("google_adk." + __name__)
 
 
 @click.group(context_settings={"max_content_width": 240})
 @click.version_option(version.__version__)
 def main():
-  """Agent Development Kit CLI tools."""
-  pass
+    """Agent Development Kit CLI tools."""
+    pass
 
 
 @main.group()
 def deploy():
-  """Deploys agent to hosted environments."""
-  pass
+    """Deploys agent to hosted environments."""
+    pass
 
 
 @main.command("create", cls=HelpfulCommand)
@@ -129,10 +133,7 @@ def deploy():
 @click.option(
     "--api_key",
     type=str,
-    help=(
-        "Optional. The API Key needed to access the model, e.g. Google AI API"
-        " Key."
-    ),
+    help=("Optional. The API Key needed to access the model, e.g. Google AI API Key."),
 )
 @click.option(
     "--project",
@@ -152,38 +153,38 @@ def cli_create_cmd(
     project: Optional[str],
     region: Optional[str],
 ):
-  """Creates a new app in the current folder with prepopulated agent template.
+    """Creates a new app in the current folder with prepopulated agent template.
 
-  APP_NAME: required, the folder of the agent source code.
+    APP_NAME: required, the folder of the agent source code.
 
-  Example:
+    Example:
 
-    adk create path/to/my_app
-  """
-  cli_create.run_cmd(
-      app_name,
-      model=model,
-      google_api_key=api_key,
-      google_cloud_project=project,
-      google_cloud_region=region,
-  )
+      adk create path/to/my_app
+    """
+    cli_create.run_cmd(
+        app_name,
+        model=model,
+        google_api_key=api_key,
+        google_cloud_project=project,
+        google_cloud_region=region,
+    )
 
 
 def validate_exclusive(ctx, param, value):
-  # Store the validated parameters in the context
-  if not hasattr(ctx, "exclusive_opts"):
-    ctx.exclusive_opts = {}
+    # Store the validated parameters in the context
+    if not hasattr(ctx, "exclusive_opts"):
+        ctx.exclusive_opts = {}
 
-  # If this option has a value and we've already seen another exclusive option
-  if value is not None and any(ctx.exclusive_opts.values()):
-    exclusive_opt = next(key for key, val in ctx.exclusive_opts.items() if val)
-    raise click.UsageError(
-        f"Options '{param.name}' and '{exclusive_opt}' cannot be set together."
-    )
+    # If this option has a value and we've already seen another exclusive option
+    if value is not None and any(ctx.exclusive_opts.values()):
+        exclusive_opt = next(key for key, val in ctx.exclusive_opts.items() if val)
+        raise click.UsageError(
+            f"Options '{param.name}' and '{exclusive_opt}' cannot be set together."
+        )
 
-  # Record this option's value
-  ctx.exclusive_opts[param.name] = value is not None
-  return value
+    # Record this option's value
+    ctx.exclusive_opts[param.name] = value is not None
+    return value
 
 
 @main.command("run")
@@ -206,9 +207,7 @@ def validate_exclusive(ctx, param, value):
 )
 @click.option(
     "--replay",
-    type=click.Path(
-        exists=True, dir_okay=False, file_okay=True, resolve_path=True
-    ),
+    type=click.Path(exists=True, dir_okay=False, file_okay=True, resolve_path=True),
     help=(
         "The json file that contains the initial state of the session and user"
         " queries. A new session will be created using this state. And user"
@@ -219,9 +218,7 @@ def validate_exclusive(ctx, param, value):
 )
 @click.option(
     "--resume",
-    type=click.Path(
-        exists=True, dir_okay=False, file_okay=True, resolve_path=True
-    ),
+    type=click.Path(exists=True, dir_okay=False, file_okay=True, resolve_path=True),
     help=(
         "The json file that contains a previously saved session (by"
         "--save_session option). The previous session will be re-displayed. And"
@@ -257,8 +254,8 @@ def cli_run(
     session_id: Optional[str],
     replay: Optional[str],
     resume: Optional[str],
-    ui_theme: Optional[str], # Extend for TUI
-    tui: bool, # Extend for TUI
+    ui_theme: Optional[str],  # Extend for TUI
+    tui: bool,  # Extend for TUI
 ):
     """Runs an interactive CLI for a certain agent.
 
@@ -284,114 +281,115 @@ def cli_run(
 
 
 def adk_services_options():
-  """Decorator to add ADK services options to click commands."""
+    """Decorator to add ADK services options to click commands."""
 
-  def decorator(func):
-    @click.option(
-        "--session_service_uri",
-        help=(
-            """Optional. The URI of the session service.
+    def decorator(func):
+        @click.option(
+            "--session_service_uri",
+            help=(
+                """Optional. The URI of the session service.
           - Use 'agentengine://<agent_engine_resource_id>' to connect to Agent Engine sessions.
           - Use 'sqlite://<path_to_sqlite_file>' to connect to a SQLite DB.
           - See https://docs.sqlalchemy.org/en/20/core/engines.html#backend-specific-urls for more details on supported database URIs."""
-        ),
-    )
-    @click.option(
-        "--artifact_service_uri",
-        type=str,
-        help=(
-            "Optional. The URI of the artifact service,"
-            " supported URIs: gs://<bucket name> for GCS artifact service."
-        ),
-        default=None,
-    )
-    @click.option(
-        "--memory_service_uri",
-        type=str,
-        help=(
-            """Optional. The URI of the memory service.
+            ),
+        )
+        @click.option(
+            "--artifact_service_uri",
+            type=str,
+            help=(
+                "Optional. The URI of the artifact service,"
+                " supported URIs: gs://<bucket name> for GCS artifact service."
+            ),
+            default=None,
+        )
+        @click.option(
+            "--memory_service_uri",
+            type=str,
+            help=(
+                """Optional. The URI of the memory service.
             - Use 'rag://<rag_corpus_id>' to connect to Vertex AI Rag Memory Service."""
-        ),
-        default=None,
-    )
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-      return func(*args, **kwargs)
+            ),
+            default=None,
+        )
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
 
-    return wrapper
+        return wrapper
 
-  return decorator
+    return decorator
 
 
 def fast_api_common_options():
-  """Common options for FastAPI commands."""
+    """Common options for FastAPI commands."""
 
-  def decorator(func):
-    @click.option(
-        "--session_db_url",
-        help=(
-            """Optional. The database URL to store the session.
+    def decorator(func):
+        @click.option(
+            "--session_db_url",
+            help=(
+                """Optional. The database URL to store the session.
           - Use 'agentengine://<agent_engine_resource_id>' to connect to Agent Engine sessions.
           - Use 'sqlite://<path_to_sqlite_file>' to connect to a SQLite DB.
           - See https://docs.sqlalchemy.org/en/20/core/engines.html#backend-specific-urls for more details on supported DB URLs."""
-        ),
-    )
-    @click.option(
-        "--artifact_storage_uri",
-        type=str,
-        help=(
-            "Optional. The artifact storage URI to store the artifacts,"
-            " supported URIs: gs://<bucket name> for GCS artifact service."
-        ),
-        default=None,
-    )
-    @click.option(
-        "--host",
-        type=str,
-        help="Optional. The binding host of the server",
-        default="127.0.0.1",
-        show_default=True,
-    )
-    @click.option(
-        "--port",
-        type=int,
-        help="Optional. The port of the server",
-        default=8000,
-    )
-    @click.option(
-        "--allow_origins",
-        help="Optional. Any additional origins to allow for CORS.",
-        multiple=True,
-    )
-    @click.option(
-        "--log_level",
-        type=click.Choice(
-            ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-            case_sensitive=False,
-        ),
-        default="INFO",
-        help="Optional. Set the logging level",
-    )
-    @click.option(
-        "--trace_to_cloud",
-        is_flag=True,
-        show_default=True,
-        default=False,
-        help="Optional. Whether to enable cloud trace for telemetry."
-    )
-    @click.option(
-        "--reload/--no-reload",
-        default=True,
-        help="Optional. Whether to enable auto reload for server.",
-    )
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-      # Set up logging before running the FastAPI app.
-      logs.setup_adk_logger(kwargs["log_level"])
-      return func(*args, **kwargs)
-    return wrapper
+            ),
+        )
+        @click.option(
+            "--artifact_storage_uri",
+            type=str,
+            help=(
+                "Optional. The artifact storage URI to store the artifacts,"
+                " supported URIs: gs://<bucket name> for GCS artifact service."
+            ),
+            default=None,
+        )
+        @click.option(
+            "--host",
+            type=str,
+            help="Optional. The binding host of the server",
+            default="127.0.0.1",
+            show_default=True,
+        )
+        @click.option(
+            "--port",
+            type=int,
+            help="Optional. The port of the server",
+            default=8000,
+        )
+        @click.option(
+            "--allow_origins",
+            help="Optional. Any additional origins to allow for CORS.",
+            multiple=True,
+        )
+        @click.option(
+            "--log_level",
+            type=click.Choice(
+                ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+                case_sensitive=False,
+            ),
+            default="INFO",
+            help="Optional. Set the logging level",
+        )
+        @click.option(
+            "--trace_to_cloud",
+            is_flag=True,
+            show_default=True,
+            default=False,
+            help="Optional. Whether to enable cloud trace for telemetry.",
+        )
+        @click.option(
+            "--reload/--no-reload",
+            default=True,
+            help="Optional. Whether to enable auto reload for server.",
+        )
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            # Set up logging before running the FastAPI app.
+            logs.setup_adk_logger(kwargs["log_level"])
+            return func(*args, **kwargs)
 
-  return decorator
+        return wrapper
+
+    return decorator
 
 
 @main.command("web")
@@ -406,9 +404,7 @@ def fast_api_common_options():
 @adk_services_options()
 @click.argument(
     "agents_dir",
-    type=click.Path(
-        exists=True, dir_okay=True, file_okay=False, resolve_path=True
-    ),
+    type=click.Path(exists=True, dir_okay=True, file_okay=False, resolve_path=True),
     default=os.getcwd(),
 )
 def cli_web(
@@ -425,60 +421,60 @@ def cli_web(
     session_db_url: Optional[str] = None,  # Deprecated
     artifact_storage_uri: Optional[str] = None,  # Deprecated
 ):
-  """Starts a FastAPI server with Web UI for agents.
+    """Starts a FastAPI server with Web UI for agents.
 
-  AGENTS_DIR: The directory of agents, where each sub-directory is a single
-  agent, containing at least `__init__.py` and `agent.py` files.
+    AGENTS_DIR: The directory of agents, where each sub-directory is a single
+    agent, containing at least `__init__.py` and `agent.py` files.
 
-  Example:
+    Example:
 
-    adk web --port=[port] path/to/agents_dir
-  """
-  logs.setup_adk_logger(getattr(logging, log_level.upper()))
+      adk web --port=[port] path/to/agents_dir
+    """
+    logs.setup_adk_logger(getattr(logging, log_level.upper()))
 
-  @asynccontextmanager
-  async def _lifespan(app: FastAPI):
-    click.secho(
-        f"""
+    @asynccontextmanager
+    async def _lifespan(app: FastAPI):
+        click.secho(
+            f"""
 +-----------------------------------------------------------------------------+
 | ADK Web Server started                                                      |
 |                                                                             |
-| For local testing, access at http://localhost:{port}.{" "*(29 - len(str(port)))}|
+| For local testing, access at http://localhost:{port}.{" " * (29 - len(str(port)))}|
 +-----------------------------------------------------------------------------+
 """,
-        fg="green",
-    )
-    yield  # Startup is done, now app is running
-    click.secho(
-        """
+            fg="green",
+        )
+        yield  # Startup is done, now app is running
+        click.secho(
+            """
 +-----------------------------------------------------------------------------+
 | ADK Web Server shutting down...                                             |
 +-----------------------------------------------------------------------------+
 """,
-        fg="green",
+            fg="green",
+        )
+
+    session_service_uri = session_service_uri or session_db_url
+    artifact_service_uri = artifact_service_uri or artifact_storage_uri
+    app = get_fast_api_app(
+        agents_dir=agents_dir,
+        session_service_uri=session_service_uri,
+        artifact_service_uri=artifact_service_uri,
+        memory_service_uri=memory_service_uri,
+        allow_origins=allow_origins,
+        web=True,
+        trace_to_cloud=trace_to_cloud,
+        lifespan=_lifespan,
+    )
+    config = uvicorn.Config(
+        app,
+        host=host,
+        port=port,
+        reload=reload,
     )
 
-  session_service_uri = session_service_uri or session_db_url
-  artifact_service_uri = artifact_service_uri or artifact_storage_uri
-  app = get_fast_api_app(
-      agents_dir=agents_dir,
-      session_service_uri=session_service_uri,
-      artifact_service_uri=artifact_service_uri,
-      memory_service_uri=memory_service_uri,
-      allow_origins=allow_origins,
-      web=True,
-      trace_to_cloud=trace_to_cloud,
-      lifespan=_lifespan,
-  )
-  config = uvicorn.Config(
-      app,
-      host=host,
-      port=port,
-      reload=reload,
-  )
-
-  server = uvicorn.Server(config)
-  server.run()
+    server = uvicorn.Server(config)
+    server.run()
 
 
 @main.command("web-packaged")
@@ -496,117 +492,126 @@ def cli_web_packaged(
     session_db_url: Optional[str] = None,  # Deprecated
     artifact_storage_uri: Optional[str] = None,  # Deprecated
 ):
-  """Runs a local FastAPI server for the ADK Web UI using packaged agents.
+    """Runs a local FastAPI server for the ADK Web UI using packaged agents.
 
-  This command uses the agents that are bundled with the package, so no local
-  agents directory is required. Perfect for trying out the web interface
-  without setting up any local agent files.
+    This command uses the agents that are bundled with the package, so no local
+    agents directory is required. Perfect for trying out the web interface
+    without setting up any local agent files.
 
-  Example:
+    Example:
 
-    agent web-packaged --session_db_url "sqlite:///sessions.db"
-  """
-  logs.setup_adk_logger(getattr(logging, log_level.upper()))
+      agent web-packaged --session_db_url "sqlite:///sessions.db"
+    """
+    logs.setup_adk_logger(getattr(logging, log_level.upper()))
 
-  # Get the packaged agents directory
-  # import os
-  # import sys
-  try:
-    # Try to find the agents directory in the package
-    import importlib.util
-
-    # First, try to import the agents module to see if it's available
+    # Get the packaged agents directory
+    # import os
+    # import sys
     try:
-      import agents
-      agents_dir = os.path.dirname(agents.__file__)
-    except ImportError:
-      # Fallback: look for agents directory relative to the package
-      # Find the package root directory
-      current_file = os.path.abspath(__file__)
-      # Navigate up from src/wrapper/adk/cli/cli_tools_click.py to package root
-      package_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_file))))
-      agents_dir = os.path.join(package_root, 'agents')
+        # Try to find the agents directory in the package
+        import importlib.util
 
-      if not os.path.exists(agents_dir):
-        click.echo("Error: Packaged agents not found. Please use 'agent web' with a local agents directory.", err=True)
-        click.echo(f"Searched for agents in: {agents_dir}", err=True)
+        # First, try to import the agents module to see if it's available
+        try:
+            import agents
+
+            agents_dir = os.path.dirname(agents.__file__)
+        except ImportError:
+            # Fallback: look for agents directory relative to the package
+            # Find the package root directory
+            current_file = os.path.abspath(__file__)
+            # Navigate up from src/wrapper/adk/cli/cli_tools_click.py to package root
+            package_root = os.path.dirname(
+                os.path.dirname(os.path.dirname(os.path.dirname(current_file)))
+            )
+            agents_dir = os.path.join(package_root, "agents")
+
+            if not os.path.exists(agents_dir):
+                click.echo(
+                    "Error: Packaged agents not found. Please use 'agent web' with a local agents directory.",
+                    err=True,
+                )
+                click.echo(f"Searched for agents in: {agents_dir}", err=True)
+                return
+
+        if not os.path.exists(agents_dir):
+            click.echo(
+                "Error: Packaged agents directory not found. Please use 'agent web' with a local agents directory.",
+                err=True,
+            )
+            return
+    except Exception as e:
+        click.echo(f"Error: Could not locate packaged agents: {e}", err=True)
         return
 
-    if not os.path.exists(agents_dir):
-      click.echo("Error: Packaged agents directory not found. Please use 'agent web' with a local agents directory.", err=True)
-      return
-  except Exception as e:
-    click.echo(f"Error: Could not locate packaged agents: {e}", err=True)
-    return
+    # # When reload is enabled, we need to use a different approach
+    # # since uvicorn requires an import string for reload functionality
+    # if reload:
+    #   # For reload mode, we disable it and show a helpful message
+    #   # This is because our current architecture doesn't support reload with dynamic app creation
+    #   print("INFO: Reload mode is not supported with the current FastAPI app architecture.")
+    #   print("INFO: Running without reload. Use --no-reload to suppress this message.")
+    #   reload = False
 
-  # # When reload is enabled, we need to use a different approach
-  # # since uvicorn requires an import string for reload functionality
-  # if reload:
-  #   # For reload mode, we disable it and show a helpful message
-  #   # This is because our current architecture doesn't support reload with dynamic app creation
-  #   print("INFO: Reload mode is not supported with the current FastAPI app architecture.")
-  #   print("INFO: Running without reload. Use --no-reload to suppress this message.")
-  #   reload = False
+    # print(f"INFO: Using packaged agents from: {agents_dir}")
 
-  # print(f"INFO: Using packaged agents from: {agents_dir}")
-  
-  # uvicorn.run(
-  #     get_fast_api_app(
-  #         agents_dir=agents_dir,
-  #         session_db_url=session_db_url,
-  #         artifact_storage_uri=artifact_storage_uri,
-  #         allow_origins=list(allow_origins) if allow_origins else None,
-  #         web=True,
-  #         trace_to_cloud=trace_to_cloud,
-  #     ),
-  #     host=host,
-  #     port=port,
-  #     reload=reload,
-  # )
+    # uvicorn.run(
+    #     get_fast_api_app(
+    #         agents_dir=agents_dir,
+    #         session_db_url=session_db_url,
+    #         artifact_storage_uri=artifact_storage_uri,
+    #         allow_origins=list(allow_origins) if allow_origins else None,
+    #         web=True,
+    #         trace_to_cloud=trace_to_cloud,
+    #     ),
+    #     host=host,
+    #     port=port,
+    #     reload=reload,
+    # )
 
-  @asynccontextmanager
-  async def _lifespan(app: FastAPI):
-    click.secho(
-        f"""
+    @asynccontextmanager
+    async def _lifespan(app: FastAPI):
+        click.secho(
+            f"""
 +-----------------------------------------------------------------------------+
 | ADK Web Server started                                                      |
 |                                                                             |
-| For local testing, access at http://localhost:{port}.{" "*(29 - len(str(port)))}|
+| For local testing, access at http://localhost:{port}.{" " * (29 - len(str(port)))}|
 +-----------------------------------------------------------------------------+
 """,
-        fg="green",
-    )
-    yield  # Startup is done, now app is running
-    click.secho(
-        """
+            fg="green",
+        )
+        yield  # Startup is done, now app is running
+        click.secho(
+            """
 +-----------------------------------------------------------------------------+
 | ADK Web Server shutting down...                                             |
 +-----------------------------------------------------------------------------+
 """,
-        fg="green",
+            fg="green",
+        )
+
+    session_service_uri = session_service_uri or session_db_url
+    artifact_service_uri = artifact_service_uri or artifact_storage_uri
+    app = get_fast_api_app(
+        agents_dir=agents_dir,
+        session_service_uri=session_service_uri,
+        artifact_service_uri=artifact_service_uri,
+        memory_service_uri=memory_service_uri,
+        allow_origins=allow_origins,
+        web=True,
+        trace_to_cloud=trace_to_cloud,
+        lifespan=_lifespan,
+    )
+    config = uvicorn.Config(
+        app,
+        host=host,
+        port=port,
+        reload=reload,
     )
 
-  session_service_uri = session_service_uri or session_db_url
-  artifact_service_uri = artifact_service_uri or artifact_storage_uri
-  app = get_fast_api_app(
-      agents_dir=agents_dir,
-      session_service_uri=session_service_uri,
-      artifact_service_uri=artifact_service_uri,
-      memory_service_uri=memory_service_uri,
-      allow_origins=allow_origins,
-      web=True,
-      trace_to_cloud=trace_to_cloud,
-      lifespan=_lifespan,
-  )
-  config = uvicorn.Config(
-      app,
-      host=host,
-      port=port,
-      reload=reload,
-  )
-
-  server = uvicorn.Server(config)
-  server.run()
+    server = uvicorn.Server(config)
+    server.run()
 
 
 @main.command("api_server")
@@ -623,9 +628,7 @@ def cli_web_packaged(
 # By default, it is the current working directory
 @click.argument(
     "agents_dir",
-    type=click.Path(
-        exists=True, dir_okay=True, file_okay=False, resolve_path=True
-    ),
+    type=click.Path(exists=True, dir_okay=True, file_okay=False, resolve_path=True),
     default=os.getcwd(),
 )
 def cli_api_server(
@@ -642,35 +645,35 @@ def cli_api_server(
     session_db_url: Optional[str] = None,  # Deprecated
     artifact_storage_uri: Optional[str] = None,  # Deprecated
 ):
-  """Starts a FastAPI server for agents.
+    """Starts a FastAPI server for agents.
 
-  AGENTS_DIR: The directory of agents, where each sub-directory is a single
-  agent, containing at least `__init__.py` and `agent.py` files.
+    AGENTS_DIR: The directory of agents, where each sub-directory is a single
+    agent, containing at least `__init__.py` and `agent.py` files.
 
-  Example:
+    Example:
 
-    adk api_server --port=[port] path/to/agents_dir
-  """
-  logs.setup_adk_logger(getattr(logging, log_level.upper()))
+      adk api_server --port=[port] path/to/agents_dir
+    """
+    logs.setup_adk_logger(getattr(logging, log_level.upper()))
 
-  session_service_uri = session_service_uri or session_db_url
-  artifact_service_uri = artifact_service_uri or artifact_storage_uri
-  config = uvicorn.Config(
-      get_fast_api_app(
-          agents_dir=agents_dir,
-          session_service_uri=session_service_uri,
-          artifact_service_uri=artifact_service_uri,
-          memory_service_uri=memory_service_uri,
-          allow_origins=allow_origins,
-          web=False,
-          trace_to_cloud=trace_to_cloud,
-      ),
-      host=host,
-      port=port,
-      reload=reload,
-  )
-  server = uvicorn.Server(config)
-  server.run()
+    session_service_uri = session_service_uri or session_db_url
+    artifact_service_uri = artifact_service_uri or artifact_storage_uri
+    config = uvicorn.Config(
+        get_fast_api_app(
+            agents_dir=agents_dir,
+            session_service_uri=session_service_uri,
+            artifact_service_uri=artifact_service_uri,
+            memory_service_uri=memory_service_uri,
+            allow_origins=allow_origins,
+            web=False,
+            trace_to_cloud=trace_to_cloud,
+        ),
+        host=host,
+        port=port,
+        reload=reload,
+    )
+    server = uvicorn.Server(config)
+    server.run()
 
 
 @deploy.command("cloud_run")
@@ -726,10 +729,7 @@ def cli_api_server(
     is_flag=True,
     show_default=True,
     default=False,
-    help=(
-        "Optional. Deploy ADK Web UI if set. (default: deploy ADK API server"
-        " only)"
-    ),
+    help=("Optional. Deploy ADK Web UI if set. (default: deploy ADK API server only)"),
 )
 @click.option(
     "--temp_folder",
@@ -775,9 +775,7 @@ def cli_api_server(
 )
 @click.argument(
     "agent",
-    type=click.Path(
-        exists=True, dir_okay=True, file_okay=False, resolve_path=True
-    ),
+    type=click.Path(exists=True, dir_okay=True, file_okay=False, resolve_path=True),
 )
 @click.option(
     "--adk_version",
@@ -804,30 +802,30 @@ def cli_deploy_cloud_run(
     artifact_storage_uri: Optional[str],
     adk_version: str,
 ):
-  """Deploys an agent to Cloud Run.
+    """Deploys an agent to Cloud Run.
 
-  AGENT: required, the file path to the agent entry point (e.g.,
-  agents/devops/agent.py or agents/devops/__init__.py).
+    AGENT: required, the file path to the agent entry point (e.g.,
+    agents/devops/agent.py or agents/devops/__init__.py).
 
-  Example:
+    Example:
 
-    adk deploy cloud_run agents/devops/agent.py --project my-gcp-project
-  """
-  cli_deploy.to_cloud_run(
-      agent_folder=agent,
-      project=project,
-      region=region,
-      service_name=service_name,
-      app_name=app_name,
-      temp_folder=temp_folder,
-      port=port,
-      trace_to_cloud=trace_to_cloud,
-      with_ui=with_ui,
-      verbosity=verbosity,
-      session_db_url=session_db_url,
-      artifact_storage_uri=artifact_storage_uri,
-      adk_version=adk_version,
-  )
+      adk deploy cloud_run agents/devops/agent.py --project my-gcp-project
+    """
+    cli_deploy.to_cloud_run(
+        agent_folder=agent,
+        project=project,
+        region=region,
+        service_name=service_name,
+        app_name=app_name,
+        temp_folder=temp_folder,
+        port=port,
+        trace_to_cloud=trace_to_cloud,
+        with_ui=with_ui,
+        verbosity=verbosity,
+        session_db_url=session_db_url,
+        artifact_storage_uri=artifact_storage_uri,
+        adk_version=adk_version,
+    )
 
 
 @deploy.command("agent_engine")
@@ -898,9 +896,7 @@ def cli_deploy_cloud_run(
 )
 @click.argument(
     "agent",
-    type=click.Path(
-        exists=True, dir_okay=True, file_okay=False, resolve_path=True
-    ),
+    type=click.Path(exists=True, dir_okay=True, file_okay=False, resolve_path=True),
 )
 def cli_deploy_agent_engine(
     agent: str,
@@ -913,24 +909,24 @@ def cli_deploy_agent_engine(
     env_file: str,
     requirements_file: str,
 ):
-  """Deploys an agent to Agent Engine.
+    """Deploys an agent to Agent Engine.
 
-  AGENT: required, the file path to the agent entry point (e.g.,
-  agents/devops/agent.py or agents/devops/__init__.py).
+    AGENT: required, the file path to the agent entry point (e.g.,
+    agents/devops/agent.py or agents/devops/__init__.py).
 
-  Example:
+    Example:
 
-    adk deploy agent_engine agents/devops/agent.py --project my-gcp-project
-    --region us-central1 --staging_bucket my-bucket
-  """
-  cli_deploy.to_agent_engine(
-      agent_folder=agent,
-      project=project,
-      region=region,
-      staging_bucket=staging_bucket,
-      trace_to_cloud=trace_to_cloud,
-      adk_app=adk_app,
-      temp_folder=temp_folder,
-      env_file=env_file,
-      requirements_file=requirements_file,
-  )
+      adk deploy agent_engine agents/devops/agent.py --project my-gcp-project
+      --region us-central1 --staging_bucket my-bucket
+    """
+    cli_deploy.to_agent_engine(
+        agent_folder=agent,
+        project=project,
+        region=region,
+        staging_bucket=staging_bucket,
+        trace_to_cloud=trace_to_cloud,
+        adk_app=adk_app,
+        temp_folder=temp_folder,
+        env_file=env_file,
+        requirements_file=requirements_file,
+    )
