@@ -43,6 +43,7 @@ dependencies = [
   "pexpect>=4.9.0",
   # "google-adk @ git+https://github.com/google/adk-python.git@main", # Added google-adk as a direct dependency
   "google-adk @ git+https://github.com/BlueCentre/adk-python.git@feat/rich-click", # Added google-adk as a direct dependency
+  "watchdog>=6.0.0", # For file change detection and hot reload
 ]
 dynamic = ["version"]
 

@@ -318,10 +318,14 @@ class TestCLICommands:
               'gs://test-bucket',
               '--memory_service_uri',
               'rag://test-corpus',
+              '--eval_storage_uri',
+              'gs://test-eval-bucket',
               '--log_level',
               'DEBUG',
               '--trace_to_cloud',
               '--no-reload',
+              '--a2a',
+              '--reload_agents',
               temp_dir,
           ],
       )
@@ -337,8 +341,11 @@ class TestCLICommands:
       assert call_kwargs['session_service_uri'] == 'sqlite:///test.db'
       assert call_kwargs['artifact_service_uri'] == 'gs://test-bucket'
       assert call_kwargs['memory_service_uri'] == 'rag://test-corpus'
+      assert call_kwargs['eval_storage_uri'] == 'gs://test-eval-bucket'
       assert call_kwargs['web'] is True
       assert call_kwargs['trace_to_cloud'] is True
+      assert call_kwargs['a2a'] is True
+      assert call_kwargs['reload_agents'] is True
 
   @patch('src.wrapper.adk.cli.cli_tools_click.uvicorn.Server')
   @patch('src.wrapper.adk.cli.cli_tools_click.get_fast_api_app')
@@ -476,14 +483,13 @@ class TestDecorators:
     result = runner.invoke(main, ['web', '--help'])
 
     assert result.exit_code == 0
-    assert '--session_db_url' in result.output
-    assert '--artifact_storage_uri' in result.output
-    assert '--host' in result.output
     assert '--port' in result.output
     assert '--allow_origins' in result.output
     assert '--log_level' in result.output
     assert '--trace_to_cloud' in result.output
     assert '--reload' in result.output
+    assert '--a2a' in result.output
+    assert '--reload_agents' in result.output
 
 
 class TestMainCLI:

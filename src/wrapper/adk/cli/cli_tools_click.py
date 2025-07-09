@@ -43,7 +43,7 @@ from .fast_api import get_fast_api_app
 # Ignore all warnings
 # warnings.filterwarnings("ignore")
 # Ignore all UserWarnings
-warnings.filterwarnings('ignore', category=UserWarning)
+warnings.filterwarnings("ignore", category=UserWarning)
 
 LOG_LEVELS = click.Choice(
     ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
@@ -290,9 +290,9 @@ def adk_services_options():
             "--session_service_uri",
             help=(
                 """Optional. The URI of the session service.
-          - Use 'agentengine://<agent_engine_resource_id>' to connect to Agent Engine sessions.
-          - Use 'sqlite://<path_to_sqlite_file>' to connect to a SQLite DB.
-          - See https://docs.sqlalchemy.org/en/20/core/engines.html#backend-specific-urls for more details on supported database URIs."""
+              - Use 'agentengine://<agent_engine_resource_id>' to connect to Agent Engine sessions.
+              - Use 'sqlite://<path_to_sqlite_file>' to connect to a SQLite DB.
+              - See https://docs.sqlalchemy.org/en/20/core/engines.html#backend-specific-urls for more details on supported database URIs."""
             ),
         )
         @click.option(
@@ -305,11 +305,21 @@ def adk_services_options():
             default=None,
         )
         @click.option(
+            "--eval_storage_uri",
+            type=str,
+            help=(
+                "Optional. The evals storage URI to store agent evals,"
+                " supported URIs: gs://<bucket name>."
+            ),
+            default=None,
+        )
+        @click.option(
             "--memory_service_uri",
             type=str,
             help=(
                 """Optional. The URI of the memory service.
-            - Use 'rag://<rag_corpus_id>' to connect to Vertex AI Rag Memory Service."""
+                - Use 'rag://<rag_corpus_id>' to connect to Vertex AI Rag Memory Service.
+                - Use 'agentengine://<agent_engine_resource_id>' to connect to Vertex AI Memory Bank Service. e.g. agentengine://12345"""
             ),
             default=None,
         )
@@ -322,35 +332,47 @@ def adk_services_options():
     return decorator
 
 
+def deprecated_adk_services_options():
+  """Depracated ADK services options."""
+
+  def warn(alternative_param, ctx, param, value):
+    if value:
+      click.echo(
+          click.style(
+              f"WARNING: Deprecated option {param.name} is used. Please use"
+              f" {alternative_param} instead.",
+              fg="yellow",
+          ),
+          err=True,
+      )
+    return value
+
+  def decorator(func):
+    @click.option(
+        "--session_db_url",
+        help="Deprecated. Use --session_service_uri instead.",
+        callback=functools.partial(warn, "--session_service_uri"),
+    )
+    @click.option(
+        "--artifact_storage_uri",
+        type=str,
+        help="Deprecated. Use --artifact_service_uri instead.",
+        callback=functools.partial(warn, "--artifact_service_uri"),
+        default=None,
+    )
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+      return func(*args, **kwargs)
+
+    return wrapper
+
+  return decorator
+
+
 def fast_api_common_options():
-    """Common options for FastAPI commands."""
+    """Decorator to add common fast api options to click commands."""
 
     def decorator(func):
-        @click.option(
-            "--session_db_url",
-            help=(
-                """Optional. The database URL to store the session.
-          - Use 'agentengine://<agent_engine_resource_id>' to connect to Agent Engine sessions.
-          - Use 'sqlite://<path_to_sqlite_file>' to connect to a SQLite DB.
-          - See https://docs.sqlalchemy.org/en/20/core/engines.html#backend-specific-urls for more details on supported DB URLs."""
-            ),
-        )
-        @click.option(
-            "--artifact_storage_uri",
-            type=str,
-            help=(
-                "Optional. The artifact storage URI to store the artifacts,"
-                " supported URIs: gs://<bucket name> for GCS artifact service."
-            ),
-            default=None,
-        )
-        @click.option(
-            "--host",
-            type=str,
-            help="Optional. The binding host of the server",
-            default="127.0.0.1",
-            show_default=True,
-        )
         @click.option(
             "--port",
             type=int,
@@ -364,10 +386,7 @@ def fast_api_common_options():
         )
         @click.option(
             "--log_level",
-            type=click.Choice(
-                ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-                case_sensitive=False,
-            ),
+            type=LOG_LEVELS,
             default="INFO",
             help="Optional. Set the logging level",
         )
@@ -381,12 +400,27 @@ def fast_api_common_options():
         @click.option(
             "--reload/--no-reload",
             default=True,
-            help="Optional. Whether to enable auto reload for server.",
+            help=(
+                "Optional. Whether to enable auto reload for server. Not supported"
+                " for Cloud Run."
+            ),
+        )
+        @click.option(
+            "--a2a",
+            is_flag=True,
+            show_default=True,
+            default=False,
+            help="Optional. Whether to enable A2A endpoint.",
+        )
+        @click.option(
+            "--reload_agents",
+            is_flag=True,
+            default=False,
+            show_default=True,
+            help="Optional. Whether to enable live reload for agents changes.",
         )
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            # Set up logging before running the FastAPI app.
-            logs.setup_adk_logger(kwargs["log_level"])
             return func(*args, **kwargs)
 
         return wrapper
@@ -420,8 +454,11 @@ def cli_web(
     session_service_uri: Optional[str] = None,
     artifact_service_uri: Optional[str] = None,
     memory_service_uri: Optional[str] = None,
+    eval_storage_uri: Optional[str] = None,
     session_db_url: Optional[str] = None,  # Deprecated
     artifact_storage_uri: Optional[str] = None,  # Deprecated
+    a2a: bool = False,
+    reload_agents: bool = False,
 ):
     """Starts a FastAPI server with Web UI for agents.
 
@@ -463,9 +500,12 @@ def cli_web(
         session_service_uri=session_service_uri,
         artifact_service_uri=artifact_service_uri,
         memory_service_uri=memory_service_uri,
+        eval_storage_uri=eval_storage_uri,
         allow_origins=allow_origins,
         web=True,
         trace_to_cloud=trace_to_cloud,
+        a2a=a2a,
+        reload_agents=reload_agents,
         lifespan=_lifespan,
     )
     config = uvicorn.Config(
@@ -491,8 +531,11 @@ def cli_web_packaged(
     session_service_uri: Optional[str] = None,
     artifact_service_uri: Optional[str] = None,
     memory_service_uri: Optional[str] = None,
+    eval_storage_uri: Optional[str] = None,
     session_db_url: Optional[str] = None,  # Deprecated
     artifact_storage_uri: Optional[str] = None,  # Deprecated
+    a2a: bool = False,
+    reload_agents: bool = False,
 ):
     """Runs a local FastAPI server for the ADK Web UI using packaged agents.
 
@@ -600,9 +643,12 @@ def cli_web_packaged(
         session_service_uri=session_service_uri,
         artifact_service_uri=artifact_service_uri,
         memory_service_uri=memory_service_uri,
+        eval_storage_uri=eval_storage_uri,
         allow_origins=allow_origins,
         web=True,
         trace_to_cloud=trace_to_cloud,
+        a2a=a2a,
+        reload_agents=reload_agents,
         lifespan=_lifespan,
     )
     config = uvicorn.Config(
@@ -626,6 +672,7 @@ def cli_web_packaged(
 )
 @fast_api_common_options()
 @adk_services_options()
+@deprecated_adk_services_options()
 # The directory of agents, where each sub-directory is a single agent.
 # By default, it is the current working directory
 @click.argument(
@@ -635,6 +682,7 @@ def cli_web_packaged(
 )
 def cli_api_server(
     agents_dir: str,
+    eval_storage_uri: Optional[str] = None,
     log_level: str = "INFO",
     allow_origins: Optional[list[str]] = None,
     host: str = "127.0.0.1",
@@ -646,6 +694,8 @@ def cli_api_server(
     memory_service_uri: Optional[str] = None,
     session_db_url: Optional[str] = None,  # Deprecated
     artifact_storage_uri: Optional[str] = None,  # Deprecated
+    a2a: bool = False,
+    reload_agents: bool = False,
 ):
     """Starts a FastAPI server for agents.
 
@@ -666,9 +716,14 @@ def cli_api_server(
             session_service_uri=session_service_uri,
             artifact_service_uri=artifact_service_uri,
             memory_service_uri=memory_service_uri,
+            eval_storage_uri=eval_storage_uri,
             allow_origins=allow_origins,
             web=False,
             trace_to_cloud=trace_to_cloud,
+            a2a=a2a,
+            host=host,
+            port=port,
+            reload_agents=reload_agents,
         ),
         host=host,
         port=port,

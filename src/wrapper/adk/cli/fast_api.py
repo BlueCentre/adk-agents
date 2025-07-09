@@ -15,61 +15,39 @@
 from __future__ import annotations
 
 import asyncio
-from contextlib import asynccontextmanager
 import logging
 import os
-from pathlib import Path
 import time
 import traceback
 import typing
-from typing import Any
-from typing import List
-from typing import Literal
-from typing import Optional
+from contextlib import asynccontextmanager
+from pathlib import Path
+from typing import Any, List, Literal, Optional
 
-import rich_click as click
-from fastapi import FastAPI
-from fastapi import HTTPException
-from fastapi import Query
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
-from fastapi.responses import RedirectResponse
-from fastapi.responses import StreamingResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.websockets import WebSocket
-from fastapi.websockets import WebSocketDisconnect
-from google.genai import types
 import graphviz
-from opentelemetry import trace
-from opentelemetry.exporter.cloud_trace import CloudTraceSpanExporter
-from opentelemetry.sdk.trace import export
-from opentelemetry.sdk.trace import ReadableSpan
-from opentelemetry.sdk.trace import TracerProvider
-from pydantic import Field
-from pydantic import ValidationError
-from starlette.types import Lifespan
-from typing_extensions import override
-
+import rich_click as click
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.websockets import WebSocket, WebSocketDisconnect
 from google.adk.agents import RunConfig
-from google.adk.agents.live_request_queue import LiveRequest
-from google.adk.agents.live_request_queue import LiveRequestQueue
-from google.adk.agents.llm_agent import Agent
+from google.adk.agents.live_request_queue import LiveRequest, LiveRequestQueue
 from google.adk.agents.run_config import StreamingMode
 from google.adk.artifacts.gcs_artifact_service import GcsArtifactService
 from google.adk.artifacts.in_memory_artifact_service import InMemoryArtifactService
-from google.adk.auth.credential_service.in_memory_credential_service import InMemoryCredentialService
-from google.adk.cli.cli_eval import EVAL_SESSION_ID_PREFIX
-from google.adk.cli.cli_eval import EvalStatus
-from google.adk.cli.utils import cleanup
-from google.adk.cli.utils import common
-from google.adk.cli.utils import create_empty_state
-from google.adk.cli.utils import evals
+from google.adk.auth.credential_service.in_memory_credential_service import (
+    InMemoryCredentialService,
+)
+from google.adk.cli.cli_eval import EVAL_SESSION_ID_PREFIX, EvalStatus
+from google.adk.cli.utils import cleanup, common, create_empty_state, evals
 from google.adk.errors.not_found_error import NotFoundError
-from google.adk.evaluation.eval_case import EvalCase
-from google.adk.evaluation.eval_case import SessionInput
-from google.adk.evaluation.eval_metrics import EvalMetric
-from google.adk.evaluation.eval_metrics import EvalMetricResult
-from google.adk.evaluation.eval_metrics import EvalMetricResultPerInvocation
+from google.adk.evaluation.eval_case import EvalCase, SessionInput
+from google.adk.evaluation.eval_metrics import (
+    EvalMetric,
+    EvalMetricResult,
+    EvalMetricResultPerInvocation,
+)
 from google.adk.evaluation.eval_result import EvalSetResult
 from google.adk.evaluation.gcs_eval_set_results_manager import GcsEvalSetResultsManager
 from google.adk.evaluation.gcs_eval_sets_manager import GcsEvalSetsManager
@@ -77,6 +55,7 @@ from google.adk.evaluation.local_eval_set_results_manager import LocalEvalSetRes
 from google.adk.evaluation.local_eval_sets_manager import LocalEvalSetsManager
 from google.adk.events.event import Event
 from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
+
 # from google.adk.memory.vertex_ai_memory_bank_service import VertexAiMemoryBankService
 from google.adk.memory.vertex_ai_rag_memory_service import VertexAiRagMemoryService
 from google.adk.runners import Runner
@@ -84,13 +63,37 @@ from google.adk.sessions.database_session_service import DatabaseSessionService
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.adk.sessions.session import Session
 from google.adk.sessions.vertex_ai_session_service import VertexAiSessionService
+from google.genai import types
+from opentelemetry import trace
+from opentelemetry.exporter.cloud_trace import CloudTraceSpanExporter
+from opentelemetry.sdk.trace import ReadableSpan, TracerProvider, export
+from pydantic import Field, ValidationError
+from starlette.types import Lifespan
+from typing_extensions import override
+from watchdog.events import FileSystemEventHandler
+from watchdog.observers import Observer
 
-from .utils import envs # Modified to use our packaged path
-from .utils.agent_loader import AgentLoader # Modified to use our packaged path
+from .utils import envs  # Modified to use our packaged path
+from .utils.agent_loader import AgentLoader  # Modified to use our packaged path
 
 logger = logging.getLogger("google_adk." + __name__)
 
 _EVAL_SET_FILE_EXTENSION = ".evalset.json"
+_app_name = ""
+_runners_to_clean = set()
+
+
+class AgentChangeEventHandler(FileSystemEventHandler):
+
+  def __init__(self, agent_loader: AgentLoader):
+    self.agent_loader = agent_loader
+
+  def on_modified(self, event):
+    if not (event.src_path.endswith(".py") or event.src_path.endswith(".yaml")):
+      return
+    logger.info("Change detected in agents directory: %s", event.src_path)
+    self.agent_loader.remove_agent_from_cache(_app_name)
+    _runners_to_clean.add(_app_name)
 
 
 class ApiServerSpanExporter(export.SpanExporter):
@@ -205,7 +208,11 @@ def get_fast_api_app(
     eval_storage_uri: Optional[str] = None,
     allow_origins: Optional[list[str]] = None,
     web: bool,
+    a2a: bool = False,
+    host: str = "127.0.0.1",
+    port: int = 8000,
     trace_to_cloud: bool = False,
+    reload_agents: bool = False,
     lifespan: Optional[Lifespan[FastAPI]] = None,
 ) -> FastAPI:
   # InMemory tracing dict.
@@ -244,6 +251,9 @@ def get_fast_api_app(
       else:
         yield
     finally:
+      if reload_agents:
+        observer.stop()
+        observer.join()
       # Create tasks for all runner closures to run concurrently
       await cleanup.close_runners(list(runner_dict.values()))
 
@@ -336,6 +346,13 @@ def get_fast_api_app(
 
   # initialize Agent Loader
   agent_loader = AgentLoader(agents_dir)
+
+  # Set up a file system watcher to detect changes in the agents directory.
+  observer = Observer()
+  if reload_agents:
+    event_handler = AgentChangeEventHandler(agent_loader)
+    observer.schedule(event_handler, agents_dir, recursive=True)
+    observer.start()
 
   @app.get("/list-apps")
   def list_apps() -> list[str]:
