@@ -1,5 +1,7 @@
 # DevOps Agent
 
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=BlueCentre_adk-agents&metric=coverage)](https://sonarcloud.io/summary/new_code?id=BlueCentre_adk-agents)
+
 ## Overview
 
 The DevOps Agent is a sophisticated AI assistant engineered to empower developers and DevOps engineers across the full software development lifecycle, from infrastructure management to operational excellence. This production-ready agent represents the culmination of comprehensive Phase 2 development, featuring advanced context management, intelligent planning workflows, and RAG-enhanced codebase understanding.
