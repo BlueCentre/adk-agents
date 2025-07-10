@@ -41,15 +41,15 @@ Scripts for validating agent functionality and performance:
 ./scripts/execution/run.sh
 
 # Check telemetry status
-python scripts/monitoring/telemetry_check.py
+uv run python scripts/monitoring/telemetry_check.py
 
 # Validate smart prioritization
-python scripts/validation/validate_smart_prioritization_simple.py
+uv run python scripts/validation/validate_smart_prioritization_simple.py
 ```
 
 ### Environment Requirements
-- **Python 3.13+** for Python scripts
-- **uv** package manager for Python dependencies
+- **Python 3.13+** for Python scripts (managed via uv)
+- **uv** package manager for Python dependencies and execution
 - **Google API Key** set in environment variables
 - **ADK dependencies** for ADK-specific scripts
 

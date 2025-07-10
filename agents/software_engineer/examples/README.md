@@ -10,7 +10,7 @@ Comprehensive demonstration of all workflow patterns and features.
 **Usage:**
 ```bash
 cd agents/software_engineer/examples
-python enhanced_agent_example.py
+uv run python enhanced_agent_example.py
 ```
 
 **What it demonstrates:**
@@ -27,22 +27,22 @@ Simple CLI script for quick testing of the enhanced agent.
 **Usage:**
 ```bash
 cd agents/software_engineer/examples
-python quick_test.py "Your task description here"
+uv run python quick_test.py "Your task description here"
 ```
 
 **Examples:**
 ```bash
 # Simple code review
-python quick_test.py "Review code in src/auth.py"
+uv run python quick_test.py "Review code in src/auth.py"
 
 # Complex feature development
-python quick_test.py "Implement user authentication system"
+uv run python quick_test.py "Implement user authentication system"
 
 # Code analysis
-python quick_test.py "Analyze API performance issues"
+uv run python quick_test.py "Analyze API performance issues"
 
 # Quality improvement
-python quick_test.py "Improve code quality in payment module"
+uv run python quick_test.py "Improve code quality in payment module"
 ```
 
 ## Prerequisites
@@ -117,7 +117,7 @@ The enhanced agent automatically selects the optimal workflow based on:
 ### Debug Mode
 ```bash
 export LOG_LEVEL="DEBUG"
-python enhanced_agent_example.py
+uv run python enhanced_agent_example.py
 ```
 
 ## Next Steps

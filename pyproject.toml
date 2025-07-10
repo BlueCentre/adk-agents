@@ -29,21 +29,23 @@ dependencies = [
   # "google-genai~=1.19.0", # Migrated from google-generativeai
   # "google-api-core>=2.19.0", # Updated for protobuf 5.x compatibility
   # "protobuf>=5.0,<6.0", # Updated for OpenTelemetry compatibility
-  "litellm>=1.71.2",                            # For LiteLLM support (required by software_engineer agent)
-  "openai>=1.10.0",                             # Using latest stable version
-  "openlit>=1.33.20",                           # Using latest stable version
-  "opentelemetry-api>=1.30.0,<2.0.0",           # OpenTelemetry core - compatible with openlit
-  "opentelemetry-sdk>=1.30.0,<2.0.0",           # OpenTelemetry SDK - compatible with openlit
+  "litellm>=1.71.2", # For LiteLLM support (required by software_engineer agent)
+  "openai>=1.10.0", # Using latest stable version
+  "openlit>=1.33.20", # Using latest stable version
+  "opentelemetry-api>=1.30.0,<2.0.0", # OpenTelemetry core - compatible with openlit
+  "opentelemetry-sdk>=1.30.0,<2.0.0", # OpenTelemetry SDK - compatible with openlit
   "opentelemetry-exporter-otlp>=1.30.0,<2.0.0", # OTLP exporter for Grafana Cloud
-  "psutil~=5.9.0",                              # System monitoring
-  "rich>=13.7.0,<14.0.0",                       # Console output (for local dashboard if needed) - updated for crewai compatibility
+  "psutil~=5.9.0", # System monitoring
+  "rich>=13.7.0,<14.0.0", # Console output (for local dashboard if needed) - updated for crewai compatibility
   # "ollama>=0.5.1",
   "prompt_toolkit~=3.0.0", # For enhanced command-line input
-  "textual~=3.4.0",        # For enhanced TUI
+  "textual~=3.4.0", # For enhanced TUI
   "pexpect>=4.9.0",
   # "google-adk @ git+https://github.com/google/adk-python.git@main", # Added google-adk as a direct dependency
   "google-adk @ git+https://github.com/BlueCentre/adk-python.git@feat/rich-click", # Added google-adk as a direct dependency
   "watchdog>=6.0.0", # For file change detection and hot reload
+  "pytest>=8.4.0",
+  "pytest-asyncio>=1.0.0",
 ]
 dynamic = ["version"]
 

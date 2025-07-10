@@ -60,7 +60,7 @@ Validate that our new Phase 2 features work correctly:
 **Commands:**
 ```bash
 # Step 1: Introduce an intentional error
-./prompt.sh "Let's try to run a command that will likely fail: python -c 'import nonexistent_module'"
+./prompt.sh "Let's try to run a command that will likely fail: uv run python -c 'import nonexistent_module'"
 
 # Step 2: Ask for help debugging (should prioritize error content)
 ./prompt.sh "That command failed. Can you help me understand what went wrong and how to fix it?"

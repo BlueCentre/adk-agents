@@ -64,10 +64,10 @@ for init_file in $(find . -name "__init__.py" -not -path "*/\.*" -not -path "*/v
 done
 
 # Try to extract from installed package (if available)
-if command -v python >/dev/null 2>&1; then
+if command -v uv >/dev/null 2>&1; then
     # Try to get version from installed package
     for pkg_name in $(grep -E '^name = ' pyproject.toml 2>/dev/null | awk -F'"' '{print $2}'); do
-        VERSION=$(python -c "import importlib.metadata; print(importlib.metadata.version('$pkg_name'))" 2>/dev/null)
+        VERSION=$(uv run python -c "import importlib.metadata; print(importlib.metadata.version('$pkg_name'))" 2>/dev/null)
         if [ ! -z "$VERSION" ] && [ "$VERSION" != "0.0.0" ]; then
             echo $VERSION
             exit 0

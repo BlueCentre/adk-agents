@@ -60,7 +60,7 @@ export GRAFANA_OTLP_TOKEN="your-grafana-cloud-token"
 ### Development (Local)
 ```bash
 # Quick configuration check (no dependencies required)
-python3 scripts/telemetry_check.py
+uv run python scripts/telemetry_check.py
 
 # Full dashboard (requires uv add rich)
 uv run scripts/telemetry_dashboard.py summary
@@ -97,7 +97,7 @@ uv run scripts/telemetry_dashboard.py export
 Run the telemetry check to verify everything is working:
 
 ```bash
-python3 scripts/telemetry_check.py
+uv run python scripts/telemetry_check.py
 ```
 
 Expected output:

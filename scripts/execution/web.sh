@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 
-uv run --no-cache agent web agents/
+uv --no-cache run agent web agents/ --host 0.0.0.0

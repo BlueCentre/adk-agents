@@ -326,7 +326,7 @@ export ADK_CLI_THEME=dark
 **CLI Not Starting:**
 ```bash
 # Check Python version
-python --version  # Should be 3.11+
+uv run python --version  # Should be 3.11+
 
 # Verify ADK installation
 adk --version

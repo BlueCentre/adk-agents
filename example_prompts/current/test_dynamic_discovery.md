@@ -179,14 +179,14 @@ You can also manually test the discovery system:
 
 ```bash
 # Test the discovery module directly
-python3 -c "
+uv run python -c "
 from agents.devops.tools.dynamic_discovery import tool_discovery
 capabilities = tool_discovery.discover_environment_capabilities()
 print(tool_discovery.generate_environment_summary())
 "
 
 # Test tool suggestions
-python3 -c "
+uv run python -c "
 from agents.devops.tools.dynamic_discovery import tool_discovery
 suggestions = tool_discovery.suggest_tools_for_task('deploy to kubernetes')
 print('Kubernetes deployment suggestions:', suggestions)
@@ -219,7 +219,7 @@ If discovery fails:
 
 1. **Check Discovery Module:**
    ```bash
-   python3 -c "from agents.devops.tools.dynamic_discovery import tool_discovery; print(tool_discovery.discover_environment_capabilities())"
+   uv run python -c "from agents.devops.tools.dynamic_discovery import tool_discovery; print(tool_discovery.discover_environment_capabilities())"
    ```
 
 2. **Verify PATH Detection:**

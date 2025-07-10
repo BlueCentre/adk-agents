@@ -275,7 +275,7 @@ For local development without Grafana Cloud:
 uvx --with "rich>=13.0.0" --with "psutil>=5.9.0" python scripts/telemetry_dashboard.py
 
 # Check telemetry configuration
-python scripts/telemetry_check.py
+uv run python scripts/telemetry_check.py
 ```
 
 ## Production Deployment

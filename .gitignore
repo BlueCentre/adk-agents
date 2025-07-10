@@ -15,6 +15,7 @@ coverage.xml
 .hypothesis/
 test-results/
 test-reports/
+test_reports/
 
 # production
 /build

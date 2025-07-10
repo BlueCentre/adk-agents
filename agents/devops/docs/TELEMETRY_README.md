@@ -281,7 +281,7 @@ The telemetry system is designed for minimal overhead:
 
 ```bash
 # Benchmark telemetry performance
-python -m devops.telemetry_dashboard benchmark --iterations 10000
+uv run python -m devops.telemetry_dashboard benchmark --iterations 10000
 ```
 
 **Expected Results:**
