@@ -177,6 +177,13 @@ follow_imports = "skip"
 
 [dependency-groups]
 dev = ["pytest>=8.3.5", "pytest-asyncio>=1.0.0", "pytest-cov>=6.2.1"]
+test = [
+    "pytest>=8.4.0",
+    "pytest-asyncio>=1.0.0",
+    "pytest-cov>=6.2.1",
+    "pytest-mock>=3.14.1",
+    "pytest-xdist>=3.7.0",
+]
 
 [tool.coverage.run]
 # Only include source code from the src/ directory
