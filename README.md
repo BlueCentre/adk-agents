@@ -172,6 +172,14 @@ When thinking is enabled, you'll see:
 
 The DevOps Agent features an advanced command-line interface optimized for agentic workflows and complex multi-turn conversations:
 
+#### CLI Interfaces
+
+**Interactive CLI Mode:**
+![CLI Interactive Mode](assets/cli-interactive.png)
+
+**TUI (Terminal User Interface) Mode:**
+![CLI TUI Mode](assets/cli-tui.png)
+
 **🚀 Key Features:**
 
 - **Multi-line Input Support:** Use Alt+Enter to submit complex, multi-line requests perfect for detailed task descriptions
