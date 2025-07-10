@@ -908,7 +908,7 @@ class TestAuthManager:
         """Test RAG query relevance ranking accuracy."""
         # This test would require actual embeddings, so we'll mock the key components
         with patch(
-            "agents.devops.tools.rag_components.indexing.embed_chunks_batch"
+            "agents.devops.tools.rag_components.retriever.embed_chunks_batch"
         ) as mock_embed:
             with patch(
                 "agents.devops.tools.rag_components.retriever.get_chroma_collection"
