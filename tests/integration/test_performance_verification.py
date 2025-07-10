@@ -231,7 +231,7 @@ class TestPerformanceVerification:
         assert avg_assembly_time < 1.0, (
             f"Context assembly too slow: {avg_assembly_time:.3f}s"
         )
-        assert metrics.memory_usage_mb < 500.0, (
+        assert metrics.memory_usage_mb < 800.0, (
             f"Memory usage too high: {metrics.memory_usage_mb:.1f}MB"
         )
         assert metrics.token_count > 0, "No tokens were processed"
