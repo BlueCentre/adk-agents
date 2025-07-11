@@ -38,7 +38,7 @@ jobs:
       run: |
         if [[ "${{ github.event.inputs.modules }}" == "agents.devops" ]]; then
           echo "Running tests for agents.devops module only (disabled)"
-          # uv run pytest tests/ --cov=agents.devops --cov-report=xml --cov-report=term --cov-fail-under=80
+          uv run pytest tests/ --cov=agents.devops --cov-report=xml --cov-report=term --cov-fail-under=80
         elif [[ "${{ github.event.inputs.modules }}" == "src.wrapper.adk" ]]; then
           echo "Running tests for src.wrapper.adk module only"
           uv run pytest tests/ --cov=src.wrapper.adk --cov-report=xml --cov-report=term --cov-fail-under=80
