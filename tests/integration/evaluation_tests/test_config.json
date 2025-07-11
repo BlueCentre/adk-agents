@@ -1,0 +1,12 @@
+{
+  "criteria": {
+    "tool_trajectory_avg_score": 0.8,
+    "response_match_score": 0.7
+  },
+  "evaluation_settings": {
+    "max_turns": 10,
+    "timeout_seconds": 120,
+    "allow_partial_matches": true,
+    "strict_tool_order": false
+  }
+} 

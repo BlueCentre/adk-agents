@@ -11,13 +11,21 @@ Welcome to the comprehensive testing documentation for the ADK Agents system. Th
 
 ## Overview
 
-The ADK Agents system features a sophisticated multi-agent architecture with comprehensive integration testing covering:
+The ADK Agents system features a sophisticated multi-agent architecture with comprehensive integration testing using **two complementary approaches**:
 
+### Traditional Integration Testing
 - **Agent Lifecycle Management** - Complete conversation turns with context management
 - **Workflow Orchestration** - Sequential, parallel, iterative, and human-in-loop patterns
 - **Advanced Context Management** - Smart prioritization, cross-turn correlation, and RAG integration
 - **Tool Orchestration** - Complex tool coordination with error handling and recovery
 - **Performance Verification** - Load testing, optimization validation, and stress testing
+
+### ADK Evaluation Framework ⭐ **NEW**
+- **Behavioral Testing** - Real agent behavior validation using evaluation scenarios
+- **Tool Usage Patterns** - Expected tool usage and parameter validation
+- **Multi-Agent Coordination** - Agent communication and workflow validation
+- **Memory & Persistence** - Session continuity and knowledge retention testing
+- **User Experience Testing** - Real-world scenario validation with natural language queries
 
 ## Documentation Structure
 
@@ -25,10 +33,19 @@ The ADK Agents system features a sophisticated multi-agent architecture with com
 **The complete guide to running and understanding the integration test suite**
 
 - Quick start instructions
-- Test suite architecture and 4-phase implementation
+- Test suite architecture and hybrid approach (traditional + evaluation)
 - Test execution and result interpretation
 - CI/CD integration and automation
 - Performance monitoring and reporting
+
+### 🎯 [ADK Evaluation Framework](adk-evaluation-framework.md) ⭐ **NEW**
+**Comprehensive guide to behavioral testing using evaluation scenarios**
+
+- Evaluation testing overview and benefits
+- Creating evaluation scenarios with JSON files
+- Tool usage validation and multi-agent coordination testing
+- Memory & persistence testing patterns
+- Running and maintaining evaluation tests
 
 ### 🔧 [Test Patterns and Best Practices](test-patterns.md)
 **Comprehensive guide to test patterns and architectural decisions**
@@ -61,7 +78,7 @@ The ADK Agents system features a sophisticated multi-agent architecture with com
 ### Running the Test Suite
 
 ```bash
-# Run all integration tests
+# Run all integration tests (traditional + evaluation)
 ./tests/integration/run_integration_tests.py
 
 # Run with detailed output
@@ -75,6 +92,22 @@ The ADK Agents system features a sophisticated multi-agent architecture with com
 ./tests/integration/run_integration_tests.py --suite "Performance"
 ```
 
+### Running ADK Evaluation Tests ⭐ **NEW**
+
+```bash
+# Run all evaluation tests
+uv run pytest tests/integration/test_adk_evaluation_patterns.py -v
+
+# Run specific evaluation categories
+uv run pytest tests/integration/test_adk_evaluation_patterns.py::TestADKEvaluationPatterns::test_multi_agent_coordination_evaluation -v
+
+# Run evaluation tests with integration runner
+./tests/integration/run_integration_tests.py --suite "ADK Evaluation"
+
+# Validate evaluation test structure
+uv run pytest tests/integration/test_adk_evaluation_patterns.py::TestADKEvaluationPatterns::test_evaluation_test_files_exist -v
+```
+
 ### Test Results
 
 Tests generate comprehensive reports in `test_reports/` including:
@@ -86,17 +119,27 @@ Tests generate comprehensive reports in `test_reports/` including:
 ## Test Suite Statistics
 
 ### Test Coverage
-- **Total Integration Tests**: 57+
-- **Test Files**: 5
-- **Test Categories**: 4 phases
+- **Total Integration Tests**: 70+
+- **Traditional Test Files**: 5
+- **Evaluation Test Files**: 6
+- **Test Categories**: 5 phases + evaluation
 - **Performance Tests**: 16+
 - **Mock Components**: 15+
+- **Evaluation Scenarios**: 25+
 
-### Test Phases
+### Traditional Test Phases
 1. **Foundation Tests** (8 tests) - Agent lifecycle and workflow orchestration
 2. **Core Integration Tests** (15 tests) - Context management and RAG integration
 3. **Tool Orchestration Tests** (18 tests) - Advanced tool coordination
 4. **Performance Verification** (16 tests) - Load testing and optimization
+
+### ADK Evaluation Tests ⭐ **NEW**
+5. **Behavioral Evaluation Tests** (11 tests) - Agent behavior validation
+   - **Multi-Agent Coordination** (6 scenarios) - Workflow orchestration and communication
+   - **Memory & Persistence** (7 scenarios) - Session continuity and knowledge retention
+   - **Simple Code Analysis** (3 scenarios) - Basic functionality validation
+   - **Sub-Agent Delegation** (3 scenarios) - Hierarchical agent patterns
+   - **Tool Usage Validation** (3 scenarios) - Tool parameter and execution testing
 
 ## Key Features
 
@@ -106,12 +149,14 @@ Tests generate comprehensive reports in `test_reports/` including:
 - Advanced context management testing
 - Tool orchestration with error handling
 - Performance and scalability testing
+- **Behavioral evaluation testing** ⭐ **NEW**
 
-### 🔧 **Advanced Mocking**
-- Realistic LLM client simulation
-- Multi-agent session state management
-- Tool execution behavior mocking
+### 🔧 **Advanced Testing Approaches**
+- **Traditional Integration Testing** - Realistic LLM client simulation, multi-agent session state management
+- **ADK Evaluation Framework** ⭐ **NEW** - Behavioral testing with real-world scenarios
+- Tool execution behavior mocking and validation
 - Performance monitoring simulation
+- **User experience testing** with natural language queries
 
 ### 📊 **Performance Monitoring**
 - Real-time resource tracking
@@ -119,6 +164,7 @@ Tests generate comprehensive reports in `test_reports/` including:
 - CPU and throughput monitoring
 - Token processing performance
 - Concurrent user simulation
+- **Response quality tracking** ⭐ **NEW**
 
 ### 🛡️ **Error Handling**
 - Comprehensive error scenario testing
@@ -126,6 +172,7 @@ Tests generate comprehensive reports in `test_reports/` including:
 - Retry logic verification
 - Fallback strategy testing
 - State consistency validation
+- **Behavioral error testing** ⭐ **NEW**
 
 ### 🚀 **Optimization**
 - Parallel test execution
@@ -133,6 +180,14 @@ Tests generate comprehensive reports in `test_reports/` including:
 - Efficient resource utilization
 - Smart test prioritization
 - Performance baseline management
+- **Evaluation scenario caching** ⭐ **NEW**
+
+### 🎨 **Behavioral Testing** ⭐ **NEW**
+- **Natural Language Queries** - Test with user-like interactions
+- **Tool Usage Validation** - Ensure correct tool selection and parameters
+- **Multi-Agent Coordination** - Test agent communication and workflow
+- **Memory & Persistence** - Validate session continuity and knowledge retention
+- **Response Quality Assurance** - Test agent response quality and relevance
 
 ## Architecture Overview
 
@@ -145,7 +200,15 @@ tests/
 │   ├── test_context_management_advanced.py  # Advanced context management
 │   ├── test_tool_orchestration_advanced.py  # Tool coordination tests
 │   ├── test_performance_verification.py     # Performance and load tests
-│   └── run_integration_tests.py            # Comprehensive test runner
+│   ├── test_adk_evaluation_patterns.py  # ADK evaluation framework tests ⭐ NEW
+│   ├── evaluation_tests/                # Evaluation scenarios ⭐ NEW
+│   │   ├── simple_code_analysis.evalset.json
+│   │   ├── sub_agent_delegation.evalset.json
+│   │   ├── tool_usage.evalset.json
+│   │   ├── multi_agent_coordination.evalset.json
+│   │   ├── agent_memory_persistence.evalset.json
+│   │   └── test_config.json
+│   └── run_integration_tests.py         # Comprehensive test runner
 ├── fixtures/
 │   └── test_helpers.py                  # Mock utilities and fixtures
 └── conftest.py                          # Pytest configuration
@@ -175,25 +238,35 @@ tests/
 
 ### Google ADK Integration Patterns
 
-The test suite follows Google ADK integration testing patterns:
+The test suite follows Google ADK integration testing patterns with both traditional and evaluation approaches:
 
 1. **Agent Development Kit (ADK) Patterns**
    - Multi-agent conversation testing
    - Context management across agents
    - Tool coordination and state sharing
    - Performance under concurrent load
+   - **Behavioral evaluation testing** ⭐ **NEW**
 
 2. **Gemini Integration Patterns**
    - Realistic LLM interaction simulation
    - Token counting and optimization
    - Content generation and processing
    - Error handling and recovery
+   - **Natural language query testing** ⭐ **NEW**
 
 3. **Production Readiness Patterns**
    - Scalability testing under load
    - Resource utilization monitoring
    - Performance SLA validation
    - Comprehensive error scenario coverage
+   - **User experience validation** ⭐ **NEW**
+
+4. **ADK Evaluation Framework Patterns** ⭐ **NEW**
+   - JSON-based evaluation scenarios
+   - Tool usage pattern validation
+   - Agent coordination testing
+   - Memory and persistence verification
+   - Response quality assessment
 
 ### Test Execution Flow
 
@@ -261,15 +334,17 @@ graph TD
 
 ### For New Developers
 1. **Read the [Integration Testing Guide](integration-testing.md)** for comprehensive overview
-2. **Review [Test Patterns](test-patterns.md)** to understand architectural decisions
-3. **Run the test suite** locally to verify environment setup
-4. **Explore test code** to understand implementation patterns
+2. **Explore the [ADK Evaluation Framework](adk-evaluation-framework.md)** ⭐ **NEW** for behavioral testing
+3. **Review [Test Patterns](test-patterns.md)** to understand architectural decisions
+4. **Run the test suite** locally to verify environment setup
+5. **Explore test code** to understand implementation patterns
 
 ### For Test Developers
 1. **Study existing test patterns** in the test suite
-2. **Follow the [Test Patterns Guide](test-patterns.md)** for new tests
-3. **Use the [Performance Testing Guide](performance-testing.md)** for performance tests
-4. **Refer to [Troubleshooting Guide](troubleshooting.md)** when issues arise
+2. **Learn the [ADK Evaluation Framework](adk-evaluation-framework.md)** ⭐ **NEW** for behavioral tests
+3. **Follow the [Test Patterns Guide](test-patterns.md)** for new tests
+4. **Use the [Performance Testing Guide](performance-testing.md)** for performance tests
+5. **Refer to [Troubleshooting Guide](troubleshooting.md)** when issues arise
 
 ### For System Administrators
 1. **Set up CI/CD integration** using provided examples

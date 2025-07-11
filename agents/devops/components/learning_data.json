@@ -1,0 +1,14 @@
+{
+    "npm install|permission_denied": {
+        "original_command": "npm install",
+        "error_type": "permission_denied",
+        "successful_alternatives": {
+            "sudo npm install": 2
+        },
+        "context_keywords": [
+            "nodejs",
+            "dependencies"
+        ],
+        "last_updated": "2025-07-11T15:01:52.421878"
+    }
+}

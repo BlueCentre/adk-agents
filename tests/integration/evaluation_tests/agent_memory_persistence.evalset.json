@@ -1,0 +1,286 @@
+{
+  "test_name": "Agent Memory and Persistence Evaluation",
+  "description": "Evaluation scenarios for agent memory and persistence mechanisms including session continuity, cross-conversation memory, and state management",
+  "version": "1.0.0",
+  "test_scenarios": [
+    {
+      "scenario_id": "session_continuity_basic",
+      "description": "Test basic session continuity across multiple interactions",
+      "query": "Remember that I'm working on a Python web application using Flask. In our previous conversation, we discussed implementing user authentication. Now I need to add password reset functionality.",
+      "expected_tool_use": [
+        {
+          "tool_name": "session_memory_manager",
+          "inputs": {
+            "operation": "retrieve_session_context",
+            "session_id": "user_session_123",
+            "context_keys": ["project_type", "framework", "previous_features", "conversation_history"]
+          }
+        },
+        {
+          "tool_name": "persistent_memory_tool",
+          "inputs": {
+            "operation": "load_memory",
+            "memory_type": "project_context",
+            "filters": ["flask_authentication", "web_development"]
+          }
+        }
+      ],
+      "expected_intermediate_agent_responses": [
+        {
+          "agent_type": "memory_retrieval_agent",
+          "response_pattern": "retrieved context about Flask project and authentication work",
+          "coordination_actions": ["context_validation", "memory_integration", "continuity_establishment"]
+        },
+        {
+          "agent_type": "development_agent",
+          "response_pattern": "password reset implementation building on previous authentication work",
+          "coordination_actions": ["context_utilization", "feature_integration", "knowledge_application"]
+        }
+      ],
+      "reference": "Agent should demonstrate clear continuity from previous conversation, referencing Flask project and authentication implementation"
+    },
+    {
+      "scenario_id": "cross_conversation_memory",
+      "description": "Test memory retention across different conversation sessions",
+      "query": "Last week we optimized the database queries in my e-commerce application. Today I'm getting performance issues again. Can you help troubleshoot based on what we did before?",
+      "expected_tool_use": [
+        {
+          "tool_name": "cross_session_memory",
+          "inputs": {
+            "operation": "retrieve_historical_context",
+            "time_range": "last_week",
+            "topic_filters": ["database_optimization", "e_commerce", "performance"],
+            "memory_scope": "cross_conversation"
+          }
+        },
+        {
+          "tool_name": "persistent_memory_tool",
+          "inputs": {
+            "operation": "load_memory",
+            "memory_type": "troubleshooting_history",
+            "context_match": "database_performance_optimization"
+          }
+        }
+      ],
+      "expected_intermediate_agent_responses": [
+        {
+          "agent_type": "memory_retrieval_agent",
+          "response_pattern": "retrieved previous database optimization work and solutions",
+          "coordination_actions": ["historical_context_loading", "solution_pattern_matching", "knowledge_correlation"]
+        },
+        {
+          "agent_type": "troubleshooting_agent",
+          "response_pattern": "performance analysis referencing previous optimization work",
+          "coordination_actions": ["pattern_comparison", "regression_analysis", "targeted_investigation"]
+        }
+      ],
+      "reference": "Agent should recall specific database optimization work from previous week and use it to guide current troubleshooting"
+    },
+    {
+      "scenario_id": "knowledge_retention_across_restarts",
+      "description": "Test knowledge retention after agent restart or system reload",
+      "query": "I need to continue working on the microservices architecture we were designing. Can you pick up where we left off?",
+      "expected_tool_use": [
+        {
+          "tool_name": "persistent_state_manager",
+          "inputs": {
+            "operation": "restore_session_state",
+            "persistence_key": "microservices_design_session",
+            "state_components": ["architecture_decisions", "service_boundaries", "current_progress"]
+          }
+        },
+        {
+          "tool_name": "memory_tools",
+          "inputs": {
+            "operation": "load_project_memory",
+            "project_context": "microservices_architecture",
+            "memory_categories": ["design_decisions", "implementation_progress", "technical_considerations"]
+          }
+        }
+      ],
+      "expected_intermediate_agent_responses": [
+        {
+          "agent_type": "state_restoration_agent",
+          "response_pattern": "successfully restored microservices design session state",
+          "coordination_actions": ["state_verification", "progress_assessment", "context_reconstruction"]
+        },
+        {
+          "agent_type": "architecture_agent",
+          "response_pattern": "continuation of microservices design with full context awareness",
+          "coordination_actions": ["design_continuation", "decision_consistency", "progress_advancement"]
+        }
+      ],
+      "reference": "Agent should demonstrate complete restoration of microservices design context and continue work seamlessly"
+    },
+    {
+      "scenario_id": "contextual_memory_prioritization",
+      "description": "Test intelligent prioritization of relevant memories based on current context",
+      "query": "I'm getting a strange error in my React application. It's something about hooks and state management.",
+      "expected_tool_use": [
+        {
+          "tool_name": "contextual_memory_search",
+          "inputs": {
+            "operation": "priority_memory_search",
+            "context_keywords": ["React", "hooks", "state_management", "error"],
+            "memory_types": ["troubleshooting", "solutions", "patterns"],
+            "relevance_scoring": "context_weighted"
+          }
+        },
+        {
+          "tool_name": "memory_tools",
+          "inputs": {
+            "operation": "load_memory",
+            "memory_type": "react_troubleshooting",
+            "priority_filter": "high_relevance"
+          }
+        }
+      ],
+      "expected_intermediate_agent_responses": [
+        {
+          "agent_type": "memory_prioritization_agent",
+          "response_pattern": "identified most relevant React hooks and state management memories",
+          "coordination_actions": ["relevance_scoring", "context_matching", "priority_ranking"]
+        },
+        {
+          "agent_type": "troubleshooting_agent",
+          "response_pattern": "targeted React hooks troubleshooting using prioritized memories",
+          "coordination_actions": ["focused_diagnosis", "solution_application", "pattern_matching"]
+        }
+      ],
+      "reference": "Agent should prioritize React hooks and state management memories over other technical memories"
+    },
+    {
+      "scenario_id": "incremental_knowledge_building",
+      "description": "Test incremental knowledge building and memory updates over time",
+      "query": "We've been iterating on the API design for our mobile app. I want to make one more change to the user profile endpoint based on what we've learned.",
+      "expected_tool_use": [
+        {
+          "tool_name": "incremental_memory_manager",
+          "inputs": {
+            "operation": "track_knowledge_evolution",
+            "knowledge_domain": "api_design",
+            "evolution_context": "mobile_app_user_profile",
+            "update_type": "iterative_improvement"
+          }
+        },
+        {
+          "tool_name": "memory_tools",
+          "inputs": {
+            "operation": "update_memory",
+            "memory_type": "api_design_evolution",
+            "update_context": "user_profile_endpoint_iteration"
+          }
+        }
+      ],
+      "expected_intermediate_agent_responses": [
+        {
+          "agent_type": "knowledge_evolution_agent",
+          "response_pattern": "tracked API design evolution and identified learning patterns",
+          "coordination_actions": ["iteration_tracking", "learning_capture", "knowledge_consolidation"]
+        },
+        {
+          "agent_type": "api_design_agent",
+          "response_pattern": "refined API design incorporating accumulated learnings",
+          "coordination_actions": ["design_refinement", "pattern_application", "knowledge_integration"]
+        }
+      ],
+      "reference": "Agent should show evolution of API design understanding and apply accumulated learnings to new iteration"
+    },
+    {
+      "scenario_id": "memory_conflict_resolution",
+      "description": "Test resolution of conflicting memories or outdated information",
+      "query": "I remember we decided to use PostgreSQL for our database, but now I'm seeing references to MongoDB in our conversation. Which one are we actually using?",
+      "expected_tool_use": [
+        {
+          "tool_name": "memory_conflict_resolver",
+          "inputs": {
+            "operation": "resolve_conflicting_memories",
+            "conflict_domain": "database_choice",
+            "conflicting_options": ["PostgreSQL", "MongoDB"],
+            "resolution_strategy": "chronological_priority"
+          }
+        },
+        {
+          "tool_name": "memory_tools",
+          "inputs": {
+            "operation": "validate_memory_currency",
+            "memory_type": "technical_decisions",
+            "validation_context": "database_technology"
+          }
+        }
+      ],
+      "expected_intermediate_agent_responses": [
+        {
+          "agent_type": "memory_validation_agent",
+          "response_pattern": "identified conflicting database technology memories",
+          "coordination_actions": ["conflict_detection", "chronology_analysis", "currency_validation"]
+        },
+        {
+          "agent_type": "decision_clarification_agent",
+          "response_pattern": "clarified current database choice and resolved conflict",
+          "coordination_actions": ["conflict_resolution", "decision_confirmation", "memory_update"]
+        }
+      ],
+      "reference": "Agent should identify the conflict, determine the most recent/accurate decision, and clarify the current database choice"
+    },
+    {
+      "scenario_id": "memory_sharing_across_agents",
+      "description": "Test memory sharing and synchronization across multiple agents",
+      "query": "I've been working with both the frontend and backend teams on our application. Both teams need to be aware of the new authentication requirements we discussed.",
+      "expected_tool_use": [
+        {
+          "tool_name": "multi_agent_memory_sync",
+          "inputs": {
+            "operation": "share_memory_across_agents",
+            "memory_content": "authentication_requirements",
+            "target_agents": ["frontend_agent", "backend_agent"],
+            "synchronization_level": "bidirectional"
+          }
+        },
+        {
+          "tool_name": "memory_tools",
+          "inputs": {
+            "operation": "broadcast_memory_update",
+            "memory_type": "authentication_specifications",
+            "broadcast_scope": "multi_agent"
+          }
+        }
+      ],
+      "expected_intermediate_agent_responses": [
+        {
+          "agent_type": "memory_synchronization_agent",
+          "response_pattern": "synchronized authentication requirements across frontend and backend agents",
+          "coordination_actions": ["memory_broadcasting", "agent_notification", "synchronization_verification"]
+        },
+        {
+          "agent_type": "frontend_agent",
+          "response_pattern": "acknowledged authentication requirements for frontend implementation",
+          "coordination_actions": ["memory_reception", "requirement_integration", "implementation_planning"]
+        },
+        {
+          "agent_type": "backend_agent",
+          "response_pattern": "acknowledged authentication requirements for backend implementation",
+          "coordination_actions": ["memory_reception", "requirement_integration", "api_design_update"]
+        }
+      ],
+      "reference": "Authentication requirements should be properly shared and acknowledged by both frontend and backend agents"
+    }
+  ],
+  "memory_patterns": [
+    "session_continuity",
+    "cross_conversation_memory",
+    "knowledge_retention",
+    "contextual_prioritization",
+    "incremental_knowledge_building",
+    "memory_conflict_resolution",
+    "multi_agent_memory_sharing"
+  ],
+  "evaluation_criteria": {
+    "memory_accuracy": "Retrieved memories should be accurate and relevant to current context",
+    "continuity_maintenance": "Session continuity should be maintained across interactions",
+    "knowledge_evolution": "Knowledge should evolve and improve over time through accumulated learning",
+    "conflict_resolution": "Conflicting or outdated memories should be properly resolved",
+    "cross_agent_consistency": "Memory should be consistent and synchronized across multiple agents",
+    "contextual_relevance": "Memory retrieval should be contextually appropriate and prioritized"
+  }
+} 

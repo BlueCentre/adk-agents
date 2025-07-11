@@ -1,0 +1,70 @@
+[
+  {
+    "query": "Review the code quality of the main agent file",
+    "expected_tool_use": [
+      {
+        "tool_name": "read_file_tool",
+        "tool_input": {
+          "path": "agents/software_engineer/agent.py"
+        }
+      }
+    ],
+    "expected_intermediate_agent_responses": [
+      "I'm delegating this to our code review expert for thorough analysis"
+    ],
+    "reference": "The software engineer agent is well-structured with clear imports, proper tool loading, and good separation of concerns. The agent uses LiteLlm wrapper for Gemini integration, has comprehensive sub-agent delegation, and includes proper logging configuration. The code follows good Python practices with appropriate error handling and modular design."
+  },
+  {
+    "query": "Create documentation for the main agent",
+    "expected_tool_use": [
+      {
+        "tool_name": "read_file_tool",
+        "tool_input": {
+          "path": "agents/software_engineer/agent.py"
+        }
+      }
+    ],
+    "expected_intermediate_agent_responses": [
+      "I'm routing this to our documentation expert to create comprehensive docs"
+    ],
+    "reference": "I'll create comprehensive documentation for the software engineer agent including its purpose, capabilities, sub-agents, tools, and usage examples. The documentation will cover the agent's role as an orchestrator, its delegation patterns, and how it coordinates complex software development tasks."
+  },
+  {
+    "query": "Identify potential bugs in the agent configuration",
+    "expected_tool_use": [
+      {
+        "tool_name": "read_file_tool",
+        "tool_input": {
+          "path": "agents/software_engineer/agent.py"
+        }
+      },
+      {
+        "tool_name": "codebase_search_tool",
+        "tool_input": {
+          "query": "configuration errors imports",
+          "file_pattern": "*.py"
+        }
+      }
+    ],
+    "expected_intermediate_agent_responses": [
+      "I'm transferring this to our debugging specialist to diagnose and fix the issues"
+    ],
+    "reference": "The agent configuration appears robust with proper imports, model configuration, and tool loading. The main areas to monitor are: ensure all imported sub-agents are properly configured, verify that the LiteLlm wrapper is correctly initialized, and confirm that tool loading doesn't introduce circular dependencies."
+  },
+  {
+    "query": "Analyze the testing strategy for this agent",
+    "expected_tool_use": [
+      {
+        "tool_name": "codebase_search_tool",
+        "tool_input": {
+          "query": "test software engineer agent",
+          "file_pattern": "*.py"
+        }
+      }
+    ],
+    "expected_intermediate_agent_responses": [
+      "I'm delegating this to our testing expert to develop comprehensive test strategies"
+    ],
+    "reference": "The testing strategy includes both structural validation tests and integration tests. The agent is tested for proper configuration, sub-agent relationships, tool availability, and delegation patterns. The test suite validates agent hierarchy, instruction compliance, and readiness for Google ADK patterns."
+  }
+] 
