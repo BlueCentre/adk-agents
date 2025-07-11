@@ -95,7 +95,7 @@ jobs:
         # Generate HTML coverage for artifact
         uv run pytest tests/ \
         --cov-config=pyproject.toml \
-        --cov-report=html
+        --cov-report=html --cov-report=xml
 
         # Run the script
         uv run python generate_coverage.py
