@@ -134,6 +134,44 @@ class IntegrationTestRunner:
             )
         )
 
+        # Phase 1.5: Core ADK Pattern Tests
+        self.test_suites.append(
+            TestSuite(
+                name="Core ADK Pattern Tests",
+                description="Google ADK-style integration tests for core agent patterns",
+                tests=[
+                    "tests/integration/test_single_agent_patterns.py::TestSingleAgentPatterns::test_single_agent_basic_response_structure",
+                    "tests/integration/test_single_agent_patterns.py::TestSingleAgentPatterns::test_single_agent_instruction_structure",
+                    "tests/integration/test_single_agent_patterns.py::TestSingleAgentPatterns::test_single_agent_tool_availability",
+                    "tests/integration/test_single_agent_patterns.py::TestSingleAgentPatterns::test_single_agent_model_configuration",
+                    "tests/integration/test_single_agent_patterns.py::TestSingleAgentPatterns::test_single_agent_sub_agent_structure",
+                    "tests/integration/test_single_agent_patterns.py::TestSingleAgentPatterns::test_agent_class_structure",
+                    "tests/integration/test_single_agent_patterns.py::TestSingleAgentPatterns::test_agent_output_capabilities",
+                    "tests/integration/test_single_agent_patterns.py::TestSingleAgentPatterns::test_agent_role_consistency_structure",
+                    "tests/integration/test_single_agent_patterns.py::TestSingleAgentPatterns::test_agent_boundary_and_scope_structure",
+                    "tests/integration/test_sub_agent_delegation.py::TestSubAgentDelegation::test_software_engineer_agent_has_sub_agents",
+                    "tests/integration/test_sub_agent_delegation.py::TestSubAgentDelegation::test_sub_agents_have_correct_structure",
+                    "tests/integration/test_sub_agent_delegation.py::TestSubAgentDelegation::test_sub_agents_have_specialized_tools",
+                    "tests/integration/test_sub_agent_delegation.py::TestSubAgentDelegation::test_sub_agents_have_specialized_instructions",
+                    "tests/integration/test_sub_agent_delegation.py::TestSubAgentDelegation::test_devops_agent_class_structure",
+                    "tests/integration/test_sub_agent_delegation.py::TestSubAgentDelegation::test_agent_hierarchy_structure",
+                    "tests/integration/test_sub_agent_delegation.py::TestSubAgentDelegation::test_agent_model_consistency",
+                    "tests/integration/test_sub_agent_delegation.py::TestSubAgentDelegation::test_agent_communication_structure",
+                    "tests/integration/test_sub_agent_delegation.py::TestSubAgentDelegation::test_delegation_readiness_structure",
+                    "tests/integration/test_system_instruction_compliance.py::TestSystemInstructionCompliance::test_role_based_behavior_consistency",
+                    "tests/integration/test_system_instruction_compliance.py::TestSystemInstructionCompliance::test_constraint_enforcement_structure",
+                    "tests/integration/test_system_instruction_compliance.py::TestSystemInstructionCompliance::test_output_format_compliance_capability",
+                    "tests/integration/test_system_instruction_compliance.py::TestSystemInstructionCompliance::test_context_aware_instruction_structure",
+                    "tests/integration/test_system_instruction_compliance.py::TestSystemInstructionCompliance::test_multi_turn_instruction_consistency_structure",
+                    "tests/integration/test_system_instruction_compliance.py::TestSystemInstructionCompliance::test_conditional_instruction_following_structure",
+                    "tests/integration/test_system_instruction_compliance.py::TestSystemInstructionCompliance::test_instruction_priority_resolution_structure",
+                    "tests/integration/test_system_instruction_compliance.py::TestSystemInstructionCompliance::test_instruction_interpretation_edge_cases_structure",
+                    "tests/integration/test_system_instruction_compliance.py::TestSystemInstructionCompliance::test_system_instruction_inheritance_structure",
+                    "tests/integration/test_system_instruction_compliance.py::TestSystemInstructionCompliance::test_instruction_validation_and_compliance_readiness",
+                ],
+            )
+        )
+
         # Phase 2: Core Integration Tests
         self.test_suites.append(
             TestSuite(
