@@ -94,8 +94,6 @@ jobs:
 
         # Generate HTML coverage for artifact
         uv run pytest tests/ \
-        --cov=agents \
-        --cov=src.wrapper.adk \
         --cov-config=pyproject.toml \
         --cov-report=html
 
