@@ -193,6 +193,7 @@ omit = [
   "*/.venv/*",
   "*/build/*",
   "*/dist/*",
+  "tests/*",
   "setup.py",
   "conftest.py",
 ]
