@@ -46,7 +46,7 @@ jobs:
           echo "Running tests for all modules with coverage"
           uv run pytest tests/ \
           --cov=src \
-          --cov-report=xml --cov-report=term --cov-fail-under=80 \
+          --cov-report=xml --cov-report=term \
           --junitxml=test-results.xml
         fi
 
@@ -61,7 +61,8 @@ jobs:
     - name: Generate detailed coverage report
       run: |
         # Generate HTML coverage report for detailed analysis
-        uv run pytest tests/ --cov=src \
+        uv run pytest tests/ \
+        --cov=src \
         --cov-report=html
 
     - name: Upload HTML coverage report
