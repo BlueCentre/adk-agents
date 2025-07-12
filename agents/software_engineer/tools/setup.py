@@ -32,7 +32,10 @@ from .code_analysis import (
 )
 from .code_search import codebase_search_tool
 from .filesystem import edit_file_tool, list_dir_tool, read_file_tool
-from .persistent_memory_tool import load_memory_from_file_tool, save_current_session_to_file_tool
+from .persistent_memory_tool import (
+    load_memory_from_file_tool,
+    save_current_session_to_file_tool,
+)
 from .search import google_search_grounding
 from .shell_command import execute_shell_command_tool
 from .system_info import get_os_info_tool
@@ -44,12 +47,13 @@ logger = logging.getLogger(__name__)
 _loaded_mcp_toolsets = {}
 _global_mcp_exit_stack = None
 
+
 def load_core_tools_and_toolsets():
     """Loads and initializes all core tools, sub-agents, and MCP toolsets."""
     devops_core_tools_list = [
         codebase_search_tool,
         execute_shell_command_tool,
-        # Note: RAG tools (index_directory_tool, retrieve_code_context_tool, purge_rag_index_tool) 
+        # Note: RAG tools (index_directory_tool, retrieve_code_context_tool, purge_rag_index_tool)
         # are not available in the SWE agent yet
     ]
 
@@ -82,16 +86,17 @@ def load_core_tools_and_toolsets():
 
     return devops_core_tools_list
 
+
 async def load_user_tools_and_toolsets_async():
     """Loads and initializes user-defined MCP toolsets using the async pattern.
-    
+
     This is the recommended approach when MCPToolset.from_server() is available.
-    
+
     Returns:
         tuple: (user_mcp_tools_list, exit_stack_or_none)
     """
     global _loaded_mcp_toolsets, _global_mcp_exit_stack
-    
+
     user_mcp_tools_list = []
     mcp_config_path = os.path.join(os.getcwd(), ".agent/mcp.json")
 
@@ -100,10 +105,14 @@ async def load_user_tools_and_toolsets_async():
         _loaded_mcp_toolsets = {}
 
     # Check if MCPToolset.from_server is available (latest ADK)
-    has_from_server = hasattr(MCPToolset, 'from_server') and callable(getattr(MCPToolset, 'from_server'))
-    
+    has_from_server = hasattr(MCPToolset, "from_server") and callable(
+        getattr(MCPToolset, "from_server")
+    )
+
     if has_from_server:
-        logger.info("Latest ADK detected: Using async pattern with MCPToolset.from_server()")
+        logger.info(
+            "Latest ADK detected: Using async pattern with MCPToolset.from_server()"
+        )
         # Initialize global exit stack if not already done
         if _global_mcp_exit_stack is None:
             _global_mcp_exit_stack = AsyncExitStack()
@@ -117,9 +126,11 @@ async def load_user_tools_and_toolsets_async():
     with open(mcp_config_path, "r") as f:
         mcp_config = json.load(f)
 
-    servers = mcp_config.get('mcpServers', {})
+    servers = mcp_config.get("mcpServers", {})
     if not servers:
-        logger.info("No 'mcpServers' found in mcp.json. No user-defined MCP toolsets will be loaded.")
+        logger.info(
+            "No 'mcpServers' found in mcp.json. No user-defined MCP toolsets will be loaded."
+        )
         return user_mcp_tools_list, _global_mcp_exit_stack if has_from_server else None
 
     # Load MCP toolsets from mcp.json using the best available pattern
@@ -133,8 +144,13 @@ async def load_user_tools_and_toolsets_async():
                 continue
 
             # Check if this server_name is already in _loaded_mcp_toolsets
-            if server_name in _loaded_mcp_toolsets and _loaded_mcp_toolsets[server_name] is not None:
-                logger.info(f"MCP Toolset '{server_name}' already loaded. Adding existing instance to user tools list.")
+            if (
+                server_name in _loaded_mcp_toolsets
+                and _loaded_mcp_toolsets[server_name] is not None
+            ):
+                logger.info(
+                    f"MCP Toolset '{server_name}' already loaded. Adding existing instance to user tools list."
+                )
                 existing_tools = _loaded_mcp_toolsets[server_name]
                 if isinstance(existing_tools, list):
                     user_mcp_tools_list.extend(existing_tools)
@@ -145,7 +161,9 @@ async def load_user_tools_and_toolsets_async():
             # Try the appropriate pattern based on ADK version
             if has_from_server:
                 # Use the proper async pattern as documented by ADK
-                logger.info(f"Loading MCP Toolset '{server_name}' using async pattern with from_server()...")
+                logger.info(
+                    f"Loading MCP Toolset '{server_name}' using async pattern with from_server()..."
+                )
 
                 try:
                     # This is the recommended pattern from ADK documentation
@@ -160,23 +178,33 @@ async def load_user_tools_and_toolsets_async():
                     user_mcp_tools_list.extend(tools)
                     _loaded_mcp_toolsets[server_name] = tools
 
-                    logger.info(f"MCP Toolset '{server_name}' initialized successfully using async pattern. Loaded {len(tools)} tools.")
+                    logger.info(
+                        f"MCP Toolset '{server_name}' initialized successfully using async pattern. Loaded {len(tools)} tools."
+                    )
 
                 except Exception as e:
-                    logger.warning(f"Failed to load MCP Toolset '{server_name}' using async pattern: {e}")
+                    logger.warning(
+                        f"Failed to load MCP Toolset '{server_name}' using async pattern: {e}"
+                    )
                     continue
             else:
                 # Use the simple MCPToolset pattern compatible with older ADK versions
-                logger.info(f"Loading MCP Toolset '{server_name}' using simple pattern...")
+                logger.info(
+                    f"Loading MCP Toolset '{server_name}' using simple pattern..."
+                )
 
                 try:
                     mcp_toolset = MCPToolset(connection_params=connection_params)
                     user_mcp_tools_list.append(mcp_toolset)
                     _loaded_mcp_toolsets[server_name] = mcp_toolset
-                    logger.info(f"MCP Toolset '{server_name}' initialized successfully using simple pattern.")
-                    
+                    logger.info(
+                        f"MCP Toolset '{server_name}' initialized successfully using simple pattern."
+                    )
+
                 except Exception as e:
-                    logger.warning(f"Failed to load MCP Toolset '{server_name}' using simple pattern: {e}")
+                    logger.warning(
+                        f"Failed to load MCP Toolset '{server_name}' using simple pattern: {e}"
+                    )
                     continue
 
         except Exception as e:
@@ -184,9 +212,10 @@ async def load_user_tools_and_toolsets_async():
 
     return user_mcp_tools_list, _global_mcp_exit_stack if has_from_server else None
 
+
 def load_user_tools_and_toolsets():
     """Synchronous wrapper for loading user MCP toolsets.
-    
+
     This loads MCP tools synchronously when possible, and lets ADK handle
     the async lifecycle when needed.
     """
@@ -200,29 +229,39 @@ def load_user_tools_and_toolsets():
     with open(mcp_config_path, "r") as f:
         mcp_config = json.load(f)
 
-    servers = mcp_config.get('mcpServers', {})
+    servers = mcp_config.get("mcpServers", {})
     if not servers:
-        logger.info("No 'mcpServers' found in mcp.json. No user-defined MCP toolsets will be loaded.")
+        logger.info(
+            "No 'mcpServers' found in mcp.json. No user-defined MCP toolsets will be loaded."
+        )
         return user_mcp_tools_list
 
-    logger.info(f"Found {len(servers)} MCP servers in mcp.json. Attempting to load them...")
+    logger.info(
+        f"Found {len(servers)} MCP servers in mcp.json. Attempting to load them..."
+    )
 
     # Check if MCPToolset.from_server is available (latest ADK)
-    has_from_server = hasattr(MCPToolset, 'from_server') and callable(getattr(MCPToolset, 'from_server'))
-    
+    has_from_server = hasattr(MCPToolset, "from_server") and callable(
+        getattr(MCPToolset, "from_server")
+    )
+
     # Always use the async pattern if available, regardless of context
     # This ensures consistent cleanup behavior
     if has_from_server:
         try:
             # Always use the async pattern with proper exit stack management
             # This ensures the ADK Runner can properly cleanup MCP toolsets
-            logger.info("Loading MCP toolsets using async pattern with proper exit stack management...")
+            logger.info(
+                "Loading MCP toolsets using async pattern with proper exit stack management..."
+            )
             tools, exit_stack = asyncio.run(load_user_tools_and_toolsets_async())
             global _global_mcp_exit_stack
             _global_mcp_exit_stack = exit_stack
             user_mcp_tools_list.extend(tools)
-            logger.info(f"MCP toolsets loaded using async pattern. Total: {len(tools)} tools.")
-            
+            logger.info(
+                f"MCP toolsets loaded using async pattern. Total: {len(tools)} tools."
+            )
+
         except Exception as e:
             logger.warning(f"Failed to load MCP toolsets using async pattern: {e}")
             logger.info("Falling back to simple pattern...")
@@ -239,7 +278,7 @@ def load_user_tools_and_toolsets():
 def _load_mcp_tools_simple_pattern(servers):
     """Load MCP tools using the simple pattern for fallback or older ADK versions."""
     user_mcp_tools_list = []
-    
+
     for server_name, server_config in servers.items():
         try:
             # Process config and create connection params
@@ -250,13 +289,17 @@ def _load_mcp_tools_simple_pattern(servers):
                 # Use simple MCPToolset pattern
                 mcp_toolset = MCPToolset(connection_params=connection_params)
                 user_mcp_tools_list.append(mcp_toolset)
-                logger.info(f"MCP Toolset '{server_name}' loaded successfully using simple pattern.")
+                logger.info(
+                    f"MCP Toolset '{server_name}' loaded successfully using simple pattern."
+                )
 
         except Exception as e:
             logger.warning(f"Failed to load MCP Toolset '{server_name}': {e}")
             continue
-    
-    logger.info(f"MCP toolsets loaded using simple pattern. Total: {len(user_mcp_tools_list)} tools.")
+
+    logger.info(
+        f"MCP toolsets loaded using simple pattern. Total: {len(user_mcp_tools_list)} tools."
+    )
     return user_mcp_tools_list
 
 
@@ -264,6 +307,7 @@ def _substitute_env_vars(value):
     """Recursively substitutes {{env.VAR_NAME}} placeholders with environment variable values."""
     if isinstance(value, str):
         import re
+
         match = re.search(r"{{env\.([^}]+)}}", value)
         if match:
             var_name = match.group(1)
@@ -272,10 +316,14 @@ def _substitute_env_vars(value):
                 if value == f"{{{{env.{var_name}}}}}":
                     return env_value
                 else:
-                    logger.warning(f"Environment variable placeholder '{match.group(0)}' found within a string. Full string substitution is not supported. Skipping substitution.")
+                    logger.warning(
+                        f"Environment variable placeholder '{match.group(0)}' found within a string. Full string substitution is not supported. Skipping substitution."
+                    )
                     return value
             else:
-                logger.warning(f"Environment variable '{var_name}' not found. Could not substitute placeholder '{match.group(0)}'.")
+                logger.warning(
+                    f"Environment variable '{var_name}' not found. Could not substitute placeholder '{match.group(0)}'."
+                )
                 return ""
         return value
     elif isinstance(value, list):
@@ -292,32 +340,40 @@ def _create_connection_params(server_name, processed_config):
 
     if "url" in processed_config:
         if not isinstance(processed_config.get("url"), str):
-            logger.warning(f"Failed to load MCP Toolset '{server_name}': 'url' must be a string after env var substitution.")
+            logger.warning(
+                f"Failed to load MCP Toolset '{server_name}': 'url' must be a string after env var substitution."
+            )
             return None
         connection_params = SseConnectionParams(url=processed_config["url"])
 
     elif "command" in processed_config and "args" in processed_config:
         if not isinstance(processed_config.get("command"), str):
-            logger.warning(f"Failed to load MCP Toolset '{server_name}': 'command' must be a string after env var substitution.")
+            logger.warning(
+                f"Failed to load MCP Toolset '{server_name}': 'command' must be a string after env var substitution."
+            )
             return None
         if not isinstance(processed_config.get("args"), list):
-            logger.warning(f"Failed to load MCP Toolset '{server_name}': 'args' must be a list after env var substitution.")
+            logger.warning(
+                f"Failed to load MCP Toolset '{server_name}': 'args' must be a list after env var substitution."
+            )
             return None
 
         processed_args = []
         for arg in processed_config["args"]:
             if not isinstance(arg, str):
-                logger.warning(f"Failed to load MCP Toolset '{server_name}': Argument '{arg}' in 'args' is not a string after env var substitution. Skipping toolset.")
+                logger.warning(
+                    f"Failed to load MCP Toolset '{server_name}': Argument '{arg}' in 'args' is not a string after env var substitution. Skipping toolset."
+                )
                 return None
             processed_args.append(arg)
 
         # Check if this MCP server should have output suppressed
         should_suppress_output = (
-            server_name in ['filesystem', 'memory'] or
-            processed_config["command"] == "npx" or
-            any('server-filesystem' in str(arg) for arg in processed_args) or
-            any('server-memory' in str(arg) for arg in processed_args) or
-            processed_config.get("suppress_output", False)
+            server_name in ["filesystem", "memory"]
+            or processed_config["command"] == "npx"
+            or any("server-filesystem" in str(arg) for arg in processed_args)
+            or any("server-memory" in str(arg) for arg in processed_args)
+            or processed_config.get("suppress_output", False)
         )
 
         if should_suppress_output:
@@ -325,21 +381,34 @@ def _create_connection_params(server_name, processed_config):
             original_command = processed_config["command"]
             original_args = processed_args
             processed_config["command"] = "sh"
-            processed_args = ["-c", f"{original_command} {' '.join(original_args)} 2>/dev/null"]
+            processed_args = [
+                "-c",
+                f"{original_command} {' '.join(original_args)} 2>/dev/null",
+            ]
 
         processed_env = processed_config.get("env", {})
         for key, value in processed_env.items():
             if not isinstance(value, str):
-                logger.warning(f"Failed to load MCP Toolset '{server_name}': Environment variable value for '{key}' is not a string after env var substitution. Converting to string.")
+                logger.warning(
+                    f"Failed to load MCP Toolset '{server_name}': Environment variable value for '{key}' is not a string after env var substitution. Converting to string."
+                )
                 processed_env[key] = str(value)
 
         # Add environment variables to suppress MCP server startup messages
         mcp_quiet_env = {
-            'QUIET': '1', 'SILENT': '1', 'NO_BANNER': '1', 'NO_STARTUP_MESSAGE': '1',
-            'LOG_LEVEL': 'ERROR', 'MCP_LOG_LEVEL': 'ERROR', 'RUST_LOG': 'error',
-            'NODE_ENV': 'production', 'NO_COLOR': '1', 'FORCE_COLOR': '0',
-            'PYTHONIOENCODING': 'utf-8', 'PYTHONUNBUFFERED': '0',
-            **processed_env
+            "QUIET": "1",
+            "SILENT": "1",
+            "NO_BANNER": "1",
+            "NO_STARTUP_MESSAGE": "1",
+            "LOG_LEVEL": "ERROR",
+            "MCP_LOG_LEVEL": "ERROR",
+            "RUST_LOG": "error",
+            "NODE_ENV": "production",
+            "NO_COLOR": "1",
+            "FORCE_COLOR": "0",
+            "PYTHONIOENCODING": "utf-8",
+            "PYTHONUNBUFFERED": "0",
+            **processed_env,
         }
 
         connection_params = StdioServerParameters(
@@ -348,10 +417,13 @@ def _create_connection_params(server_name, processed_config):
             env=mcp_quiet_env,
         )
     else:
-        logger.warning(f"Failed to load MCP Toolset '{server_name}': Configuration must contain either 'url' or 'command' and 'args'.")
+        logger.warning(
+            f"Failed to load MCP Toolset '{server_name}': Configuration must contain either 'url' or 'command' and 'args'."
+        )
         return None
 
     return connection_params
+
 
 async def load_all_tools_and_toolsets_async():
     """Loads all core and user-defined tools and toolsets using the proper async pattern.
@@ -362,6 +434,7 @@ async def load_all_tools_and_toolsets_async():
     core_tools = load_core_tools_and_toolsets()
     user_tools, exit_stack = await load_user_tools_and_toolsets_async()
     return core_tools + user_tools, exit_stack
+
 
 def load_all_tools_and_toolsets():
     """Synchronous wrapper for loading all tools and toolsets.
@@ -376,5 +449,7 @@ def load_all_tools_and_toolsets():
     user_tools = load_user_tools_and_toolsets()
 
     all_tools = core_tools + user_tools
-    logger.info(f"All tools loaded. Core: {len(core_tools)}, User/MCP: {len(user_tools)}, Total: {len(all_tools)} tools.")
+    logger.info(
+        f"All tools loaded. Core: {len(core_tools)}, User/MCP: {len(user_tools)}, Total: {len(all_tools)} tools."
+    )
     return all_tools
