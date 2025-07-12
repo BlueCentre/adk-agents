@@ -15,7 +15,6 @@ from .ui_common import ThemeConfig, UITheme
 class RichRenderer:
     """Handles rendering of Rich components and markdown."""
 
-
     def __init__(self, theme: Optional[UITheme] = None):
         self.theme = theme or UITheme.DARK
         self.rich_theme = ThemeConfig.get_rich_theme(self.theme)
@@ -23,7 +22,9 @@ class RichRenderer:
         self.console = Console(theme=self.rich_theme)
         self.markdown_enabled = True
 
-    def format_message(self, text: str | Text, author: str, rich_format: bool = False, style: str = "") -> Text:
+    def format_message(
+        self, text: str | Text, author: str, rich_format: bool = False, style: str = ""
+    ) -> Text:
         if isinstance(text, Text):
             return text
 
@@ -72,10 +73,10 @@ class RichRenderer:
         )
 
     def format_running_tool(self, tool_name: str, args: Optional[dict]) -> Panel:
-        arg_str = f"({', '.join(f'{k}={v}' for k, v in args.items())})" if args else "()"
-        content = Text.from_markup(
-            f"[dim]Tool: {tool_name}{arg_str}[/dim]"
+        arg_str = (
+            f"({', '.join(f'{k}={v}' for k, v in args.items())})" if args else "()"
         )
+        content = Text.from_markup(f"[dim]Tool: {tool_name}{arg_str}[/dim]")
         return Panel(
             content,
             title="[cyan]🔧 Running Tool[/cyan]",
@@ -85,12 +86,17 @@ class RichRenderer:
             padding=(0, 0),
         )
 
-    def format_tool_finished(self, tool_name: str, result: Any, duration: Optional[float]) -> Panel:
+    def format_tool_finished(
+        self, tool_name: str, result: Any, duration: Optional[float]
+    ) -> Panel:
         duration_str = f" in {duration:.2f}s" if duration is not None else ""
-        result_str = f"Result: {str(result)[:100]}..." if len(str(result)) > 100 else f"Result: {result}"
+        result_str = (
+            f"Result: {str(result)[:100]}..."
+            if len(str(result)) > 100
+            else f"Result: {result}"
+        )
         content = Text.from_markup(
-            f"[dim]Tool: {tool_name}{duration_str}\n"
-            f"{result_str}[/dim]"
+            f"[dim]Tool: {tool_name}{duration_str}\n{result_str}[/dim]"
         )
         return Panel(
             content,
@@ -103,8 +109,7 @@ class RichRenderer:
 
     def format_tool_error(self, tool_name: str, error_message: str) -> Panel:
         content = Text.from_markup(
-            f"[dim]Tool: {tool_name}\n"
-            f"Error: {error_message}[/dim]"
+            f"[dim]Tool: {tool_name}\nError: {error_message}[/dim]"
         )
         return Panel(
             content,
@@ -175,10 +180,10 @@ class RichRenderer:
     #     """Render markdown using Rich's Markdown directly, without Panel wrapper."""
     #     if not self.markdown_enabled:
     #         return text
-            
+
     #     try:
     #         markdown_obj = Markdown(text)
-            
+
     #         # Render to plain text that works in prompt_toolkit
     #         string_io = StringIO()
     #         temp_console = Console(
@@ -187,13 +192,13 @@ class RichRenderer:
     #             width=None,  # Much wider to prevent truncation
     #             legacy_windows=False,
     #         )
-            
+
     #         # Print the markdown object directly (with Panel wrapper)
     #         temp_console.print(markdown_obj, crop=False, overflow="ignore", soft_wrap=True)
     #         rendered_output = string_io.getvalue()
-            
+
     #         return rendered_output.rstrip()
-            
+
     #     except ImportError:
     #         # Fallback to basic markdown if Rich is not available
     #         return self._basic_markdown_fallback(text)
@@ -204,72 +209,72 @@ class RichRenderer:
     # def _basic_markdown_fallback(self, text: str) -> str:
     #     """Basic markdown rendering fallback if Rich fails."""
     #     import re
-        
+
     #     formatted_text = text
-        
+
     #     # Headers with better styling
     #     formatted_text = re.sub(r'^# (.+)$', r'🔷 \1', formatted_text, flags=re.MULTILINE)
     #     formatted_text = re.sub(r'^## (.+)$', r'🔸 \1', formatted_text, flags=re.MULTILINE)
     #     formatted_text = re.sub(r'^### (.+)$', r'▪️ \1', formatted_text, flags=re.MULTILINE)
-        
+
     #     # Basic bold and italic (simplified)
     #     formatted_text = re.sub(r'\*\*([^*]+)\*\*', r'**\1**', formatted_text)  # Keep bold markers
     #     formatted_text = re.sub(r'\*([^*]+)\*', r'*\1*', formatted_text)  # Keep italic markers
-        
+
     #     # Lists
     #     formatted_text = re.sub(r'^\* ', '• ', formatted_text, flags=re.MULTILINE)
     #     formatted_text = re.sub(r'^\+ ', '• ', formatted_text, flags=re.MULTILINE)
     #     formatted_text = re.sub(r'^\- ', '• ', formatted_text, flags=re.MULTILINE)
-        
+
     #     # Blockquotes
     #     formatted_text = re.sub(r'^> (.+)$', r'┃ \1', formatted_text, flags=re.MULTILINE)
-        
+
     #     # Code (simplified)
     #     formatted_text = re.sub(r'`([^`]+)`', r'`\1`', formatted_text)  # Keep code markers
     #     formatted_text = re.sub(r'^#### (.+)$', r'  • \1', formatted_text, flags=re.MULTILINE)
-        
+
     #     # Bold and italic - preserve some emphasis
     #     formatted_text = re.sub(r'\*\*(.+?)\*\*', r'[\1]', formatted_text)  # Bold in brackets
     #     formatted_text = re.sub(r'__(.+?)__', r'[\1]', formatted_text)
     #     formatted_text = re.sub(r'\*([^*]+?)\*', r'(\1)', formatted_text)  # Italic in parentheses
     #     formatted_text = re.sub(r'_([^_]+?)_', r'(\1)', formatted_text)
-        
+
     #     # Code blocks with language detection
     #     def format_code_block(match):
     #         lang = match.group(1) or 'text'
     #         code = match.group(2).strip()
     #         return f'💻 {lang.upper()} Code:\n{code}\n'
-        
+
     #     formatted_text = re.sub(r'```(\w+)?\n(.*?)\n```', format_code_block, formatted_text, flags=re.DOTALL)
-        
+
     #     # Inline code with backticks
     #     formatted_text = re.sub(r'`([^`]+?)`', r'`\1`', formatted_text)
-        
+
     #     # Lists with better bullets
     #     formatted_text = re.sub(r'^\- (.+)$', r'• \1', formatted_text, flags=re.MULTILINE)
     #     formatted_text = re.sub(r'^\* (.+)$', r'• \1', formatted_text, flags=re.MULTILINE)
     #     formatted_text = re.sub(r'^\+ (.+)$', r'• \1', formatted_text, flags=re.MULTILINE)
-        
+
     #     # Numbered lists with emojis
     #     formatted_text = re.sub(r'^1\. (.+)$', r'1️⃣ \1', formatted_text, flags=re.MULTILINE)
     #     formatted_text = re.sub(r'^2\. (.+)$', r'2️⃣ \1', formatted_text, flags=re.MULTILINE)
     #     formatted_text = re.sub(r'^3\. (.+)$', r'3️⃣ \1', formatted_text, flags=re.MULTILINE)
     #     formatted_text = re.sub(r'^(\d+)\. (.+)$', r'\1. \2', formatted_text, flags=re.MULTILINE)
-        
+
     #     # Links - show both text and URL
     #     formatted_text = re.sub(r'\[(.+?)\]\((.+?)\)', r'\1 (\2)', formatted_text)
-        
+
     #     # Blockquotes with better styling
     #     formatted_text = re.sub(r'^> (.+)$', r'💬 \1', formatted_text, flags=re.MULTILINE)
-        
+
     #     # Horizontal rules
     #     formatted_text = re.sub(r'^---+$', r'─' * 50, formatted_text, flags=re.MULTILINE)
-        
+
     #     # Tables - basic support
     #     def format_table_row(match):
     #         cells = [cell.strip() for cell in match.group(0).split('|')[1:-1]]
     #         return ' │ '.join(cells)
-        
+
     #     formatted_text = re.sub(r'^\|(.+)\|$', format_table_row, formatted_text, flags=re.MULTILINE)
-        
+
     #     return formatted_text

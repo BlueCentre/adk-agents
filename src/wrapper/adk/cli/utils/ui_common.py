@@ -8,6 +8,7 @@ from rich.theme import Theme
 
 class UITheme(Enum):
     """Available UI themes."""
+
     DARK = "dark"
     LIGHT = "light"
 
@@ -17,65 +18,57 @@ class ThemeConfig:
 
     DARK_THEME = {
         # Prompt styles
-        'prompt': '#87ceeb bold',  # sky blue
-        'user-input': '#ffffff',  # white
-        'agent-output': '#008000',  # green
-        
+        "prompt": "#87ceeb bold",  # sky blue
+        "user-input": "#ffffff",  # white
+        "agent-output": "#008000",  # green
         # Completion menu
-        'completion-menu': 'bg:#2d2d2d #ffffff',
-        'completion-menu.completion': 'bg:#2d2d2d #ffffff',
-        'completion-menu.completion.current': 'bg:#4a4a4a #ffffff bold',
-        'completion-menu.category': 'bg:#1e1e1e #87ceeb bold',
-        
+        "completion-menu": "bg:#2d2d2d #ffffff",
+        "completion-menu.completion": "bg:#2d2d2d #ffffff",
+        "completion-menu.completion.current": "bg:#4a4a4a #ffffff bold",
+        "completion-menu.category": "bg:#1e1e1e #87ceeb bold",
         # Auto-suggestion
-        'auto-suggestion': '#666666 italic',
-        
+        "auto-suggestion": "#666666 italic",
         # Bottom toolbar (tmux-style)
         # 'bottom-toolbar': 'bg:#1e1e1e #cccccc',
-        'bottom-toolbar': 'bg:#cccccc #1e1e1e',
-        'bottom-toolbar.accent': 'bg:#87ceeb #000000 bold',
-        'bottom-toolbar.info': 'bg:#404040 #ffffff',
-        'bottom-toolbar.success': 'bg:#32cd32 #000000 bold',
-        'bottom-toolbar.warning': 'bg:#ffa500 #000000 bold',
-        'bottom-toolbar.error': 'bg:#ff6b6b #ffffff bold',
-        
+        "bottom-toolbar": "bg:#cccccc #1e1e1e",
+        "bottom-toolbar.accent": "bg:#87ceeb #000000 bold",
+        "bottom-toolbar.info": "bg:#404040 #ffffff",
+        "bottom-toolbar.success": "bg:#32cd32 #000000 bold",
+        "bottom-toolbar.warning": "bg:#ffa500 #000000 bold",
+        "bottom-toolbar.error": "bg:#ff6b6b #ffffff bold",
         # Status indicators
-        'status.active': '#32cd32 bold',  # lime green
-        'status.inactive': '#666666',  # gray
-        'status.time': '#87ceeb',  # sky blue
-        'status.session': '#dda0dd',  # plum
-        'status.agent': '#ffa500',  # orange
+        "status.active": "#32cd32 bold",  # lime green
+        "status.inactive": "#666666",  # gray
+        "status.time": "#87ceeb",  # sky blue
+        "status.session": "#dda0dd",  # plum
+        "status.agent": "#ffa500",  # orange
     }
 
     LIGHT_THEME = {
         # Prompt styles
-        'prompt': '#0066cc bold',  # blue
-        'user-input': '#000000',  # black
-        'agent-output': '#008000',  # green
-        
+        "prompt": "#0066cc bold",  # blue
+        "user-input": "#000000",  # black
+        "agent-output": "#008000",  # green
         # Completion menu
-        'completion-menu': 'bg:#f0f0f0 #000000',
-        'completion-menu.completion': 'bg:#f0f0f0 #000000',
-        'completion-menu.completion.current': 'bg:#d0d0d0 #000000 bold',
-        'completion-menu.category': 'bg:#e0e0e0 #0066cc bold',
-        
+        "completion-menu": "bg:#f0f0f0 #000000",
+        "completion-menu.completion": "bg:#f0f0f0 #000000",
+        "completion-menu.completion.current": "bg:#d0d0d0 #000000 bold",
+        "completion-menu.category": "bg:#e0e0e0 #0066cc bold",
         # Auto-suggestion
-        'auto-suggestion': '#999999 italic',
-        
+        "auto-suggestion": "#999999 italic",
         # Bottom toolbar (tmux-style)
-        'bottom-toolbar': 'bg:#e6e6e6 #0066cc',
-        'bottom-toolbar.accent': 'bg:#0066cc #ffffff bold',
-        'bottom-toolbar.info': 'bg:#d0d0d0 #000000',
-        'bottom-toolbar.success': 'bg:#28a745 #ffffff bold',
-        'bottom-toolbar.warning': 'bg:#ffc107 #000000 bold',
-        'bottom-toolbar.error': 'bg:#dc3545 #ffffff bold',
-        
+        "bottom-toolbar": "bg:#e6e6e6 #0066cc",
+        "bottom-toolbar.accent": "bg:#0066cc #ffffff bold",
+        "bottom-toolbar.info": "bg:#d0d0d0 #000000",
+        "bottom-toolbar.success": "bg:#28a745 #ffffff bold",
+        "bottom-toolbar.warning": "bg:#ffc107 #000000 bold",
+        "bottom-toolbar.error": "bg:#dc3545 #ffffff bold",
         # Status indicators
-        'status.active': '#28a745 bold',  # green
-        'status.inactive': '#999999',  # gray
-        'status.time': '#0066cc',  # blue
-        'status.session': '#6f42c1',  # purple
-        'status.agent': '#fd7e14',  # orange
+        "status.active": "#28a745 bold",  # green
+        "status.inactive": "#999999",  # gray
+        "status.time": "#0066cc",  # blue
+        "status.session": "#6f42c1",  # purple
+        "status.agent": "#fd7e14",  # orange
     }
 
     @classmethod
@@ -108,7 +101,7 @@ class ThemeConfig:
                     "bottom-toolbar.info": "#ADD8E6 on #004488",
                 }
             )
-        else: # UITheme.LIGHT
+        else:  # UITheme.LIGHT
             return Theme(
                 {
                     "info": "green",
@@ -136,7 +129,9 @@ class StatusBar:
         self.theme = theme
         self.session_start_time = datetime.now()
 
-    def get_status_segments(self, agent_name: str, session_id: str) -> list[tuple[str, str]]:
+    def get_status_segments(
+        self, agent_name: str, session_id: str
+    ) -> list[tuple[str, str]]:
         """Get status bar segments as (content, style) tuples."""
         now = datetime.now()
         uptime = now - self.session_start_time
@@ -166,7 +161,7 @@ class StatusBar:
         shortcuts = [
             ("Enter", "submit"),
             ("Alt+Enter", "multi-line"),
-            ("Ctrl+D", "exit"), 
+            ("Ctrl+D", "exit"),
             ("Ctrl+L", "clear"),
             ("Tab", "complete"),
         ]
@@ -174,7 +169,7 @@ class StatusBar:
         shortcuts_text = " | ".join([f"{key}:{action}" for key, action in shortcuts])
         toolbar_parts.append(f" | 💡 {shortcuts_text}")
 
-        return ''.join(toolbar_parts)
+        return "".join(toolbar_parts)
 
 
 # def get_cli_instance(theme: Optional[str] = None):
