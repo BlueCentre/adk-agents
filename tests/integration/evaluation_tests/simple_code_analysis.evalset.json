@@ -1,0 +1,61 @@
+[
+  {
+    "query": "Analyze the structure of this project",
+    "expected_tool_use": [
+      {
+        "tool_name": "list_dir_tool",
+        "tool_input": {
+          "path": "."
+        }
+      },
+      {
+        "tool_name": "read_file_tool", 
+        "tool_input": {
+          "path": "pyproject.toml"
+        }
+      }
+    ],
+    "expected_intermediate_agent_responses": [
+      "Let me analyze the project structure by examining the directory contents and configuration files."
+    ],
+    "reference": "This project is a Python-based ADK agents implementation with a modular structure. The main components include agent implementations in the `agents/` directory, CLI tools in `src/wrapper/adk/cli/`, and comprehensive test suites in `tests/`. The project uses UV for dependency management and includes both devops and software engineer agents with specialized sub-agents."
+  },
+  {
+    "query": "Find all Python files in the project",
+    "expected_tool_use": [
+      {
+        "tool_name": "codebase_search_tool",
+        "tool_input": {
+          "query": "python files *.py",
+          "file_pattern": "*.py"
+        }
+      }
+    ],
+    "expected_intermediate_agent_responses": [
+      "I'll search for Python files throughout the codebase to give you a comprehensive overview."
+    ],
+    "reference": "The project contains numerous Python files organized in several key directories: agent implementations in `agents/`, CLI and wrapper code in `src/wrapper/adk/`, test files in `tests/`, and various utility modules. The main entry points include agent definitions, CLI tools, and comprehensive test suites for integration and unit testing."
+  },
+  {
+    "query": "What testing frameworks are used in this project?",
+    "expected_tool_use": [
+      {
+        "tool_name": "read_file_tool",
+        "tool_input": {
+          "path": "pyproject.toml"
+        }
+      },
+      {
+        "tool_name": "codebase_search_tool",
+        "tool_input": {
+          "query": "pytest test framework imports",
+          "file_pattern": "*.py"
+        }
+      }
+    ],
+    "expected_intermediate_agent_responses": [
+      "Let me check the project configuration and test files to identify the testing frameworks in use."
+    ],
+    "reference": "This project uses pytest as its primary testing framework, with additional testing utilities including pytest-asyncio for async testing, pytest-cov for coverage reporting, and custom test fixtures. The test suite is organized into unit, integration, and end-to-end tests with comprehensive coverage configuration."
+  }
+] 

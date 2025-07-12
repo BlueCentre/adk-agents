@@ -172,6 +172,47 @@ class IntegrationTestRunner:
             )
         )
 
+        # Phase 1.6: ADK Evaluation Pattern Tests
+        self.test_suites.append(
+            TestSuite(
+                name="ADK Evaluation Pattern Tests",
+                description="Official Google ADK evaluation-based integration tests",
+                tests=[
+                    "tests/integration/test_adk_evaluation_patterns.py::TestADKEvaluationPatterns::test_agent_structure_evaluation",
+                    "tests/integration/test_adk_evaluation_patterns.py::TestADKEvaluationPatterns::test_evaluation_test_files_exist",
+                    "tests/integration/test_adk_evaluation_patterns.py::TestADKEvaluationPatterns::test_evaluation_test_structure",
+                    "tests/integration/test_adk_evaluation_patterns.py::TestADKEvaluationPatterns::test_evaluation_config_validation",
+                    "tests/integration/test_adk_evaluation_patterns.py::TestADKEvaluationPatterns::test_evaluation_scenarios_content",
+                    "tests/integration/test_adk_evaluation_patterns.py::TestADKEvaluationPatterns::test_tool_names_match_agent_tools",
+                    "tests/integration/test_adk_evaluation_patterns.py::TestADKEvaluationPatterns::test_evaluation_pattern_completeness",
+                    "tests/integration/test_adk_evaluation_patterns.py::TestADKEvaluationPatterns::test_adk_evaluation_framework_readiness",
+                    "tests/integration/test_adk_evaluation_patterns.py::TestADKEvaluationPatterns::test_future_evaluation_expansion_points",
+                ],
+            )
+        )
+
+        # Phase 1.7: Multi-Agent Coordination Evaluation Tests
+        self.test_suites.append(
+            TestSuite(
+                name="Multi-Agent Coordination Evaluation Tests",
+                description="Evaluation-based tests for multi-agent coordination patterns following ADK evaluation framework",
+                tests=[
+                    "tests/integration/test_adk_evaluation_patterns.py::TestADKEvaluationPatterns::test_multi_agent_coordination_evaluation",
+                ]
+            )
+        )
+        
+        # Phase 1.8: Agent Memory and Persistence Evaluation Tests
+        self.test_suites.append(
+            TestSuite(
+                name="Agent Memory and Persistence Evaluation Tests", 
+                description="Evaluation-based tests for agent memory and persistence mechanisms following ADK evaluation framework",
+                tests=[
+                    "tests/integration/test_adk_evaluation_patterns.py::TestADKEvaluationPatterns::test_agent_memory_persistence_evaluation",
+                ]
+            )
+        )
+
         # Phase 2: Core Integration Tests
         self.test_suites.append(
             TestSuite(

@@ -1,0 +1,63 @@
+[
+  {
+    "query": "Search for all configuration files in the project",
+    "expected_tool_use": [
+      {
+        "tool_name": "codebase_search_tool",
+        "tool_input": {
+          "query": "configuration files config pyproject.toml",
+          "file_pattern": "*.toml"
+        }
+      }
+    ],
+    "expected_intermediate_agent_responses": [
+      "I'll search for configuration files throughout the codebase."
+    ],
+    "reference": "The project contains several configuration files including pyproject.toml for Python packaging and dependencies, and various configuration files for different tools and services. The main configuration is in pyproject.toml which defines the project metadata, dependencies, and tool configurations."
+  },
+  {
+    "query": "List all files in the agents directory",
+    "expected_tool_use": [
+      {
+        "tool_name": "list_dir_tool",
+        "tool_input": {
+          "path": "agents"
+        }
+      }
+    ],
+    "expected_intermediate_agent_responses": [
+      "I'll list the contents of the agents directory to show its structure."
+    ],
+    "reference": "The agents directory contains the main agent implementations including devops and software_engineer subdirectories. Each subdirectory contains the agent implementation files, sub-agents, tools, and configuration files. The structure is organized to provide clear separation between different agent types and their specialized capabilities."
+  },
+  {
+    "query": "Check the current working directory",
+    "expected_tool_use": [
+      {
+        "tool_name": "execute_shell_command_tool",
+        "tool_input": {
+          "command": "pwd"
+        }
+      }
+    ],
+    "expected_intermediate_agent_responses": [
+      "I'll check the current working directory using a shell command."
+    ],
+    "reference": "The current working directory is /Users/james/Workspace/gh/lab/adk-agents, which is the root of the ADK agents project. This provides the base path for all file operations and tool executions within the project."
+  },
+  {
+    "query": "Find information about ADK framework",
+    "expected_tool_use": [
+      {
+        "tool_name": "google_search_grounding",
+        "tool_input": {
+          "query": "Google ADK Agent Development Kit framework"
+        }
+      }
+    ],
+    "expected_intermediate_agent_responses": [
+      "I'll search for information about the ADK framework to provide you with comprehensive details."
+    ],
+    "reference": "The Google Agent Development Kit (ADK) is an open-source Python framework for building, evaluating, and deploying AI agents. It provides a code-first approach with flexible orchestration, multi-agent systems, rich tool ecosystems, and deployment capabilities. ADK is optimized for Gemini models but supports other LLMs through LiteLLM integration."
+  }
+] 

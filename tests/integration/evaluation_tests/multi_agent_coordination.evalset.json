@@ -1,0 +1,230 @@
+{
+  "test_name": "Multi-Agent Coordination Evaluation",
+  "description": "Evaluation scenarios for multi-agent coordination patterns including workflow orchestration, state management, and collaborative problem-solving",
+  "version": "1.0.0",
+  "test_scenarios": [
+    {
+      "scenario_id": "workflow_orchestration_basic",
+      "description": "Test basic workflow orchestration between multiple agents",
+      "query": "I need to implement a new user authentication feature. Please coordinate between design, development, and testing teams to deliver this feature.",
+      "expected_tool_use": [
+        {
+          "tool_name": "workflow_orchestrator",
+          "inputs": {
+            "workflow_type": "feature_development",
+            "agents_required": ["design_pattern_agent", "code_review_agent", "testing_agent"],
+            "coordination_strategy": "sequential_with_feedback"
+          }
+        }
+      ],
+      "expected_intermediate_agent_responses": [
+        {
+          "agent_type": "design_pattern_agent",
+          "response_pattern": "authentication architecture design",
+          "coordination_actions": ["state_update", "next_agent_notification"]
+        },
+        {
+          "agent_type": "code_review_agent", 
+          "response_pattern": "implementation review feedback",
+          "coordination_actions": ["quality_validation", "testing_handoff"]
+        },
+        {
+          "agent_type": "testing_agent",
+          "response_pattern": "test strategy and execution",
+          "coordination_actions": ["validation_complete", "workflow_finalization"]
+        }
+      ],
+      "reference": "Workflow should demonstrate proper agent handoffs, state sharing, and collaborative completion of complex multi-step task"
+    },
+    {
+      "scenario_id": "parallel_coordination",
+      "description": "Test parallel coordination where multiple agents work simultaneously",
+      "query": "Analyze this codebase for security vulnerabilities, performance issues, and code quality problems simultaneously.",
+      "expected_tool_use": [
+        {
+          "tool_name": "parallel_coordinator",
+          "inputs": {
+            "coordination_type": "parallel_execution",
+            "agents": ["security_agent", "performance_agent", "quality_agent"],
+            "shared_context": "codebase_analysis",
+            "aggregation_strategy": "merge_results"
+          }
+        }
+      ],
+      "expected_intermediate_agent_responses": [
+        {
+          "agent_type": "security_agent",
+          "response_pattern": "security vulnerability analysis",
+          "coordination_actions": ["independent_analysis", "result_sharing"]
+        },
+        {
+          "agent_type": "performance_agent",
+          "response_pattern": "performance bottleneck identification", 
+          "coordination_actions": ["concurrent_analysis", "metrics_sharing"]
+        },
+        {
+          "agent_type": "quality_agent",
+          "response_pattern": "code quality assessment",
+          "coordination_actions": ["quality_metrics", "recommendation_synthesis"]
+        }
+      ],
+      "reference": "Agents should work independently but share context and aggregate results effectively"
+    },
+    {
+      "scenario_id": "hierarchical_coordination",
+      "description": "Test hierarchical coordination with parent-child agent relationships",
+      "query": "I need to refactor this legacy system. Please coordinate a comprehensive refactoring plan with specialized teams.",
+      "expected_tool_use": [
+        {
+          "tool_name": "hierarchical_coordinator",
+          "inputs": {
+            "parent_agent": "refactoring_coordinator",
+            "child_agents": ["architecture_agent", "migration_agent", "testing_agent"],
+            "hierarchy_type": "delegation_with_oversight",
+            "communication_protocol": "parent_child_feedback"
+          }
+        }
+      ],
+      "expected_intermediate_agent_responses": [
+        {
+          "agent_type": "refactoring_coordinator",
+          "response_pattern": "overall refactoring strategy",
+          "coordination_actions": ["task_delegation", "progress_monitoring", "integration_oversight"]
+        },
+        {
+          "agent_type": "architecture_agent",
+          "response_pattern": "architectural improvement plan",
+          "coordination_actions": ["detailed_analysis", "parent_reporting", "peer_coordination"]
+        },
+        {
+          "agent_type": "migration_agent",
+          "response_pattern": "data migration strategy",
+          "coordination_actions": ["dependency_analysis", "status_updates", "risk_assessment"]
+        }
+      ],
+      "reference": "Hierarchical structure should maintain clear parent-child relationships with proper delegation and oversight"
+    },
+    {
+      "scenario_id": "shared_state_management",
+      "description": "Test shared state management across multiple coordinating agents",
+      "query": "Track the progress of implementing a microservices architecture conversion across multiple development teams.",
+      "expected_tool_use": [
+        {
+          "tool_name": "shared_state_manager",
+          "inputs": {
+            "state_type": "project_progress_tracking",
+            "participating_agents": ["frontend_team", "backend_team", "devops_team"],
+            "state_schema": "microservices_conversion_state",
+            "synchronization_strategy": "real_time_updates"
+          }
+        }
+      ],
+      "expected_intermediate_agent_responses": [
+        {
+          "agent_type": "frontend_team",
+          "response_pattern": "frontend service decomposition progress",
+          "coordination_actions": ["state_update", "dependency_notification", "progress_broadcast"]
+        },
+        {
+          "agent_type": "backend_team", 
+          "response_pattern": "backend service implementation status",
+          "coordination_actions": ["state_synchronization", "integration_coordination", "milestone_reporting"]
+        },
+        {
+          "agent_type": "devops_team",
+          "response_pattern": "infrastructure and deployment readiness",
+          "coordination_actions": ["deployment_state_update", "cross_team_coordination", "final_integration"]
+        }
+      ],
+      "reference": "Shared state should be consistently updated and accessible across all coordinating agents"
+    },
+    {
+      "scenario_id": "conflict_resolution",
+      "description": "Test coordination when agents have conflicting recommendations",
+      "query": "Design a database schema for our e-commerce platform. I need input from performance, security, and development teams.",
+      "expected_tool_use": [
+        {
+          "tool_name": "conflict_resolver",
+          "inputs": {
+            "coordination_type": "consensus_building",
+            "agents_with_conflicts": ["performance_agent", "security_agent", "development_agent"],
+            "resolution_strategy": "weighted_consensus",
+            "conflict_areas": ["indexing_strategy", "data_encryption", "schema_complexity"]
+          }
+        }
+      ],
+      "expected_intermediate_agent_responses": [
+        {
+          "agent_type": "performance_agent",
+          "response_pattern": "performance-optimized schema design",
+          "coordination_actions": ["performance_requirements", "conflict_identification", "compromise_negotiation"]
+        },
+        {
+          "agent_type": "security_agent",
+          "response_pattern": "security-focused schema recommendations",
+          "coordination_actions": ["security_constraints", "conflict_articulation", "alternative_proposals"]
+        },
+        {
+          "agent_type": "development_agent",
+          "response_pattern": "development-friendly schema approach",
+          "coordination_actions": ["usability_concerns", "integration_assessment", "consensus_building"]
+        }
+      ],
+      "reference": "Coordination should identify conflicts and facilitate resolution through structured negotiation and compromise"
+    },
+    {
+      "scenario_id": "result_aggregation",
+      "description": "Test result aggregation from multiple coordinating agents",
+      "query": "Conduct a comprehensive code review of our main application covering all aspects of code quality.",
+      "expected_tool_use": [
+        {
+          "tool_name": "result_aggregator",
+          "inputs": {
+            "aggregation_type": "comprehensive_code_review",
+            "contributing_agents": ["syntax_reviewer", "architecture_reviewer", "security_reviewer", "performance_reviewer"],
+            "aggregation_strategy": "weighted_scoring_with_priorities",
+            "output_format": "unified_report"
+          }
+        }
+      ],
+      "expected_intermediate_agent_responses": [
+        {
+          "agent_type": "syntax_reviewer",
+          "response_pattern": "syntax and style analysis",
+          "coordination_actions": ["detailed_findings", "scoring_contribution", "recommendation_input"]
+        },
+        {
+          "agent_type": "architecture_reviewer",
+          "response_pattern": "architectural pattern assessment",
+          "coordination_actions": ["structural_analysis", "design_evaluation", "improvement_suggestions"]
+        },
+        {
+          "agent_type": "security_reviewer",
+          "response_pattern": "security vulnerability identification",
+          "coordination_actions": ["risk_assessment", "priority_classification", "mitigation_recommendations"]
+        },
+        {
+          "agent_type": "performance_reviewer",
+          "response_pattern": "performance bottleneck analysis",
+          "coordination_actions": ["optimization_opportunities", "impact_assessment", "implementation_priorities"]
+        }
+      ],
+      "reference": "Results should be effectively aggregated into a cohesive, actionable report that synthesizes all agent contributions"
+    }
+  ],
+  "coordination_patterns": [
+    "workflow_orchestration",
+    "parallel_coordination", 
+    "hierarchical_delegation",
+    "shared_state_management",
+    "conflict_resolution",
+    "result_aggregation"
+  ],
+  "evaluation_criteria": {
+    "agent_communication": "Agents should communicate effectively through defined protocols",
+    "state_consistency": "Shared state should remain consistent across all agents",
+    "coordination_efficiency": "Coordination should minimize redundancy and maximize collaboration",
+    "conflict_handling": "Conflicts should be identified and resolved constructively",
+    "result_quality": "Coordinated results should exceed individual agent capabilities"
+  }
+} 
