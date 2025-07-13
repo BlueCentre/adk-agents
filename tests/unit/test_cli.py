@@ -84,6 +84,7 @@ class TestRunInputFile:
         mock_runner = Mock()
         mock_runner_class.return_value = mock_runner
         mock_runner.close = AsyncMock()
+
         # Mock async generator for runner.run_async
         async def mock_run_async(*args, **kwargs):
             mock_event = Mock()
@@ -153,7 +154,9 @@ class TestRunInputFile:
     @pytest.mark.asyncio
     async def test_run_input_file_validation_error(self):
         """Test run_input_file with validation error."""
-        with patch("builtins.open", new_callable=mock_open, read_data='{"invalid": "data"}'):
+        with patch(
+            "builtins.open", new_callable=mock_open, read_data='{"invalid": "data"}'
+        ):
             with pytest.raises(ValidationError):
                 await run_input_file(
                     app_name="test_app",
@@ -353,7 +356,9 @@ class TestSessionManagement:
         mock_session_class.model_validate_json.return_value = mock_loaded_session
 
         # Mock file content
-        session_data = {"events": [{"author": "user", "content": {"parts": [{"text": "Hello"}]}}]}
+        session_data = {
+            "events": [{"author": "user", "content": {"parts": [{"text": "Hello"}]}}]
+        }
         mock_file.return_value.read.return_value = json.dumps(session_data)
 
         await run_cli(
@@ -362,7 +367,9 @@ class TestSessionManagement:
         )
 
         # Verify session loading
-        mock_file.assert_called_once_with("/path/to/session.json", "r", encoding="utf-8")
+        mock_file.assert_called_once_with(
+            "/path/to/session.json", "r", encoding="utf-8"
+        )
         mock_session_class.model_validate_json.assert_called_once()
 
         # Verify events were echoed
@@ -429,9 +436,13 @@ class TestSessionManagement:
 
             # Verify session saving
             mock_input.assert_called_once_with("Session ID to save: ")
-            mock_file.assert_called_once_with("custom_session.session.json", "w", encoding="utf-8")
+            mock_file.assert_called_once_with(
+                "custom_session.session.json", "w", encoding="utf-8"
+            )
             mock_file().write.assert_called_once_with('{"session": "data"}')
-            mock_print.assert_called_with("Session saved to", "custom_session.session.json")
+            mock_print.assert_called_with(
+                "Session saved to", "custom_session.session.json"
+            )
 
     @pytest.mark.asyncio
     @patch("src.wrapper.adk.cli.cli.envs.load_dotenv_for_agent")
@@ -457,13 +468,13 @@ class TestSessionManagement:
         # Setup
         mock_agent = Mock()
         mock_agent.name = "TestAgent"
-        
+
         mock_session = Mock()
         mock_session.model_dump_json.return_value = '{"test": "session"}'
         mock_session.app_name = "test.agent"
-        mock_session.user_id = "test_user" 
+        mock_session.user_id = "test_user"
         mock_session.id = "test_session_id"
-        
+
         mock_session_service = Mock()
         mock_session_service.create_session = AsyncMock(return_value=mock_session)
         mock_session_service.get_session = AsyncMock(return_value=mock_session)
@@ -487,9 +498,11 @@ class TestSessionManagement:
         )
 
         # Verify session was saved to file
-        mock_file.assert_called_with('my_session_id.session.json', 'w', encoding='utf-8')
+        mock_file.assert_called_with(
+            "my_session_id.session.json", "w", encoding="utf-8"
+        )
         mock_file().write.assert_called_with('{"test": "session"}')
-        mock_print.assert_called_with('Session saved to', 'my_session_id.session.json')
+        mock_print.assert_called_with("Session saved to", "my_session_id.session.json")
 
 
 class TestInteractiveMode:
@@ -503,7 +516,6 @@ class TestInteractiveMode:
     async def test_interactive_special_commands(
         self,
         mock_patch_stdout,
-        
         mock_runner_class,
         mock_console_class,
         mock_get_cli_instance,
@@ -571,7 +583,6 @@ class TestInteractiveMode:
     @patch("src.wrapper.adk.cli.cli.Runner")
     async def test_interactive_empty_query_handling(
         self,
-        
         mock_runner_class,
         mock_console_class,
         mock_get_cli_instance,
@@ -618,7 +629,6 @@ class TestInteractiveMode:
     @patch("src.wrapper.adk.cli.cli.Runner")
     async def test_interactive_fallback_mode_commands(
         self,
-        
         mock_runner_class,
         mock_console_class,
         mock_get_cli_instance,
@@ -661,7 +671,9 @@ class TestInteractiveMode:
             mock_console.print.assert_any_call(
                 "[warning]⚠️ Enhanced UI initialization failed: UI failed[/warning]"
             )
-            mock_console.print.assert_any_call("[info]Falling back to basic CLI mode...[/info]")
+            mock_console.print.assert_any_call(
+                "[info]Falling back to basic CLI mode...[/info]"
+            )
 
             # Verify console operations in fallback mode
             mock_console.clear.assert_called()
@@ -673,9 +685,7 @@ class TestTUIFunctionality:
     @pytest.mark.asyncio
     @patch("src.wrapper.adk.cli.cli.get_textual_cli_instance")
     @patch("src.wrapper.adk.cli.cli.Runner")
-    async def test_tui_callback_setup(
-        self, mock_runner_class, mock_get_textual_cli
-    ):
+    async def test_tui_callback_setup(self, mock_runner_class, mock_get_textual_cli):
         """Test TUI callback setup and enhancement logic."""
         # Setup
         mock_agent = Mock()
@@ -789,7 +799,7 @@ class TestTUIFunctionality:
         mock_agent.name = "TestAgent"
         mock_agent.description = "Test Description"
         mock_agent.tools = ["tool1"]
-        
+
         # Agent has existing callbacks
         original_before = AsyncMock()
         original_after = AsyncMock()
@@ -825,7 +835,7 @@ class TestTUIFunctionality:
         # Verify callbacks were enhanced (different callable objects)
         assert callable(mock_agent.before_tool_callback)
         assert callable(mock_agent.after_tool_callback)
-        
+
         # Since we're testing in an async context, just verify the callbacks
         # were set and then restored - the actual restoration happens
         # within the TUI function itself
@@ -837,7 +847,9 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     @patch("src.wrapper.adk.cli.cli.envs.load_dotenv_for_agent")
     @patch("src.wrapper.adk.cli.cli.AgentLoader")
-    async def test_run_cli_agent_load_error(self, mock_agent_loader_class, mock_load_dotenv):
+    async def test_run_cli_agent_load_error(
+        self, mock_agent_loader_class, mock_load_dotenv
+    ):
         """Test run_cli when agent loading fails."""
         mock_agent_loader = Mock()
         mock_agent_loader.load_agent.side_effect = Exception("Agent not found")
@@ -857,7 +869,6 @@ class TestErrorHandling:
     @patch("src.wrapper.adk.cli.cli.Runner")
     async def test_interactive_keyboard_interrupt_handling(
         self,
-        
         mock_runner_class,
         mock_console_class,
         mock_get_cli_instance,
@@ -904,7 +915,6 @@ class TestErrorHandling:
     @patch("src.wrapper.adk.cli.cli.Runner")
     async def test_interactive_eof_handling(
         self,
-        
         mock_runner_class,
         mock_console_class,
         mock_get_cli_instance,
@@ -953,7 +963,6 @@ class TestErrorHandling:
     async def test_interactive_prompt_error_fallback(
         self,
         mock_input,
-        
         mock_runner_class,
         mock_console_class,
         mock_get_cli_instance,
@@ -993,11 +1002,15 @@ class TestErrorHandling:
         )
 
         # Verify error messages were printed
-        mock_cli.console.print.assert_any_call("\n[red]❌ Prompt error: Prompt failed[/red]")
+        mock_cli.console.print.assert_any_call(
+            "\n[red]❌ Prompt error: Prompt failed[/red]"
+        )
         mock_cli.console.print.assert_any_call(
             "[yellow]💡 Try using a simpler terminal or check your environment.[/yellow]"
         )
-        mock_cli.console.print.assert_any_call("[blue]Falling back to basic input mode...[/blue]")
+        mock_cli.console.print.assert_any_call(
+            "[blue]Falling back to basic input mode...[/blue]"
+        )
 
         # Verify input() was called as fallback
         mock_input.assert_called_with("😜 user > ")
@@ -1043,7 +1056,9 @@ class TestEdgeCases:
         mock_credential_service = Mock()
         mock_credential_service_class.return_value = mock_credential_service
 
-        with patch("src.wrapper.adk.cli.cli.run_interactively") as mock_run_interactively:
+        with patch(
+            "src.wrapper.adk.cli.cli.run_interactively"
+        ) as mock_run_interactively:
             with patch("src.wrapper.adk.cli.cli.click.echo") as mock_echo:
                 await run_cli(
                     agent_module_name="test_agent",
@@ -1053,7 +1068,9 @@ class TestEdgeCases:
                 )
 
                 # Verify welcome message
-                mock_echo.assert_called_with("Running agent TestAgent, type exit to exit.")
+                mock_echo.assert_called_with(
+                    "Running agent TestAgent, type exit to exit."
+                )
 
                 # Verify interactive mode was called
                 mock_run_interactively.assert_called_once()
@@ -1100,12 +1117,12 @@ class TestInteractiveAgentResponses:
         mock_event = Mock()
         mock_event.author = "agent"
         mock_event.content = Mock()
-        
+
         # Create mock parts - one regular, one thought
         regular_part = Mock()
         regular_part.text = "This is regular response"
         regular_part.thought = False
-        
+
         thought_part = Mock()
         thought_part.text = "This is agent thinking"
         thought_part.thought = True
@@ -1124,7 +1141,7 @@ class TestInteractiveAgentResponses:
 
         # Mock CLI to have agent thought enabled
         mock_cli.agent_thought_enabled = True
-        setattr(mock_cli, 'agent_thought_enabled', True)
+        setattr(mock_cli, "agent_thought_enabled", True)
 
         await run_interactively(
             root_agent=mock_agent,
@@ -1135,8 +1152,9 @@ class TestInteractiveAgentResponses:
         )
 
         # Verify that both regular content and thoughts were processed
-        mock_cli.format_agent_response.assert_called_with("This is regular response", "agent")
-        mock_cli.console.print.assert_called()
+        mock_cli.add_agent_output.assert_called_with(
+            "This is regular response", "agent"
+        )
         mock_cli.add_agent_thought.assert_called_with("This is agent thinking")
 
     @pytest.mark.asyncio
@@ -1172,11 +1190,11 @@ class TestInteractiveAgentResponses:
         mock_event = Mock()
         mock_event.author = "agent"
         mock_event.content = Mock()
-        
+
         regular_part = Mock()
         regular_part.text = "This is regular response"
         regular_part.thought = False
-        
+
         mock_event.content.parts = [regular_part]
 
         # Mock prompt session for fallback mode
@@ -1200,21 +1218,19 @@ class TestInteractiveAgentResponses:
             )
 
             # Verify fallback console was used for agent output
-            mock_console.print.assert_any_call("[green]agent[/green]: This is regular response")
+            mock_console.print.assert_any_call("agent > This is regular response")
 
     @pytest.mark.asyncio
     @patch("src.wrapper.adk.cli.cli.get_textual_cli_instance")
     @patch("src.wrapper.adk.cli.cli.Runner")
-    async def test_tui_error_handling(
-        self, mock_runner_class, mock_get_textual_cli
-    ):
+    async def test_tui_error_handling(self, mock_runner_class, mock_get_textual_cli):
         """Test error handling in TUI mode."""
         # Setup
         mock_agent = Mock()
         mock_agent.name = "TestAgent"
         mock_agent.description = "Test Description"
         mock_agent.tools = ["tool1"]
-        
+
         # Mock that agent does not have callback attributes initially
         mock_agent.before_tool_callback = None
         mock_agent.after_tool_callback = None
@@ -1294,13 +1310,13 @@ class TestSessionSaving:
         # Setup
         mock_agent = Mock()
         mock_agent.name = "TestAgent"
-        
+
         mock_session = Mock()
         mock_session.model_dump_json.return_value = '{"test": "session"}'
         mock_session.app_name = "test.agent"
-        mock_session.user_id = "test_user" 
+        mock_session.user_id = "test_user"
         mock_session.id = "test_session_id"
-        
+
         mock_session_service = Mock()
         mock_session_service.create_session = AsyncMock(return_value=mock_session)
         mock_session_service.get_session = AsyncMock(return_value=mock_session)
@@ -1326,12 +1342,12 @@ class TestSessionSaving:
         # Verify session was created and interactively run
         mock_session_service.create_session.assert_called_once()
         mock_run_interactively.assert_called_once()
-        
+
         # Verify input was called for session ID
         mock_input.assert_called()
-        
+
         # Verify file was written (mocked)
-        mock_file.assert_called_with('.session.json', 'w', encoding='utf-8')
+        mock_file.assert_called_with(".session.json", "w", encoding="utf-8")
         mock_file().write.assert_called_with('{"test": "session"}')
 
     @pytest.mark.asyncio
@@ -1358,13 +1374,13 @@ class TestSessionSaving:
         # Setup
         mock_agent = Mock()
         mock_agent.name = "TestAgent"
-        
+
         mock_session = Mock()
         mock_session.model_dump_json.return_value = '{"test": "session"}'
         mock_session.app_name = "test.agent"
-        mock_session.user_id = "test_user" 
+        mock_session.user_id = "test_user"
         mock_session.id = "test_session_id"
-        
+
         mock_session_service = Mock()
         mock_session_service.create_session = AsyncMock(return_value=mock_session)
         mock_session_service.get_session = AsyncMock(return_value=mock_session)
@@ -1388,9 +1404,11 @@ class TestSessionSaving:
         )
 
         # Verify session was saved to file (mocked)
-        mock_file.assert_called_with('my_session_id.session.json', 'w', encoding='utf-8')
+        mock_file.assert_called_with(
+            "my_session_id.session.json", "w", encoding="utf-8"
+        )
         mock_file().write.assert_called_with('{"test": "session"}')
-        mock_print.assert_called_with('Session saved to', 'my_session_id.session.json')
+        mock_print.assert_called_with("Session saved to", "my_session_id.session.json")
 
 
 class TestTUIInterruptHandling:
@@ -1408,13 +1426,13 @@ class TestTUIInterruptHandling:
         mock_tui.display_agent_welcome = Mock()
         mock_tui.run_async = AsyncMock()
         mock_tui.add_output = Mock()
-        
+
         interrupt_callback = None
-        
+
         def capture_interrupt_callback(callback):
             nonlocal interrupt_callback
             interrupt_callback = callback
-            
+
         mock_tui.register_interrupt_callback.side_effect = capture_interrupt_callback
 
         mock_agent = Mock()
@@ -1429,12 +1447,14 @@ class TestTUIInterruptHandling:
         mock_session.user_id = "test_user"
         mock_session.id = "test_session"
 
-        with patch("src.wrapper.adk.cli.cli.get_textual_cli_instance", return_value=mock_tui):
+        with patch(
+            "src.wrapper.adk.cli.cli.get_textual_cli_instance", return_value=mock_tui
+        ):
             with patch("src.wrapper.adk.cli.cli.Runner") as mock_runner_class:
                 mock_runner = Mock()
                 mock_runner.close = AsyncMock()
                 mock_runner_class.return_value = mock_runner
-                
+
                 await run_interactively_with_tui(
                     root_agent=mock_agent,
                     artifact_service=Mock(),
@@ -1442,17 +1462,17 @@ class TestTUIInterruptHandling:
                     session_service=Mock(),
                     credential_service=Mock(),
                 )
-                
+
                 # Call the captured interrupt callback to cover line 390
                 if interrupt_callback:
                     await interrupt_callback()
-                    
+
                 # Verify the interrupt message was added
                 mock_tui.add_output.assert_any_call(
-                    "⏹️ Agent interruption requested", 
-                    author="System", 
-                    rich_format=True, 
-                    style="warning"
+                    "⏹️ Agent interruption requested",
+                    author="System",
+                    rich_format=True,
+                    style="warning",
                 )
 
 
@@ -1492,7 +1512,7 @@ class TestFallbackErrorHandling:
         with patch("prompt_toolkit.PromptSession") as mock_prompt_session_class:
             prompt_session = Mock()
             mock_prompt_session_class.return_value = prompt_session
-            
+
             # Simulate EOFError to trigger fallback error handling
             prompt_session.prompt_async = AsyncMock(side_effect=EOFError())
 

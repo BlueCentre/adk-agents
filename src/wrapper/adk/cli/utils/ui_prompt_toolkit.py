@@ -13,7 +13,9 @@ from prompt_toolkit.history import InMemoryHistory
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.styles import Style
 from rich.console import Console
+from rich.markdown import Markdown
 from rich.panel import Panel
+from rich.text import Text
 
 from .ui_common import StatusBar, ThemeConfig, UITheme
 from .ui_rich import RichRenderer
@@ -373,23 +375,18 @@ class EnhancedCLI:
         )
         self.console.print()
 
-    def format_agent_response(self, text: str, author: str) -> Panel:
-        """Format agent response with themed panel."""
-        # This method should now use rich_renderer to format the response
-        # and then return a Rich Panel object
-        # return self.rich_renderer.format_agent_response_panel(text, author)
-        return self.rich_renderer.format_agent_response(text, author)
+    # BEGIN: Used from cli.py
 
     def add_agent_output(self, text: str, author: str = "Agent"):
-        """Add agent output with the same Rich Panel formatting as EnhancedCLI."""
-        # Use the rich_renderer to format the response into a Panel
-        # panel = self.rich_renderer.format_agent_response_panel(text, author)
-        panel = self.rich_renderer.format_agent_response(text, author)
-
-        # Print the panel directly to console
-        self.console.print(panel)
+        """Add agent output with markdown rendering and proper wrapping."""
+        # Use format_message with markdown support enabled
+        formatted_message = self.rich_renderer.format_message(text, author, markdown=True)
+        
+        self.console.print(formatted_message, soft_wrap=True, overflow="fold")
 
     def add_agent_thought(self, text: str):
         """Add agent thought summaries to the thought display."""
         panel = self.rich_renderer.format_agent_thought(text)
-        self.console.print(panel)
+        self.console.print(panel, soft_wrap=True, overflow="fold")
+
+    # END: Used from cli.py

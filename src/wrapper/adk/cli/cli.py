@@ -229,14 +229,11 @@ async def run_interactively(
                 if regular_text := "".join(part.text or "" for part in regular_parts):
                     if regular_text.strip():
                         if not fallback_mode and cli:
-                            panel = cli.format_agent_response(
-                                regular_text, event.author
-                            )
-                            cli.console.print(panel)
+                            cli.add_agent_output(regular_text, event.author)
                         else:
                             # Simple output for fallback mode
                             console.print(
-                                f"[green]{event.author}[/green]: {regular_text}"
+                                f"{event.author} > {regular_text}"
                             )
 
                 # Handle thought content
