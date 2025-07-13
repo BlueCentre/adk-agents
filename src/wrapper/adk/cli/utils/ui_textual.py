@@ -50,7 +50,9 @@ class AgentTUI(App):
         Binding("ctrl+y", "toggle_agent_thought", "Toggle Thought", show=False),
         Binding("ctrl+l", "clear_output", "Clear Screen", show=False),
         Binding("ctrl+d", "quit", "Quit", show=False, priority=True),
-        Binding("ctrl+c", "interrupt_agent", "Interrupt Agent", show=False, priority=True),
+        Binding(
+            "ctrl+c", "interrupt_agent", "Interrupt Agent", show=False, priority=True
+        ),
         Binding("up", "history_previous", "Previous Command", show=False),
         Binding("down", "history_next", "Next Command", show=False),
         Binding("ctrl+p", "history_previous", "Previous Command", show=False),
@@ -67,34 +69,69 @@ class AgentTUI(App):
     user_input_history_index: reactive[int] = reactive(-1)
     user_categorized_commands: reactive[dict[str, list[str]]] = reactive(
         {
-            '🚀 Infrastructure & DevOps': [
-                'create a dockerfile', 'create docker-compose.yml', 'write kubernetes manifests',
-                'create helm chart for', 'write terraform code for', 'setup CI/CD pipeline',
-                'configure github actions', 'setup monitoring for', 'add logging to',
-                'create health checks', 'setup load balancer', 'configure autoscaling',
-                'list the k8s clusters and indicate the current one',
-                'list all the k8s user applications in non-system namespaces',
+            "🚀 Infrastructure & DevOps": [
+                "create a dockerfile",
+                "create docker-compose.yml",
+                "write kubernetes manifests",
+                "create helm chart for",
+                "write terraform code for",
+                "setup CI/CD pipeline",
+                "configure github actions",
+                "setup monitoring for",
+                "add logging to",
+                "create health checks",
+                "setup load balancer",
+                "configure autoscaling",
+                "list the k8s clusters and indicate the current one",
+                "list all the k8s user applications in non-system namespaces",
             ],
-            '🔍 Code Analysis': [
-                'analyze this code', 'review the codebase', 'find security vulnerabilities', 
-                'optimize performance of', 'refactor this function', 'add error handling to',
-                'add type hints to', 'add documentation for', 'write unit tests for',
-                'write integration tests for', 'fix the bug in', 'debug this issue',
+            "🔍 Code Analysis": [
+                "analyze this code",
+                "review the codebase",
+                "find security vulnerabilities",
+                "optimize performance of",
+                "refactor this function",
+                "add error handling to",
+                "add type hints to",
+                "add documentation for",
+                "write unit tests for",
+                "write integration tests for",
+                "fix the bug in",
+                "debug this issue",
             ],
-            '📦 Deployment & Operations': [
-                'deploy to production', 'deploy to staging', 'rollback deployment',
-                'check service status', 'troubleshoot deployment', 'scale the service',
-                'update dependencies', 'backup the database', 'restore from backup',
+            "📦 Deployment & Operations": [
+                "deploy to production",
+                "deploy to staging",
+                "rollback deployment",
+                "check service status",
+                "troubleshoot deployment",
+                "scale the service",
+                "update dependencies",
+                "backup the database",
+                "restore from backup",
             ],
-            '🔧 Development Workflow': [
-                'create new feature branch', 'merge pull request', 'tag new release',
-                'update changelog', 'bump version number', 'execute regression tests',
-                'run security scan', 'run performance tests', 'generate documentation',
-                'summarize git status & diff using https://www.conventionalcommits.org/en/v1.0.0/#specification, commit, and push changes',
-                'push changes',
+            "🔧 Development Workflow": [
+                "create new feature branch",
+                "merge pull request",
+                "tag new release",
+                "update changelog",
+                "bump version number",
+                "execute regression tests",
+                "run security scan",
+                "run performance tests",
+                "generate documentation",
+                "summarize git status & diff using https://www.conventionalcommits.org/en/v1.0.0/#specification, commit, and push changes",
+                "push changes",
             ],
-            '⚙️ CLI Commands': [
-                'exit', 'quit', 'bye', 'help', 'clear', 'theme toggle', 'theme dark', 'theme light',
+            "⚙️ CLI Commands": [
+                "exit",
+                "quit",
+                "bye",
+                "help",
+                "clear",
+                "theme toggle",
+                "theme dark",
+                "theme light",
             ],
         }
     )
@@ -121,28 +158,39 @@ class AgentTUI(App):
     _thinking_frames: reactive[list[str]] = reactive(["🤔", "💭", "🧠", "⚡"])
     _thinking_timer: reactive[Optional[asyncio.Task]] = reactive(None)
 
-
-    def __init__(self, theme: Optional[UITheme] = None, rich_renderer: Optional[RichRenderer] = None, *args, **kwargs):
+    def __init__(
+        self,
+        theme: Optional[UITheme] = None,
+        rich_renderer: Optional[RichRenderer] = None,
+        *args,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
         self._current_ui_theme = theme or UITheme.DARK
         self.theme_config = ThemeConfig.get_theme_config(self._current_ui_theme)
         self.rich_renderer = rich_renderer or RichRenderer(self._current_ui_theme)
-        self.console = Console(theme=self.rich_renderer.rich_theme, force_interactive=True)
+        self.console = Console(
+            theme=self.rich_renderer.rich_theme,
+            force_interactive=True,
+        )
         self.current_agent_task: Optional[asyncio.Task] = None
         self.input_callback: Optional[Callable[[str], Awaitable[Any]]] = None
         self.interrupt_callback: Optional[Callable[[], Awaitable[Any]]] = None
-
 
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""
         with Vertical():
             with Horizontal(id="main-content"):
                 output_log = RichLog(id="output-log", classes="output-pane")
-                output_log.border_title = f"🤖 {self.agent_name}" if self.agent_name else "🤖 Agent Output"
+                output_log.border_title = (
+                    f"🤖 {self.agent_name}" if self.agent_name else "🤖 Agent Output"
+                )
                 # output_log.border_subtitle = f"🧑 Session: {self.session_id}" if self.session_id else "🧑 Session: Unknown"
                 # Use same status logic as status bar
                 if self.agent_thinking:
-                    thinking_icon = self._thinking_frames[self._thinking_animation_index % len(self._thinking_frames)]
+                    thinking_icon = self._thinking_frames[
+                        self._thinking_animation_index % len(self._thinking_frames)
+                    ]
                     status = f"{thinking_icon} Thinking"
                 elif self.agent_running:
                     status = "🟢 Running"
@@ -160,7 +208,9 @@ class AgentTUI(App):
                     id="input-area",
                     classes="input-pane",
                 )
-                input_widget.border_title = "🧑 User Input (Multi-line) - Ctrl+S to submit, Enter for new line"
+                input_widget.border_title = (
+                    "🧑 User Input (Multi-line) - Ctrl+S to submit, Enter for new line"
+                )
                 yield input_widget
             else:
                 input_widget = CategorizedInput(
@@ -172,27 +222,30 @@ class AgentTUI(App):
                 yield input_widget
             yield Static("", id="status-bar")
 
-
     def on_mount(self) -> None:
         """Called when app is mounted."""
         self.theme = "flexoki"
-        self.set_interval(5.0, self._update_status)  # Reduced from 1.0 to 5.0 seconds to prevent mouse flickering
+        self.set_interval(
+            5.0, self._update_status
+        )  # Reduced from 1.0 to 5.0 seconds to prevent mouse flickering
         self.query_one("#input-area").focus()
         import uuid
+
         self.session_id = str(uuid.uuid4())[:8]
 
         self.add_class(self._current_ui_theme.value, "theme-mode")
-        
+
         # Display welcome message if agent info is available
-        if hasattr(self, '_pending_welcome_info'):
+        if hasattr(self, "_pending_welcome_info"):
             self.display_agent_welcome(*self._pending_welcome_info)
-            delattr(self, '_pending_welcome_info')
-            
+            delattr(self, "_pending_welcome_info")
+
         # Schedule footer update after mount is complete
         self.call_after_refresh(self._update_status)
 
-
-    def display_agent_welcome(self, agent_name: str, agent_description: str = "", tools: Optional[list] = None):
+    def display_agent_welcome(
+        self, agent_name: str, agent_description: str = "", tools: Optional[list] = None
+    ):
         """Display a comprehensive welcome message."""
         # If the app is not yet mounted, store the info for later
         try:
@@ -200,7 +253,7 @@ class AgentTUI(App):
         except:
             self._pending_welcome_info = (agent_name, agent_description, tools)
             return
-            
+
         self.agent_name = agent_name
         theme_indicator = "🌒" if self._current_ui_theme == UITheme.DARK else "🌞"
         thought_status = "ON" if self.agent_thought_enabled else "OFF"
@@ -219,16 +272,16 @@ class AgentTUI(App):
 [dim]💡 Use 'help' command or Ctrl+T (theme), Ctrl+Y (thoughts), Ctrl+L (clear), Ctrl+D (quit)[/dim]
 """)
 
-#         welcome_msg_rich.append(f"""
-# [bold]Theme:[/bold] {theme_indicator} {self._current_ui_theme.value.title()}
-# [bold]Session started:[/bold] {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+        #         welcome_msg_rich.append(f"""
+        # [bold]Theme:[/bold] {theme_indicator} {self._current_ui_theme.value.title()}
+        # [bold]Session started:[/bold] {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
-# [bold green]🚀 Ready to assist! Type your message below and press Enter.[/bold green]
-# [dim]💡 Use 'help' command or Ctrl+T (theme), Ctrl+Y (thoughts), Ctrl+L (clear), Ctrl+D (quit)[/dim]
-# """)
+        # [bold green]🚀 Ready to assist! Type your message below and press Enter.[/bold green]
+        # [dim]💡 Use 'help' command or Ctrl+T (theme), Ctrl+Y (thoughts), Ctrl+L (clear), Ctrl+D (quit)[/dim]
+        # """)
 
         self.add_output(welcome_msg_rich, rich_format=True)
-        
+
         # Update footer after setting agent name
         self._update_status()
 
@@ -286,7 +339,9 @@ class AgentTUI(App):
         try:
             # Determine status with thinking animation
             if self.agent_thinking:
-                thinking_icon = self._thinking_frames[self._thinking_animation_index % len(self._thinking_frames)]
+                thinking_icon = self._thinking_frames[
+                    self._thinking_animation_index % len(self._thinking_frames)
+                ]
                 status = f"{thinking_icon} Thinking"
             elif self.agent_running:
                 status = "🟢 Running"
@@ -329,7 +384,7 @@ class AgentTUI(App):
                 status_parts.append(f"Model: {self._model_name}")
 
             status_text = " | ".join(status_parts)
-            
+
             # Update the custom status bar
             status_bar_widget = self.query_one("#status-bar", Static)
             status_bar_widget.update(status_text)
@@ -341,7 +396,9 @@ class AgentTUI(App):
     def _animate_thinking(self) -> None:
         """Animate the thinking indicator."""
         if self.agent_thinking:
-            self._thinking_animation_index = (self._thinking_animation_index + 1) % len(self._thinking_frames)
+            self._thinking_animation_index = (self._thinking_animation_index + 1) % len(
+                self._thinking_frames
+            )
 
     def start_thinking(self) -> None:
         """Start the thinking animation."""
@@ -377,7 +434,9 @@ class AgentTUI(App):
             try:
                 output_log = self.query_one("#output-log", RichLog)
                 if self.agent_thinking:
-                    thinking_icon = self._thinking_frames[self._thinking_animation_index % len(self._thinking_frames)]
+                    thinking_icon = self._thinking_frames[
+                        self._thinking_animation_index % len(self._thinking_frames)
+                    ]
                     status = f"{thinking_icon} Thinking"
                 elif running:
                     status = "🟢 Running"
@@ -396,7 +455,9 @@ class AgentTUI(App):
             try:
                 output_log = self.query_one("#output-log", RichLog)
                 if thinking:
-                    thinking_icon = self._thinking_frames[self._thinking_animation_index % len(self._thinking_frames)]
+                    thinking_icon = self._thinking_frames[
+                        self._thinking_animation_index % len(self._thinking_frames)
+                    ]
                     status = f"{thinking_icon} Thinking"
                 elif self.agent_running:
                     status = "🟢 Running"
@@ -413,7 +474,9 @@ class AgentTUI(App):
             # Update the output panel border subtitle
             try:
                 output_log = self.query_one("#output-log", RichLog)
-                output_log.border_subtitle = f"🧑 Session: {session_id}" if session_id else "🧑 Session: Unknown"
+                output_log.border_subtitle = (
+                    f"🧑 Session: {session_id}" if session_id else "🧑 Session: Unknown"
+                )
             except:
                 # If the output log doesn't exist yet, ignore
                 pass
@@ -422,9 +485,9 @@ class AgentTUI(App):
         """Navigate to previous command in history."""
         if not self.user_input_history:
             return
-        
+
         input_widget = self.query_one("#input-area", CategorizedInput)
-        
+
         if self.user_input_history_index > 0:
             self.user_input_history_index -= 1
             input_widget.value = self.user_input_history[self.user_input_history_index]
@@ -439,9 +502,9 @@ class AgentTUI(App):
         """Navigate to next command in history."""
         if not self.user_input_history:
             return
-            
+
         input_widget = self.query_one("#input-area", CategorizedInput)
-        
+
         if self.user_input_history_index < len(self.user_input_history) - 1:
             self.user_input_history_index += 1
             input_widget.value = self.user_input_history[self.user_input_history_index]
@@ -459,14 +522,22 @@ class AgentTUI(App):
     def action_toggle_theme(self) -> None:
         """Toggle between light and dark themes."""
         self.remove_class(self._current_ui_theme.value)
-        self._current_ui_theme = UITheme.LIGHT if self._current_ui_theme == UITheme.DARK else UITheme.DARK
+        self._current_ui_theme = (
+            UITheme.LIGHT if self._current_ui_theme == UITheme.DARK else UITheme.DARK
+        )
         self.add_class(self._current_ui_theme.value)
         self.theme_config = ThemeConfig.get_theme_config(self._current_ui_theme)
         self.rich_renderer.theme = self._current_ui_theme
-        self.rich_renderer.rich_theme = ThemeConfig.get_rich_theme(self._current_ui_theme)
-        self.rich_renderer.console = Console(theme=self.rich_renderer.rich_theme, force_interactive=True)
+        self.rich_renderer.rich_theme = ThemeConfig.get_rich_theme(
+            self._current_ui_theme
+        )
+        self.rich_renderer.console = Console(
+            theme=self.rich_renderer.rich_theme, force_interactive=True
+        )
         theme_name = "🌒 Dark" if self._current_ui_theme == UITheme.DARK else "🌞 Light"
-        self.add_output(f"Switched to {theme_name} theme", rich_format=True, style="info")
+        self.add_output(
+            f"Switched to {theme_name} theme", rich_format=True, style="info"
+        )
 
     def action_toggle_agent_thought(self) -> None:
         """Toggle agent thought display."""
@@ -487,7 +558,11 @@ class AgentTUI(App):
                 main_content = self.query_one("#main-content")
                 main_content.mount(RichLog(id="event-log", classes="event-pane"))
 
-        self.add_output(f"Detailed pane display: {'ON' if self.agent_thought_enabled else 'OFF'}", rich_format=True, style="info")
+        self.add_output(
+            f"Detailed pane display: {'ON' if self.agent_thought_enabled else 'OFF'}",
+            rich_format=True,
+            style="info",
+        )
 
     def action_toggle_user_multiline_input(self) -> None:
         """Toggle between single-line input (CategorizedInput) and multi-line input (TextArea)."""
@@ -496,16 +571,16 @@ class AgentTUI(App):
         current_content = ""
         try:
             current_input = self.query_one("#input-area")
-            if hasattr(current_input, 'value'):
+            if hasattr(current_input, "value"):
                 current_content = current_input.value
-            elif hasattr(current_input, 'text'):
+            elif hasattr(current_input, "text"):
                 current_content = current_input.text
         except:
             pass
 
         # Toggle the mode
         self.user_multiline_input_enabled = not self.user_multiline_input_enabled
-        
+
         # Remove the current input widget and wait for it to be removed
         try:
             current_input = self.query_one("#input-area")
@@ -517,21 +592,29 @@ class AgentTUI(App):
         def create_and_mount_new_input():
             if self.user_multiline_input_enabled:
                 new_input = SubmittableTextArea(
-                    id="input-area",
-                    classes="input-pane",
-                    text=current_content
+                    id="input-area", classes="input-pane", text=current_content
                 )
-                new_input.border_title = "🧑 User Input (Multi-line) - Ctrl+S to submit, Enter for new line"
-                self.add_output("📝 Switched to multi-line input mode (Ctrl+S to submit, Enter for new line)", rich_format=True, style="info")
+                new_input.border_title = (
+                    "🧑 User Input (Multi-line) - Ctrl+S to submit, Enter for new line"
+                )
+                self.add_output(
+                    "📝 Switched to multi-line input mode (Ctrl+S to submit, Enter for new line)",
+                    rich_format=True,
+                    style="info",
+                )
             else:
                 new_input = CategorizedInput(
                     self.user_categorized_commands,
                     id="input-area",
                     classes="input-pane",
-                    value=current_content
+                    value=current_content,
                 )
                 new_input.border_title = "🧑 User Input (Single-line)"
-                self.add_output("📝 Switched to single-line input mode (with tab completion)", rich_format=True, style="info")
+                self.add_output(
+                    "📝 Switched to single-line input mode (with tab completion)",
+                    rich_format=True,
+                    style="info",
+                )
 
             # Mount the new widget before the status bar
             self.mount(new_input, before="#status-bar")
@@ -543,7 +626,11 @@ class AgentTUI(App):
     @work
     async def action_interrupt_agent(self) -> None:
         """Interrupt the running agent."""
-        if self.agent_running and self.current_agent_task and not self.current_agent_task.done():
+        if (
+            self.agent_running
+            and self.current_agent_task
+            and not self.current_agent_task.done()
+        ):
             self.current_agent_task.cancel()
             self.add_output("⏹️ Agent interrupted by user", rich_format=True)
 
@@ -559,7 +646,9 @@ class AgentTUI(App):
         # Clear the input after successful submission
         event.input.value = ""
 
-    async def on_submittable_text_area_submitted(self, event: SubmittableTextArea.Submitted):
+    async def on_submittable_text_area_submitted(
+        self, event: SubmittableTextArea.Submitted
+    ):
         """Handle submission from the multi-line text area."""
         await self._submit_input(event.text_area.text)
         # Clear the text area after successful submission
@@ -570,39 +659,43 @@ class AgentTUI(App):
         text = text.strip()
         if text:
             # Handle built-in commands
-            if text.lower() in ['exit', 'quit', 'bye']:
+            if text.lower() in ["exit", "quit", "bye"]:
                 self.add_output("👋 Goodbye!", rich_format=True, style="info")
                 self.exit()
                 return
-            elif text.lower() == 'clear':
+            elif text.lower() == "clear":
                 self.action_clear_output()
                 return
-            elif text.lower() == 'help':
+            elif text.lower() == "help":
                 self.display_user_help()
                 return
-            elif text.lower() == 'toggle':
+            elif text.lower() == "toggle":
                 self.action_toggle_user_multiline_input()
                 return
-            elif text.lower().startswith('theme'):
+            elif text.lower().startswith("theme"):
                 parts = text.lower().split()
-                if len(parts) == 1 or parts[1] == 'toggle':
+                if len(parts) == 1 or parts[1] == "toggle":
                     self.action_toggle_theme()
-                elif parts[1] == 'dark':
+                elif parts[1] == "dark":
                     self._current_ui_theme = UITheme.DARK
                     self.add_class("dark", "theme-mode")
                     self.remove_class("light", "theme-mode")
-                    self.add_output("🌒 Switched to dark theme", rich_format=True, style="info")
-                elif parts[1] == 'light':
+                    self.add_output(
+                        "🌒 Switched to dark theme", rich_format=True, style="info"
+                    )
+                elif parts[1] == "light":
                     self._current_ui_theme = UITheme.LIGHT
                     self.add_class("light", "theme-mode")
                     self.remove_class("dark", "theme-mode")
-                    self.add_output("🌞 Switched to light theme", rich_format=True, style="info")
+                    self.add_output(
+                        "🌞 Switched to light theme", rich_format=True, style="info"
+                    )
                 return
 
             # Add to history (both app and input widget)
             self.user_input_history.append(text)
             self.user_input_history_index = len(self.user_input_history)
-            if hasattr(self.query_one("#input-area"), 'add_to_history'):
+            if hasattr(self.query_one("#input-area"), "add_to_history"):
                 self.query_one("#input-area").add_to_history(text)
 
             # Process user input through callback
@@ -613,23 +706,31 @@ class AgentTUI(App):
                     # Create task properly for async callback
                     await self.input_callback(text)
                 except Exception as e:
-                    self.add_output(f"❌ Error processing input: {str(e)}", rich_format=True, style="error")
+                    self.add_output(
+                        f"❌ Error processing input: {str(e)}",
+                        rich_format=True,
+                        style="error",
+                    )
                 finally:
                     self.stop_thinking()
                     self.agent_running = False
         else:
-            self.add_output("💡 Type a message and press Enter to send it to the agent", rich_format=True, style="info")
+            self.add_output(
+                "💡 Type a message and press Enter to send it to the agent",
+                rich_format=True,
+                style="info",
+            )
 
     # BEGIN: Used from cli.py
 
     def display_model_usage(
-            self,
-            prompt_tokens: int = 0,
-            completion_tokens: int = 0, 
-            total_tokens: int = 0,
-            thinking_tokens: int = 0,
-            model_name: str = "Unknown"
-        ):
+        self,
+        prompt_tokens: int = 0,
+        completion_tokens: int = 0,
+        total_tokens: int = 0,
+        thinking_tokens: int = 0,
+        model_name: str = "Unknown",
+    ):
         """Display model usage information in the thought pane."""
         # Update internal tracking
         self._prompt_tokens = prompt_tokens
@@ -657,10 +758,14 @@ class AgentTUI(App):
                 # token_display = ", ".join(token_parts)
 
                 token_info_str = f"Tokens: {', '.join(token_parts)}"
-                model_info_str = f"Model: {self._model_name}" if self._model_name else ""
+                model_info_str = (
+                    f"Model: {self._model_name}" if self._model_name else ""
+                )
 
                 # Use the centralized rich renderer for model usage panel
-                content_panel = self.rich_renderer.format_model_usage(f"{token_info_str}\n{model_info_str}")
+                content_panel = self.rich_renderer.format_model_usage(
+                    f"{token_info_str}\n{model_info_str}"
+                )
                 event_log.write(content_panel)
 
             except Exception as e:
@@ -680,13 +785,21 @@ class AgentTUI(App):
         #     # token_display = ", ".join(token_parts)
         #     self.add_output(f"📊 Model Usage: {total_tokens} tokens", style="info")
 
-    def add_output(self, text: Union[str, Text], author: str = "User", rich_format: bool = False, style: str = ""):
+    def add_output(
+        self,
+        text: Union[str, Text],
+        author: str = "User",
+        rich_format: bool = False,
+        style: str = "",
+    ):
         """Add text to the output log."""
         output_log = self.query_one("#output-log", RichLog)
         if rich_format:
             if isinstance(text, Text):
                 output_log.write(text)
-            elif author in ["Agent", "agent"] or "Agent" in author:  # More flexible agent detection
+            elif (
+                author in ["Agent", "agent"] or "Agent" in author
+            ):  # More flexible agent detection
                 panel_text = self.rich_renderer.format_agent_response(text, author)
                 output_log.write(panel_text)
             else:
@@ -710,46 +823,57 @@ class AgentTUI(App):
         """Add agent thought to the thought pane."""
         if not self.agent_thought_enabled:
             return
-            
+
         try:
             event_log = self.query_one("#event-log", RichLog)
-            
+
             # Format the thought with proper styling using the rich_renderer
             content_panel = self.rich_renderer.format_agent_thought(thought_text)
             event_log.write(content_panel)
-            
+
         except Exception as e:
             # Fallback to regular output if thought pane fails
             self.add_output(f"💭 {thought_text}", style="info")
 
-    def add_tool_event(self, tool_name: str, event_type: str, args: Optional[dict] = None, result: Any = None, duration: Optional[float] = None):
+    def add_tool_event(
+        self,
+        tool_name: str,
+        event_type: str,
+        args: Optional[dict] = None,
+        result: Any = None,
+        duration: Optional[float] = None,
+    ):
         """Add a tool execution event to the thought pane."""
         if not self.agent_thought_enabled:
             return
-            
+
         try:
             event_log = self.query_one("#event-log", RichLog)
-            
+
             if event_type == "start":
                 # Tool execution start
                 content_panel = self.rich_renderer.format_running_tool(tool_name, args)
                 event_log.write(content_panel)
-                
+
                 # Update tool usage tracking
                 self._tools_used += 1
                 self._last_tool_used = tool_name
-                
+
             elif event_type == "finish":
                 # Tool execution finish
-                content_panel = self.rich_renderer.format_tool_finished(tool_name, result, duration)
+                content_panel = self.rich_renderer.format_tool_finished(
+                    tool_name, result, duration
+                )
                 event_log.write(content_panel)
-                
+
             elif event_type == "error":
                 # Tool execution error
                 error_msg = str(result) if result else "Unknown error"
-                content_panel = self.rich_renderer.format_tool_error(tool_name, error_msg)
+                content_panel = self.rich_renderer.format_tool_error(
+                    tool_name, error_msg
+                )
                 event_log.write(content_panel)
-                
+
         except Exception as e:
             # Fallback to regular output if thought pane fails
             self.add_output(f"Tool {event_type}: {tool_name}", style="info")
@@ -792,10 +916,15 @@ class CategorizedInput(Input):
         *args: Variable length argument list to pass to the parent Input class.
         **kwargs: Arbitrary keyword arguments to pass to the parent Input class.
     """
-    def __init__(self, user_categorized_commands: dict[str, list[str]], *args, **kwargs):
+
+    def __init__(
+        self, user_categorized_commands: dict[str, list[str]], *args, **kwargs
+    ):
         super().__init__(*args, **kwargs)
         self.user_categorized_commands = user_categorized_commands
-        self.all_commands = [cmd for cmds in user_categorized_commands.values() for cmd in cmds]
+        self.all_commands = [
+            cmd for cmds in user_categorized_commands.values() for cmd in cmds
+        ]
         # History navigation support
         self.user_input_history = []
         self.user_input_history_index = -1
@@ -861,12 +990,12 @@ class CategorizedInput(Input):
         current_text = self.value
         completions = self._get_completions(current_text)
         show_all = not current_text.strip()  # Show all if no text entered
-        
+
         if completions:
             # Show completion dialog
             self.app.push_screen(
                 CompletionWidget(completions, self.user_categorized_commands, show_all),
-                self._on_completion_selected
+                self._on_completion_selected,
             )
 
     def _on_completion_selected(self, selected_command: str | None) -> None:
@@ -879,21 +1008,21 @@ class CategorizedInput(Input):
         if not text.strip():
             # Return all commands if no text is entered
             return sorted(self.all_commands)
-        
+
         text_lower = text.lower()
         completions = []
-        
+
         # Find matching commands
         for command in self.all_commands:
             if text_lower in command.lower():
                 completions.append(command)
-        
+
         return sorted(completions)
 
 
 class SubmittableTextArea(TextArea):
     """TextArea that can submit content on Enter."""
-    
+
     def on_key(self, event: Key) -> None:
         """Handle key events."""
         if event.key == "ctrl+s":
@@ -902,6 +1031,7 @@ class SubmittableTextArea(TextArea):
             if content:
                 # Create a synthetic Input.Submitted event
                 from textual.widgets import Input
+
                 submit_event = Input.Submitted(self, content)
                 self.post_message(submit_event)
             event.prevent_default()
@@ -927,7 +1057,14 @@ class CompletionWidget(ModalScreen[str]):
         **kwargs: Arbitrary keyword arguments to pass to the parent ModalScreen class.
     """
 
-    def __init__(self, completions: list[str], user_categorized_commands: dict[str, list[str]], show_all: bool = False, *args, **kwargs):
+    def __init__(
+        self,
+        completions: list[str],
+        user_categorized_commands: dict[str, list[str]],
+        show_all: bool = False,
+        *args,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
         self.completions = completions
         self.user_categorized_commands = user_categorized_commands
@@ -937,7 +1074,7 @@ class CompletionWidget(ModalScreen[str]):
         """Create the completion widget."""
         # Group completions by category
         options = []
-        
+
         for category, commands in self.user_categorized_commands.items():
             category_matches = [cmd for cmd in commands if cmd in self.completions]
             if category_matches:
@@ -946,19 +1083,31 @@ class CompletionWidget(ModalScreen[str]):
                 # Add commands in this category
                 for cmd in category_matches:
                     options.append(Option(f"  {cmd}", id=cmd))
-        
+
         # Add any completions that don't fit in categories
-        uncategorized = [cmd for cmd in self.completions if not any(cmd in commands for commands in self.user_categorized_commands.values())]
+        uncategorized = [
+            cmd
+            for cmd in self.completions
+            if not any(
+                cmd in commands for commands in self.user_categorized_commands.values()
+            )
+        ]
         if uncategorized:
             if options:  # Only add separator if there are categorized items
                 options.append(Option("─" * 40, disabled=True))
             for cmd in uncategorized:
                 options.append(Option(cmd, id=cmd))
-        
+
         # Use different styling based on whether we're showing all options
-        dialog_class = "completion-dialog-full" if self.show_all else "completion-dialog"
-        title_text = "All Available Commands:" if self.show_all else "Tab Completion - Select an option:"
-        
+        dialog_class = (
+            "completion-dialog-full" if self.show_all else "completion-dialog"
+        )
+        title_text = (
+            "All Available Commands:"
+            if self.show_all
+            else "Tab Completion - Select an option:"
+        )
+
         with Container(id="completion-dialog", classes=dialog_class):
             yield Label(title_text, id="completion-title")
             yield OptionList(*options, id="completion-list")
@@ -971,5 +1120,5 @@ class CompletionWidget(ModalScreen[str]):
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         """Handle option selection."""
-        if hasattr(event.option, 'id') and event.option.id:  # Skip disabled options
+        if hasattr(event.option, "id") and event.option.id:  # Skip disabled options
             self.dismiss(event.option.id)
