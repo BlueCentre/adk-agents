@@ -92,7 +92,22 @@ async def run_interactively(
     credential_service: BaseCredentialService,
     ui_theme: Optional[str] = None,
 ) -> None:
-    """Run the agent interactively with fallback to basic CLI mode."""
+    """
+    Run the agent interactively with fallback to basic CLI mode.
+    This function is used when the user wants to run the agent interactively
+    in a terminal with a prompt-toolkit based UI.
+    It supports:
+    - User input with a prompt
+    - Agent thought and response display in a panel
+    - Theme switching
+    - Basic CLI mode fallback
+    - Error handling
+    - Token usage tracking
+    - Tool execution tracking
+    - Agent interruption support
+    - Session state management
+    Ref: https://google.github.io/adk-docs/runtime/#step-by-step-breakdown
+    """
 
     # Initialize basic console for fallback with scrollback-friendly settings
     console = Console(
@@ -136,6 +151,7 @@ async def run_interactively(
     )
 
     while True:
+        # Display the user input prompt
         try:
             if fallback_mode:
                 query = await prompt_session.prompt_async("😜 user > ")
@@ -168,6 +184,7 @@ async def run_interactively(
                 output_console.print("\n👋 [warning]Goodbye![/warning]")
                 break
 
+        # Handle special independent commands
         if not query or not query.strip():
             continue
         if query.strip().lower() in ["exit", "quit", "bye"]:
@@ -176,8 +193,7 @@ async def run_interactively(
             )
             output_console.print("👋 [warning]Goodbye![/warning]")
             break
-
-        # Handle special commands
+        # Handle special mutually exclusive commands
         if query.strip().lower() == "clear":
             output_console = (
                 console if fallback_mode else (cli.console if cli else console)
@@ -209,38 +225,49 @@ async def run_interactively(
                 )
             continue
 
+        # Run the agent and process events
         async for event in runner.run_async(
             user_id=session.user_id,
             session_id=session.id,
-            new_message=types.Content(role="user", parts=[types.Part(text=query)]),
+            new_message=types.Content(parts=[types.Part(text=query)], role="user"),
+            # run_config=types.RunConfig(
+            #     max_tokens=1000,
+            #     temperature=0.5,
+            #     top_p=0.9,
+            #     top_k=40,
+            #     frequency_penalty=0.0,
+            # ),
         ):
             if event.content and event.content.parts:
-                # Separate thought and non-thought content
                 regular_parts = []
                 thought_parts = []
 
+                # Separate agent thought and response content from parts
                 for part in event.content.parts:
                     if hasattr(part, "thought") and part.thought:
                         thought_parts.append(part)
                     else:
                         regular_parts.append(part)
 
+                # Handle thought content
+                # if cli and hasattr(cli, "agent_thought_enabled") and thought_parts:
+                if cli and thought_parts:
+                    for part in thought_parts:
+                        if part.text:
+                            # cli.add_agent_thought(part.text)
+                            cli.display_agent_thought(console, part.text)
+
                 # Handle regular content
                 if regular_text := "".join(part.text or "" for part in regular_parts):
                     if regular_text.strip():
                         if not fallback_mode and cli:
-                            cli.add_agent_output(regular_text, event.author)
+                            # cli.add_agent_output(regular_text, event.author)
+                            cli.display_agent_response(console, regular_text, event.author)
                         else:
                             # Simple output for fallback mode
                             console.print(
-                                f"{event.author} > {regular_text}"
+                                f"🤖 {event.author} > {regular_text}"
                             )
-
-                # Handle thought content
-                if cli and hasattr(cli, "agent_thought_enabled") and thought_parts:
-                    for part in thought_parts:
-                        if part.text:
-                            cli.add_agent_thought(part.text)
 
     try:
         await runner.close()

@@ -40,7 +40,7 @@ class EnhancedCLI:
             legacy_windows=False,  # Use modern terminal features
             soft_wrap=True,  # Enable soft wrapping to prevent cropping
             width=None,  # Auto-detect width to avoid fixed sizing issues
-            height=None,  # Auto-detect height to avoid fixed sizing issues
+            # height=None,  # Auto-detect height to avoid fixed sizing issues
         )
         self.status_bar = StatusBar(self.theme)
 
@@ -85,60 +85,7 @@ class EnhancedCLI:
             # Fallback to simple toolbar if formatting fails
             return f" 🤖 {agent_name} | Session: {session_id[:8]}... | 💡 Alt+Enter:multi-line | 🚪 Ctrl+D:exit"
 
-    def set_theme(self, theme: UITheme) -> None:
-        """Set a specific theme."""
-        if self.theme != theme:
-            self.theme = theme
-            self.theme_config = ThemeConfig.get_theme_config(self.theme)
-            self.rich_renderer.theme = self.theme  # Update renderer's theme
-            self.rich_renderer.rich_theme = ThemeConfig.get_rich_theme(self.theme)
-            self.rich_renderer.console = Console(
-                theme=self.rich_renderer.rich_theme,
-                force_interactive=False,
-                legacy_windows=False,
-                soft_wrap=True,
-                width=None,
-                height=None,
-            )
-            self.status_bar.theme = self.theme
-            self.console = Console(
-                theme=self.rich_renderer.rich_theme,
-                force_interactive=False,  # Disable animations that might interfere with scrollback
-                legacy_windows=False,  # Use modern terminal features
-                soft_wrap=True,  # Enable soft wrapping to prevent cropping
-                width=None,  # Auto-detect width to avoid fixed sizing issues
-                height=None,  # Auto-detect height to avoid fixed sizing issues
-            )
-
-            theme_name = "🌒 Dark" if self.theme == UITheme.DARK else "🌞 Light"
-            self.console.print(f"[info]Set theme to {theme_name}[/info]")
-
-    def toggle_theme(self) -> None:
-        """Toggle between light and dark themes."""
-        self.theme = UITheme.LIGHT if self.theme == UITheme.DARK else UITheme.DARK
-        self.theme_config = ThemeConfig.get_theme_config(self.theme)
-        self.rich_renderer.theme = self.theme  # Update renderer's theme
-        self.rich_renderer.rich_theme = ThemeConfig.get_rich_theme(self.theme)
-        self.rich_renderer.console = Console(
-            theme=self.rich_renderer.rich_theme,
-            force_interactive=False,
-            legacy_windows=False,
-            soft_wrap=True,
-            width=None,
-            height=None,
-        )
-        self.status_bar.theme = self.theme
-        self.console = Console(
-            theme=self.rich_renderer.rich_theme,
-            force_interactive=False,  # Disable animations that might interfere with scrollback
-            legacy_windows=False,  # Use modern terminal features
-            soft_wrap=True,  # Enable soft wrapping to prevent cropping
-            width=None,  # Auto-detect width to avoid fixed sizing issues
-            height=None,  # Auto-detect height to avoid fixed sizing issues
-        )
-
-        theme_name = "🌒 Dark" if self.theme == UITheme.DARK else "🌞 Light"
-        self.console.print(f"[info]Switched to {theme_name} theme[/info]")
+    # BEGIN: Used from cli.py
 
     def create_enhanced_prompt_session(
         self, agent_name: str = "Agent", session_id: str = "unknown"
@@ -298,6 +245,61 @@ class EnhancedCLI:
             input_processors=[],  # Disable input processors that might interfere
         )
 
+    def set_theme(self, theme: UITheme) -> None:
+        """Set a specific theme."""
+        if self.theme != theme:
+            self.theme = theme
+            self.theme_config = ThemeConfig.get_theme_config(self.theme)
+            self.rich_renderer.theme = self.theme  # Update renderer's theme
+            self.rich_renderer.rich_theme = ThemeConfig.get_rich_theme(self.theme)
+            self.rich_renderer.console = Console(
+                theme=self.rich_renderer.rich_theme,
+                force_interactive=False,
+                legacy_windows=False,
+                soft_wrap=True,
+                width=None,
+                height=None,
+            )
+            self.status_bar.theme = self.theme
+            self.console = Console(
+                theme=self.rich_renderer.rich_theme,
+                force_interactive=False,  # Disable animations that might interfere with scrollback
+                legacy_windows=False,  # Use modern terminal features
+                soft_wrap=True,  # Enable soft wrapping to prevent cropping
+                width=None,  # Auto-detect width to avoid fixed sizing issues
+                height=None,  # Auto-detect height to avoid fixed sizing issues
+            )
+
+            theme_name = "🌒 Dark" if self.theme == UITheme.DARK else "🌞 Light"
+            self.console.print(f"[info]Set theme to {theme_name}[/info]")
+
+    def toggle_theme(self) -> None:
+        """Toggle between light and dark themes."""
+        self.theme = UITheme.LIGHT if self.theme == UITheme.DARK else UITheme.DARK
+        self.theme_config = ThemeConfig.get_theme_config(self.theme)
+        self.rich_renderer.theme = self.theme  # Update renderer's theme
+        self.rich_renderer.rich_theme = ThemeConfig.get_rich_theme(self.theme)
+        self.rich_renderer.console = Console(
+            theme=self.rich_renderer.rich_theme,
+            force_interactive=False,
+            legacy_windows=False,
+            soft_wrap=True,
+            width=None,
+            height=None,
+        )
+        self.status_bar.theme = self.theme
+        self.console = Console(
+            theme=self.rich_renderer.rich_theme,
+            force_interactive=False,  # Disable animations that might interfere with scrollback
+            legacy_windows=False,  # Use modern terminal features
+            soft_wrap=True,  # Enable soft wrapping to prevent cropping
+            width=None,  # Auto-detect width to avoid fixed sizing issues
+            height=None,  # Auto-detect height to avoid fixed sizing issues
+        )
+
+        theme_name = "🌒 Dark" if self.theme == UITheme.DARK else "🌞 Light"
+        self.console.print(f"[info]Switched to {theme_name} theme[/info]")
+
     def print_welcome_message(self, agent_name: str) -> None:
         """Print a themed welcome message with tmux-style formatting."""
         theme_indicator = "🌒" if self.theme == UITheme.DARK else "🌞"
@@ -375,18 +377,23 @@ class EnhancedCLI:
         )
         self.console.print()
 
-    # BEGIN: Used from cli.py
+    # def add_agent_output(self, text: str, author: str = "Agent"):
+    #     """Add agent output with markdown rendering and proper wrapping."""
+    #     # Use format_message with markdown support enabled
+    #     formatted_message = self.rich_renderer.format_message(text, author, markdown=True)
+    #     self.console.print(formatted_message, soft_wrap=True, overflow="fold")
 
-    def add_agent_output(self, text: str, author: str = "Agent"):
-        """Add agent output with markdown rendering and proper wrapping."""
-        # Use format_message with markdown support enabled
-        formatted_message = self.rich_renderer.format_message(text, author, markdown=True)
-        
-        self.console.print(formatted_message, soft_wrap=True, overflow="fold")
+    # def add_agent_thought(self, text: str):
+    #     """Add agent thought summaries to the thought display."""
+    #     panel = self.rich_renderer.format_agent_thought(text)
+    #     self.console.print(panel, soft_wrap=True, overflow="fold")
 
-    def add_agent_thought(self, text: str):
-        """Add agent thought summaries to the thought display."""
-        panel = self.rich_renderer.format_agent_thought(text)
-        self.console.print(panel, soft_wrap=True, overflow="fold")
+    def display_agent_response(self, parent_console: Console, response_summary: str, author: str = "Agent"):
+        """Displays agent response summary in a Rich panel."""
+        self.rich_renderer.display_agent_response(parent_console, response_summary, author)
+
+    def display_agent_thought(self, parent_console: Console, thought_summary: str):
+        """Displays agent thought summary in a Rich panel."""
+        self.rich_renderer.display_agent_thought(parent_console, thought_summary)
 
     # END: Used from cli.py

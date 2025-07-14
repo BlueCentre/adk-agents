@@ -1103,7 +1103,8 @@ class TestInteractiveAgentResponses:
         mock_cli.print_welcome_message = Mock()
         mock_cli.format_agent_response = Mock(return_value="formatted_response")
         mock_cli.console = Mock()
-        mock_cli.add_agent_thought = Mock()
+        mock_cli.display_agent_response = Mock()
+        mock_cli.display_agent_thought = Mock()
         mock_get_cli_instance.return_value = mock_cli
 
         mock_console = Mock()
@@ -1152,10 +1153,10 @@ class TestInteractiveAgentResponses:
         )
 
         # Verify that both regular content and thoughts were processed
-        mock_cli.add_agent_output.assert_called_with(
-            "This is regular response", "agent"
+        mock_cli.display_agent_response.assert_called_with(
+            mock_console, "This is regular response", "agent"
         )
-        mock_cli.add_agent_thought.assert_called_with("This is agent thinking")
+        mock_cli.display_agent_thought.assert_called_with(mock_console, "This is agent thinking")
 
     @pytest.mark.asyncio
     @patch("src.wrapper.adk.cli.cli.get_cli_instance")
@@ -1218,7 +1219,7 @@ class TestInteractiveAgentResponses:
             )
 
             # Verify fallback console was used for agent output
-            mock_console.print.assert_any_call("agent > This is regular response")
+            mock_console.print.assert_any_call("🤖 agent > This is regular response")
 
     @pytest.mark.asyncio
     @patch("src.wrapper.adk.cli.cli.get_textual_cli_instance")

@@ -826,7 +826,6 @@ class AgentTUI(App):
 
         try:
             event_log = self.query_one("#event-log", RichLog)
-
             # Format the thought with proper styling using the rich_renderer
             content_panel = self.rich_renderer.format_agent_thought(thought_text)
             event_log.write(content_panel)

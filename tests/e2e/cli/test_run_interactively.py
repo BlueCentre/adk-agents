@@ -218,6 +218,8 @@ class TestRunInteractively:
         mock_cli.create_enhanced_prompt_session.return_value = AsyncMock()
         mock_cli.console = MagicMock()
         mock_cli.agent_thought_enabled = True
+        mock_cli.display_agent_response = MagicMock()
+        mock_cli.display_agent_thought = MagicMock()
         mock_get_cli_instance.return_value = mock_cli
 
         # Mock console
@@ -261,7 +263,11 @@ class TestRunInteractively:
         )
 
         # Assertions
-        mock_cli.add_agent_output.assert_called_once_with(
-            "Regular response", "assistant"
+        # mock_cli.add_agent_output.assert_called_once_with(
+        #     "Regular response", "assistant"
+        # )
+        # mock_cli.add_agent_thought.assert_called_once_with("Agent thinking...")
+        mock_cli.display_agent_response.assert_called_once_with(
+            mock_console, "Regular response", "assistant"
         )
-        mock_cli.add_agent_thought.assert_called_once_with("Agent thinking...")
+        mock_cli.display_agent_thought.assert_called_once_with(mock_console, "Agent thinking...")

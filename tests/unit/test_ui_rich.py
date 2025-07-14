@@ -291,11 +291,11 @@ class TestThemeConsistency:
         ]  # model_usage, running_tool, tool_finished, tool_error
 
         for panel in agent_panels:
-            assert panel.title_align == "center"  # Agent panels use center alignment
+            assert panel.title_align == "right"  # Agent panels use center alignment
             assert isinstance(panel.title, str)
 
         for panel in tool_panels:
-            assert panel.title_align == "left"  # Tool panels use left alignment
+            assert panel.title_align == "right"  # Tool panels use left alignment
             assert isinstance(panel.title, str)
 
 

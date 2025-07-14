@@ -4,6 +4,7 @@ from typing import Any, Optional
 
 from rich.console import Console
 from rich.markdown import Markdown
+from rich.markup import escape
 from rich.panel import Panel
 from rich.text import Text
 
@@ -16,12 +17,12 @@ class RichRenderer:
     def __init__(self, theme: Optional[UITheme] = None):
         self.theme = theme or UITheme.DARK
         self.rich_theme = ThemeConfig.get_rich_theme(self.theme)
-        # self.console = Console(theme=self.rich_theme, force_interactive=True)
+        self.console = Console(theme=self.rich_theme, force_interactive=True)
         self.console = Console(
             theme=self.rich_theme,
+            legacy_windows=False,  # Use modern terminal features
             soft_wrap=True,  # Enable soft wrapping for proper text wrapping
             width=None,  # Auto-detect width
-            legacy_windows=False,  # Use modern terminal features
         )
         self.markdown_enabled = True
 
@@ -29,9 +30,9 @@ class RichRenderer:
         self,
         text: str | Text,
         author: str,
+        markdown: bool = False,
         rich_format: bool = False,
         style: str = "",
-        markdown: bool = False,
     ) -> Text:
         """
         Formats a given text message, optionally prepending an author and applying Rich formatting.
@@ -39,9 +40,9 @@ class RichRenderer:
         Args:
             text (str | Text): The message content to format. Can be a string or a Rich Text object.
             author (str): The author of the message. If provided, it will be prepended to the message.
+            markdown (bool): If True, the text will be parsed as markdown. Defaults to False.
             rich_format (bool): If True, the text will be parsed as Rich markup. Defaults to False.
             style (str): The Rich style to apply to the message text. Defaults to an empty string.
-            markdown (bool): If True, the text will be parsed as markdown. Defaults to False.
 
         Returns:
             Text: A Rich Text object representing the formatted message.
@@ -49,13 +50,8 @@ class RichRenderer:
         if isinstance(text, Text):
             return text
 
-        if rich_format:
-            return Text.from_markup(text)
-
         # Handle markdown rendering
         if markdown:
-            from rich.markdown import Markdown
-
             # Create markdown object and render it to a Text object
             markdown_obj = Markdown(text, style="agent")
 
@@ -72,6 +68,9 @@ class RichRenderer:
             message.append(rendered_text)
             return message
 
+        if rich_format:
+            return Text.from_markup(text)
+
         # Simple text with author prefix
         message = Text()
         if author:
@@ -84,10 +83,9 @@ class RichRenderer:
         return Panel(
             markdown,
             title=f"[bold {self.rich_theme.styles.get('agent.border_color', 'green')}]🤖 {author} Response[/bold {self.rich_theme.styles.get('agent.border_color', 'green')}]",
-            title_align="center",
+            title_align="right",
             border_style=self.rich_theme.styles.get("agent.border_color", "green"),
             expand=True,
-            # highlight=True,
             # padding=(0, 1),
         )
 
@@ -96,10 +94,9 @@ class RichRenderer:
         return Panel(
             markdown,
             title=f"[bold {self.rich_theme.styles.get('thought.border_color', 'magenta')}]🧠 Agent Thought[/bold {self.rich_theme.styles.get('thought.border_color', 'magenta')}]",
-            title_align="center",
+            title_align="right",
             border_style=self.rich_theme.styles.get("thought.border_color", "magenta"),
             expand=True,
-            # highlight=True,
             # padding=(0, 0),
         )
 
@@ -107,7 +104,7 @@ class RichRenderer:
         return Panel(
             Text.from_markup(f"[dim]{text}[/dim]"),
             title="[blue]📊 Model Usage[/blue]",
-            title_align="left",
+            title_align="right",
             border_style="blue",
             expand=True,
             padding=(0, 0),
@@ -121,7 +118,7 @@ class RichRenderer:
         return Panel(
             content,
             title="[cyan]🔧 Running Tool[/cyan]",
-            title_align="left",
+            title_align="right",
             border_style="cyan",
             expand=True,
             padding=(0, 0),
@@ -142,7 +139,7 @@ class RichRenderer:
         return Panel(
             content,
             title="[green]✅ Tool Finished[/green]",
-            title_align="left",
+            title_align="right",
             border_style="green",
             expand=True,
             padding=(0, 0),
@@ -155,8 +152,52 @@ class RichRenderer:
         return Panel(
             content,
             title="[red]❌ Tool Error[/red]",
-            title_align="left",
+            title_align="right",
             border_style="red",
             expand=True,
             padding=(0, 0),
         )
+
+    def display_agent_response(self, parent_console: Console, response_summary: str, author: str = "Agent"):
+        """Displays agent response summary in a Rich panel."""
+        # content = Text.from_markup(response_summary)
+        markdown = Markdown(response_summary, style="agent")
+        segments = list(self.console.render(markdown))
+        rendered_text = Text(no_wrap=False, overflow="fold")
+        for segment in segments:
+            rendered_text.append(segment.text, style=segment.style)
+        message = Text()
+        # if author:
+        #     message.append(f"🤖 {author} > ", style="bold green")
+        message.append(rendered_text)
+        panel = Panel(
+            message,
+            title=f"[bold {self.rich_theme.styles.get('agent.border_color', 'green')}]🤖 {author} Response[/bold {self.rich_theme.styles.get('agent.border_color', 'green')}]",
+            title_align="right",
+            border_style=self.rich_theme.styles.get("agent.border_color", "green"),
+            expand=True,
+            # padding=(0, 1),
+        )
+        parent_console.print(panel, crop=False, no_wrap=False, overflow="fold", soft_wrap=True)
+        # self.console.print(panel)
+
+    def display_agent_thought(self, parent_console: Console, thought_summary: str):
+        """Displays agent thought summaries in a Rich panel."""
+        markdown = Markdown(thought_summary, style="thought")
+        segments = list(self.console.render(markdown))
+        rendered_text = Text()
+        # rendered_text = Text(no_wrap=False, overflow="fold")
+        for segment in segments:
+            rendered_text.append(segment.text, style=segment.style)
+        message = Text()
+        message.append(rendered_text)
+        panel = Panel(
+            message,
+            title=f"[bold {self.rich_theme.styles.get('thought.border_color', 'magenta')}]🧠 Agent Thought[/bold {self.rich_theme.styles.get('thought.border_color', 'magenta')}]",
+            title_align="right",
+            border_style=self.rich_theme.styles.get("thought.border_color", "magenta"),
+            expand=True,
+            # padding=(0, 1),
+        )
+        parent_console.print(panel, crop=False, no_wrap=False, overflow="fold", soft_wrap=True)
+        # self.console.print(panel)

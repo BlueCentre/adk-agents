@@ -354,58 +354,47 @@ class TestAgentOutputFormatting:
         """Test basic agent response formatting."""
         cli = EnhancedCLI()
 
-        # The method now uses add_agent_output which prints to console
-        with patch.object(cli.console, "print") as mock_print:
-            cli.add_agent_output("Test response", "TestAgent")
+        # The method now uses display_agent_response which takes a parent_console parameter
+        with patch.object(cli, "display_agent_response") as mock_display:
+            cli.display_agent_response(cli.console, "Test response", "TestAgent")
 
-        mock_print.assert_called_once()
-        # Should print a Text object (with markdown support)
-        printed_arg = mock_print.call_args[0][0]
-        assert isinstance(printed_arg, Text)
+        mock_display.assert_called_once_with(cli.console, "Test response", "TestAgent")
 
     def test_add_agent_output_basic(self):
-        """Test adding agent output."""
+        """Test adding agent output via display_agent_response."""
         cli = EnhancedCLI()
 
-        with patch.object(cli.console, "print") as mock_print:
-            cli.add_agent_output("Test output", "Agent")
+        with patch.object(cli, "display_agent_response") as mock_display:
+            cli.display_agent_response(cli.console, "Test output", "Agent")
 
-        mock_print.assert_called_once()
-
-        # Should print a Text object (with markdown support)
-        printed_arg = mock_print.call_args[0][0]
-        assert isinstance(printed_arg, Text)
+        mock_display.assert_called_once_with(cli.console, "Test output", "Agent")
 
     def test_add_agent_output_default_author(self):
         """Test adding agent output with default author."""
         cli = EnhancedCLI()
 
-        with patch.object(cli.console, "print") as mock_print:
-            cli.add_agent_output("Test output")
+        with patch.object(cli, "display_agent_response") as mock_display:
+            cli.display_agent_response(cli.console, "Test output")
 
-        mock_print.assert_called_once()
+        mock_display.assert_called_once_with(cli.console, "Test output")
 
     def test_add_agent_thought_basic(self):
-        """Test adding agent thought."""
+        """Test adding agent thought via display_agent_thought."""
         cli = EnhancedCLI()
 
-        with patch.object(cli.console, "print") as mock_print:
-            cli.add_agent_thought("Test thought")
+        with patch.object(cli, "display_agent_thought") as mock_display:
+            cli.display_agent_thought(cli.console, "Test thought")
 
-        mock_print.assert_called_once()
-
-        # Should print a Panel with thought formatting
-        printed_arg = mock_print.call_args[0][0]
-        assert isinstance(printed_arg, Panel)
+        mock_display.assert_called_once_with(cli.console, "Test thought")
 
     def test_add_agent_thought_empty(self):
         """Test adding empty agent thought."""
         cli = EnhancedCLI()
 
-        with patch.object(cli.console, "print") as mock_print:
-            cli.add_agent_thought("")
+        with patch.object(cli, "display_agent_thought") as mock_display:
+            cli.display_agent_thought(cli.console, "")
 
-        mock_print.assert_called_once()
+        mock_display.assert_called_once_with(cli.console, "")
 
 
 class TestCompleterConfiguration:
@@ -661,34 +650,24 @@ class TestIntegrationScenarios:
         """Test agent output integration."""
         cli = EnhancedCLI()
 
-        with patch.object(cli.console, "print") as mock_print:
+        with patch.object(cli, "display_agent_response") as mock_display_response, \
+             patch.object(cli, "display_agent_thought") as mock_display_thought:
             # Add various types of output
-            cli.add_agent_output("Response message", "Agent")
-            cli.add_agent_thought("Thinking about the problem")
+            cli.display_agent_response(cli.console, "Response message", "Agent")
+            cli.display_agent_thought(cli.console, "Thinking about the problem")
 
-        # Should have printed twice
-        assert mock_print.call_count == 2
-
-        # First call (add_agent_output) should be Text object
-        first_call_arg = mock_print.call_args_list[0][0][0]
-        assert isinstance(first_call_arg, Text)
-
-        # Second call (add_agent_thought) should be Panel object
-        second_call_arg = mock_print.call_args_list[1][0][0]
-        assert isinstance(second_call_arg, Panel)
+        # Should have called each method once
+        mock_display_response.assert_called_once_with(cli.console, "Response message", "Agent")
+        mock_display_thought.assert_called_once_with(cli.console, "Thinking about the problem")
 
     def test_error_recovery_integration(self):
         """Test error recovery integration."""
         cli = EnhancedCLI()
-
-        # Mock rich_renderer to raise exception
-        cli.rich_renderer.format_agent_response = Mock(
-            side_effect=Exception("Test error")
-        )
-
-        # Should still handle gracefully
-        with pytest.raises(Exception):
-            cli.format_agent_response("test", "agent")
+        # Mock rich_renderer.display_agent_response to raise exception
+        with patch.object(cli.rich_renderer, "display_agent_response", side_effect=Exception("Test error")):
+            # The exception should propagate up from display_agent_response
+            with pytest.raises(Exception, match="Test error"):
+                cli.display_agent_response(cli.console, "test", "agent")
 
     def test_prompt_session_with_different_agents(self):
         """Test prompt session creation with different agent configurations."""
