@@ -333,13 +333,15 @@ async def run_interactively_with_tui(
 
             # Run the agent and process events
             async for event in runner.run_async(
-                user_id=session.user_id, session_id=session.id, new_message=content
+                user_id=session.user_id,
+                session_id=session.id,
+                new_message=content
             ):
                 if event.content and event.content.parts:
-                    # Separate thought and non-thought content
                     regular_parts = []
                     thought_parts = []
 
+                    # Separate agent thought and response content
                     for part in event.content.parts:
                         if hasattr(part, "thought") and part.thought:
                             thought_parts.append(part)
@@ -352,7 +354,7 @@ async def run_interactively_with_tui(
                             if part.text:
                                 app_tui.add_agent_thought(part.text)
 
-                    # Handle regular content
+                    # Handle agent response content
                     if regular_text := "".join(
                         part.text or "" for part in regular_parts
                     ):
@@ -375,7 +377,6 @@ async def run_interactively_with_tui(
                         thinking_tokens=thinking_tokens,
                         model_name=getattr(root_agent, "model", "Unknown"),
                     )
-
         except Exception as e:
             app_tui.add_output(
                 f"❌ Error: {str(e)}", author="System", rich_format=True, style="error"

@@ -243,87 +243,79 @@ class AgentTUI(App):
         # Schedule footer update after mount is complete
         self.call_after_refresh(self._update_status)
 
-    def display_agent_welcome(
-        self, agent_name: str, agent_description: str = "", tools: Optional[list] = None
-    ):
-        """Display a comprehensive welcome message."""
-        # If the app is not yet mounted, store the info for later
-        try:
-            self.query_one("#output-log", RichLog)
-        except:
-            self._pending_welcome_info = (agent_name, agent_description, tools)
-            return
+    async def _submit_input(self, text: str):
+        """Process the submitted text, handling commands and callbacks."""
+        text = text.strip()
+        if text:
+            # Handle built-in commands
+            if text.lower() in ["exit", "quit", "bye"]:
+                self.add_output("👋 Goodbye!", rich_format=True, style="info")
+                self.exit()
+                return
+            elif text.lower() == "clear":
+                self.action_clear_output()
+                return
+            elif text.lower() == "help":
+                self.display_user_help()
+                return
+            elif text.lower() == "toggle":
+                self.action_toggle_user_multiline_input()
+                return
+            elif text.lower().startswith("theme"):
+                parts = text.lower().split()
+                if len(parts) == 1 or parts[1] == "toggle":
+                    self.action_toggle_theme()
+                elif parts[1] == "dark":
+                    self._current_ui_theme = UITheme.DARK
+                    self.add_class("dark", "theme-mode")
+                    self.remove_class("light", "theme-mode")
+                    self.add_output(
+                        "🌒 Switched to dark theme", rich_format=True, style="info"
+                    )
+                elif parts[1] == "light":
+                    self._current_ui_theme = UITheme.LIGHT
+                    self.add_class("light", "theme-mode")
+                    self.remove_class("dark", "theme-mode")
+                    self.add_output(
+                        "🌞 Switched to light theme", rich_format=True, style="info"
+                    )
+                return
 
-        self.agent_name = agent_name
-        theme_indicator = "🌒" if self._current_ui_theme == UITheme.DARK else "🌞"
-        thought_status = "ON" if self.agent_thought_enabled else "OFF"
+            # Add to history (both app and input widget)
+            self.user_input_history.append(text)
+            self.user_input_history_index = len(self.user_input_history)
+            if hasattr(self.query_one("#input-area"), "add_to_history"):
+                self.query_one("#input-area").add_to_history(text)
 
-        welcome_msg_rich = Text.from_markup(f"""
-[agent]▄▀█ █   ▄▀█ █▀▀ █▀▀ █▄█ ▀█▀[/agent]
-[agent]█▀█ █   █▀█ █▄█ █▄▄ █░█ ░█░[/agent]
+            # Process user input through callback
+            if self.input_callback:
+                self.agent_running = True
+                self.start_thinking()
+                try:
+                    # Create task properly for async callback
+                    await self.input_callback(text)
+                except Exception as e:
+                    self.add_output(
+                        f"❌ Error processing input: {str(e)}",
+                        rich_format=True,
+                        style="error",
+                    )
+                finally:
+                    self.stop_thinking()
+                    self.agent_running = False
+        else:
+            self.add_output(
+                "💡 Type a message and press Enter to send it to the agent",
+                rich_format=True,
+                style="info",
+            )
 
-[bold cyan]🤖 Welcome to {agent_name}![/bold cyan]
-
-[bold]Description:[/bold] {agent_description or "AI Assistant"}
-[bold]Tools Available:[/bold] {len(tools) if tools else 0} tools loaded
-[bold]Theme:[/bold] {theme_indicator} {self._current_ui_theme.value.title()}
-
-[bold green]🚀 Ready to assist! Type your message below and press Enter.[/bold green]
-[dim]💡 Use 'help' command or Ctrl+T (theme), Ctrl+Y (thoughts), Ctrl+L (clear), Ctrl+D (quit)[/dim]
-""")
-
-        #         welcome_msg_rich.append(f"""
-        # [bold]Theme:[/bold] {theme_indicator} {self._current_ui_theme.value.title()}
-        # [bold]Session started:[/bold] {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-
-        # [bold green]🚀 Ready to assist! Type your message below and press Enter.[/bold green]
-        # [dim]💡 Use 'help' command or Ctrl+T (theme), Ctrl+Y (thoughts), Ctrl+L (clear), Ctrl+D (quit)[/dim]
-        # """)
-
-        self.add_output(welcome_msg_rich, rich_format=True)
-
-        # Update footer after setting agent name
-        self._update_status()
-
-    def display_user_help(self):
-        """Display help information."""
-        help_text = Text.from_markup("""
-[bold cyan]🔧 Available Commands:[/bold cyan]
-
-[bold]Built-in Commands:[/bold]
-• [yellow]clear[/yellow] - Clear the output screen
-• [yellow]help[/yellow] - Show this help message
-• [yellow]theme[/yellow] - Toggle between light/dark themes
-• [yellow]theme dark[/yellow] - Switch to dark theme
-• [yellow]theme light[/yellow] - Switch to light theme
-• [yellow]exit/quit/bye[/yellow] - Exit the application
-
-[bold]Keyboard Shortcuts:[/bold]
-• [yellow]Ctrl+T[/yellow] - Toggle theme
-• [yellow]Ctrl+Y[/yellow] - Toggle agent thought display
-• [yellow]Ctrl+L[/yellow] - Clear screen
-• [yellow]Ctrl+C[/yellow] - Interrupt running agent
-• [yellow]Ctrl+D[/yellow] - Quit application
-• [yellow]Up/Down[/yellow] or [yellow]Ctrl+P/Ctrl+N[/yellow] - Navigate command history
-• [yellow]Tab[/yellow] - Trigger command completion (cycle through suggestions)
-• [yellow]Escape[/yellow] - Cancel current completion
-
-[bold]Tab Completion Examples:[/bold]
-• Type [yellow]create a[/yellow] + Tab → "create a dockerfile", "create docker-compose.yml"
-• Type [yellow]setup mon[/yellow] + Tab → "setup monitoring for"
-• Type [yellow]deploy to[/yellow] + Tab → "deploy to production", "deploy to staging"
-• Type [yellow]analyze[/yellow] + Tab → "analyze this code"
-
-[bold]Agent Features:[/bold]
-• Type any message to interact with the agent
-• Agent responses appear in the main output pane
-• Agent thoughts (if enabled) appear in the right pane
-• Token usage and tool usage are tracked in real-time
-• Use Ctrl+C to interrupt long-running agent operations
-
-[bold green]💡 Tip:[/bold green] This is an advanced multi-pane interface with persistent input, real-time agent interaction, and DevOps-optimized completions!
-""")
-        self.add_output(help_text, rich_format=True)
+    def _animate_thinking(self) -> None:
+        """Animate the thinking indicator."""
+        if self.agent_thinking:
+            self._thinking_animation_index = (self._thinking_animation_index + 1) % len(
+                self._thinking_frames
+            )
 
     def _update_status(self) -> None:
         """Update the status bar."""
@@ -393,12 +385,19 @@ class AgentTUI(App):
             # Silently fail footer updates to avoid disrupting the UI
             pass
 
-    def _animate_thinking(self) -> None:
-        """Animate the thinking indicator."""
-        if self.agent_thinking:
-            self._thinking_animation_index = (self._thinking_animation_index + 1) % len(
-                self._thinking_frames
-            )
+    async def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Handle submission of input from the user."""
+        await self._submit_input(event.value)
+        # Clear the input after successful submission
+        event.input.value = ""
+
+    async def on_submittable_text_area_submitted(
+        self, event: SubmittableTextArea.Submitted
+    ):
+        """Handle submission from the multi-line text area."""
+        await self._submit_input(event.text_area.text)
+        # Clear the text area after successful submission
+        event.text_area.text = ""
 
     def start_thinking(self) -> None:
         """Start the thinking animation."""
@@ -414,72 +413,11 @@ class AgentTUI(App):
             self._thinking_timer = None
         self._thinking_animation_index = 0
 
-    def watch_agent_name(self, name: str) -> None:
-        """Update footer and output panel title when agent name changes."""
-        if self.is_mounted:
-            self._update_status()
-            # Update the output panel border title
-            try:
-                output_log = self.query_one("#output-log", RichLog)
-                output_log.border_title = f"🤖 {name}" if name else "🤖 Agent Output"
-            except:
-                # If the output log doesn't exist yet, ignore
-                pass
-
-    def watch_agent_running(self, running: bool) -> None:
-        """Update footer and output panel subtitle when agent running status changes."""
-        if self.is_mounted:
-            self._update_status()
-            # Update the output panel border subtitle using same logic as status bar
-            try:
-                output_log = self.query_one("#output-log", RichLog)
-                if self.agent_thinking:
-                    thinking_icon = self._thinking_frames[
-                        self._thinking_animation_index % len(self._thinking_frames)
-                    ]
-                    status = f"{thinking_icon} Thinking"
-                elif running:
-                    status = "🟢 Running"
-                else:
-                    status = "🟢 Ready"
-                output_log.border_subtitle = status
-            except:
-                # If the output log doesn't exist yet, ignore
-                pass
-
-    def watch_agent_thinking(self, thinking: bool) -> None:
-        """Update footer and output panel subtitle when agent thinking status changes."""
-        if self.is_mounted:
-            self._update_status()
-            # Update the output panel border subtitle using same logic as status bar
-            try:
-                output_log = self.query_one("#output-log", RichLog)
-                if thinking:
-                    thinking_icon = self._thinking_frames[
-                        self._thinking_animation_index % len(self._thinking_frames)
-                    ]
-                    status = f"{thinking_icon} Thinking"
-                elif self.agent_running:
-                    status = "🟢 Running"
-                else:
-                    status = "🟢 Ready"
-                output_log.border_subtitle = status
-            except:
-                # If the output log doesn't exist yet, ignore
-                pass
-
-    def watch_session_id(self, session_id: str) -> None:
-        """Update output panel subtitle when session ID changes."""
-        if self.is_mounted:
-            # Update the output panel border subtitle
-            try:
-                output_log = self.query_one("#output-log", RichLog)
-                output_log.border_subtitle = (
-                    f"🧑 Session: {session_id}" if session_id else "🧑 Session: Unknown"
-                )
-            except:
-                # If the output log doesn't exist yet, ignore
-                pass
+    def action_clear_output(self) -> None:
+        """Clear the output log."""
+        output_log = self.query_one("#output-log", RichLog)
+        output_log.clear()
+        self.add_output("🧹 Screen cleared", rich_format=True, style="info")
 
     def action_history_previous(self) -> None:
         """Navigate to previous command in history."""
@@ -512,12 +450,6 @@ class AgentTUI(App):
             # Clear input when going past last item
             self.user_input_history_index = len(self.user_input_history)
             input_widget.value = ""
-
-    def action_clear_output(self) -> None:
-        """Clear the output log."""
-        output_log = self.query_one("#output-log", RichLog)
-        output_log.clear()
-        self.add_output("🧹 Screen cleared", rich_format=True, style="info")
 
     def action_toggle_theme(self) -> None:
         """Toggle between light and dark themes."""
@@ -623,6 +555,73 @@ class AgentTUI(App):
         # Schedule the creation and mounting after the current refresh cycle
         self.call_after_refresh(create_and_mount_new_input)
 
+    def watch_agent_name(self, name: str) -> None:
+        """Update footer and output panel title when agent name changes."""
+        if self.is_mounted:
+            self._update_status()
+            # Update the output panel border title
+            try:
+                output_log = self.query_one("#output-log", RichLog)
+                output_log.border_title = f"🤖 {name}" if name else "🤖 Agent Output"
+            except:
+                # If the output log doesn't exist yet, ignore
+                pass
+
+    def watch_agent_running(self, running: bool) -> None:
+        """Update footer and output panel subtitle when agent running status changes."""
+        if self.is_mounted:
+            self._update_status()
+            # Update the output panel border subtitle using same logic as status bar
+            try:
+                output_log = self.query_one("#output-log", RichLog)
+                if self.agent_thinking:
+                    thinking_icon = self._thinking_frames[
+                        self._thinking_animation_index % len(self._thinking_frames)
+                    ]
+                    status = f"{thinking_icon} Thinking"
+                elif running:
+                    status = "🟢 Running"
+                else:
+                    status = "🟢 Ready"
+                output_log.border_subtitle = status
+            except:
+                # If the output log doesn't exist yet, ignore
+                pass
+
+    def watch_agent_thinking(self, thinking: bool) -> None:
+        """Update footer and output panel subtitle when agent thinking status changes."""
+        if self.is_mounted:
+            self._update_status()
+            # Update the output panel border subtitle using same logic as status bar
+            try:
+                output_log = self.query_one("#output-log", RichLog)
+                if thinking:
+                    thinking_icon = self._thinking_frames[
+                        self._thinking_animation_index % len(self._thinking_frames)
+                    ]
+                    status = f"{thinking_icon} Thinking"
+                elif self.agent_running:
+                    status = "🟢 Running"
+                else:
+                    status = "🟢 Ready"
+                output_log.border_subtitle = status
+            except:
+                # If the output log doesn't exist yet, ignore
+                pass
+
+    def watch_session_id(self, session_id: str) -> None:
+        """Update output panel subtitle when session ID changes."""
+        if self.is_mounted:
+            # Update the output panel border subtitle
+            try:
+                output_log = self.query_one("#output-log", RichLog)
+                output_log.border_subtitle = (
+                    f"🧑 Session: {session_id}" if session_id else "🧑 Session: Unknown"
+                )
+            except:
+                # If the output log doesn't exist yet, ignore
+                pass
+
     @work
     async def action_interrupt_agent(self) -> None:
         """Interrupt the running agent."""
@@ -640,88 +639,177 @@ class AgentTUI(App):
         self.stop_thinking()
         self.agent_running = False
 
-    async def on_input_submitted(self, event: Input.Submitted) -> None:
-        """Handle submission of input from the user."""
-        await self._submit_input(event.value)
-        # Clear the input after successful submission
-        event.input.value = ""
-
-    async def on_submittable_text_area_submitted(
-        self, event: SubmittableTextArea.Submitted
-    ):
-        """Handle submission from the multi-line text area."""
-        await self._submit_input(event.text_area.text)
-        # Clear the text area after successful submission
-        event.text_area.text = ""
-
-    async def _submit_input(self, text: str):
-        """Process the submitted text, handling commands and callbacks."""
-        text = text.strip()
-        if text:
-            # Handle built-in commands
-            if text.lower() in ["exit", "quit", "bye"]:
-                self.add_output("👋 Goodbye!", rich_format=True, style="info")
-                self.exit()
-                return
-            elif text.lower() == "clear":
-                self.action_clear_output()
-                return
-            elif text.lower() == "help":
-                self.display_user_help()
-                return
-            elif text.lower() == "toggle":
-                self.action_toggle_user_multiline_input()
-                return
-            elif text.lower().startswith("theme"):
-                parts = text.lower().split()
-                if len(parts) == 1 or parts[1] == "toggle":
-                    self.action_toggle_theme()
-                elif parts[1] == "dark":
-                    self._current_ui_theme = UITheme.DARK
-                    self.add_class("dark", "theme-mode")
-                    self.remove_class("light", "theme-mode")
-                    self.add_output(
-                        "🌒 Switched to dark theme", rich_format=True, style="info"
-                    )
-                elif parts[1] == "light":
-                    self._current_ui_theme = UITheme.LIGHT
-                    self.add_class("light", "theme-mode")
-                    self.remove_class("dark", "theme-mode")
-                    self.add_output(
-                        "🌞 Switched to light theme", rich_format=True, style="info"
-                    )
-                return
-
-            # Add to history (both app and input widget)
-            self.user_input_history.append(text)
-            self.user_input_history_index = len(self.user_input_history)
-            if hasattr(self.query_one("#input-area"), "add_to_history"):
-                self.query_one("#input-area").add_to_history(text)
-
-            # Process user input through callback
-            if self.input_callback:
-                self.agent_running = True
-                self.start_thinking()
-                try:
-                    # Create task properly for async callback
-                    await self.input_callback(text)
-                except Exception as e:
-                    self.add_output(
-                        f"❌ Error processing input: {str(e)}",
-                        rich_format=True,
-                        style="error",
-                    )
-                finally:
-                    self.stop_thinking()
-                    self.agent_running = False
-        else:
-            self.add_output(
-                "💡 Type a message and press Enter to send it to the agent",
-                rich_format=True,
-                style="info",
-            )
-
     # BEGIN: Used from cli.py
+
+    def add_tool_event(
+        self,
+        tool_name: str,
+        event_type: str,
+        args: Optional[dict] = None,
+        result: Any = None,
+        duration: Optional[float] = None,
+    ):
+        """Add a tool execution event to the thought pane."""
+        if not self.agent_thought_enabled:
+            return
+        try:
+            event_log = self.query_one("#event-log", RichLog)
+
+            if event_type == "start":
+                # Tool execution start
+                content_panel = self.rich_renderer.format_running_tool(tool_name, args)
+                event_log.write(content_panel)
+
+                # Update tool usage tracking
+                self._tools_used += 1
+                self._last_tool_used = tool_name
+
+            elif event_type == "finish":
+                # Tool execution finish
+                content_panel = self.rich_renderer.format_tool_finished(
+                    tool_name, result, duration
+                )
+                event_log.write(content_panel)
+
+            elif event_type == "error":
+                # Tool execution error
+                error_msg = str(result) if result else "Unknown error"
+                content_panel = self.rich_renderer.format_tool_error(
+                    tool_name, error_msg
+                )
+                event_log.write(content_panel)
+        except Exception as e:
+            # Fallback to regular output if thought pane fails
+            self.add_output(f"Tool {event_type}: {tool_name}", style="info")
+
+    def add_output(
+        self,
+        text: Union[str, Text],
+        author: str = "User",
+        rich_format: bool = False,
+        style: str = "",
+    ):
+        """Add text to the output log."""
+        output_log = self.query_one("#output-log", RichLog)
+        if rich_format:
+            if isinstance(text, Text):
+                output_log.write(text)
+            elif (
+                author in ["Agent", "agent"] or "Agent" in author
+            ):  # More flexible agent detection
+                panel_text = self.rich_renderer.format_agent_response(text, author)
+                output_log.write(panel_text)
+            else:
+                output_log.write(Text(text, style=style))
+        else:
+            output_log.write(text)
+
+    def add_thought(self, text: str):
+        """Add text to the agent thought log."""
+        if self.agent_thought_enabled:
+            event_log = self.query_one("#event-log", RichLog)
+            event_log.write(self.rich_renderer.format_agent_thought(text))
+
+    def add_agent_output(self, text: str, author: str = "Agent"):
+        """Add agent output with proper markdown rendering."""
+        panel_text = self.rich_renderer.format_agent_response(text, author)
+        output_log = self.query_one("#output-log", RichLog)
+        output_log.write(panel_text)
+
+    def add_agent_thought(self, thought_text: str):
+        """Add agent thought to the thought pane."""
+        if not self.agent_thought_enabled:
+            return
+        try:
+            # Format the thought with proper styling using the rich_renderer
+            content_panel = self.rich_renderer.format_agent_thought(thought_text)
+            event_log = self.query_one("#event-log", RichLog)
+            event_log.write(content_panel)
+        except Exception as e:
+            # Fallback to regular output if thought pane fails
+            self.add_output(f"💭 {thought_text}", style="info")
+
+    def display_agent_welcome(
+        self, agent_name: str, agent_description: str = "", tools: Optional[list] = None
+    ):
+        """Display a comprehensive welcome message."""
+        # If the app is not yet mounted, store the info for later
+        try:
+            self.query_one("#output-log", RichLog)
+        except:
+            self._pending_welcome_info = (agent_name, agent_description, tools)
+            return
+
+        self.agent_name = agent_name
+        theme_indicator = "🌒" if self._current_ui_theme == UITheme.DARK else "🌞"
+        thought_status = "ON" if self.agent_thought_enabled else "OFF"
+
+        welcome_msg_rich = Text.from_markup(f"""
+[agent]▄▀█ █   ▄▀█ █▀▀ █▀▀ █▄█ ▀█▀[/agent]
+[agent]█▀█ █   █▀█ █▄█ █▄▄ █░█ ░█░[/agent]
+
+[bold cyan]🤖 Welcome to {agent_name}![/bold cyan]
+
+[bold]Description:[/bold] {agent_description or "AI Assistant"}
+[bold]Tools Available:[/bold] {len(tools) if tools else 0} tools loaded
+[bold]Theme:[/bold] {theme_indicator} {self._current_ui_theme.value.title()}
+
+[bold green]🚀 Ready to assist! Type your message below and press Enter.[/bold green]
+[dim]💡 Use 'help' command or Ctrl+T (theme), Ctrl+Y (thoughts), Ctrl+L (clear), Ctrl+D (quit)[/dim]
+""")
+
+        #         welcome_msg_rich.append(f"""
+        # [bold]Theme:[/bold] {theme_indicator} {self._current_ui_theme.value.title()}
+        # [bold]Session started:[/bold] {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+        # [bold green]🚀 Ready to assist! Type your message below and press Enter.[/bold green]
+        # [dim]💡 Use 'help' command or Ctrl+T (theme), Ctrl+Y (thoughts), Ctrl+L (clear), Ctrl+D (quit)[/dim]
+        # """)
+
+        self.add_output(welcome_msg_rich, rich_format=True)
+
+        # Update footer after setting agent name
+        self._update_status()
+
+    def display_user_help(self):
+        """Display help information."""
+        help_text = Text.from_markup("""
+[bold cyan]🔧 Available Commands:[/bold cyan]
+
+[bold]Built-in Commands:[/bold]
+• [yellow]clear[/yellow] - Clear the output screen
+• [yellow]help[/yellow] - Show this help message
+• [yellow]theme[/yellow] - Toggle between light/dark themes
+• [yellow]theme dark[/yellow] - Switch to dark theme
+• [yellow]theme light[/yellow] - Switch to light theme
+• [yellow]exit/quit/bye[/yellow] - Exit the application
+
+[bold]Keyboard Shortcuts:[/bold]
+• [yellow]Ctrl+T[/yellow] - Toggle theme
+• [yellow]Ctrl+Y[/yellow] - Toggle agent thought display
+• [yellow]Ctrl+L[/yellow] - Clear screen
+• [yellow]Ctrl+C[/yellow] - Interrupt running agent
+• [yellow]Ctrl+D[/yellow] - Quit application
+• [yellow]Up/Down[/yellow] or [yellow]Ctrl+P/Ctrl+N[/yellow] - Navigate command history
+• [yellow]Tab[/yellow] - Trigger command completion (cycle through suggestions)
+• [yellow]Escape[/yellow] - Cancel current completion
+
+[bold]Tab Completion Examples:[/bold]
+• Type [yellow]create a[/yellow] + Tab → "create a dockerfile", "create docker-compose.yml"
+• Type [yellow]setup mon[/yellow] + Tab → "setup monitoring for"
+• Type [yellow]deploy to[/yellow] + Tab → "deploy to production", "deploy to staging"
+• Type [yellow]analyze[/yellow] + Tab → "analyze this code"
+
+[bold]Agent Features:[/bold]
+• Type any message to interact with the agent
+• Agent responses appear in the main output pane
+• Agent thoughts (if enabled) appear in the right pane
+• Token usage and tool usage are tracked in real-time
+• Use Ctrl+C to interrupt long-running agent operations
+
+[bold green]💡 Tip:[/bold green] This is an advanced multi-pane interface with persistent input, real-time agent interaction, and DevOps-optimized completions!
+""")
+        self.add_output(help_text, rich_format=True)
 
     def display_model_usage(
         self,
@@ -784,98 +872,6 @@ class AgentTUI(App):
 
         #     # token_display = ", ".join(token_parts)
         #     self.add_output(f"📊 Model Usage: {total_tokens} tokens", style="info")
-
-    def add_output(
-        self,
-        text: Union[str, Text],
-        author: str = "User",
-        rich_format: bool = False,
-        style: str = "",
-    ):
-        """Add text to the output log."""
-        output_log = self.query_one("#output-log", RichLog)
-        if rich_format:
-            if isinstance(text, Text):
-                output_log.write(text)
-            elif (
-                author in ["Agent", "agent"] or "Agent" in author
-            ):  # More flexible agent detection
-                panel_text = self.rich_renderer.format_agent_response(text, author)
-                output_log.write(panel_text)
-            else:
-                output_log.write(Text(text, style=style))
-        else:
-            output_log.write(text)
-
-    def add_agent_output(self, text: str, author: str = "Agent"):
-        """Add agent output with proper markdown rendering."""
-        output_log = self.query_one("#output-log", RichLog)
-        panel_text = self.rich_renderer.format_agent_response(text, author)
-        output_log.write(panel_text)
-
-    def add_thought(self, text: str):
-        """Add text to the agent thought log."""
-        if self.agent_thought_enabled:
-            event_log = self.query_one("#event-log", RichLog)
-            event_log.write(self.rich_renderer.format_agent_thought(text))
-
-    def add_agent_thought(self, thought_text: str):
-        """Add agent thought to the thought pane."""
-        if not self.agent_thought_enabled:
-            return
-
-        try:
-            event_log = self.query_one("#event-log", RichLog)
-            # Format the thought with proper styling using the rich_renderer
-            content_panel = self.rich_renderer.format_agent_thought(thought_text)
-            event_log.write(content_panel)
-
-        except Exception as e:
-            # Fallback to regular output if thought pane fails
-            self.add_output(f"💭 {thought_text}", style="info")
-
-    def add_tool_event(
-        self,
-        tool_name: str,
-        event_type: str,
-        args: Optional[dict] = None,
-        result: Any = None,
-        duration: Optional[float] = None,
-    ):
-        """Add a tool execution event to the thought pane."""
-        if not self.agent_thought_enabled:
-            return
-
-        try:
-            event_log = self.query_one("#event-log", RichLog)
-
-            if event_type == "start":
-                # Tool execution start
-                content_panel = self.rich_renderer.format_running_tool(tool_name, args)
-                event_log.write(content_panel)
-
-                # Update tool usage tracking
-                self._tools_used += 1
-                self._last_tool_used = tool_name
-
-            elif event_type == "finish":
-                # Tool execution finish
-                content_panel = self.rich_renderer.format_tool_finished(
-                    tool_name, result, duration
-                )
-                event_log.write(content_panel)
-
-            elif event_type == "error":
-                # Tool execution error
-                error_msg = str(result) if result else "Unknown error"
-                content_panel = self.rich_renderer.format_tool_error(
-                    tool_name, error_msg
-                )
-                event_log.write(content_panel)
-
-        except Exception as e:
-            # Fallback to regular output if thought pane fails
-            self.add_output(f"Tool {event_type}: {tool_name}", style="info")
 
     def register_input_callback(self, callback: Callable[[str], Awaitable[Any]]):
         """Register a callback function to handle user input."""

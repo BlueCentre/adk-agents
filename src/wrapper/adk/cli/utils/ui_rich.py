@@ -158,7 +158,9 @@ class RichRenderer:
             padding=(0, 0),
         )
 
-    def display_agent_response(self, parent_console: Console, response_summary: str, author: str = "Agent"):
+    def display_agent_response(
+        self, parent_console: Console, response_summary: str, author: str = "Agent"
+    ):
         """Displays agent response summary in a Rich panel."""
         # content = Text.from_markup(response_summary)
         markdown = Markdown(response_summary, style="agent")
@@ -178,7 +180,9 @@ class RichRenderer:
             expand=True,
             # padding=(0, 1),
         )
-        parent_console.print(panel, crop=False, no_wrap=False, overflow="fold", soft_wrap=True)
+        parent_console.print(
+            panel, crop=False, no_wrap=False, overflow="fold", soft_wrap=True
+        )
         # self.console.print(panel)
 
     def display_agent_thought(self, parent_console: Console, thought_summary: str):
@@ -199,5 +203,7 @@ class RichRenderer:
             expand=True,
             # padding=(0, 1),
         )
-        parent_console.print(panel, crop=False, no_wrap=False, overflow="fold", soft_wrap=True)
+        parent_console.print(
+            panel, crop=False, no_wrap=False, overflow="fold", soft_wrap=True
+        )
         # self.console.print(panel)
