@@ -321,6 +321,7 @@ async def run_interactively_with_tui(
     async def handle_user_input(user_input: str):
         """Handle user input by running the agent and processing output."""
         try:
+            # Display the user input in the UI
             app_tui.add_output(
                 f"🔄 Processing: {user_input}",
                 author="User",
@@ -340,16 +341,25 @@ async def run_interactively_with_tui(
                 if event.content and event.content.parts:
                     regular_parts = []
                     thought_parts = []
+                    function_parts = []
 
                     # Separate agent thought and response content
                     for part in event.content.parts:
                         if hasattr(part, "thought") and part.thought:
                             thought_parts.append(part)
+                        elif hasattr(part, "function_call") and part.function_call:
+                            function_parts.append(part)
                         else:
                             regular_parts.append(part)
 
+                    if function_parts:
+                        for part in function_parts:
+                            if part.text:
+                                app_tui.add_output(part.text, author="Tool", rich_format=True, style="accent")
+
                     # Handle thought content
-                    if app_tui.agent_thought_enabled and thought_parts:
+                    # if app_tui.agent_thought_enabled and thought_parts:
+                    if thought_parts:
                         for part in thought_parts:
                             if part.text:
                                 app_tui.add_agent_thought(part.text)
