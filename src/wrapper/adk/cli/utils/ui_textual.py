@@ -696,6 +696,8 @@ class AgentTUI(App):
         output_log = self.query_one("#output-log", RichLog)
         if rich_format:
             if isinstance(text, Text):
+                text.overflow = "fold"
+                text.no_wrap = False
                 output_log.write(text)
             elif (
                 author in ["Agent", "agent"] or "Agent" in author
@@ -703,9 +705,11 @@ class AgentTUI(App):
                 panel_text = self.rich_renderer.format_agent_response(text, author)
                 output_log.write(panel_text)
             else:
-                output_log.write(Text(text, style=style, overflow="fold", no_wrap=False))
+                output_log.write(
+                    Text(text, style=style, overflow="fold", no_wrap=False)
+                )
         else:
-            output_log.write(text)
+            output_log.write(Text(str(text), overflow="fold", no_wrap=False))
 
     def add_thought(self, text: str):
         """Add text to the agent thought log."""
@@ -748,7 +752,7 @@ class AgentTUI(App):
         thought_status = "ON" if self.agent_thought_enabled else "OFF"
 
         welcome_msg_rich = Text.from_markup(
-f"""
+            f"""
   .'|=|`.     .'|                                                         
 .'  | |  `. .'  |                                                         
 |   |=|   | |   |                                                         
