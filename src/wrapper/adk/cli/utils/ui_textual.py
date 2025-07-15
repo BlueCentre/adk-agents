@@ -172,6 +172,9 @@ class AgentTUI(App):
         self.console = Console(
             theme=self.rich_renderer.rich_theme,
             force_interactive=True,
+            soft_wrap=True,
+            width=None,
+            height=None,
         )
         self.current_agent_task: Optional[asyncio.Task] = None
         self.input_callback: Optional[Callable[[str], Awaitable[Any]]] = None
@@ -201,7 +204,7 @@ class AgentTUI(App):
                 # This pane can be hidden (Ctrl+Y)
                 if self.agent_thought_enabled:
                     event_log = RichLog(id="event-log", classes="event-pane")
-                    event_log.border_title = "ℹ️ Events (Ctrl+Y to toggle)"
+                    event_log.border_title = "💡 Events (Ctrl+Y to toggle)"
                     yield event_log
             if self.user_multiline_input_enabled:
                 input_widget = SubmittableTextArea(
@@ -700,7 +703,7 @@ class AgentTUI(App):
                 panel_text = self.rich_renderer.format_agent_response(text, author)
                 output_log.write(panel_text)
             else:
-                output_log.write(Text(text, style=style))
+                output_log.write(Text(text, style=style, overflow="fold", no_wrap=False))
         else:
             output_log.write(text)
 
@@ -744,11 +747,22 @@ class AgentTUI(App):
         theme_indicator = "🌒" if self._current_ui_theme == UITheme.DARK else "🌞"
         thought_status = "ON" if self.agent_thought_enabled else "OFF"
 
-        welcome_msg_rich = Text.from_markup(f"""
-[agent]▄▀█ █   ▄▀█ █▀▀ █▀▀ █▄█ ▀█▀[/agent]
-[agent]█▀█ █   █▀█ █▄█ █▄▄ █░█ ░█░[/agent]
+        welcome_msg_rich = Text.from_markup(
+f"""
+  .'|=|`.     .'|                                                         
+.'  | |  `. .'  |                                                         
+|   |=|   | |   |                                                         
+|   | |   | |   |                                                         
+|___| |___| |___|                                                         
+                                                                          
+                   ___         ___        ___   ___  ___   ___  ___   ___ 
+  .'|=|`.     .'|=|_.'    .'|=|_.'   .'| |   | `._|=|   |=|_.' |   |=|_.' 
+.'  | |  `. .'  |___    .'  |  ___ .'  |\|   |      |   |      `.  |      
+|   |=|   | |   |`._|=. |   |=|_.' |   | |   |      |   |        `.|=|`.  
+|   | |   | `.  |  __|| |   |  ___ |   | |  .'      `.  |       ___  |  `.
+|___| |___|   `.|=|_.'' |___|=|_.' |___| |.'          `.|       `._|=|___|
 
-[bold cyan]🤖 Welcome to {agent_name}![/bold cyan]
+[bold cyan]🤖 Agent {agent_name} powered by Google ADK![/bold cyan]
 
 [bold]Description:[/bold] {agent_description or "AI Assistant"}
 [bold]Tools Available:[/bold] {len(tools) if tools else 0} tools loaded
@@ -756,15 +770,8 @@ class AgentTUI(App):
 
 [bold green]🚀 Ready to assist! Type your message below and press Enter.[/bold green]
 [dim]💡 Use 'help' command or Ctrl+T (theme), Ctrl+Y (thoughts), Ctrl+L (clear), Ctrl+D (quit)[/dim]
-""")
-
-        #         welcome_msg_rich.append(f"""
-        # [bold]Theme:[/bold] {theme_indicator} {self._current_ui_theme.value.title()}
-        # [bold]Session started:[/bold] {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-
-        # [bold green]🚀 Ready to assist! Type your message below and press Enter.[/bold green]
-        # [dim]💡 Use 'help' command or Ctrl+T (theme), Ctrl+Y (thoughts), Ctrl+L (clear), Ctrl+D (quit)[/dim]
-        # """)
+"""
+        )
 
         self.add_output(welcome_msg_rich, rich_format=True)
 

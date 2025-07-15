@@ -307,10 +307,20 @@ class EnhancedCLI:
         # Welcome ASCII Art Logo
         self.console.print()
         self.console.print(
-            "[agent]                 ▄▀█ █   ▄▀█ █▀▀ █▀▀ █▄█ ▀█▀[/agent]"
-        )
-        self.console.print(
-            "[agent]                 █▀█ █   █▀█ █▄█ █▄▄ █░█ ░█░[/agent]"
+"""
+  .'|=|`.     .'|                                                         
+.'  | |  `. .'  |                                                         
+|   |=|   | |   |                                                         
+|   | |   | |   |                                                         
+|___| |___| |___|                                                         
+                                                                          
+                   ___         ___        ___   ___  ___   ___  ___   ___ 
+  .'|=|`.     .'|=|_.'    .'|=|_.'   .'| |   | `._|=|   |=|_.' |   |=|_.' 
+.'  | |  `. .'  |___    .'  |  ___ .'  |\|   |      |   |      `.  |      
+|   |=|   | |   |`._|=. |   |=|_.' |   | |   |      |   |        `.|=|`.  
+|   | |   | `.  |  __|| |   |  ___ |   | |  .'      `.  |       ___  |  `.
+|___| |___|   `.|=|_.'' |___|=|_.' |___| |.'          `.|       `._|=|___|
+"""
         )
         self.console.print()
         self.console.print(
@@ -319,7 +329,7 @@ class EnhancedCLI:
         self.console.print()
 
         self.console.print(
-            "\n[accent]┌─ Enhanced Agent CLI ─────────────────────────────────────┐[/accent]"
+            "[accent]┌─ Enhanced Agent CLI ─────────────────────────────────────┐[/accent]"
         )
         self.console.print(
             f"[accent]│[/accent] [agent]Agent:[/agent] [highlight]{agent_name}[/highlight]"

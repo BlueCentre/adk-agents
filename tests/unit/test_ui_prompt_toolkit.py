@@ -178,7 +178,8 @@ class TestWelcomeMessage:
         welcome_content = " ".join(calls)
 
         # Check for ASCII art and branding
-        assert "█" in welcome_content  # ASCII art
+        assert "┌" in welcome_content  # ASCII art border
+        assert "┐" in welcome_content  # ASCII art border
         assert "AI Agent Development Kit" in welcome_content
         assert "Enhanced Agent CLI" in welcome_content
 
@@ -650,21 +651,31 @@ class TestIntegrationScenarios:
         """Test agent output integration."""
         cli = EnhancedCLI()
 
-        with patch.object(cli, "display_agent_response") as mock_display_response, \
-             patch.object(cli, "display_agent_thought") as mock_display_thought:
+        with (
+            patch.object(cli, "display_agent_response") as mock_display_response,
+            patch.object(cli, "display_agent_thought") as mock_display_thought,
+        ):
             # Add various types of output
             cli.display_agent_response(cli.console, "Response message", "Agent")
             cli.display_agent_thought(cli.console, "Thinking about the problem")
 
         # Should have called each method once
-        mock_display_response.assert_called_once_with(cli.console, "Response message", "Agent")
-        mock_display_thought.assert_called_once_with(cli.console, "Thinking about the problem")
+        mock_display_response.assert_called_once_with(
+            cli.console, "Response message", "Agent"
+        )
+        mock_display_thought.assert_called_once_with(
+            cli.console, "Thinking about the problem"
+        )
 
     def test_error_recovery_integration(self):
         """Test error recovery integration."""
         cli = EnhancedCLI()
         # Mock rich_renderer.display_agent_response to raise exception
-        with patch.object(cli.rich_renderer, "display_agent_response", side_effect=Exception("Test error")):
+        with patch.object(
+            cli.rich_renderer,
+            "display_agent_response",
+            side_effect=Exception("Test error"),
+        ):
             # The exception should propagate up from display_agent_response
             with pytest.raises(Exception, match="Test error"):
                 cli.display_agent_response(cli.console, "test", "agent")
