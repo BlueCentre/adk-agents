@@ -9,6 +9,7 @@ from google.adk.tools import load_memory
 
 from . import config as agent_config
 from . import prompt
+from .shared_libraries.callbacks import create_enhanced_telemetry_callbacks
 from .sub_agents.code_quality.agent import code_quality_agent
 from .sub_agents.code_review.agent import code_review_agent
 from .sub_agents.debugging.agent import debugging_agent
@@ -68,6 +69,14 @@ logger = logging.getLogger(__name__)
 # Load tools synchronously (MCP tools will be loaded later if in async context)
 tools = load_all_tools_and_toolsets()
 
+# Create telemetry callbacks for observability
+(
+    before_model_callback,
+    after_model_callback,
+    before_tool_callback,
+    after_tool_callback,
+) = create_enhanced_telemetry_callbacks("software_engineer")
+
 # REF: https://google.github.io/adk-docs/agents/models/#ollama-integration
 # Create the agent using LiteLlm wrapper for Ollama integration
 root_agent = Agent(
@@ -91,6 +100,11 @@ root_agent = Agent(
         ollama_agent,  # 8. Local model sandbox environment
     ],
     tools=tools,
+    # Add telemetry callbacks for observability
+    before_model_callback=before_model_callback,
+    after_model_callback=after_model_callback,
+    before_tool_callback=before_tool_callback,
+    after_tool_callback=after_tool_callback,
     # tools=[
     #     read_file_tool,
     #     list_dir_tool,

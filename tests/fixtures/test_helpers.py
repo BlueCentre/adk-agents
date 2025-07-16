@@ -292,8 +292,17 @@ class MockEvent:
 class MockInvocationContext:
     """Mock invocation context for testing."""
 
-    def __init__(self, state: Optional[Dict[str, Any]] = None):
+    def __init__(
+        self,
+        state: Optional[Dict[str, Any]] = None,
+        invocation_id: str = "mock_inv_123",
+        trace_id: str = "mock_trace_456",
+        session_state: Optional[Dict[str, Any]] = None,
+    ):
         self.state = state or {}
+        self.invocation_id = invocation_id
+        self.trace_id = trace_id
+        self.session_state = session_state or {}
         self.end_invocation = False
 
 
@@ -348,8 +357,17 @@ class MockTool:
 class MockToolContext:
     """Mock tool context for testing."""
 
-    def __init__(self, state: Optional[Dict[str, Any]] = None):
+    def __init__(
+        self,
+        state: Optional[Dict[str, Any]] = None,
+        invocation_id: str = "mock_tool_inv_789",
+        trace_id: str = "mock_trace_456",
+        tool_input: Optional[Dict[str, Any]] = None,
+    ):
         self.state = state or {}
+        self.invocation_id = invocation_id
+        self.trace_id = trace_id
+        self.tool_input = tool_input or {}
 
 
 def create_sample_conversation_history(

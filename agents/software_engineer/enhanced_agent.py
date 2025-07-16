@@ -9,6 +9,7 @@ from google.adk.tools import FunctionTool, ToolContext, load_memory
 
 from . import config as agent_config
 from . import prompt
+from .shared_libraries.callbacks import create_enhanced_telemetry_callbacks
 from .sub_agents.code_quality.agent import code_quality_agent
 from .sub_agents.code_review.agent import code_review_agent
 from .sub_agents.debugging.agent import debugging_agent
@@ -211,6 +212,14 @@ def create_enhanced_software_engineer_agent() -> Agent:
         [workflow_selector_function_tool, state_manager_function_tool, load_memory]
     )
 
+    # Create telemetry callbacks for observability
+    (
+        before_model_callback,
+        after_model_callback,
+        before_tool_callback,
+        after_tool_callback,
+    ) = create_enhanced_telemetry_callbacks("enhanced_software_engineer")
+
     # Note: Workflows are created on-demand to avoid agent parent conflicts
     # This allows dynamic workflow creation without pre-instantiating all workflows
 
@@ -234,6 +243,11 @@ def create_enhanced_software_engineer_agent() -> Agent:
             # This avoids agent parent conflicts while still providing workflow capabilities
         ],
         tools=tools,
+        # Add telemetry callbacks for observability
+        before_model_callback=before_model_callback,
+        after_model_callback=after_model_callback,
+        before_tool_callback=before_tool_callback,
+        after_tool_callback=after_tool_callback,
         output_key="enhanced_software_engineer",
     )
 

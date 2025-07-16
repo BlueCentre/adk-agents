@@ -62,7 +62,6 @@ class AgentTUI(App):
 
     # UI state
     session_id: reactive[str] = reactive("")
-
     # User input state
     user_multiline_input_enabled: reactive[bool] = reactive(False)
     user_input_history: reactive[list[str]] = reactive([])
@@ -135,24 +134,20 @@ class AgentTUI(App):
             ],
         }
     )
-
     # Agent state
     agent_name: reactive[str] = reactive("Agent")
     agent_running: reactive[bool] = reactive(False)
     agent_thinking: reactive[bool] = reactive(False)
     agent_thought_enabled: reactive[bool] = reactive(True)
-
     # Token usage tracking
     _prompt_tokens: reactive[int] = reactive(0)
     _thinking_tokens: reactive[int] = reactive(0)
     _output_tokens: reactive[int] = reactive(0)
     _total_tokens: reactive[int] = reactive(0)
     _model_name: reactive[str] = reactive("Unknown")
-
     # Tool usage tracking
     _tools_used: reactive[int] = reactive(0)
     _last_tool: reactive[str] = reactive("")
-
     # Thinking animation state
     _thinking_animation_index: reactive[int] = reactive(0)
     _thinking_frames: reactive[list[str]] = reactive(["🤔", "💭", "🧠", "⚡"])
