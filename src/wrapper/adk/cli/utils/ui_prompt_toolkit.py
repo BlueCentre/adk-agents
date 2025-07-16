@@ -166,7 +166,7 @@ class EnhancedCLI:
                 "run security scan",
                 "run performance tests",
                 "generate documentation",
-                "summarize git status & diff using https://www.conventionalcommits.org/en/v1.0.0/#specification, commit, and push changes to feature branch",
+                "summarize git status & diff using https://www.conventionalcommits.org/en/v1.0.0/#specification, commit, push changes to feature branch, and create a pull request",
                 "push changes",
             ],
             "⚙️ CLI Commands": [
