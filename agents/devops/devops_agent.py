@@ -65,7 +65,6 @@ from .tracing import (
 # from .tools.disabled.analytics import tool_analytics
 
 
-
 logger = logging.getLogger(__name__)
 
 try:
@@ -1070,9 +1069,10 @@ Begin execution now, starting with the first step."""
             logger.info(
                 f"Displaying {len(processed_response['thought_summaries'])} thought summaries in rich panel"
             )
-            ui_utils.display_agent_thought(
-                self._console, processed_response["thought_summaries"]
-            )
+            # TODO: Add feature flag to disable thought summaries
+            # ui_utils.display_agent_thought(
+            #     self._console, processed_response["thought_summaries"]
+            # )
 
         # Use robust state management for response processing
         try:
@@ -1622,6 +1622,13 @@ Begin execution now, starting with the first step."""
             for text_part in processed_response["text_parts"]:
                 if text_part.strip():  # Only add non-empty text
                     filtered_parts.append(genai_types.Part(text=text_part))
+
+            # IMPORTANT: Preserve thought parts for TUI processing
+            # Add thought summaries back as thought parts for TUI compatibility
+            for thought_summary in processed_response["thought_summaries"]:
+                if thought_summary.strip():  # Only add non-empty thought content
+                    thought_part = genai_types.Part(text=thought_summary, thought=True)
+                    filtered_parts.append(thought_part)
 
             # Add function calls
             for func_call in processed_response["function_calls"]:

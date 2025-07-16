@@ -79,7 +79,9 @@ class RichRenderer:
         return message
 
     def format_agent_response(self, text: str, author: str = "Agent") -> Panel:
-        markdown = Markdown(text, style="agent")
+        markdown = Markdown(
+            text, style=self.rich_theme.styles.get("agent.style", "gray")
+        )
         return Panel(
             markdown,
             title=f"[bold {self.rich_theme.styles.get('agent.border_color', 'green')}]🤖 {author} Response[/bold {self.rich_theme.styles.get('agent.border_color', 'green')}]",
@@ -90,7 +92,9 @@ class RichRenderer:
         )
 
     def format_agent_thought(self, text: str) -> Panel:
-        markdown = Markdown(text, style="thought")
+        markdown = Markdown(
+            text, style=self.rich_theme.styles.get("thought.style", "gray")
+        )
         return Panel(
             markdown,
             title=f"[bold {self.rich_theme.styles.get('thought.border_color', 'magenta')}]🧠 Agent Thought[/bold {self.rich_theme.styles.get('thought.border_color', 'magenta')}]",
@@ -163,7 +167,9 @@ class RichRenderer:
     ):
         """Displays agent response summary in a Rich panel."""
         # content = Text.from_markup(response_summary)
-        markdown = Markdown(response_summary, style="agent")
+        markdown = Markdown(
+            response_summary, style=self.rich_theme.styles.get("agent.style", "gray")
+        )
         segments = list(self.console.render(markdown))
         rendered_text = Text(no_wrap=False, overflow="fold")
         for segment in segments:
@@ -187,7 +193,9 @@ class RichRenderer:
 
     def display_agent_thought(self, parent_console: Console, thought_summary: str):
         """Displays agent thought summaries in a Rich panel."""
-        markdown = Markdown(thought_summary, style="thought")
+        markdown = Markdown(
+            thought_summary, style=self.rich_theme.styles.get("thought.style", "gray")
+        )
         segments = list(self.console.render(markdown))
         rendered_text = Text()
         # rendered_text = Text(no_wrap=False, overflow="fold")

@@ -234,7 +234,7 @@ class AgentTUI(App):
         self.query_one("#input-area").focus()
         import uuid
 
-        self.session_id = str(uuid.uuid4())[:8]
+        self.session_id = str(uuid.uuid4())
 
         self.add_class(self._current_ui_theme.value, "theme-mode")
 
@@ -348,7 +348,7 @@ class AgentTUI(App):
             # Build comprehensive status like basic CLI
             status_parts = [
                 f"🤖 {self.agent_name}",
-                f"🧑 Session: {self.session_id}",
+                f"🧑 Session: {self.session_id[:8]}",
                 # f"Uptime: {self._uptime}",
                 # f"{self._current_time}",
                 f"{status}",
