@@ -3,6 +3,7 @@
 import logging
 from typing import Any, Optional
 
+from google.adk.agents.callback_context import CallbackContext
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
@@ -23,11 +24,15 @@ def create_telemetry_callbacks(agent_name: str):
         Tuple of (before_model_callback, after_model_callback, before_tool_callback, after_tool_callback)
     """
 
-    def before_model_callback(llm_request: LlmRequest, context: InvocationContext):
+    def before_model_callback(
+        callback_context: CallbackContext, llm_request: LlmRequest
+    ):
         """Callback executed before LLM model request."""
         try:
             invocation_id = (
-                getattr(context, "invocation_id", "unknown") if context else "unknown"
+                getattr(callback_context, "invocation_id", "unknown")
+                if callback_context
+                else "unknown"
             )
             logger.debug(f"[{agent_name}] Before model request - ID: {invocation_id}")
 
@@ -47,8 +52,10 @@ def create_telemetry_callbacks(agent_name: str):
                 )
 
             # Track request timing
-            if context and not hasattr(context, "_request_start_time"):
-                context._request_start_time = __import__("time").time()
+            if callback_context and not hasattr(
+                callback_context, "_request_start_time"
+            ):
+                callback_context._request_start_time = __import__("time").time()
 
             # Optional: Add any SWE-specific pre-processing here
             # For example, context filtering, prompt augmentation, etc.
@@ -56,18 +63,22 @@ def create_telemetry_callbacks(agent_name: str):
             logger.warning(f"[{agent_name}] Error in before_model_callback: {e}")
 
     def after_model_callback(
-        llm_request: LlmRequest, llm_response: LlmResponse, context: InvocationContext
+        callback_context: CallbackContext, llm_response: LlmResponse
     ):
         """Callback executed after LLM model response."""
         try:
             invocation_id = (
-                getattr(context, "invocation_id", "unknown") if context else "unknown"
+                getattr(callback_context, "invocation_id", "unknown")
+                if callback_context
+                else "unknown"
             )
             logger.debug(f"[{agent_name}] After model response - ID: {invocation_id}")
 
             # Calculate response time
-            if context and hasattr(context, "_request_start_time"):
-                response_time = __import__("time").time() - context._request_start_time
+            if callback_context and hasattr(callback_context, "_request_start_time"):
+                response_time = (
+                    __import__("time").time() - callback_context._request_start_time
+                )
                 logger.debug(f"[{agent_name}] Response time: {response_time:.2f}s")
 
             # Basic logging of response details
@@ -101,27 +112,32 @@ def create_telemetry_callbacks(agent_name: str):
         except Exception as e:
             logger.warning(f"[{agent_name}] Error in after_model_callback: {e}")
 
-    def before_tool_callback(tool: BaseTool, context: ToolContext):
+    def before_tool_callback(
+        tool: BaseTool,
+        args: dict,
+        tool_context: ToolContext,
+        callback_context: CallbackContext = None,
+    ):
         """Callback executed before tool execution."""
         try:
             tool_name = getattr(tool, "name", "unknown") if tool else "unknown"
             invocation_id = (
-                getattr(context, "invocation_id", "unknown") if context else "unknown"
+                getattr(callback_context, "invocation_id", "unknown")
+                if callback_context
+                else "unknown"
             )
             logger.debug(
                 f"[{agent_name}] Before tool execution - Tool: {tool_name}, ID: {invocation_id}"
             )
 
             # Track tool execution timing
-            if context and not hasattr(context, "_tool_start_time"):
-                context._tool_start_time = __import__("time").time()
+            if callback_context and not hasattr(callback_context, "_tool_start_time"):
+                callback_context._tool_start_time = __import__("time").time()
 
             # Log tool input if available
-            if context and hasattr(context, "tool_input") and context.tool_input:
+            if args:
                 input_preview = (
-                    str(context.tool_input)[:200] + "..."
-                    if len(str(context.tool_input)) > 200
-                    else str(context.tool_input)
+                    str(args)[:200] + "..." if len(str(args)) > 200 else str(args)
                 )
                 logger.debug(f"[{agent_name}] Tool input preview: {input_preview}")
 
@@ -130,34 +146,48 @@ def create_telemetry_callbacks(agent_name: str):
         except Exception as e:
             logger.warning(f"[{agent_name}] Error in before_tool_callback: {e}")
 
-    def after_tool_callback(tool: BaseTool, result: Any, context: ToolContext):
+    def after_tool_callback(
+        tool: BaseTool,
+        tool_response: Any,
+        callback_context: CallbackContext = None,
+        args: dict = None,
+        tool_context: ToolContext = None,
+    ):
         """Callback executed after tool execution."""
         try:
             tool_name = getattr(tool, "name", "unknown") if tool else "unknown"
             invocation_id = (
-                getattr(context, "invocation_id", "unknown") if context else "unknown"
+                getattr(callback_context, "invocation_id", "unknown")
+                if callback_context
+                else "unknown"
             )
             logger.debug(
                 f"[{agent_name}] After tool execution - Tool: {tool_name}, ID: {invocation_id}"
             )
 
             # Calculate tool execution time
-            if context and hasattr(context, "_tool_start_time"):
-                execution_time = __import__("time").time() - context._tool_start_time
+            if callback_context and hasattr(callback_context, "_tool_start_time"):
+                execution_time = (
+                    __import__("time").time() - callback_context._tool_start_time
+                )
                 logger.debug(
                     f"[{agent_name}] Tool execution time: {execution_time:.2f}s"
                 )
 
             # Log tool result
-            if result is not None:
+            if tool_response is not None:
                 result_preview = (
-                    str(result)[:200] + "..." if len(str(result)) > 200 else str(result)
+                    str(tool_response)[:200] + "..."
+                    if len(str(tool_response)) > 200
+                    else str(tool_response)
                 )
                 logger.debug(f"[{agent_name}] Tool result preview: {result_preview}")
 
             # Track tool success/failure
-            if isinstance(result, Exception):
-                logger.warning(f"[{agent_name}] Tool {tool_name} failed: {result}")
+            if isinstance(tool_response, Exception):
+                logger.warning(
+                    f"[{agent_name}] Tool {tool_name} failed: {tool_response}"
+                )
             else:
                 logger.debug(f"[{agent_name}] Tool {tool_name} completed successfully")
 
@@ -205,11 +235,15 @@ def create_enhanced_telemetry_callbacks(agent_name: str):
         )
         return create_telemetry_callbacks(agent_name)
 
-    def before_model_callback(llm_request: LlmRequest, context: InvocationContext):
+    def before_model_callback(
+        callback_context: CallbackContext, llm_request: LlmRequest
+    ):
         """Enhanced callback with telemetry before LLM model request."""
         try:
             invocation_id = (
-                getattr(context, "invocation_id", "unknown") if context else "unknown"
+                getattr(callback_context, "invocation_id", "unknown")
+                if callback_context
+                else "unknown"
             )
             logger.debug(f"[{agent_name}] Before model request - ID: {invocation_id}")
 
@@ -229,8 +263,8 @@ def create_enhanced_telemetry_callbacks(agent_name: str):
                 )
 
             # Track request timing
-            if context:
-                context._request_start_time = __import__("time").time()
+            if callback_context:
+                callback_context._request_start_time = __import__("time").time()
 
             # Enhanced telemetry tracking
             if telemetry_available:
@@ -245,17 +279,22 @@ def create_enhanced_telemetry_callbacks(agent_name: str):
             )
 
     def after_model_callback(
-        llm_request: LlmRequest, llm_response: LlmResponse, context: InvocationContext
+        callback_context: CallbackContext, llm_response: LlmResponse
     ):
         """Enhanced callback with telemetry after LLM model response."""
-        logger.debug(
-            f"[{agent_name}] After model response - ID: {context.invocation_id}"
+        invocation_id = (
+            getattr(callback_context, "invocation_id", "unknown")
+            if callback_context
+            else "unknown"
         )
+        logger.debug(f"[{agent_name}] After model response - ID: {invocation_id}")
 
         # Calculate response time
         response_time = 0.0
-        if hasattr(context, "_request_start_time"):
-            response_time = __import__("time").time() - context._request_start_time
+        if callback_context and hasattr(callback_context, "_request_start_time"):
+            response_time = (
+                __import__("time").time() - callback_context._request_start_time
+            )
             logger.debug(f"[{agent_name}] Response time: {response_time:.2f}s")
 
         # Basic logging
@@ -286,14 +325,13 @@ def create_enhanced_telemetry_callbacks(agent_name: str):
                         completion_tokens = usage.candidates_token_count
                     total_tokens = prompt_tokens + completion_tokens
 
-                # Track LLM request with telemetry
-                model_name = getattr(llm_request, "model", "unknown")
+                # Track LLM request with telemetry (model name not available in response)
+                model_name = getattr(callback_context, "_model_name", "unknown")
                 track_llm_request(
                     model=model_name,
                     tokens_used=total_tokens,
                     response_time=response_time,
                     prompt_tokens=prompt_tokens,
-                    completion_tokens=completion_tokens,
                 )
 
                 logger.info(
@@ -303,49 +341,75 @@ def create_enhanced_telemetry_callbacks(agent_name: str):
             except Exception as e:
                 logger.warning(f"[{agent_name}] Failed to track LLM response: {e}")
 
-    def before_tool_callback(tool: BaseTool, context: ToolContext):
+    def before_tool_callback(
+        tool: BaseTool,
+        args: dict,
+        tool_context: ToolContext,
+        callback_context: CallbackContext = None,
+    ):
         """Enhanced callback with telemetry before tool execution."""
+        tool_name = getattr(tool, "name", "unknown") if tool else "unknown"
+        invocation_id = (
+            getattr(callback_context, "invocation_id", "unknown")
+            if callback_context
+            else "unknown"
+        )
         logger.debug(
-            f"[{agent_name}] Before tool execution - Tool: {tool.name}, ID: {getattr(context, 'invocation_id', 'unknown')}"
+            f"[{agent_name}] Before tool execution - Tool: {tool_name}, ID: {invocation_id}"
         )
 
         # Track tool execution timing
-        context._tool_start_time = __import__("time").time()
+        if callback_context:
+            callback_context._tool_start_time = __import__("time").time()
 
         # Log tool input
-        if hasattr(context, "tool_input") and context.tool_input:
+        if args:
             input_preview = (
-                str(context.tool_input)[:200] + "..."
-                if len(str(context.tool_input)) > 200
-                else str(context.tool_input)
+                str(args)[:200] + "..." if len(str(args)) > 200 else str(args)
             )
             logger.debug(f"[{agent_name}] Tool input preview: {input_preview}")
 
-    def after_tool_callback(tool: BaseTool, result: Any, context: ToolContext):
+    def after_tool_callback(
+        tool: BaseTool,
+        tool_response: Any,
+        callback_context: CallbackContext = None,
+        args: dict = None,
+        tool_context: ToolContext = None,
+    ):
         """Enhanced callback with telemetry after tool execution."""
+        tool_name = getattr(tool, "name", "unknown") if tool else "unknown"
+        invocation_id = (
+            getattr(callback_context, "invocation_id", "unknown")
+            if callback_context
+            else "unknown"
+        )
         logger.debug(
-            f"[{agent_name}] After tool execution - Tool: {tool.name}, ID: {getattr(context, 'invocation_id', 'unknown')}"
+            f"[{agent_name}] After tool execution - Tool: {tool_name}, ID: {invocation_id}"
         )
 
         # Calculate tool execution time
         execution_time = 0.0
-        if hasattr(context, "_tool_start_time"):
-            execution_time = __import__("time").time() - context._tool_start_time
+        if callback_context and hasattr(callback_context, "_tool_start_time"):
+            execution_time = (
+                __import__("time").time() - callback_context._tool_start_time
+            )
             logger.debug(f"[{agent_name}] Tool execution time: {execution_time:.2f}s")
 
         # Log tool result
-        if result is not None:
+        if tool_response is not None:
             result_preview = (
-                str(result)[:200] + "..." if len(str(result)) > 200 else str(result)
+                str(tool_response)[:200] + "..."
+                if len(str(tool_response)) > 200
+                else str(tool_response)
             )
             logger.debug(f"[{agent_name}] Tool result preview: {result_preview}")
 
         # Track success/failure
-        success = not isinstance(result, Exception)
+        success = not isinstance(tool_response, Exception)
         if not success:
-            logger.warning(f"[{agent_name}] Tool {tool.name} failed: {result}")
+            logger.warning(f"[{agent_name}] Tool {tool_name} failed: {tool_response}")
         else:
-            logger.debug(f"[{agent_name}] Tool {tool.name} completed successfully")
+            logger.debug(f"[{agent_name}] Tool {tool_name} completed successfully")
 
         # Enhanced telemetry tracking
         if telemetry_available:

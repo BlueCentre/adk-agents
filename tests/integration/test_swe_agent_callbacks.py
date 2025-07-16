@@ -204,7 +204,7 @@ class TestBasicCallbacks:
         before_model_callback = callbacks[0]
 
         with caplog.at_level(logging.DEBUG):
-            before_model_callback(mock_llm_request, mock_invocation_context)
+            before_model_callback(mock_invocation_context, mock_llm_request)
 
         # Verify logging
         assert "Before model request" in caplog.text
@@ -226,9 +226,7 @@ class TestBasicCallbacks:
         mock_invocation_context._request_start_time = time.time() - 1.5
 
         with caplog.at_level(logging.DEBUG):
-            after_model_callback(
-                mock_llm_request, mock_llm_response, mock_invocation_context
-            )
+            after_model_callback(mock_invocation_context, mock_llm_response)
 
         # Verify logging
         assert "After model response" in caplog.text
@@ -240,14 +238,19 @@ class TestBasicCallbacks:
         assert "Total: 300" in caplog.text
 
     def test_basic_before_tool_callback(
-        self, mock_test_tool, mock_tool_context, caplog
+        self, mock_test_tool, mock_tool_context, mock_invocation_context, caplog
     ):
         """Test basic before_tool callback execution."""
         callbacks = create_telemetry_callbacks("test_agent")
         before_tool_callback = callbacks[2]
 
         with caplog.at_level(logging.DEBUG):
-            before_tool_callback(mock_test_tool, mock_tool_context)
+            before_tool_callback(
+                mock_test_tool,
+                {"param1": "value1"},
+                mock_tool_context,
+                mock_invocation_context,
+            )
 
         # Verify logging
         assert "Before tool execution" in caplog.text
@@ -255,21 +258,29 @@ class TestBasicCallbacks:
         assert "test_tool" in caplog.text
 
         # Verify timing is set
-        assert hasattr(mock_tool_context, "_tool_start_time")
-        assert isinstance(mock_tool_context._tool_start_time, float)
+        assert hasattr(mock_invocation_context, "_tool_start_time")
+        assert isinstance(mock_invocation_context._tool_start_time, float)
 
-    def test_basic_after_tool_callback(self, mock_test_tool, mock_tool_context, caplog):
+    def test_basic_after_tool_callback(
+        self, mock_test_tool, mock_tool_context, mock_invocation_context, caplog
+    ):
         """Test basic after_tool callback execution."""
         callbacks = create_telemetry_callbacks("test_agent")
         after_tool_callback = callbacks[3]
 
         # Set up timing
-        mock_tool_context._tool_start_time = time.time() - 0.5
+        mock_invocation_context._tool_start_time = time.time() - 0.5
 
         test_result = {"status": "success", "data": "test_output"}
 
         with caplog.at_level(logging.DEBUG):
-            after_tool_callback(mock_test_tool, test_result, mock_tool_context)
+            after_tool_callback(
+                mock_test_tool,
+                test_result,
+                mock_invocation_context,
+                {"param1": "value1"},
+                mock_tool_context,
+            )
 
         # Verify logging
         assert "After tool execution" in caplog.text
@@ -278,7 +289,9 @@ class TestBasicCallbacks:
         assert "Tool execution time:" in caplog.text
         assert "completed successfully" in caplog.text
 
-    def test_tool_failure_callback(self, mock_test_tool, mock_tool_context, caplog):
+    def test_tool_failure_callback(
+        self, mock_test_tool, mock_tool_context, mock_invocation_context, caplog
+    ):
         """Test callback behavior when tool fails."""
         callbacks = create_telemetry_callbacks("test_agent")
         after_tool_callback = callbacks[3]
@@ -287,7 +300,13 @@ class TestBasicCallbacks:
         test_error = Exception("Tool execution failed")
 
         with caplog.at_level(logging.WARNING):
-            after_tool_callback(mock_test_tool, test_error, mock_tool_context)
+            after_tool_callback(
+                mock_test_tool,
+                test_error,
+                mock_invocation_context,
+                {"param1": "value1"},
+                mock_tool_context,
+            )
 
         # Verify error logging
         assert "Tool test_tool failed" in caplog.text
@@ -345,9 +364,7 @@ class TestEnhancedCallbacks:
             mock_invocation_context._request_start_time = time.time() - 2.0
 
             with caplog.at_level(logging.DEBUG):
-                after_model_callback(
-                    mock_llm_request, mock_llm_response, mock_invocation_context
-                )
+                after_model_callback(mock_invocation_context, mock_llm_response)
 
             # Verify basic logging occurred
             assert "After model response" in caplog.text
@@ -457,7 +474,7 @@ class TestCallbackPerformance:
         # Measure callback execution time
         start_time = time.time()
         for _ in range(100):
-            before_model_callback(mock_llm_request, mock_invocation_context)
+            before_model_callback(mock_invocation_context, mock_llm_request)
         end_time = time.time()
 
         # Callbacks should execute quickly (< 1ms per call on average)
@@ -471,7 +488,7 @@ class TestCallbackPerformance:
 
         # Execute callbacks many times
         for _ in range(1000):
-            before_model_callback(mock_llm_request, mock_invocation_context)
+            before_model_callback(mock_invocation_context, mock_llm_request)
 
         # This test mainly ensures no exceptions are raised during repeated execution
         # Memory profiling would require additional tools like memory_profiler
@@ -515,9 +532,7 @@ class TestCallbackErrorHandling:
         minimal_response = MagicMock()
 
         try:
-            after_model_callback(
-                minimal_request, minimal_response, mock_invocation_context
-            )
+            after_model_callback(mock_invocation_context, minimal_response)
             # Should not raise exception
         except Exception as e:
             pytest.fail(f"Callback should handle missing attributes gracefully: {e}")
@@ -535,7 +550,7 @@ class TestCallbackLogging:
 
         # Test DEBUG level logging
         with caplog.at_level(logging.DEBUG):
-            before_model_callback(mock_llm_request, mock_invocation_context)
+            before_model_callback(mock_invocation_context, mock_llm_request)
 
         debug_logs = [
             record for record in caplog.records if record.levelno == logging.DEBUG
@@ -550,9 +565,7 @@ class TestCallbackLogging:
         mock_response.usage_metadata.candidates_token_count = 100
 
         with caplog.at_level(logging.INFO):
-            after_model_callback(
-                mock_llm_request, mock_response, mock_invocation_context
-            )
+            after_model_callback(mock_invocation_context, mock_response)
 
         info_logs = [
             record for record in caplog.records if record.levelno == logging.INFO
@@ -567,7 +580,7 @@ class TestCallbackLogging:
         before_model_callback = callbacks[0]
 
         with caplog.at_level(logging.DEBUG):
-            before_model_callback(mock_llm_request, mock_invocation_context)
+            before_model_callback(mock_invocation_context, mock_llm_request)
 
         log_text = caplog.text
 
@@ -600,14 +613,16 @@ class TestCallbackEndToEnd:
         mock_tool_context = MockToolContext()
 
         # Execute callbacks in expected order
-        before_model(mock_request, mock_context)
-        after_model(mock_request, mock_response, mock_context)
-        before_tool(mock_tool, mock_tool_context)
-        after_tool(mock_tool, "success", mock_tool_context)
+        before_model(mock_context, mock_request)
+        after_model(mock_context, mock_response)
+        before_tool(mock_tool, {"param": "value"}, mock_tool_context, mock_context)
+        after_tool(
+            mock_tool, "success", mock_context, {"param": "value"}, mock_tool_context
+        )
 
         # Verify timing was tracked
         assert hasattr(mock_context, "_request_start_time")
-        assert hasattr(mock_tool_context, "_tool_start_time")
+        assert hasattr(mock_context, "_tool_start_time")
 
     @pytest.mark.asyncio
     async def test_callback_with_multiple_tools(self, callback_collector):
@@ -618,14 +633,17 @@ class TestCallbackEndToEnd:
         # Simulate multiple tool executions
         tools = [MockTool(f"tool_{i}") for i in range(3)]
         contexts = [MockToolContext() for _ in range(3)]
+        callback_contexts = [MockInvocationContext() for _ in range(3)]
         results = ["result_1", "result_2", "result_3"]
 
-        for tool, context, result in zip(tools, contexts, results):
-            before_tool(tool, context)
-            after_tool(tool, result, context)
+        for tool, context, callback_context, result in zip(
+            tools, contexts, callback_contexts, results
+        ):
+            before_tool(tool, {"param": "value"}, context, callback_context)
+            after_tool(tool, result, callback_context, {"param": "value"}, context)
 
         # Verify each tool context has timing
-        for context in contexts:
+        for context in callback_contexts:
             assert hasattr(context, "_tool_start_time")
 
 
