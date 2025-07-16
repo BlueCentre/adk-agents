@@ -120,7 +120,7 @@ class AgentTUI(App):
                 "run security scan",
                 "run performance tests",
                 "generate documentation",
-                "summarize git status & diff using https://www.conventionalcommits.org/en/v1.0.0/#specification, commit, and push changes",
+                "summarize git status & diff using https://www.conventionalcommits.org/en/v1.0.0/#specification, commit, and push changes to feature branch",
                 "push changes",
             ],
             "⚙️ CLI Commands": [

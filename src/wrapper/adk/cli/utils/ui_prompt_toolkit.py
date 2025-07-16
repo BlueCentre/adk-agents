@@ -55,10 +55,10 @@ class EnhancedCLI:
         self.agent_thought_buffer = []
 
         # UI Components for interruptible mode
-        self.input_buffer = Buffer(multiline=True)
-        self.output_buffer = Buffer()
-        self.status_buffer = Buffer()
-        self.layout = None  # Will be set when needed
+        # self.input_buffer = Buffer(multiline=True)
+        # self.output_buffer = Buffer()
+        # self.status_buffer = Buffer()
+        # self.layout = None  # Will be set when needed
         self.bindings = None  # Will be set when needed
 
     def _detect_theme(self) -> UITheme:
@@ -166,7 +166,7 @@ class EnhancedCLI:
                 "run security scan",
                 "run performance tests",
                 "generate documentation",
-                "summarize git diff using https://www.conventionalcommits.org/en/v1.0.0/#specification, commit, and push changes",
+                "summarize git status & diff using https://www.conventionalcommits.org/en/v1.0.0/#specification, commit, and push changes to feature branch",
                 "push changes",
             ],
             "⚙️ CLI Commands": [
