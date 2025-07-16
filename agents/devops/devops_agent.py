@@ -1627,7 +1627,8 @@ Begin execution now, starting with the first step."""
             # Add thought summaries back as thought parts for TUI compatibility
             for thought_summary in processed_response["thought_summaries"]:
                 if thought_summary.strip():  # Only add non-empty thought content
-                    thought_part = genai_types.Part(text=thought_summary, thought=True)
+                    thought_part = genai_types.Part(text=thought_summary)
+                    setattr(thought_part, "thought", True)
                     filtered_parts.append(thought_part)
 
             # Add function calls
