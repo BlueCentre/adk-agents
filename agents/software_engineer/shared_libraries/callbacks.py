@@ -265,6 +265,7 @@ def create_enhanced_telemetry_callbacks(agent_name: str):
             # Track request timing
             if callback_context:
                 callback_context._request_start_time = __import__("time").time()
+                callback_context._model_name = getattr(llm_request, "model", "unknown")
 
             # Enhanced telemetry tracking
             if telemetry_available:
