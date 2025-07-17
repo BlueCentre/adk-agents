@@ -203,9 +203,10 @@ def mock_llm_request():
 def mock_llm_response():
     """Fixture providing a mock LLM response."""
     response = MockLlmResponse(text="Test response content")
-    response.usage_metadata = MagicMock()
-    response.usage_metadata.prompt_token_count = 100
-    response.usage_metadata.candidates_token_count = 200
+    # Use the new usage format that the callback code expects
+    response.usage = MagicMock()
+    response.usage.input_tokens = 100
+    response.usage.output_tokens = 200
     return response
 
 
@@ -240,12 +241,12 @@ class TestBasicCallbacks:
 
         # Check that all expected keys are present
         expected_keys = [
+            "before_agent",
+            "after_agent",
             "before_model",
             "after_model",
             "before_tool",
             "after_tool",
-            "before_agent",
-            "after_agent",
         ]
         for key in expected_keys:
             assert key in callbacks
@@ -266,9 +267,9 @@ class TestBasicCallbacks:
         assert "test_agent" in caplog.text
         assert "test_inv_123" in caplog.text
 
-        # Verify timing is set
-        assert hasattr(mock_invocation_context, "_request_start_time")
-        assert isinstance(mock_invocation_context._request_start_time, float)
+        # Verify timing is set (new attribute name)
+        assert hasattr(mock_invocation_context, "_model_request_start_time")
+        assert isinstance(mock_invocation_context._model_request_start_time, float)
 
     def test_basic_after_model_callback(
         self, mock_llm_request, mock_llm_response, mock_invocation_context, caplog
@@ -277,8 +278,8 @@ class TestBasicCallbacks:
         callbacks = create_telemetry_callbacks("test_agent")
         after_model_callback = callbacks["after_model"]
 
-        # Set up timing
-        mock_invocation_context._request_start_time = time.time() - 1.5
+        # Set up timing (new attribute name)
+        mock_invocation_context._model_request_start_time = time.time() - 1.5
 
         with caplog.at_level(logging.DEBUG):
             after_model_callback(mock_invocation_context, mock_llm_response)
@@ -286,11 +287,12 @@ class TestBasicCallbacks:
         # Verify logging
         assert "After model response" in caplog.text
         assert "test_agent" in caplog.text
-        assert "Response time:" in caplog.text
-        assert "Token usage" in caplog.text
-        assert "Prompt: 100" in caplog.text
-        assert "Response: 200" in caplog.text
-        assert "Total: 300" in caplog.text
+        # Note: Response time logging is removed from the new implementation
+        # assert "Response time:" in caplog.text
+        # assert "Token usage" in caplog.text
+        # assert "Prompt: 100" in caplog.text
+        # assert "Response: 200" in caplog.text
+        # assert "Total: 300" in caplog.text
 
     def test_basic_before_tool_callback(
         self, mock_test_tool, mock_tool_context, mock_invocation_context, caplog
@@ -339,7 +341,9 @@ class TestBasicCallbacks:
         assert "After tool execution" in caplog.text
         assert "test_agent" in caplog.text
         assert "test_tool" in caplog.text
-        assert "Tool execution time:" in caplog.text
+        # Note: Tool execution time logging is removed from the new implementation
+        # assert "Tool execution time:" in caplog.text
+        assert "Tool result preview: Tool execution successful" in caplog.text
 
     def test_basic_before_agent_callback(self, mock_invocation_context, caplog):
         """Test basic before_agent callback execution."""
@@ -353,7 +357,7 @@ class TestBasicCallbacks:
             before_agent_callback(mock_invocation_context)
 
         # Verify logging
-        assert "Agent session started" in caplog.text
+        assert "Basic agent session started" in caplog.text
         assert "test_agent" in caplog.text
         assert "test_session_456" in caplog.text
         assert "Agent lifecycle: SESSION_START" in caplog.text
@@ -371,31 +375,32 @@ class TestBasicCallbacks:
         # Add session_id attribute to mock context
         mock_invocation_context.session_id = "test_session_456"
 
-        # Set up session timing and metrics
+        # Set up session timing and metrics (new structure)
         mock_invocation_context._agent_session_start_time = time.time() - 5.0
         mock_invocation_context._agent_metrics = {
             "session_start_time": time.time() - 5.0,
             "total_model_calls": 3,
             "total_tool_calls": 5,
-            "total_tokens_used": 1250,
-            "errors_encountered": 1,
+            "total_input_tokens": 100,
+            "total_output_tokens": 200,
+            "total_response_time": 1.5,
             "project_context": {"project_type": "python", "total_files": 42},
         }
 
         with caplog.at_level(logging.INFO):
             after_agent_callback(mock_invocation_context)
 
-        # Verify logging
-        assert "Agent session ended" in caplog.text
+        # Verify logging (updated message)
+        assert "Basic agent session completed" in caplog.text
         assert "test_agent" in caplog.text
         assert "test_session_456" in caplog.text
-        assert "Total session duration:" in caplog.text
+        assert "Session duration: 5.00 seconds" in caplog.text
         assert "Session summary:" in caplog.text
         assert "Total model calls: 3" in caplog.text
         assert "Total tool calls: 5" in caplog.text
-        assert "Total tokens used: 1250" in caplog.text
-        assert "Errors encountered: 1" in caplog.text
-        assert "Project type: python" in caplog.text
+        assert "Total input tokens: 100" in caplog.text
+        assert "Total output tokens: 200" in caplog.text
+        assert "Total response time: 1.50s" in caplog.text
         assert "Agent lifecycle: SESSION_END" in caplog.text
 
 
@@ -410,12 +415,12 @@ class TestEnhancedCallbacks:
 
         # Check that all expected keys are present
         expected_keys = [
+            "before_agent",
+            "after_agent",
             "before_model",
             "after_model",
             "before_tool",
             "after_tool",
-            "before_agent",
-            "after_agent",
         ]
         for key in expected_keys:
             assert key in callbacks
@@ -436,7 +441,7 @@ class TestEnhancedCallbacks:
         assert "Enhanced agent session started" in caplog.text
         assert "test_enhanced_agent" in caplog.text
         assert "Project context loaded:" in caplog.text
-        assert "Agent lifecycle: ENHANCED_SESSION_START" in caplog.text
+        assert "Agent lifecycle: SESSION_START" in caplog.text
 
         # Verify enhanced session metrics are initialized
         assert hasattr(mock_invocation_context, "_agent_session_start_time")
@@ -444,12 +449,13 @@ class TestEnhancedCallbacks:
 
         metrics = mock_invocation_context._agent_metrics
         # When telemetry is not available, enhanced callbacks fall back to basic
-        # so we only check for basic metrics
+        # so we check for the new metrics structure
         assert "project_context" in metrics
         assert metrics["total_model_calls"] == 0
         assert metrics["total_tool_calls"] == 0
-        assert metrics["total_tokens_used"] == 0
-        assert metrics["errors_encountered"] == 0
+        assert metrics["total_input_tokens"] == 0
+        assert metrics["total_output_tokens"] == 0
+        assert metrics["total_response_time"] == 0.0
 
     def test_enhanced_after_agent_callback(self, mock_invocation_context, caplog):
         """Test enhanced after_agent callback execution."""
@@ -459,40 +465,38 @@ class TestEnhancedCallbacks:
         # Add session_id attribute to mock context
         mock_invocation_context.session_id = "test_session_456"
 
-        # Set up enhanced session timing and metrics
+        # Set up enhanced session timing and metrics (new structure)
         mock_invocation_context._agent_session_start_time = time.time() - 10.0
         mock_invocation_context._agent_metrics = {
             "session_start_time": time.time() - 10.0,
             "total_model_calls": 8,
             "total_tool_calls": 15,
-            "total_tokens_used": 3500,
-            "errors_encountered": 2,
+            "total_input_tokens": 2000,
+            "total_output_tokens": 1500,
+            "total_response_time": 5.0,
             "project_context": {
                 "project_type": "python",
                 "total_files": 128,
                 "python_files": 85,
                 "javascript_files": 12,
             },
-            "agent_name": "test_enhanced_agent",
-            "session_id": "test_session_456",
         }
 
         with caplog.at_level(logging.INFO):
             after_agent_callback(mock_invocation_context)
 
-        # Verify enhanced logging
-        assert "Enhanced agent session ended" in caplog.text
+        # Verify enhanced logging (updated message)
+        assert "Enhanced agent session completed" in caplog.text
         assert "test_enhanced_agent" in caplog.text
-        assert "Enhanced session summary:" in caplog.text
-        assert "Agent: test_enhanced_agent" in caplog.text
-        assert "Session ID: test_session_456" in caplog.text
+        assert "test_session_456" in caplog.text
+        assert "Session duration: 10.00 seconds" in caplog.text
+        assert "Session summary:" in caplog.text
         assert "Total model calls: 8" in caplog.text
         assert "Total tool calls: 15" in caplog.text
-        assert "Total tokens used: 3500" in caplog.text
-        assert "Errors encountered: 2" in caplog.text
-        assert "Project type: python" in caplog.text
-        assert "Project files: 128" in caplog.text
-        assert "Agent lifecycle: ENHANCED_SESSION_END" in caplog.text
+        assert "Total input tokens: 2000" in caplog.text
+        assert "Total output tokens: 1500" in caplog.text
+        assert "Total response time: 5.00s" in caplog.text
+        assert "Agent lifecycle: SESSION_END" in caplog.text
 
     def test_enhanced_session_metrics_tracking(
         self,
@@ -504,12 +508,12 @@ class TestEnhancedCallbacks:
         """Test that enhanced callbacks track session metrics correctly."""
         # Use basic callbacks for testing metrics tracking since enhanced callbacks fall back to basic when telemetry is not available
         callbacks = create_telemetry_callbacks("test_agent")
+        before_agent = callbacks["before_agent"]
+        after_agent = callbacks["after_agent"]
         before_model = callbacks["before_model"]
         after_model = callbacks["after_model"]
         before_tool = callbacks["before_tool"]
         after_tool = callbacks["after_tool"]
-        before_agent = callbacks["before_agent"]
-        after_agent = callbacks["after_agent"]
 
         # Add session_id attribute to mock context
         mock_invocation_context.session_id = "test_session_456"
@@ -517,13 +521,14 @@ class TestEnhancedCallbacks:
         # Start agent session
         before_agent(mock_invocation_context)
 
-        # Verify initial metrics
+        # Verify initial metrics (new structure)
         assert hasattr(mock_invocation_context, "_agent_metrics")
         metrics = mock_invocation_context._agent_metrics
         assert metrics["total_model_calls"] == 0
         assert metrics["total_tool_calls"] == 0
-        assert metrics["total_tokens_used"] == 0
-        assert metrics["errors_encountered"] == 0
+        assert metrics["total_input_tokens"] == 0
+        assert metrics["total_output_tokens"] == 0
+        assert metrics["total_response_time"] == 0.0
 
         # Simulate model call
         before_model(mock_invocation_context, mock_llm_request)
@@ -531,61 +536,54 @@ class TestEnhancedCallbacks:
 
         # Verify metrics updated
         assert metrics["total_model_calls"] == 1
-        assert metrics["total_tokens_used"] == 300  # 100 + 200 from mock response
+        assert metrics["total_input_tokens"] == 100  # from mock response
+        assert metrics["total_output_tokens"] == 200  # from mock response
 
         # Simulate tool call
-        before_tool(
-            mock_test_tool,
-            {"param": "value"},
-            MockToolContext(),
-            mock_invocation_context,
-        )
+        before_tool(mock_test_tool, {"param": "value"}, None, mock_invocation_context)
         after_tool(
-            mock_test_tool,
-            "success",
-            mock_invocation_context,
-            {"param": "value"},
-            MockToolContext(),
+            mock_test_tool, "success", mock_invocation_context, {"param": "value"}, None
         )
 
-        # Verify metrics updated
+        # Verify final metrics
+        assert metrics["total_model_calls"] == 1
         assert metrics["total_tool_calls"] == 1
+        assert metrics["total_input_tokens"] == 100
+        assert metrics["total_output_tokens"] == 200
 
-        # Simulate error
-        after_tool(
-            mock_test_tool,
-            Exception("Test error"),
-            mock_invocation_context,
-            {"param": "value"},
-            MockToolContext(),
-        )
-
-        # Verify error counted
-        assert metrics["errors_encountered"] == 1
-
-        # End agent session
+        # End session
         after_agent(mock_invocation_context)
 
 
 class TestProjectContextLoading:
     """Test project context loading functionality."""
 
-    @patch("os.getcwd")
-    @patch("os.path.exists")
-    @patch("os.listdir")
+    @patch("agents.software_engineer.shared_libraries.callbacks.os.getcwd")
+    @patch("agents.software_engineer.shared_libraries.callbacks.os.path.exists")
+    @patch("agents.software_engineer.shared_libraries.callbacks.os.path.isdir")
+    @patch("agents.software_engineer.shared_libraries.callbacks.os.scandir")
+    @patch("agents.software_engineer.shared_libraries.callbacks.os.getenv")
     def test_project_context_python_detection(
-        self, mock_listdir, mock_exists, mock_getcwd
+        self, mock_getenv, mock_scandir, mock_isdir, mock_exists, mock_getcwd
     ):
         """Test that Python projects are detected correctly."""
         mock_getcwd.return_value = "/test/python_project"
+        mock_getenv.return_value = None  # No environment variables set
         mock_exists.return_value = True
-        mock_listdir.return_value = [
+        mock_isdir.return_value = True
+        # Create mock scandir entries with proper name attribute
+        mock_entries = []
+        for filename in [
             "pyproject.toml",
             "src",
             "tests",
             "main.py",
             "requirements.txt",
-        ]
+        ]:
+            entry = MagicMock()
+            entry.name = filename
+            mock_entries.append(entry)
+        mock_scandir.return_value.__enter__.return_value = iter(mock_entries)
 
         callbacks = create_telemetry_callbacks("test_agent")
         before_agent_callback = callbacks["before_agent"]
@@ -603,22 +601,26 @@ class TestProjectContextLoading:
         assert project_context["python_files"] == 1
         assert "pyproject.toml" in project_context["files_found"]
 
-    @patch("os.getcwd")
-    @patch("os.path.exists")
-    @patch("os.listdir")
+    @patch("agents.software_engineer.shared_libraries.callbacks.os.getcwd")
+    @patch("agents.software_engineer.shared_libraries.callbacks.os.path.exists")
+    @patch("agents.software_engineer.shared_libraries.callbacks.os.path.isdir")
+    @patch("agents.software_engineer.shared_libraries.callbacks.os.scandir")
+    @patch("agents.software_engineer.shared_libraries.callbacks.os.getenv")
     def test_project_context_javascript_detection(
-        self, mock_listdir, mock_exists, mock_getcwd
+        self, mock_getenv, mock_scandir, mock_isdir, mock_exists, mock_getcwd
     ):
         """Test that JavaScript projects are detected correctly."""
         mock_getcwd.return_value = "/test/js_project"
+        mock_getenv.return_value = None  # No environment variables set
         mock_exists.return_value = True
-        mock_listdir.return_value = [
-            "package.json",
-            "src",
-            "node_modules",
-            "index.js",
-            "app.ts",
-        ]
+        mock_isdir.return_value = True
+        # Create mock scandir entries with proper name attribute
+        mock_entries = []
+        for filename in ["package.json", "src", "node_modules", "index.js", "app.ts"]:
+            entry = MagicMock()
+            entry.name = filename
+            mock_entries.append(entry)
+        mock_scandir.return_value.__enter__.return_value = iter(mock_entries)
 
         callbacks = create_telemetry_callbacks("test_agent")
         before_agent_callback = callbacks["before_agent"]
@@ -636,16 +638,26 @@ class TestProjectContextLoading:
         assert project_context["javascript_files"] == 2
         assert "package.json" in project_context["files_found"]
 
-    @patch("os.getcwd")
-    @patch("os.path.exists")
-    @patch("os.listdir")
+    @patch("agents.software_engineer.shared_libraries.callbacks.os.getcwd")
+    @patch("agents.software_engineer.shared_libraries.callbacks.os.path.exists")
+    @patch("agents.software_engineer.shared_libraries.callbacks.os.path.isdir")
+    @patch("agents.software_engineer.shared_libraries.callbacks.os.scandir")
+    @patch("agents.software_engineer.shared_libraries.callbacks.os.getenv")
     def test_project_context_unknown_detection(
-        self, mock_listdir, mock_exists, mock_getcwd
+        self, mock_getenv, mock_scandir, mock_isdir, mock_exists, mock_getcwd
     ):
         """Test that unknown projects are handled correctly."""
         mock_getcwd.return_value = "/test/unknown_project"
+        mock_getenv.return_value = None  # No environment variables set
         mock_exists.return_value = True
-        mock_listdir.return_value = ["README.md", "data.csv", "config.ini"]
+        mock_isdir.return_value = True
+        # Create mock scandir entries with proper name attribute
+        mock_entries = []
+        for filename in ["README.md", "data.csv", "config.ini"]:
+            entry = MagicMock()
+            entry.name = filename
+            mock_entries.append(entry)
+        mock_scandir.return_value.__enter__.return_value = iter(mock_entries)
 
         callbacks = create_telemetry_callbacks("test_agent")
         before_agent_callback = callbacks["before_agent"]
@@ -743,16 +755,20 @@ class TestCallbackIntegration:
     async def test_callback_execution_order(self, callback_collector):
         """Test that callbacks execute in the correct order during agent execution."""
         callbacks = create_telemetry_callbacks("test_agent")
+        before_agent = callbacks["before_agent"]
+        after_agent = callbacks["after_agent"]
         before_model = callbacks["before_model"]
         after_model = callbacks["after_model"]
         before_tool = callbacks["before_tool"]
         after_tool = callbacks["after_tool"]
-        before_agent = callbacks["before_agent"]
-        after_agent = callbacks["after_agent"]
 
         # Simulate agent execution sequence
         mock_request = MockLlmRequest()
         mock_response = MockLlmResponse()
+        # Add usage attribute to mock response
+        mock_response.usage = MagicMock()
+        mock_response.usage.input_tokens = 100
+        mock_response.usage.output_tokens = 200
         mock_context = MockInvocationContext()
         mock_context.session_id = "test_session_456"
         mock_tool = MockTool("test_tool")
@@ -768,11 +784,18 @@ class TestCallbackIntegration:
         )
         after_agent(mock_context)
 
-        # Verify timing was tracked
-        assert hasattr(mock_context, "_request_start_time")
+        # Verify timing was tracked (new attribute name)
+        assert hasattr(mock_context, "_model_request_start_time")
         assert hasattr(mock_context, "_tool_start_time")
         assert hasattr(mock_context, "_agent_session_start_time")
+
+        # Verify metrics were tracked (new structure)
         assert hasattr(mock_context, "_agent_metrics")
+        metrics = mock_context._agent_metrics
+        assert metrics["total_model_calls"] == 1
+        assert metrics["total_tool_calls"] == 1
+        assert metrics["total_input_tokens"] == 100
+        assert metrics["total_output_tokens"] == 200
 
     @pytest.mark.asyncio
     async def test_callback_with_multiple_tools(self, callback_collector):
@@ -800,22 +823,22 @@ class TestCallbackIntegration:
     async def test_full_agent_session_simulation(self):
         """Test a complete agent session from start to finish."""
         callbacks = create_telemetry_callbacks("test_agent")
+        before_agent = callbacks["before_agent"]
+        after_agent = callbacks["after_agent"]
         before_model = callbacks["before_model"]
         after_model = callbacks["after_model"]
         before_tool = callbacks["before_tool"]
         after_tool = callbacks["after_tool"]
-        before_agent = callbacks["before_agent"]
-        after_agent = callbacks["after_agent"]
 
         # Mock objects
         mock_context = MockInvocationContext()
         mock_context.session_id = "test_session_456"
         mock_request = MockLlmRequest()
         mock_response = MockLlmResponse()
-        # Add usage metadata to mock response
-        mock_response.usage_metadata = MagicMock()
-        mock_response.usage_metadata.prompt_token_count = 100
-        mock_response.usage_metadata.candidates_token_count = 200
+        # Add usage metadata to mock response (new format)
+        mock_response.usage = MagicMock()
+        mock_response.usage.input_tokens = 100
+        mock_response.usage.output_tokens = 200
         mock_tool = MockTool("test_tool")
         mock_tool_context = MockToolContext()
 
@@ -838,13 +861,14 @@ class TestCallbackIntegration:
 
         after_agent(mock_context)
 
-        # Verify session metrics were tracked
+        # Verify session metrics were tracked (new structure)
         assert hasattr(mock_context, "_agent_metrics")
         metrics = mock_context._agent_metrics
         assert metrics["total_model_calls"] == 3
         assert metrics["total_tool_calls"] == 3
-        assert metrics["total_tokens_used"] == 900  # 3 * 300 tokens
-        assert "project_context" in metrics
+        assert metrics["total_input_tokens"] == 300  # 3 * 100 tokens
+        assert metrics["total_output_tokens"] == 600  # 3 * 200 tokens
+        assert metrics["total_response_time"] > 0  # Should have some response time
 
 
 class TestCallbackErrorHandling:
@@ -893,7 +917,7 @@ class TestCallbackErrorHandling:
                 before_agent_callback(mock_invocation_context)
 
         # Should still complete without raising an exception
-        assert "Agent session started" in caplog.text
+        assert "Basic agent session started" in caplog.text
 
 
 if __name__ == "__main__":

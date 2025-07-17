@@ -25,12 +25,12 @@ The implementation provides two types of callbacks:
 
 Each agent now gets **six callback functions** (previously four):
 
+- **`before_agent_callback`**: Executed when agent session starts (**NEW**)
+- **`after_agent_callback`**: Executed when agent session ends (**NEW**)
 - `before_model_callback`: Executed before LLM model requests
 - `after_model_callback`: Executed after LLM model responses
 - `before_tool_callback`: Executed before tool executions
 - `after_tool_callback`: Executed after tool executions
-- **`before_agent_callback`**: Executed when agent session starts (**NEW**)
-- **`after_agent_callback`**: Executed when agent session ends (**NEW**)
 
 ## Usage
 
@@ -49,15 +49,8 @@ To add callbacks to a new agent:
 ```python
 from agents.software_engineer.shared_libraries.callbacks import create_enhanced_telemetry_callbacks
 
-# Create callbacks (now includes agent callbacks)
-(
-    before_model_callback,
-    after_model_callback,
-    before_tool_callback,
-    after_tool_callback,
-    before_agent_callback,
-    after_agent_callback,
-) = create_enhanced_telemetry_callbacks("my_agent_name")
+# Create callbacks (returns a dictionary)
+callbacks = create_enhanced_telemetry_callbacks("my_agent_name")
 
 # Apply to agent
 my_agent = Agent(
@@ -66,13 +59,13 @@ my_agent = Agent(
     description="My custom agent",
     instruction="Do something useful",
     tools=[...],
-    # Add all callbacks including agent callbacks
-    before_model_callback=before_model_callback,
-    after_model_callback=after_model_callback,
-    before_tool_callback=before_tool_callback,
-    after_tool_callback=after_tool_callback,
-    before_agent_callback=before_agent_callback,
-    after_agent_callback=after_agent_callback,
+    # Add all callbacks using dictionary keys
+    before_agent_callback=callbacks["before_agent"],
+    after_agent_callback=callbacks["after_agent"],
+    before_model_callback=callbacks["before_model"],
+    after_model_callback=callbacks["after_model"],
+    before_tool_callback=callbacks["before_tool"],
+    after_tool_callback=callbacks["after_tool"],
 )
 ```
 
@@ -278,14 +271,18 @@ If you're upgrading from the previous four-callback system:
 
 **After:**
 ```python
-(
-    before_model_callback,
-    after_model_callback,
-    before_tool_callback,
-    after_tool_callback,
-    before_agent_callback,
-    after_agent_callback,
-) = create_telemetry_callbacks("my_agent")
+# The function now returns a dictionary
+callbacks = create_telemetry_callbacks("my_agent")
+# And you would pass them to the agent like this:
+# my_agent = Agent(
+#     ...
+#     before_agent_callback=callbacks["before_agent"],
+#     after_agent_callback=callbacks["after_agent"],
+#     before_model_callback=callbacks["before_model"],
+#     after_model_callback=callbacks["after_model"],
+#     before_tool_callback=callbacks["before_tool"],
+#     after_tool_callback=callbacks["after_tool"],
+# )
 ```
 
 The agent callbacks provide valuable session-level telemetry that complements the existing model and tool callbacks, giving you complete visibility into agent behavior from session start to completion.
