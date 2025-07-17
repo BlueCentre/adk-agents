@@ -70,12 +70,7 @@ logger = logging.getLogger(__name__)
 tools = load_all_tools_and_toolsets()
 
 # Create telemetry callbacks for observability
-(
-    before_model_callback,
-    after_model_callback,
-    before_tool_callback,
-    after_tool_callback,
-) = create_enhanced_telemetry_callbacks("software_engineer")
+callbacks = create_enhanced_telemetry_callbacks("software_engineer")
 
 # REF: https://google.github.io/adk-docs/agents/models/#ollama-integration
 # Create the agent using LiteLlm wrapper for Ollama integration
@@ -100,11 +95,6 @@ root_agent = Agent(
         ollama_agent,  # 8. Local model sandbox environment
     ],
     tools=tools,
-    # Add telemetry callbacks for observability
-    before_model_callback=before_model_callback,
-    after_model_callback=after_model_callback,
-    before_tool_callback=before_tool_callback,
-    after_tool_callback=after_tool_callback,
     # tools=[
     #     read_file_tool,
     #     list_dir_tool,
@@ -117,6 +107,13 @@ root_agent = Agent(
     #     # add_memory_fact,
     #     # search_memory_facts,
     # ],
+    # Add telemetry callbacks for observability
+    before_agent_callback=callbacks["before_agent"],
+    after_agent_callback=callbacks["after_agent"],
+    before_model_callback=callbacks["before_model"],
+    after_model_callback=callbacks["after_model"],
+    before_tool_callback=callbacks["before_tool"],
+    after_tool_callback=callbacks["after_tool"],
     # before_agent_callback=load_project_context,
     output_key="software_engineer",
 )

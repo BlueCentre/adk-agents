@@ -213,12 +213,7 @@ def create_enhanced_software_engineer_agent() -> Agent:
     )
 
     # Create telemetry callbacks for observability
-    (
-        before_model_callback,
-        after_model_callback,
-        before_tool_callback,
-        after_tool_callback,
-    ) = create_enhanced_telemetry_callbacks("enhanced_software_engineer")
+    callbacks = create_enhanced_telemetry_callbacks("enhanced_software_engineer")
 
     # Note: Workflows are created on-demand to avoid agent parent conflicts
     # This allows dynamic workflow creation without pre-instantiating all workflows
@@ -244,10 +239,12 @@ def create_enhanced_software_engineer_agent() -> Agent:
         ],
         tools=tools,
         # Add telemetry callbacks for observability
-        before_model_callback=before_model_callback,
-        after_model_callback=after_model_callback,
-        before_tool_callback=before_tool_callback,
-        after_tool_callback=after_tool_callback,
+        before_agent_callback=callbacks["before_agent"],
+        after_agent_callback=callbacks["after_agent"],
+        before_model_callback=callbacks["before_model"],
+        after_model_callback=callbacks["after_model"],
+        before_tool_callback=callbacks["before_tool"],
+        after_tool_callback=callbacks["after_tool"],
         output_key="enhanced_software_engineer",
     )
 
