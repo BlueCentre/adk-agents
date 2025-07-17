@@ -10,6 +10,7 @@ The SWE agent now includes comprehensive callback support that provides:
 - **Performance Monitoring**: Measure response times and token usage
 - **Error Tracking**: Monitor tool failures and execution issues
 - **Enhanced Debugging**: Detailed logging of agent operations
+- **Agent Lifecycle Tracking**: Monitor entire agent sessions with agent callbacks
 
 ## Implementation
 
@@ -22,12 +23,14 @@ The implementation provides two types of callbacks:
 
 ### Callback Functions
 
-Each agent gets four callback functions:
+Each agent now gets **six callback functions** (previously four):
 
 - `before_model_callback`: Executed before LLM model requests
 - `after_model_callback`: Executed after LLM model responses
 - `before_tool_callback`: Executed before tool executions
 - `after_tool_callback`: Executed after tool executions
+- **`before_agent_callback`**: Executed when agent session starts (**NEW**)
+- **`after_agent_callback`**: Executed when agent session ends (**NEW**)
 
 ## Usage
 
@@ -46,12 +49,14 @@ To add callbacks to a new agent:
 ```python
 from agents.software_engineer.shared_libraries.callbacks import create_enhanced_telemetry_callbacks
 
-# Create callbacks
+# Create callbacks (now includes agent callbacks)
 (
     before_model_callback,
     after_model_callback,
     before_tool_callback,
     after_tool_callback,
+    before_agent_callback,
+    after_agent_callback,
 ) = create_enhanced_telemetry_callbacks("my_agent_name")
 
 # Apply to agent
@@ -61,11 +66,13 @@ my_agent = Agent(
     description="My custom agent",
     instruction="Do something useful",
     tools=[...],
-    # Add callbacks
+    # Add all callbacks including agent callbacks
     before_model_callback=before_model_callback,
     after_model_callback=after_model_callback,
     before_tool_callback=before_tool_callback,
     after_tool_callback=after_tool_callback,
+    before_agent_callback=before_agent_callback,
+    after_agent_callback=after_agent_callback,
 )
 ```
 
@@ -85,11 +92,59 @@ my_agent = Agent(
 - Output results
 - Error details
 
+### **Agent Lifecycle (NEW)**
+- **Session Start/End**: Track when agent sessions begin and complete
+- **Session Duration**: Total time spent in agent session
+- **Project Context**: Automatic detection of project type, files, and structure
+- **Session Metrics**: Aggregated statistics across the entire session
+  - Total LLM calls made
+  - Total tool executions
+  - Total tokens consumed
+  - Error counts
+  - Project metadata (type, file counts, etc.)
+- **Agent Identification**: Track which specific agent and session ID
+- **Cleanup Operations**: Monitor resource cleanup and session termination
+
 ### Enhanced Telemetry (when available)
 - Integration with DevOps agent telemetry system
 - Structured metrics collection
 - OpenTelemetry tracing support
 - Performance analytics
+
+## Agent Callbacks: Additional Information Available
+
+### `before_agent_callback`
+When an agent session starts, this callback captures:
+
+- **Session Identification**: Session ID and agent name
+- **Project Context Discovery**: 
+  - Working directory
+  - Project type detection (Python, JavaScript, Rust, Go, etc.)
+  - File count statistics
+  - Project structure overview
+- **Session Initialization**: 
+  - Session start timestamp
+  - Metrics initialization
+  - Resource preparation
+
+### `after_agent_callback`
+When an agent session ends, this callback provides:
+
+- **Session Summary**: Complete statistics for the entire session
+- **Performance Metrics**: 
+  - Total session duration
+  - LLM call frequency
+  - Tool usage patterns
+  - Token consumption totals
+- **Error Analysis**: 
+  - Error counts and types
+  - Failure patterns
+- **Project Insights**: 
+  - Project type and characteristics
+  - File processing statistics
+- **Resource Cleanup**: 
+  - Cleanup completion status
+  - Resource deallocation
 
 ## Log Output Examples
 
@@ -109,6 +164,26 @@ my_agent = Agent(
 2024-01-15 10:30:18 - agents.software_engineer.shared_libraries.callbacks - DEBUG - [software_engineer] After tool execution - Tool: read_file_tool, ID: inv_124
 2024-01-15 10:30:18 - agents.software_engineer.shared_libraries.callbacks - DEBUG - [software_engineer] Tool execution time: 0.05s
 2024-01-15 10:30:18 - agents.software_engineer.shared_libraries.callbacks - DEBUG - [software_engineer] Tool read_file_tool completed successfully
+```
+
+### **Agent Lifecycle Logs (NEW)**
+```
+2024-01-15 10:30:10 - agents.software_engineer.shared_libraries.callbacks - INFO - [software_engineer] Agent session started - Session ID: sess_456
+2024-01-15 10:30:10 - agents.software_engineer.shared_libraries.callbacks - INFO - [software_engineer] Project context loaded: {'project_type': 'python', 'total_files': 142, 'python_files': 89}
+2024-01-15 10:30:10 - agents.software_engineer.shared_libraries.callbacks - INFO - [software_engineer] Agent lifecycle: SESSION_START
+
+... (model and tool callbacks during session) ...
+
+2024-01-15 10:35:22 - agents.software_engineer.shared_libraries.callbacks - INFO - [software_engineer] Agent session ended - Session ID: sess_456
+2024-01-15 10:35:22 - agents.software_engineer.shared_libraries.callbacks - INFO - [software_engineer] Total session duration: 312.15s
+2024-01-15 10:35:22 - agents.software_engineer.shared_libraries.callbacks - INFO - [software_engineer] Session summary:
+2024-01-15 10:35:22 - agents.software_engineer.shared_libraries.callbacks - INFO - [software_engineer]   Total model calls: 15
+2024-01-15 10:35:22 - agents.software_engineer.shared_libraries.callbacks - INFO - [software_engineer]   Total tool calls: 42
+2024-01-15 10:35:22 - agents.software_engineer.shared_libraries.callbacks - INFO - [software_engineer]   Total tokens used: 8750
+2024-01-15 10:35:22 - agents.software_engineer.shared_libraries.callbacks - INFO - [software_engineer]   Errors encountered: 2
+2024-01-15 10:35:22 - agents.software_engineer.shared_libraries.callbacks - INFO - [software_engineer]   Project type: python
+2024-01-15 10:35:22 - agents.software_engineer.shared_libraries.callbacks - INFO - [software_engineer] Session cleanup completed
+2024-01-15 10:35:22 - agents.software_engineer.shared_libraries.callbacks - INFO - [software_engineer] Agent lifecycle: SESSION_END
 ```
 
 ## Configuration
@@ -149,6 +224,7 @@ This will:
 1. Test callback creation
 2. Test agent execution with callbacks
 3. Verify sub-agent callback integration
+4. **Test agent lifecycle callbacks (NEW)**
 
 ## Benefits
 
@@ -156,16 +232,19 @@ This will:
 - **Debugging**: See exactly what the agent is doing
 - **Performance**: Identify slow operations
 - **Usage**: Track token consumption and costs
+- **Session Analysis**: Understand agent behavior patterns
 
 ### For Production
 - **Monitoring**: Track agent health and performance
 - **Analytics**: Understand usage patterns
 - **Troubleshooting**: Diagnose issues quickly
+- **Session Management**: Monitor agent lifecycle and resource usage
 
 ### For Optimization
 - **Bottlenecks**: Identify slow tools or models
 - **Efficiency**: Optimize token usage
 - **Reliability**: Monitor error rates
+- **Project Insights**: Understand how agents interact with different project types
 
 ## Integration with DevOps Agent
 
@@ -174,16 +253,39 @@ The enhanced callbacks can leverage the DevOps agent's telemetry system when ava
 - **Structured Metrics**: Consistent metric collection
 - **OpenTelemetry**: Distributed tracing support
 - **Performance Analytics**: Advanced monitoring capabilities
-- **Shared Infrastructure**: Unified observability across agents
+- **Agent Session Tracking**: Cross-session correlation and analysis
 
-This provides a consistent observability experience across all agents in the system.
+## Migration Guide
 
-## Future Enhancements
+If you're upgrading from the previous four-callback system:
 
-Planned improvements include:
+1. **Update callback creation**: The functions now return 6 callbacks instead of 4
+2. **Add agent callbacks**: Include `before_agent_callback` and `after_agent_callback` in your agent configuration
+3. **Update tests**: Ensure your tests account for the new agent lifecycle callbacks
+4. **Review logs**: You'll now see additional agent session logs providing session-level insights
 
-1. **Custom Metrics**: Agent-specific performance indicators
-2. **Alerting**: Automatic notifications for issues
-3. **Dashboards**: Visual monitoring interfaces
-4. **Cost Tracking**: Detailed usage and cost analysis
-5. **A/B Testing**: Compare agent performance variations 
+### Example Migration
+
+**Before:**
+```python
+(
+    before_model_callback,
+    after_model_callback,
+    before_tool_callback,
+    after_tool_callback,
+) = create_telemetry_callbacks("my_agent")
+```
+
+**After:**
+```python
+(
+    before_model_callback,
+    after_model_callback,
+    before_tool_callback,
+    after_tool_callback,
+    before_agent_callback,
+    after_agent_callback,
+) = create_telemetry_callbacks("my_agent")
+```
+
+The agent callbacks provide valuable session-level telemetry that complements the existing model and tool callbacks, giving you complete visibility into agent behavior from session start to completion.

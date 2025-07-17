@@ -16,12 +16,7 @@ from ...tools.shell_command import execute_shell_command_tool
 from . import prompt
 
 # Create telemetry callbacks for observability
-(
-    before_model_callback,
-    after_model_callback,
-    before_tool_callback,
-    after_tool_callback,
-) = create_telemetry_callbacks("debugging_agent")
+callbacks = create_telemetry_callbacks("debugging_agent")
 
 debugging_agent = LlmAgent(
     model=agent_config.DEFAULT_SUB_AGENT_MODEL,
@@ -43,11 +38,11 @@ debugging_agent = LlmAgent(
         # google_search_grounding,
     ],
     # Add telemetry callbacks for observability
-    before_model_callback=before_model_callback,
-    after_model_callback=after_model_callback,
-    before_tool_callback=before_tool_callback,
-    after_tool_callback=after_tool_callback,
+    before_agent_callback=callbacks["before_agent"],
+    after_agent_callback=callbacks["after_agent"],
+    before_model_callback=callbacks["before_model"],
+    after_model_callback=callbacks["after_model"],
+    before_tool_callback=callbacks["before_tool"],
+    after_tool_callback=callbacks["after_tool"],
     output_key="debugging",
 )
-
-# Placeholder for actual tool implementation

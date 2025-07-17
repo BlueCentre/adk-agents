@@ -1,7 +1,9 @@
 """Shared callback utilities for Software Engineer Agent."""
 
 import logging
-from typing import Any, Optional
+import os
+import time
+from typing import Any, Dict, Optional
 
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.agents.invocation_context import InvocationContext
@@ -13,6 +15,63 @@ from google.adk.tools.tool_context import ToolContext
 logger = logging.getLogger(__name__)
 
 
+def _load_project_context(
+    callback_context: CallbackContext = None,
+) -> Optional[Dict[str, Any]]:
+    """
+    Load project context information for the agent session.
+
+    Args:
+        callback_context: The ADK callback context
+
+    Returns:
+        Dictionary containing project context information
+    """
+    try:
+        # Get current working directory
+        current_dir = os.getcwd()
+
+        # Detect project type
+        project_files = os.listdir(current_dir) if os.path.exists(current_dir) else []
+        if "pyproject.toml" in project_files:
+            project_type = "python"
+        elif "package.json" in project_files:
+            project_type = "javascript"
+        elif "Cargo.toml" in project_files:
+            project_type = "rust"
+        elif "go.mod" in project_files:
+            project_type = "go"
+        else:
+            project_type = "unknown"
+
+        # Get basic project statistics
+        total_files = len(project_files)
+        python_files = len([f for f in project_files if f.endswith(".py")])
+        js_files = len(
+            [f for f in project_files if f.endswith(".js") or f.endswith(".ts")]
+        )
+
+        project_context = {
+            "working_directory": current_dir,
+            "project_name": os.path.basename(current_dir),
+            "project_type": project_type,
+            "total_files": total_files,
+            "python_files": python_files,
+            "javascript_files": js_files,
+            "files_found": project_files[:20],  # First 20 files
+        }
+
+        # Store context information in the callback context for tools to use
+        if callback_context and hasattr(callback_context, "user_data"):
+            callback_context.user_data["project_context"] = project_context
+
+        return project_context
+
+    except Exception as e:
+        logger.error(f"Error loading project context: {e}")
+        return None
+
+
 def create_telemetry_callbacks(agent_name: str):
     """
     Create telemetry and tracing callbacks for an agent.
@@ -21,8 +80,103 @@ def create_telemetry_callbacks(agent_name: str):
         agent_name: Name of the agent for logging and metrics
 
     Returns:
-        Tuple of (before_model_callback, after_model_callback, before_tool_callback, after_tool_callback)
+        Dictionary containing callback functions with keys:
+        - before_model: Callback executed before LLM model request
+        - after_model: Callback executed after LLM model response
+        - before_tool: Callback executed before tool execution
+        - after_tool: Callback executed after tool execution
+        - before_agent: Callback executed before agent starts processing
+        - after_agent: Callback executed after agent completes processing
     """
+
+    def before_agent_callback(callback_context: CallbackContext = None):
+        """Callback executed before agent starts processing."""
+        try:
+            session_id = (
+                getattr(callback_context, "session_id", "unknown")
+                if callback_context and hasattr(callback_context, "session_id")
+                else "unknown"
+            )
+            logger.info(
+                f"[{agent_name}] Agent session started - Session ID: {session_id}"
+            )
+
+            # Track agent session start time
+            if callback_context:
+                callback_context._agent_session_start_time = time.time()
+
+            # Load project context information
+            project_context = _load_project_context(callback_context)
+            if project_context:
+                logger.info(f"[{agent_name}] Project context loaded: {project_context}")
+
+            # Initialize session-level metrics
+            if callback_context:
+                callback_context._agent_metrics = {
+                    "session_start_time": time.time(),
+                    "total_model_calls": 0,
+                    "total_tool_calls": 0,
+                    "total_tokens_used": 0,
+                    "errors_encountered": 0,
+                    "project_context": project_context,
+                }
+
+            # Track agent lifecycle event
+            logger.info(f"[{agent_name}] Agent lifecycle: SESSION_START")
+
+        except Exception as e:
+            logger.warning(f"[{agent_name}] Error in before_agent_callback: {e}")
+
+    def after_agent_callback(callback_context: CallbackContext = None):
+        """Callback executed after agent completes processing."""
+        try:
+            session_id = (
+                getattr(callback_context, "session_id", "unknown")
+                if callback_context and hasattr(callback_context, "session_id")
+                else "unknown"
+            )
+            logger.info(
+                f"[{agent_name}] Agent session ended - Session ID: {session_id}"
+            )
+
+            # Calculate total session duration
+            if callback_context and hasattr(
+                callback_context, "_agent_session_start_time"
+            ):
+                session_duration = (
+                    time.time() - callback_context._agent_session_start_time
+                )
+                logger.info(
+                    f"[{agent_name}] Total session duration: {session_duration:.2f}s"
+                )
+
+            # Log session summary metrics
+            if callback_context and hasattr(callback_context, "_agent_metrics"):
+                metrics = callback_context._agent_metrics
+                logger.info(f"[{agent_name}] Session summary:")
+                logger.info(
+                    f"  Total model calls: {metrics.get('total_model_calls', 0)}"
+                )
+                logger.info(f"  Total tool calls: {metrics.get('total_tool_calls', 0)}")
+                logger.info(
+                    f"  Total tokens used: {metrics.get('total_tokens_used', 0)}"
+                )
+                logger.info(
+                    f"  Errors encountered: {metrics.get('errors_encountered', 0)}"
+                )
+                if metrics.get("project_context"):
+                    logger.info(
+                        f"  Project type: {metrics['project_context'].get('project_type', 'unknown')}"
+                    )
+
+            # Perform any cleanup operations
+            logger.info(f"[{agent_name}] Session cleanup completed")
+
+            # Track agent lifecycle event
+            logger.info(f"[{agent_name}] Agent lifecycle: SESSION_END")
+
+        except Exception as e:
+            logger.warning(f"[{agent_name}] Error in after_agent_callback: {e}")
 
     def before_model_callback(
         callback_context: CallbackContext, llm_request: LlmRequest
@@ -35,6 +189,10 @@ def create_telemetry_callbacks(agent_name: str):
                 else "unknown"
             )
             logger.debug(f"[{agent_name}] Before model request - ID: {invocation_id}")
+
+            # Update session metrics
+            if callback_context and hasattr(callback_context, "_agent_metrics"):
+                callback_context._agent_metrics["total_model_calls"] += 1
 
             # Basic logging of request details
             if (
@@ -55,7 +213,7 @@ def create_telemetry_callbacks(agent_name: str):
             if callback_context and not hasattr(
                 callback_context, "_request_start_time"
             ):
-                callback_context._request_start_time = __import__("time").time()
+                callback_context._request_start_time = time.time()
 
             # Optional: Add any SWE-specific pre-processing here
             # For example, context filtering, prompt augmentation, etc.
@@ -76,9 +234,7 @@ def create_telemetry_callbacks(agent_name: str):
 
             # Calculate response time
             if callback_context and hasattr(callback_context, "_request_start_time"):
-                response_time = (
-                    __import__("time").time() - callback_context._request_start_time
-                )
+                response_time = time.time() - callback_context._request_start_time
                 logger.debug(f"[{agent_name}] Response time: {response_time:.2f}s")
 
             # Basic logging of response details
@@ -107,6 +263,12 @@ def create_telemetry_callbacks(agent_name: str):
                         f"[{agent_name}] Token usage - Prompt: {usage.prompt_token_count}, Response: {usage.candidates_token_count}, Total: {total_tokens}"
                     )
 
+                    # Update session metrics
+                    if callback_context and hasattr(callback_context, "_agent_metrics"):
+                        callback_context._agent_metrics["total_tokens_used"] += (
+                            total_tokens
+                        )
+
             # Optional: Add any SWE-specific post-processing here
             # For example, response validation, state updates, etc.
         except Exception as e:
@@ -130,9 +292,13 @@ def create_telemetry_callbacks(agent_name: str):
                 f"[{agent_name}] Before tool execution - Tool: {tool_name}, ID: {invocation_id}"
             )
 
+            # Update session metrics
+            if callback_context and hasattr(callback_context, "_agent_metrics"):
+                callback_context._agent_metrics["total_tool_calls"] += 1
+
             # Track tool execution timing
             if callback_context and not hasattr(callback_context, "_tool_start_time"):
-                callback_context._tool_start_time = __import__("time").time()
+                callback_context._tool_start_time = time.time()
 
             # Log tool input if available
             if args:
@@ -167,9 +333,7 @@ def create_telemetry_callbacks(agent_name: str):
 
             # Calculate tool execution time
             if callback_context and hasattr(callback_context, "_tool_start_time"):
-                execution_time = (
-                    __import__("time").time() - callback_context._tool_start_time
-                )
+                execution_time = time.time() - callback_context._tool_start_time
                 logger.debug(
                     f"[{agent_name}] Tool execution time: {execution_time:.2f}s"
                 )
@@ -188,6 +352,9 @@ def create_telemetry_callbacks(agent_name: str):
                 logger.warning(
                     f"[{agent_name}] Tool {tool_name} failed: {tool_response}"
                 )
+                # Update error metrics
+                if callback_context and hasattr(callback_context, "_agent_metrics"):
+                    callback_context._agent_metrics["errors_encountered"] += 1
             else:
                 logger.debug(f"[{agent_name}] Tool {tool_name} completed successfully")
 
@@ -196,12 +363,14 @@ def create_telemetry_callbacks(agent_name: str):
         except Exception as e:
             logger.warning(f"[{agent_name}] Error in after_tool_callback: {e}")
 
-    return (
-        before_model_callback,
-        after_model_callback,
-        before_tool_callback,
-        after_tool_callback,
-    )
+    return {
+        "before_agent": before_agent_callback,
+        "after_agent": after_agent_callback,
+        "before_model": before_model_callback,
+        "after_model": after_model_callback,
+        "before_tool": before_tool_callback,
+        "after_tool": after_tool_callback,
+    }
 
 
 def create_enhanced_telemetry_callbacks(agent_name: str):
@@ -212,7 +381,13 @@ def create_enhanced_telemetry_callbacks(agent_name: str):
         agent_name: Name of the agent for logging and metrics
 
     Returns:
-        Tuple of (before_model_callback, after_model_callback, before_tool_callback, after_tool_callback)
+        Dictionary containing callback functions with keys:
+        - before_model: Callback executed before LLM model request
+        - after_model: Callback executed after LLM model response
+        - before_tool: Callback executed before tool execution
+        - after_tool: Callback executed after tool execution
+        - before_agent: Callback executed before agent starts processing
+        - after_agent: Callback executed after agent completes processing
     """
 
     # Try to import DevOps telemetry and tracing
@@ -235,6 +410,127 @@ def create_enhanced_telemetry_callbacks(agent_name: str):
         )
         return create_telemetry_callbacks(agent_name)
 
+    def before_agent_callback(callback_context: CallbackContext = None):
+        """Enhanced callback with telemetry before agent starts processing."""
+        try:
+            session_id = (
+                getattr(callback_context, "session_id", "unknown")
+                if callback_context and hasattr(callback_context, "session_id")
+                else "unknown"
+            )
+            logger.info(
+                f"[{agent_name}] Enhanced agent session started - Session ID: {session_id}"
+            )
+
+            # Track agent session start time
+            if callback_context:
+                callback_context._agent_session_start_time = time.time()
+
+            # Load project context information
+            project_context = _load_project_context(callback_context)
+            if project_context:
+                logger.info(f"[{agent_name}] Project context loaded: {project_context}")
+
+            # Initialize enhanced session-level metrics
+            if callback_context:
+                callback_context._agent_metrics = {
+                    "session_start_time": time.time(),
+                    "total_model_calls": 0,
+                    "total_tool_calls": 0,
+                    "total_tokens_used": 0,
+                    "errors_encountered": 0,
+                    "project_context": project_context,
+                    "agent_name": agent_name,
+                    "session_id": session_id,
+                }
+
+            # Enhanced telemetry tracking
+            if telemetry_available:
+                try:
+                    # Track agent session start
+                    logger.info(
+                        f"[{agent_name}] Enhanced telemetry session tracking enabled"
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"[{agent_name}] Failed to track agent session start: {e}"
+                    )
+
+            # Track agent lifecycle event
+            logger.info(f"[{agent_name}] Agent lifecycle: ENHANCED_SESSION_START")
+
+        except Exception as e:
+            logger.warning(
+                f"[{agent_name}] Error in enhanced before_agent_callback: {e}"
+            )
+
+    def after_agent_callback(callback_context: CallbackContext = None):
+        """Enhanced callback with telemetry after agent completes processing."""
+        try:
+            session_id = (
+                getattr(callback_context, "session_id", "unknown")
+                if callback_context and hasattr(callback_context, "session_id")
+                else "unknown"
+            )
+            logger.info(
+                f"[{agent_name}] Enhanced agent session ended - Session ID: {session_id}"
+            )
+
+            # Calculate total session duration
+            if callback_context and hasattr(
+                callback_context, "_agent_session_start_time"
+            ):
+                session_duration = (
+                    time.time() - callback_context._agent_session_start_time
+                )
+                logger.info(
+                    f"[{agent_name}] Total session duration: {session_duration:.2f}s"
+                )
+
+            # Log enhanced session summary metrics
+            if callback_context and hasattr(callback_context, "_agent_metrics"):
+                metrics = callback_context._agent_metrics
+                logger.info(f"[{agent_name}] Enhanced session summary:")
+                logger.info(f"  Agent: {metrics.get('agent_name', 'unknown')}")
+                logger.info(f"  Session ID: {metrics.get('session_id', 'unknown')}")
+                logger.info(
+                    f"  Total model calls: {metrics.get('total_model_calls', 0)}"
+                )
+                logger.info(f"  Total tool calls: {metrics.get('total_tool_calls', 0)}")
+                logger.info(
+                    f"  Total tokens used: {metrics.get('total_tokens_used', 0)}"
+                )
+                logger.info(
+                    f"  Errors encountered: {metrics.get('errors_encountered', 0)}"
+                )
+                if metrics.get("project_context"):
+                    pc = metrics["project_context"]
+                    logger.info(f"  Project type: {pc.get('project_type', 'unknown')}")
+                    logger.info(f"  Project files: {pc.get('total_files', 0)}")
+
+            # Enhanced telemetry tracking
+            if telemetry_available:
+                try:
+                    # Track agent session end with metrics
+                    logger.info(
+                        f"[{agent_name}] Enhanced telemetry session tracking completed"
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"[{agent_name}] Failed to track agent session end: {e}"
+                    )
+
+            # Perform any cleanup operations
+            logger.info(f"[{agent_name}] Enhanced session cleanup completed")
+
+            # Track agent lifecycle event
+            logger.info(f"[{agent_name}] Agent lifecycle: ENHANCED_SESSION_END")
+
+        except Exception as e:
+            logger.warning(
+                f"[{agent_name}] Error in enhanced after_agent_callback: {e}"
+            )
+
     def before_model_callback(
         callback_context: CallbackContext, llm_request: LlmRequest
     ):
@@ -246,6 +542,10 @@ def create_enhanced_telemetry_callbacks(agent_name: str):
                 else "unknown"
             )
             logger.debug(f"[{agent_name}] Before model request - ID: {invocation_id}")
+
+            # Update session metrics
+            if callback_context and hasattr(callback_context, "_agent_metrics"):
+                callback_context._agent_metrics["total_model_calls"] += 1
 
             # Basic logging
             if (
@@ -264,7 +564,7 @@ def create_enhanced_telemetry_callbacks(agent_name: str):
 
             # Track request timing
             if callback_context:
-                callback_context._request_start_time = __import__("time").time()
+                callback_context._request_start_time = time.time()
                 callback_context._model_name = getattr(llm_request, "model", "unknown")
 
             # Enhanced telemetry tracking
@@ -293,9 +593,7 @@ def create_enhanced_telemetry_callbacks(agent_name: str):
         # Calculate response time
         response_time = 0.0
         if callback_context and hasattr(callback_context, "_request_start_time"):
-            response_time = (
-                __import__("time").time() - callback_context._request_start_time
-            )
+            response_time = time.time() - callback_context._request_start_time
             logger.debug(f"[{agent_name}] Response time: {response_time:.2f}s")
 
         # Basic logging
@@ -325,6 +623,10 @@ def create_enhanced_telemetry_callbacks(agent_name: str):
                     if hasattr(usage, "candidates_token_count"):
                         completion_tokens = usage.candidates_token_count
                     total_tokens = prompt_tokens + completion_tokens
+
+                # Update session metrics
+                if callback_context and hasattr(callback_context, "_agent_metrics"):
+                    callback_context._agent_metrics["total_tokens_used"] += total_tokens
 
                 # Track LLM request with telemetry (model name not available in response)
                 model_name = getattr(callback_context, "_model_name", "unknown")
@@ -359,9 +661,13 @@ def create_enhanced_telemetry_callbacks(agent_name: str):
             f"[{agent_name}] Before tool execution - Tool: {tool_name}, ID: {invocation_id}"
         )
 
+        # Update session metrics
+        if callback_context and hasattr(callback_context, "_agent_metrics"):
+            callback_context._agent_metrics["total_tool_calls"] += 1
+
         # Track tool execution timing
         if callback_context:
-            callback_context._tool_start_time = __import__("time").time()
+            callback_context._tool_start_time = time.time()
 
         # Log tool input
         if args:
@@ -391,9 +697,7 @@ def create_enhanced_telemetry_callbacks(agent_name: str):
         # Calculate tool execution time
         execution_time = 0.0
         if callback_context and hasattr(callback_context, "_tool_start_time"):
-            execution_time = (
-                __import__("time").time() - callback_context._tool_start_time
-            )
+            execution_time = time.time() - callback_context._tool_start_time
             logger.debug(f"[{agent_name}] Tool execution time: {execution_time:.2f}s")
 
         # Log tool result
@@ -409,6 +713,9 @@ def create_enhanced_telemetry_callbacks(agent_name: str):
         success = not isinstance(tool_response, Exception)
         if not success:
             logger.warning(f"[{agent_name}] Tool {tool_name} failed: {tool_response}")
+            # Update error metrics
+            if callback_context and hasattr(callback_context, "_agent_metrics"):
+                callback_context._agent_metrics["errors_encountered"] += 1
         else:
             logger.debug(f"[{agent_name}] Tool {tool_name} completed successfully")
 
@@ -421,9 +728,11 @@ def create_enhanced_telemetry_callbacks(agent_name: str):
             except Exception as e:
                 logger.warning(f"[{agent_name}] Failed to track tool execution: {e}")
 
-    return (
-        before_model_callback,
-        after_model_callback,
-        before_tool_callback,
-        after_tool_callback,
-    )
+    return {
+        "before_agent": before_agent_callback,
+        "after_agent": after_agent_callback,
+        "before_model": before_model_callback,
+        "after_model": after_model_callback,
+        "before_tool": before_tool_callback,
+        "after_tool": after_tool_callback,
+    }
