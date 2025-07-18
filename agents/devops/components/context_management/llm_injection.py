@@ -1,12 +1,12 @@
 """Injection point for context management in LlmAgent."""
 
-import logging
-from typing import Dict, List, Any, Optional, Union
 import json
+import logging
+from typing import Any, Dict, List, Optional, Union
 
+from google.adk.agents.callback_context import CallbackContext
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
-from google.adk.agents.callback_context import CallbackContext
 from google.genai import types as genai_types
 
 # Set up logging

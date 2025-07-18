@@ -10,10 +10,11 @@ Usage:
     uv run scripts/telemetry_check.py
 """
 
+import json
 import os
 import sys
-import json
 from datetime import datetime
+
 
 def check_grafana_config():
     """Check Grafana Cloud configuration."""

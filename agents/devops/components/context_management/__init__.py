@@ -1,26 +1,26 @@
 """Context manager initialization and package exports."""
 
 from .context_manager import ContextManager
-from .tool_hooks import (
-    TOOL_PROCESSORS,
-    extract_goal_from_user_message,
+from .cross_turn_correlation import CorrelationScore, CrossTurnCorrelator
+from .dynamic_context_expansion import (
+    DiscoveredContent,
+    DynamicContextExpander,
+    ExpansionContext,
+)
+from .file_tracker import file_change_tracker
+from .intelligent_summarization import (
+    ContentType,
+    IntelligentSummarizer,
+    SummarizationContext,
 )
 from .llm_injection import (
     get_last_user_content,
     inject_structured_context,
 )
-from .file_tracker import file_change_tracker
-from .smart_prioritization import SmartPrioritizer, RelevanceScore
-from .cross_turn_correlation import CrossTurnCorrelator, CorrelationScore
-from .intelligent_summarization import (
-    IntelligentSummarizer,
-    SummarizationContext,
-    ContentType,
-)
-from .dynamic_context_expansion import (
-    DynamicContextExpander,
-    ExpansionContext,
-    DiscoveredContent,
+from .smart_prioritization import RelevanceScore, SmartPrioritizer
+from .tool_hooks import (
+    TOOL_PROCESSORS,
+    extract_goal_from_user_message,
 )
 
 __all__ = [

@@ -1,13 +1,13 @@
 """Enhanced tracing implementation for DevOps Agent using OpenLIT manual tracing."""
 
-import os
-import time
 import functools
 import logging
-from typing import Dict, Any, Optional, List, Callable, Union
+import os
+import time
+from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import Enum
-from contextlib import contextmanager
+from typing import Any, Callable, Dict, List, Optional, Union
 
 try:
     import openlit
@@ -21,10 +21,10 @@ from opentelemetry.trace import Status, StatusCode
 
 # Import agent configuration  
 from .config import (
-    OPENLIT_CAPTURE_CONTENT, 
-    TRACE_SAMPLING_RATE,
+    OPENLIT_CAPTURE_CONTENT,
     OPENLIT_DISABLE_BATCH,
-    OPENLIT_DISABLED_INSTRUMENTORS
+    OPENLIT_DISABLED_INSTRUMENTORS,
+    TRACE_SAMPLING_RATE,
 )
 
 logger = logging.getLogger(__name__)

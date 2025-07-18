@@ -9,7 +9,7 @@ from ...config import GOOGLE_API_KEY
 # This allows sharing the initialized chroma_client and embedding_model_instance
 # when used as part of the larger agent.
 try:
-    from .indexing import get_chroma_collection, embed_chunks_batch, CHROMA_COLLECTION_NAME
+    from .indexing import CHROMA_COLLECTION_NAME, embed_chunks_batch, get_chroma_collection
     logger = logging.getLogger(__name__)
     logger.info("Retriever: Successfully imported from .indexing")
 except ImportError:
@@ -19,7 +19,7 @@ except ImportError:
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(name)s - %(message)s')
     logger = logging.getLogger(__name__)
     logger.warning("Retriever: Could not import from .indexing, attempting standalone initialization.")
-    from indexing import get_chroma_collection, embed_chunks_batch, CHROMA_COLLECTION_NAME
+    from indexing import CHROMA_COLLECTION_NAME, embed_chunks_batch, get_chroma_collection
 
 
 def retrieve_relevant_chunks(query_text: str, top_k: int = 5, collection_name: str = CHROMA_COLLECTION_NAME) -> list[dict] | None:

@@ -1,15 +1,16 @@
 # /Users/james/Agents/devops_v2/tools/rag_tools.py
-import os
+import fnmatch  # Added for .indexignore
 import logging
-import fnmatch # Added for .indexignore
+import os
 import time
-from pathlib import Path # Added for .indexignore and path manipulation
-from typing import Optional # Added import
+from pathlib import Path  # Added for .indexignore and path manipulation
+from typing import Optional  # Added import
 
 # from google.adk.tools.utils import tool_utils # For defining ADK tools
 # from google.adk.tools import FunctionTool, ToolContext # For defining ADK tools and accessing context
-from google.adk.tools import FunctionTool # For defining ADK tools
-from .rag_components import chunking, indexing, purging # Relative import from parent dir
+from google.adk.tools import FunctionTool  # For defining ADK tools
+
+from .rag_components import chunking, indexing, purging  # Relative import from parent dir
 
 logger = logging.getLogger(__name__)
 
@@ -237,7 +238,7 @@ def retrieve_code_context_tool(query: str, top_k: int = 5) -> dict | str:
     """
     logger.info(f"Retrieving context for query: \"{query}\", top_k={top_k}")
     
-    from .rag_components import retriever # Keep import here if it's heavy or has side effects
+    from .rag_components import retriever  # Keep import here if it's heavy or has side effects
 
     retrieved_data = retriever.retrieve_relevant_chunks(query_text=query, top_k=top_k)
 

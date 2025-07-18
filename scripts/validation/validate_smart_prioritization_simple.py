@@ -4,11 +4,11 @@ Simplified validation script for Smart Prioritization system.
 Tests various scenarios to demonstrate relevance-based ranking.
 """
 
-import sys
-import os
 import logging
-from typing import List, Dict, Any
+import os
+import sys
 from datetime import datetime, timezone
+from typing import Any, Dict, List
 
 # Add the agents/devops directory to the path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'agents', 'devops'))
@@ -24,7 +24,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Import the smart prioritization classes directly
-from smart_prioritization import SmartPrioritizer, RelevanceScore
+from smart_prioritization import RelevanceScore, SmartPrioritizer
+
 
 class SmartPrioritizationValidator:
     """Validates the smart prioritization system with comprehensive test cases."""

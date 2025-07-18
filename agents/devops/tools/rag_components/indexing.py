@@ -1,17 +1,21 @@
-import os
 import logging
-import chromadb
-import tempfile
+import os
 import shutil
+import tempfile
 import time
 from pathlib import Path
-from google import genai as google_genai_sdk # Renamed to avoid conflict with a potential genai client instance
+from typing import Any, Dict, List, Optional
+
+import chromadb
+from dotenv import load_dotenv  # Added import
+from google import (
+    genai as google_genai_sdk,  # Renamed to avoid conflict with a potential genai client instance
+)
 from google.api_core import exceptions as google_exceptions
-from dotenv import load_dotenv # Added import
-from typing import List, Dict, Any, Optional
 
 # Import agent configuration
-from ...config import GOOGLE_API_KEY, CHROMA_DATA_PATH as CONFIGURED_CHROMA_DATA_PATH
+from ...config import CHROMA_DATA_PATH as CONFIGURED_CHROMA_DATA_PATH
+from ...config import GOOGLE_API_KEY
 
 # Configure logging
 logger = logging.getLogger(__name__)

@@ -13,12 +13,12 @@
 # limitations under the License.
 
 import re
-from typing import Any
-from typing import Optional
+from typing import Any, Optional
 
 from google.adk.agents.base_agent import BaseAgent
 from google.adk.agents.llm_agent import LlmAgent
-from .ui import get_cli_instance, EnhancedCLI, UITheme
+
+from .ui import EnhancedCLI, UITheme, get_cli_instance
 
 __all__ = [
     'create_empty_state',
