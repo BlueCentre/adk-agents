@@ -4,6 +4,7 @@ from google.adk.agents import LlmAgent
 from google.genai.types import GenerateContentConfig
 
 from ... import config as agent_config
+from ...shared_libraries.callbacks import create_telemetry_callbacks
 from ...tools import load_tools_for_sub_agent
 from . import prompt
 

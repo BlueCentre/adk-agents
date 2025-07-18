@@ -48,7 +48,7 @@ uv run python scripts/monitoring/telemetry_check.py
 uv run python scripts/validation/validate_smart_prioritization_simple.py
 
 # Verify MCP tool separation
-uv run scripts/validation/verify_mcp_separation.py
+uv run python scripts/validation/verify_mcp_separation.py
 ```
 
 ### Environment Requirements
