@@ -8,7 +8,7 @@ import json
 import logging
 import os
 from contextlib import AsyncExitStack
-from typing import List
+from typing import Any, List
 
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.tools.agent_tool import AgentTool
@@ -471,6 +471,70 @@ def load_all_tools_and_toolsets():
     return all_tools
 
 
+def _load_filtered_mcp_tools(mcp_server_filter: List[str]) -> List[Any]:
+    """
+    Load MCP tools filtered by server names.
+
+    This implementation loads only the specified MCP servers, avoiding the issue
+    in the base load_selective_tools_and_toolsets where filtering was attempted
+    after loading (which didn't work due to missing server metadata).
+
+    Args:
+        mcp_server_filter: List of MCP server names to include
+
+    Returns:
+        List of tools from the specified MCP servers only
+    """
+    filtered_tools = []
+    mcp_config_path = os.path.join(os.getcwd(), ".agent/mcp.json")
+
+    if not os.path.exists(mcp_config_path):
+        logger.info("mcp.json not found. No MCP tools will be loaded.")
+        return filtered_tools
+
+    with open(mcp_config_path, "r") as f:
+        mcp_config = json.load(f)
+
+    servers = mcp_config.get("mcpServers", {})
+    if not servers:
+        logger.info("No 'mcpServers' found in mcp.json.")
+        return filtered_tools
+
+    # Only load servers that are in the filter list
+    for server_name in mcp_server_filter:
+        if server_name not in servers:
+            logger.warning(
+                f"MCP server '{server_name}' not found in configuration. Skipping."
+            )
+            continue
+
+        server_config = servers[server_name]
+
+        try:
+            # Process config and create connection params
+            processed_config = _substitute_env_vars(server_config)
+            connection_params = _create_connection_params(server_name, processed_config)
+
+            if connection_params:
+                # Use simple MCPToolset pattern for consistency with load_user_tools_and_toolsets
+                mcp_toolset = MCPToolset(connection_params=connection_params)
+                filtered_tools.append(mcp_toolset)
+                logger.info(f"Loaded filtered MCP server '{server_name}' successfully.")
+            else:
+                logger.warning(
+                    f"Failed to create connection params for MCP server '{server_name}'."
+                )
+
+        except Exception as e:
+            logger.warning(f"Failed to load filtered MCP server '{server_name}': {e}")
+            continue
+
+    logger.info(
+        f"Loaded {len(filtered_tools)} tools from {len(mcp_server_filter)} specified MCP servers."
+    )
+    return filtered_tools
+
+
 def load_selective_tools_and_toolsets_enhanced(
     included_categories: List[str] = None,
     excluded_categories: List[str] = None,
@@ -559,10 +623,14 @@ def load_selective_tools_and_toolsets(
         included_tools: List of specific tool names to include
         excluded_tools: List of specific tool names to exclude
         include_mcp_tools: Whether to include MCP tools
-        mcp_server_filter: List of specific MCP server names to include
+        mcp_server_filter: List of specific MCP server names to include (now properly filters at server level)
 
     Returns:
         List of selected tools
+
+    Note:
+        MCP server filtering now works correctly by loading only the specified servers,
+        rather than loading all servers and attempting to filter afterwards.
     """
     # Define tool categories mapping with actual tool names
     tool_categories = {
@@ -656,17 +724,12 @@ def load_selective_tools_and_toolsets(
 
     # Add MCP tools if requested
     if include_mcp_tools:
-        mcp_tools = load_user_tools_and_toolsets()
-
-        # Filter MCP tools by server name if specified
         if mcp_server_filter:
-            filtered_mcp_tools = []
-            for tool in mcp_tools:
-                # Check if tool belongs to specified servers
-                # Note: This would require additional metadata in MCP tools
-                # For now, include all MCP tools when filter is specified
-                filtered_mcp_tools.append(tool)
-            mcp_tools = filtered_mcp_tools
+            # Use filtered MCP loading when server filter is specified
+            mcp_tools = _load_filtered_mcp_tools(mcp_server_filter)
+        else:
+            # Load all MCP tools when no filter is specified
+            mcp_tools = load_user_tools_and_toolsets()
 
         selected_tools.extend(mcp_tools)
 
