@@ -1,6 +1,6 @@
 """
-This file is used to load the core tools and toolsets for the devops agent.
-It is used in the devops_agent.py file to load the core tools and toolsets.
+This file is used to load the core tools and toolsets for the software engineer agent.
+It is used in the software_engineer_agent.py file to load the core tools and toolsets.
 """
 
 import asyncio
@@ -8,6 +8,7 @@ import json
 import logging
 import os
 from contextlib import AsyncExitStack
+from typing import List
 
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.tools.agent_tool import AgentTool
@@ -51,8 +52,23 @@ _global_mcp_exit_stack = None
 def load_core_tools_and_toolsets():
     """Loads and initializes all core tools, sub-agents, and MCP toolsets."""
     devops_core_tools_list = [
+        # Filesystem tools
+        read_file_tool,
+        list_dir_tool,
+        edit_file_tool,
+        # Code search tools
         codebase_search_tool,
+        # Shell command tools
         execute_shell_command_tool,
+        # System info tools
+        get_os_info_tool,
+        # Code analysis tools
+        analyze_code_tool,
+        get_analysis_issues_by_severity_tool,
+        suggest_code_fixes_tool,
+        # Memory tools
+        load_memory_from_file_tool,
+        save_current_session_to_file_tool,
         # Note: RAG tools (index_directory_tool, retrieve_code_context_tool, purge_rag_index_tool)
         # are not available in the SWE agent yet
     ]
@@ -453,3 +469,324 @@ def load_all_tools_and_toolsets():
         f"All tools loaded. Core: {len(core_tools)}, User/MCP: {len(user_tools)}, Total: {len(all_tools)} tools."
     )
     return all_tools
+
+
+def load_selective_tools_and_toolsets_enhanced(
+    included_categories: List[str] = None,
+    excluded_categories: List[str] = None,
+    included_tools: List[str] = None,
+    excluded_tools: List[str] = None,
+    include_mcp_tools: bool = True,
+    mcp_server_filter: List[str] = None,
+    sub_agent_name: str = None,
+    include_global_servers: bool = True,
+    excluded_servers: List[str] = None,
+    server_overrides: dict = None,
+):
+    """
+    Enhanced version of selective tool loading that supports per-sub-agent MCP configurations.
+
+    Args:
+        included_categories: List of tool categories to include
+        excluded_categories: List of tool categories to exclude
+        included_tools: List of specific tool names to include
+        excluded_tools: List of specific tool names to exclude
+        include_mcp_tools: Whether to include MCP tools
+        mcp_server_filter: List of specific MCP server names to include
+        sub_agent_name: Name of the sub-agent for per-sub-agent MCP loading
+        include_global_servers: Whether to include globally configured MCP servers
+        excluded_servers: List of MCP servers to exclude
+        server_overrides: Configuration overrides for specific MCP servers
+
+    Returns:
+        List of selected tools including per-sub-agent MCP tools
+    """
+    # Load core tools using existing selective loading
+    selected_tools = load_selective_tools_and_toolsets(
+        included_categories=included_categories,
+        excluded_categories=excluded_categories,
+        included_tools=included_tools,
+        excluded_tools=excluded_tools,
+        include_mcp_tools=False,  # We'll handle MCP tools separately
+        mcp_server_filter=mcp_server_filter,
+    )
+
+    # Add MCP tools if requested
+    if include_mcp_tools:
+        if sub_agent_name:
+            # Use per-sub-agent MCP loading
+            try:
+                from .sub_agent_mcp_loader import load_sub_agent_mcp_tools
+
+                mcp_tools = load_sub_agent_mcp_tools(
+                    sub_agent_name=sub_agent_name,
+                    mcp_server_filter=mcp_server_filter,
+                    include_global_servers=include_global_servers,
+                    excluded_servers=excluded_servers,
+                    server_overrides=server_overrides,
+                )
+                selected_tools.extend(mcp_tools)
+                logger.info(
+                    f"Added {len(mcp_tools)} per-sub-agent MCP tools for {sub_agent_name}"
+                )
+            except ImportError as e:
+                logger.warning(f"Per-sub-agent MCP loading not available: {e}")
+                # Fallback to global MCP loading
+                mcp_tools = load_user_tools_and_toolsets()
+                selected_tools.extend(mcp_tools)
+        else:
+            # Use global MCP loading
+            mcp_tools = load_user_tools_and_toolsets()
+            selected_tools.extend(mcp_tools)
+
+    return selected_tools
+
+
+def load_selective_tools_and_toolsets(
+    included_categories: List[str] = None,
+    excluded_categories: List[str] = None,
+    included_tools: List[str] = None,
+    excluded_tools: List[str] = None,
+    include_mcp_tools: bool = True,
+    mcp_server_filter: List[str] = None,
+):
+    """
+    Load tools selectively based on categories and specific tool names.
+
+    Args:
+        included_categories: List of tool categories to include (e.g., ['filesystem', 'code_analysis'])
+        excluded_categories: List of tool categories to exclude
+        included_tools: List of specific tool names to include
+        excluded_tools: List of specific tool names to exclude
+        include_mcp_tools: Whether to include MCP tools
+        mcp_server_filter: List of specific MCP server names to include
+
+    Returns:
+        List of selected tools
+    """
+    # Define tool categories mapping with actual tool names
+    tool_categories = {
+        "filesystem": [
+            "read_file_content",
+            "list_directory_contents",
+            "edit_file_content",
+        ],
+        "code_analysis": [
+            "_analyze_code",
+            "get_issues_by_severity",
+            "suggest_fixes",
+        ],
+        "code_search": [
+            "ripgrep_code_search",
+        ],
+        "shell_command": [
+            "execute_shell_command",
+        ],
+        "search": [
+            "google_search_grounding",
+        ],
+        "memory": [
+            "_load_memory_from_file_impl",
+            "_save_current_session_to_file_impl",
+        ],
+        "system_info": [
+            "get_os_info",
+        ],
+        "agents": [
+            "google_search_grounding",  # Search agent
+            "code_execution",  # Code execution agent
+        ],
+    }
+
+    # Get all available tools
+    all_tools = load_core_tools_and_toolsets()
+    selected_tools = []
+
+    # Create a mapping of tool names to tool instances
+    tool_name_map = {}
+    for tool in all_tools:
+        if hasattr(tool, "name"):
+            tool_name_map[tool.name] = tool
+        elif hasattr(tool, "function") and hasattr(tool.function, "name"):
+            tool_name_map[tool.function.name] = tool
+        # Handle AgentTool instances
+        elif hasattr(tool, "agent") and hasattr(tool.agent, "name"):
+            tool_name_map[tool.agent.name] = tool
+
+    # Determine which tools to include based on categories
+    tools_to_include = set()
+
+    # Include tools by category
+    if included_categories:
+        for category in included_categories:
+            if category in tool_categories:
+                tools_to_include.update(tool_categories[category])
+
+    # Add specifically included tools
+    if included_tools:
+        tools_to_include.update(included_tools)
+
+    # Remove excluded categories
+    if excluded_categories:
+        for category in excluded_categories:
+            if category in tool_categories:
+                tools_to_include.difference_update(tool_categories[category])
+
+    # Remove specifically excluded tools
+    if excluded_tools:
+        tools_to_include.difference_update(excluded_tools)
+
+    # If no specific inclusion criteria, include all core tools
+    if not included_categories and not included_tools:
+        tools_to_include = set(tool_name_map.keys())
+
+        # Apply exclusions to all tools
+        if excluded_categories:
+            for category in excluded_categories:
+                if category in tool_categories:
+                    tools_to_include.difference_update(tool_categories[category])
+
+        if excluded_tools:
+            tools_to_include.difference_update(excluded_tools)
+
+    # Select the actual tool instances
+    for tool_name in tools_to_include:
+        if tool_name in tool_name_map:
+            selected_tools.append(tool_name_map[tool_name])
+
+    # Add MCP tools if requested
+    if include_mcp_tools:
+        mcp_tools = load_user_tools_and_toolsets()
+
+        # Filter MCP tools by server name if specified
+        if mcp_server_filter:
+            filtered_mcp_tools = []
+            for tool in mcp_tools:
+                # Check if tool belongs to specified servers
+                # Note: This would require additional metadata in MCP tools
+                # For now, include all MCP tools when filter is specified
+                filtered_mcp_tools.append(tool)
+            mcp_tools = filtered_mcp_tools
+
+        selected_tools.extend(mcp_tools)
+
+    logger.info(
+        f"Selective tool loading: {len(selected_tools)} tools selected "
+        f"(categories: {included_categories}, tools: {included_tools})"
+    )
+
+    return selected_tools
+
+
+def create_sub_agent_tool_profiles():
+    """
+    Define tool profiles for different types of sub-agents.
+    This provides convenient presets for common sub-agent configurations.
+    """
+    return {
+        "code_quality": {
+            "included_categories": ["filesystem", "code_analysis"],
+            "included_tools": [],
+            "excluded_categories": ["shell_command"],
+            "include_mcp_tools": False,
+        },
+        "testing": {
+            "included_categories": ["filesystem", "code_search", "shell_command"],
+            "included_tools": [],
+            "excluded_categories": ["search"],
+            "include_mcp_tools": True,
+            "mcp_server_filter": ["filesystem"],  # Only filesystem MCP tools
+        },
+        "devops": {
+            "included_categories": ["filesystem", "shell_command", "system_info"],
+            "included_tools": ["codebase_search_tool"],
+            "excluded_categories": [],
+            "include_mcp_tools": True,
+        },
+        "code_review": {
+            "included_categories": ["filesystem", "code_analysis", "code_search"],
+            "included_tools": [],
+            "excluded_categories": ["shell_command"],
+            "include_mcp_tools": False,
+        },
+        "debugging": {
+            "included_categories": ["filesystem", "code_analysis", "shell_command"],
+            "included_tools": ["codebase_search_tool"],
+            "excluded_categories": [],
+            "include_mcp_tools": True,
+        },
+        "documentation": {
+            "included_categories": ["filesystem", "code_search"],
+            "included_tools": [],
+            "excluded_categories": ["shell_command", "system_info"],
+            "include_mcp_tools": False,
+        },
+        "design_pattern": {
+            "included_categories": ["filesystem", "code_search"],
+            "included_tools": [],
+            "excluded_categories": ["shell_command"],
+            "include_mcp_tools": False,
+        },
+        "minimal": {
+            "included_categories": ["filesystem"],
+            "included_tools": [],
+            "excluded_categories": [],
+            "include_mcp_tools": False,
+        },
+        "full_access": {
+            "included_categories": None,  # Include all
+            "included_tools": None,
+            "excluded_categories": [],
+            "excluded_tools": [],
+            "include_mcp_tools": True,
+        },
+    }
+
+
+def load_tools_for_sub_agent(
+    profile_name: str, custom_config: dict = None, sub_agent_name: str = None
+):
+    """
+    Load tools for a sub-agent using a predefined profile or custom configuration.
+
+    Args:
+        profile_name: Name of the predefined profile to use
+        custom_config: Optional custom configuration to override/extend the profile
+        sub_agent_name: Optional name of the sub-agent for per-sub-agent MCP loading
+
+    Returns:
+        List of tools configured for the sub-agent
+    """
+    profiles = create_sub_agent_tool_profiles()
+
+    if profile_name not in profiles:
+        logger.warning(f"Unknown profile '{profile_name}'. Using 'minimal' profile.")
+        profile_name = "minimal"
+
+    # Start with the profile configuration
+    config = profiles[profile_name].copy()
+
+    # Apply custom configuration overrides
+    if custom_config:
+        config.update(custom_config)
+
+    # Extract sub-agent specific MCP configuration
+    sub_agent_mcp_config = {}
+    if sub_agent_name:
+        # Extract sub-agent specific MCP parameters
+        sub_agent_mcp_config = {
+            "sub_agent_name": sub_agent_name,
+            "mcp_server_filter": config.get("mcp_server_filter"),
+            "include_global_servers": config.get("include_global_servers", True),
+            "excluded_servers": config.get("excluded_servers"),
+            "server_overrides": config.get("server_overrides"),
+        }
+        # Remove MCP-specific keys from the main config to avoid duplication
+        # as they are now handled in sub_agent_mcp_config
+        config.pop("mcp_server_filter", None)
+        config.pop("include_global_servers", None)
+        config.pop("excluded_servers", None)
+        config.pop("server_overrides", None)
+
+    # Load tools using the selective loading function with enhanced MCP support
+    return load_selective_tools_and_toolsets_enhanced(**config, **sub_agent_mcp_config)

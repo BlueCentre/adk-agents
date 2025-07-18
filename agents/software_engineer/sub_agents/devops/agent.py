@@ -3,36 +3,38 @@
 from google.adk.agents import LlmAgent
 from google.genai.types import GenerateContentConfig
 
-# Import from the prompt module in the current directory
 from ... import config as agent_config
-
-# Import codebase search tool from the tools module
-from ...tools.code_search import codebase_search_tool
-from ...tools.filesystem import edit_file_tool, list_dir_tool, read_file_tool
-
-# from ...tools.search import google_search_grounding
-from ...tools.shell_command import execute_shell_command_tool
+from ...tools import load_tools_for_sub_agent
 from . import prompt
+
+# Load tools using the profile-based loading with per-sub-agent MCP configuration
+# This uses the new per-sub-agent MCP tool loading system
+custom_devops_config = {
+    "included_categories": ["filesystem", "shell_command", "system_info"],
+    "included_tools": ["codebase_search_tool"],
+    "excluded_tools": ["analyze_code_tool"],  # DevOps agent doesn't need code analysis
+    "include_mcp_tools": True,
+    "mcp_server_filter": [
+        "filesystem",
+        "docker",
+        "kubernetes",
+    ],  # Only specific MCP tools
+}
+
+tools = load_tools_for_sub_agent(
+    "devops", custom_devops_config, sub_agent_name="devops_agent"
+)
 
 devops_agent = LlmAgent(
     model=agent_config.DEFAULT_SUB_AGENT_MODEL,
     name="devops_agent",
     description="Agent specialized in DevOps, CI/CD, deployment, and infrastructure",
     instruction=prompt.DEVOPS_AGENT_INSTR,
-    tools=[
-        read_file_tool,
-        list_dir_tool,
-        edit_file_tool,
-        codebase_search_tool,
-        execute_shell_command_tool,
-        # google_search_grounding,
-    ],
-    output_key="devops",
     generate_content_config=GenerateContentConfig(
         temperature=0.2,
         top_p=0.95,
         max_output_tokens=4096,
     ),
+    tools=tools,
+    output_key="devops",
 )
-
-# Placeholder for actual tool implementation
