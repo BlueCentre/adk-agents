@@ -33,6 +33,9 @@ tools = load_tools_for_sub_agent(
     "debugging", base_config, sub_agent_name="debugging_agent"
 )
 
+# Create telemetry callbacks for observability
+callbacks = create_telemetry_callbacks("debugging_agent")
+
 debugging_agent = LlmAgent(
     model=agent_config.DEFAULT_SUB_AGENT_MODEL,
     name="debugging_agent",
@@ -44,5 +47,12 @@ debugging_agent = LlmAgent(
         max_output_tokens=4096,
     ),
     tools=tools,
+    # Add telemetry callbacks for observability
+    before_agent_callback=callbacks["before_agent"],
+    after_agent_callback=callbacks["after_agent"],
+    before_model_callback=callbacks["before_model"],
+    after_model_callback=callbacks["after_model"],
+    before_tool_callback=callbacks["before_tool"],
+    after_tool_callback=callbacks["after_tool"],
     output_key="debugging",
 )
