@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "test-server": {
+      "command": "echo",
+      "args": [
+        "test"
+      ],
+      "env": {
+        "TEST_MODE": "1"
+      }
+    }
+  },
+  "globalServers": [
+    "filesystem"
+  ],
+  "excludedServers": [
+    "production-db"
+  ],
+  "serverOverrides": {}
+}

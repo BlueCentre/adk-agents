@@ -12,12 +12,12 @@ Run this example to see the different tool loading strategies in action.
 """
 
 import logging
-from typing import Dict, List, Any
+from typing import Any, Dict, List
 
 from ..tools import (
-    load_tools_for_sub_agent,
-    load_selective_tools_and_toolsets,
     create_sub_agent_tool_profiles,
+    load_selective_tools_and_toolsets,
+    load_tools_for_sub_agent,
 )
 
 # Configure logging to see tool loading details

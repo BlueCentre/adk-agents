@@ -18,7 +18,7 @@ import json
 import logging
 import os
 from contextlib import AsyncExitStack
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from google.adk.tools.mcp_tool.mcp_toolset import (
     MCPToolset,
@@ -27,10 +27,10 @@ from google.adk.tools.mcp_tool.mcp_toolset import (
 )
 
 from .setup import (
-    _substitute_env_vars,
     _create_connection_params,
-    _loaded_mcp_toolsets,
     _global_mcp_exit_stack,
+    _loaded_mcp_toolsets,
+    _substitute_env_vars,
 )
 
 logger = logging.getLogger(__name__)

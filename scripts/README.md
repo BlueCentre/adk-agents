@@ -32,6 +32,7 @@ Scripts for monitoring agent performance and telemetry:
 Scripts for validating agent functionality and performance:
 
 - **`validate_smart_prioritization_simple.py`** - Smart prioritization algorithm validation and testing
+- **`verify_mcp_separation.py`** - MCP tool separation verification between root and sub-agents
 
 ## 🔧 Usage Guidelines
 
@@ -45,6 +46,9 @@ uv run python scripts/monitoring/telemetry_check.py
 
 # Validate smart prioritization
 uv run python scripts/validation/validate_smart_prioritization_simple.py
+
+# Verify MCP tool separation
+uv run scripts/validation/verify_mcp_separation.py
 ```
 
 ### Environment Requirements

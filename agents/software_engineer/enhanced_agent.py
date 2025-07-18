@@ -6,6 +6,7 @@ from typing import Any, Dict, Optional
 from google.adk.agents import Agent, LlmAgent
 from google.adk.models.lite_llm import LiteLlm
 from google.adk.tools import FunctionTool, ToolContext, load_memory
+from google.genai.types import GenerateContentConfig
 
 from . import config as agent_config
 from . import prompt
@@ -224,6 +225,11 @@ def create_enhanced_software_engineer_agent() -> Agent:
         name="enhanced_software_engineer",
         description="Advanced software engineer with ADK workflow orchestration capabilities",
         instruction=prompt.SOFTWARE_ENGINEER_ENHANCED_INSTR,
+        generate_content_config=GenerateContentConfig(
+            temperature=0.1,
+            top_p=0.95,
+            # max_output_tokens=4096,
+        ),
         sub_agents=[
             # Traditional sub-agents for direct delegation
             design_pattern_agent,

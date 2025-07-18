@@ -5,17 +5,15 @@ from google.genai.types import GenerateContentConfig
 
 from ... import config as agent_config
 from ...shared_libraries.callbacks import create_telemetry_callbacks
-
-# from software_engineer.sub_agents.code_review.shared_libraries.types import CodeReviewResponse
-# from ...tools.code_analysis import analyze_code_tool
-# from ...tools.filesystem import list_dir_tool, read_file_tool
-from ...tools.code_search import codebase_search_tool
-from ...tools.filesystem import edit_file_tool, list_dir_tool, read_file_tool
-from ...tools.shell_command import execute_shell_command_tool
+from ...tools import load_tools_for_sub_agent
 from . import prompt
 
 # Create telemetry callbacks for observability
 callbacks = create_telemetry_callbacks("code_review_agent")
+
+# Load tools using the profile-based loading with per-sub-agent MCP configuration
+# This uses the new per-sub-agent MCP tool loading system
+tools = load_tools_for_sub_agent("code_review", sub_agent_name="code_review_agent")
 
 code_review_agent = Agent(
     model=agent_config.DEFAULT_SUB_AGENT_MODEL,
@@ -27,13 +25,7 @@ code_review_agent = Agent(
         top_p=0.95,
         max_output_tokens=1000,
     ),
-    tools=[
-        read_file_tool,
-        list_dir_tool,
-        edit_file_tool,
-        codebase_search_tool,
-        execute_shell_command_tool,
-    ],
+    tools=tools,
     # Add telemetry callbacks for observability
     before_agent_callback=callbacks["before_agent"],
     after_agent_callback=callbacks["after_agent"],
