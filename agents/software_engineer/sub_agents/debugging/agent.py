@@ -3,17 +3,36 @@
 from google.adk.agents import LlmAgent
 from google.genai.types import GenerateContentConfig
 
-# from ...tools.system_info import get_os_info
 from ... import config as agent_config
 from ...shared_libraries.callbacks import create_telemetry_callbacks
-
-# Import codebase search tool from the tools module
-from ...tools.code_search import codebase_search_tool
-from ...tools.filesystem import edit_file_tool, list_dir_tool, read_file_tool
-
-# from ...tools.search import google_search_grounding
-from ...tools.shell_command import execute_shell_command_tool
+from ...tools import load_tools_for_sub_agent
 from . import prompt
+
+# Load tools using profile-based loading with per-sub-agent MCP configuration
+# This demonstrates the new per-sub-agent MCP tool loading system
+base_config = {
+    "include_mcp_tools": True,
+    "mcp_server_filter": ["filesystem", "debugger", "profiler", "monitoring"],
+    "include_global_servers": True,
+    "excluded_servers": ["production-db", "external-api"],
+    "server_overrides": {
+        "debugger": {"env": {"DEBUG_MODE": "1", "VERBOSE": "1"}},
+        "profiler": {"args": ["--memory-profiling", "--cpu-profiling"]},
+    },
+}
+
+# Add additional tools based on environment or configuration
+if (
+    hasattr(agent_config, "ENABLE_ADVANCED_DEBUGGING")
+    and agent_config.ENABLE_ADVANCED_DEBUGGING
+):
+    base_config["included_tools"] = ["profiler_tool", "trace_analyzer_tool"]
+    base_config["mcp_server_filter"].extend(["trace-analyzer", "heap-analyzer"])
+
+# Load tools with per-sub-agent MCP configuration
+tools = load_tools_for_sub_agent(
+    "debugging", base_config, sub_agent_name="debugging_agent"
+)
 
 # Create telemetry callbacks for observability
 callbacks = create_telemetry_callbacks("debugging_agent")
@@ -21,22 +40,14 @@ callbacks = create_telemetry_callbacks("debugging_agent")
 debugging_agent = LlmAgent(
     model=agent_config.DEFAULT_SUB_AGENT_MODEL,
     name="debugging_agent",
-    description="Agent specialized in debugging code and fixing issues",
+    description="Agent specialized in debugging and troubleshooting code issues",
     instruction=prompt.DEBUGGING_AGENT_INSTR,
     generate_content_config=GenerateContentConfig(
-        temperature=0.8,
+        temperature=0.2,
         top_p=0.95,
         max_output_tokens=4096,
     ),
-    tools=[
-        read_file_tool,
-        list_dir_tool,
-        edit_file_tool,
-        codebase_search_tool,  # Critical for understanding code context
-        execute_shell_command_tool,
-        # get_os_info,
-        # google_search_grounding,
-    ],
+    tools=tools,
     # Add telemetry callbacks for observability
     before_agent_callback=callbacks["before_agent"],
     after_agent_callback=callbacks["after_agent"],

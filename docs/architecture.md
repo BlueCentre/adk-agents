@@ -177,6 +177,142 @@ graph TD
     UserGuidance --> Complete
 ```
 
+## Per-Sub-Agent MCP Tool Loading System
+
+The agent implements a sophisticated per-sub-agent MCP (Model Context Protocol) tool loading system that provides fine-grained control over tool access for different agents while maintaining security and performance.
+
+```mermaid
+graph TD
+    subgraph "Global MCP Configuration"
+        GMC[.agent/mcp.json] --> GS1[filesystem]
+        GMC --> GS2[memory]
+        GMC --> GS3[github]
+        GMC --> GS4[sonarqube]
+        GMC --> GS5[playwright]
+    end
+    
+    subgraph "Root Agent"
+        RA[Root Agent] --> RATL[Tool Loader]
+        RATL --> GS1
+        RATL --> GS2
+        RATL --> GS3
+        RATL --> GS4
+        RATL --> GS5
+        RATL --> CT[Core Tools]
+    end
+    
+    subgraph "Sub-Agent Configurations"
+        SAC1[.agent/sub-agents/testing_agent.mcp.json] --> DS1[datadog - Exclusive]
+        SAC2[.agent/sub-agents/debugging_agent.mcp.json] --> DS2[debugger - Exclusive]
+        SAC3[.agent/sub-agents/devops_agent.mcp.json] --> DS3[docker - Exclusive]
+    end
+    
+    subgraph "Sub-Agents"
+        TA[Testing Agent] --> TATL[Sub-Agent Tool Loader]
+        DA[Debugging Agent] --> DATL[Sub-Agent Tool Loader]
+        DEA[DevOps Agent] --> DEATL[Sub-Agent Tool Loader]
+        
+        TATL --> DS1
+        TATL --> GS1
+        TATL --> GS2
+        TATL --> CT
+        
+        DATL --> DS2
+        DATL --> GS1
+        DATL --> CT
+        
+        DEATL --> DS3
+        DEATL --> GS1
+        DEATL --> GS3
+        DEATL --> CT
+    end
+    
+    style DS1 fill:#ffebee
+    style DS2 fill:#e8f5e8
+    style DS3 fill:#e3f2fd
+    style RA fill:#fff3e0
+    style TA fill:#ffebee
+    style DA fill:#e8f5e8
+    style DEA fill:#e3f2fd
+```
+
+### MCP Tool Loading Sequence
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant RA as Root Agent
+    participant TA as Testing Agent
+    participant GM as Global MCP Config
+    participant SM as Sub-Agent MCP Config
+    participant TL as Tool Loader
+    
+    Note over U,TL: Root Agent Tool Loading
+    U->>RA: Load tools
+    RA->>TL: load_all_tools_and_toolsets()
+    TL->>GM: Read .agent/mcp.json
+    GM-->>TL: Global MCP servers
+    TL->>TL: Load core tools
+    TL-->>RA: All tools (core + global MCP)
+    
+    Note over U,TL: Sub-Agent Tool Loading
+    U->>TA: Load tools for testing
+    TA->>TL: load_tools_for_sub_agent('testing', sub_agent_name='testing_agent')
+    TL->>SM: Read .agent/sub-agents/testing_agent.mcp.json
+    SM-->>TL: Sub-agent MCP config
+    TL->>GM: Check globalServers list
+    GM-->>TL: Selected global servers
+    TL->>TL: Apply filters and overrides
+    TL->>TL: Load exclusive + shared tools
+    TL-->>TA: Filtered tools (core + exclusive MCP + selected global MCP)
+    
+    Note over TA,TL: Security Isolation
+    Note right of TL: Testing agent gets datadog (exclusive)<br/>+ filesystem, memory (shared)<br/>Root agent has NO access to datadog
+```
+
+### Tool Loading Decision Flow
+
+```mermaid
+graph TD
+    Start[Agent Requests Tools] --> AgentType{Agent Type?}
+    
+    AgentType -- Root Agent --> RootFlow[Root Agent Flow]
+    AgentType -- Sub-Agent --> SubFlow[Sub-Agent Flow]
+    
+    subgraph "Root Agent Flow"
+        RootFlow --> LoadCore1[Load Core Tools]
+        LoadCore1 --> LoadGlobal[Load Global MCP Tools]
+        LoadGlobal --> RootResult[Core + Global MCP Tools]
+    end
+    
+    subgraph "Sub-Agent Flow"
+        SubFlow --> HasConfig{Sub-Agent Config Exists?}
+        HasConfig -- No --> DefaultConfig[Use Default Configuration]
+        HasConfig -- Yes --> LoadConfig[Load Sub-Agent Configuration]
+        
+        DefaultConfig --> LoadCore2[Load Core Tools]
+        LoadConfig --> LoadCore2
+        
+        LoadCore2 --> LoadExclusive[Load Exclusive MCP Tools]
+        LoadExclusive --> FilterGlobal{Include Global Servers?}
+        
+        FilterGlobal -- Yes --> CheckIncludes[Check globalServers List]
+        FilterGlobal -- No --> ApplyOverrides[Apply Server Overrides]
+        
+        CheckIncludes --> CheckExcludes[Check excludedServers List]
+        CheckExcludes --> FilteredGlobal[Load Filtered Global MCP Tools]
+        FilteredGlobal --> ApplyOverrides
+        
+        ApplyOverrides --> SubResult[Core + Exclusive MCP + Filtered Global MCP]
+    end
+    
+    RootResult --> End[Return Tools]
+    SubResult --> End
+    
+    style RootResult fill:#fff3e0
+    style SubResult fill:#e8f5e8
+```
+
 ## Codebase Understanding with RAG
 
 A key feature of the DevOps agent is its ability to understand and interact with codebases through Retrieval-Augmented Generation (RAG). This allows the agent to answer detailed questions about your projects.
