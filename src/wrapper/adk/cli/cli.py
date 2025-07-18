@@ -23,7 +23,9 @@ from typing import Optional
 import rich_click as click
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.artifacts import BaseArtifactService, InMemoryArtifactService
-from google.adk.auth.credential_service.base_credential_service import BaseCredentialService
+from google.adk.auth.credential_service.base_credential_service import (
+    BaseCredentialService,
+)
 from google.adk.auth.credential_service.in_memory_credential_service import (
     InMemoryCredentialService,
 )
@@ -225,49 +227,104 @@ async def run_interactively(
                 )
             continue
 
-        # Run the agent and process events
-        async for event in runner.run_async(
-            user_id=session.user_id,
-            session_id=session.id,
-            new_message=types.Content(parts=[types.Part(text=query)], role="user"),
-            # run_config=types.RunConfig(
-            #     max_tokens=1000,
-            #     temperature=0.5,
-            #     top_p=0.9,
-            #     top_k=40,
-            #     frequency_penalty=0.0,
-            # ),
-        ):
-            if event.content and event.content.parts:
-                regular_parts = []
-                thought_parts = []
+        # Run the agent and process events with error handling
+        try:
+            async for event in runner.run_async(
+                user_id=session.user_id,
+                session_id=session.id,
+                new_message=types.Content(parts=[types.Part(text=query)], role="user"),
+                # run_config=types.RunConfig(
+                #     max_tokens=1000,
+                #     temperature=0.5,
+                #     top_p=0.9,
+                #     top_k=40,
+                #     frequency_penalty=0.0,
+                # ),
+            ):
+                if event.content and event.content.parts:
+                    regular_parts = []
+                    thought_parts = []
 
-                # Separate agent thought and response content from parts
-                for part in event.content.parts:
-                    if hasattr(part, "thought") and part.thought:
-                        thought_parts.append(part)
-                    else:
-                        regular_parts.append(part)
-
-                # Handle thought content
-                # if cli and hasattr(cli, "agent_thought_enabled") and thought_parts:
-                if cli and thought_parts:
-                    for part in thought_parts:
-                        if part.text:
-                            # cli.add_agent_thought(part.text)
-                            cli.display_agent_thought(console, part.text)
-
-                # Handle regular content
-                if regular_text := "".join(part.text or "" for part in regular_parts):
-                    if regular_text.strip():
-                        if not fallback_mode and cli:
-                            # cli.add_agent_output(regular_text, event.author)
-                            cli.display_agent_response(console, regular_text, event.author)
+                    # Separate agent thought and response content from parts
+                    for part in event.content.parts:
+                        if hasattr(part, "thought") and part.thought:
+                            thought_parts.append(part)
                         else:
-                            # Simple output for fallback mode
-                            console.print(
-                                f"🤖 {event.author} > {regular_text}"
-                            )
+                            regular_parts.append(part)
+
+                    # Handle thought content
+                    # if cli and hasattr(cli, "agent_thought_enabled") and thought_parts:
+                    if cli and thought_parts:
+                        for part in thought_parts:
+                            if part.text:
+                                # cli.add_agent_thought(part.text)
+                                cli.display_agent_thought(console, part.text)
+
+                    # Handle regular content
+                    if regular_text := "".join(
+                        part.text or "" for part in regular_parts
+                    ):
+                        if regular_text.strip():
+                            if not fallback_mode and cli:
+                                # cli.add_agent_output(regular_text, event.author)
+                                cli.display_agent_response(
+                                    console, regular_text, event.author
+                                )
+                            else:
+                                # Simple output for fallback mode
+                                console.print(f"🤖 {event.author} > {regular_text}")
+        except ValueError as e:
+            # Handle missing function errors gracefully
+            error_msg = str(e)
+            if (
+                "Function" in error_msg
+                and "is not found in the tools_dict" in error_msg
+            ):
+                # Extract function name from error message
+                import re
+
+                match = re.search(
+                    r"Function (\w+) is not found in the tools_dict", error_msg
+                )
+                missing_function = match.group(1) if match else "unknown function"
+
+                # Display user-friendly error message
+                output_console = (
+                    console if fallback_mode else (cli.console if cli else console)
+                )
+                output_console.print(
+                    f"[yellow]⚠️  The agent tried to call a function '{missing_function}' that doesn't exist.[/yellow]"
+                )
+                output_console.print(
+                    f"[blue]💡 This is likely a hallucination. The agent can answer your question without this function.[/blue]"
+                )
+                output_console.print(
+                    f"[green]✅ You can rephrase your question or ask the agent to use available tools instead.[/green]"
+                )
+
+                # Log the error for debugging
+                logger.warning(
+                    f"Agent attempted to call missing function: {missing_function}"
+                )
+                logger.debug(f"Full error: {error_msg}")
+            else:
+                # Re-raise other ValueError exceptions
+                raise
+        except Exception as e:
+            # Handle other unexpected errors
+            error_msg = str(e)
+            output_console = (
+                console if fallback_mode else (cli.console if cli else console)
+            )
+            output_console.print(
+                f"[red]❌ An unexpected error occurred: {error_msg}[/red]"
+            )
+            output_console.print(
+                f"[blue]💡 You can try rephrasing your question or continue with a new request.[/blue]"
+            )
+
+            # Log the error for debugging
+            logger.error(f"Unexpected error during agent execution: {e}", exc_info=True)
 
     try:
         await runner.close()
@@ -277,20 +334,24 @@ async def run_interactively(
         # in the MCP client library during cleanup
         error_msg = str(e)
         exception_str = str(type(e).__name__)
-        
+
         # Check if this is a known MCP cleanup error
-        is_mcp_cleanup_error = any([
-            "Attempted to exit cancel scope in a different task" in error_msg,
-            "stdio_client" in error_msg,
-            "MCP session cleanup" in error_msg,
-            "CancelledError" in error_msg,
-            "CancelledError" in exception_str,
-            "cancel scope" in error_msg.lower(),
-            isinstance(e, asyncio.CancelledError)
-        ])
-        
+        is_mcp_cleanup_error = any(
+            [
+                "Attempted to exit cancel scope in a different task" in error_msg,
+                "stdio_client" in error_msg,
+                "MCP session cleanup" in error_msg,
+                "CancelledError" in error_msg,
+                "CancelledError" in exception_str,
+                "cancel scope" in error_msg.lower(),
+                isinstance(e, asyncio.CancelledError),
+            ]
+        )
+
         if is_mcp_cleanup_error:
-            logger.warning(f"MCP cleanup completed with expected async context warnings: {error_msg}")
+            logger.warning(
+                f"MCP cleanup completed with expected async context warnings: {error_msg}"
+            )
         else:
             # Re-raise unexpected errors
             raise
@@ -332,61 +393,128 @@ async def run_interactively_with_tui(
             # Create content for the agent
             content = types.Content(role="user", parts=[types.Part(text=user_input)])
 
-            # Run the agent and process events
-            async for event in runner.run_async(
-                user_id=session.user_id,
-                session_id=session.id,
-                new_message=content
-            ):
-                if event.content and event.content.parts:
-                    regular_parts = []
-                    thought_parts = []
-                    function_parts = []
+            # Run the agent and process events with error handling
+            try:
+                async for event in runner.run_async(
+                    user_id=session.user_id, session_id=session.id, new_message=content
+                ):
+                    if event.content and event.content.parts:
+                        regular_parts = []
+                        thought_parts = []
+                        function_parts = []
 
-                    # Separate agent thought and response content
-                    for part in event.content.parts:
-                        if hasattr(part, "thought") and part.thought:
-                            thought_parts.append(part)
-                        elif hasattr(part, "function_call") and part.function_call:
-                            function_parts.append(part)
-                        else:
-                            regular_parts.append(part)
+                        # Separate agent thought and response content
+                        for part in event.content.parts:
+                            if hasattr(part, "thought") and part.thought:
+                                thought_parts.append(part)
+                            elif hasattr(part, "function_call") and part.function_call:
+                                function_parts.append(part)
+                            else:
+                                regular_parts.append(part)
 
-                    if function_parts:
-                        for part in function_parts:
-                            if part.text:
-                                app_tui.add_output(part.text, author="Tool", rich_format=True, style="accent")
+                        if function_parts:
+                            for part in function_parts:
+                                if part.text:
+                                    app_tui.add_output(
+                                        part.text,
+                                        author="Tool",
+                                        rich_format=True,
+                                        style="accent",
+                                    )
 
-                    # Handle thought content
-                    # if app_tui.agent_thought_enabled and thought_parts:
-                    if thought_parts:
-                        for part in thought_parts:
-                            if part.text:
-                                app_tui.add_agent_thought(part.text)
+                        # Handle thought content
+                        # if app_tui.agent_thought_enabled and thought_parts:
+                        if thought_parts:
+                            for part in thought_parts:
+                                if part.text:
+                                    app_tui.add_agent_thought(part.text)
 
-                    # Handle agent response content
-                    if regular_text := "".join(
-                        part.text or "" for part in regular_parts
-                    ):
-                        if regular_text.strip():
-                            app_tui.add_agent_output(regular_text, event.author)
+                        # Handle agent response content
+                        if regular_text := "".join(
+                            part.text or "" for part in regular_parts
+                        ):
+                            if regular_text.strip():
+                                app_tui.add_agent_output(regular_text, event.author)
 
-                # Handle token usage from LLM responses
-                if hasattr(event, "usage_metadata") and event.usage_metadata:
-                    usage = event.usage_metadata
-                    prompt_tokens = getattr(usage, "prompt_token_count", 0)
-                    completion_tokens = getattr(usage, "candidates_token_count", 0)
-                    total_tokens = getattr(usage, "total_token_count", 0)
-                    thinking_tokens = getattr(usage, "thoughts_token_count", 0) or 0
+                    # Handle token usage from LLM responses
+                    if hasattr(event, "usage_metadata") and event.usage_metadata:
+                        usage = event.usage_metadata
+                        prompt_tokens = getattr(usage, "prompt_token_count", 0)
+                        completion_tokens = getattr(usage, "candidates_token_count", 0)
+                        total_tokens = getattr(usage, "total_token_count", 0)
+                        thinking_tokens = getattr(usage, "thoughts_token_count", 0) or 0
 
-                    # Update token usage in the UI
-                    app_tui.display_model_usage(
-                        prompt_tokens=prompt_tokens,
-                        completion_tokens=completion_tokens,
-                        total_tokens=total_tokens,
-                        thinking_tokens=thinking_tokens,
-                        model_name=getattr(root_agent, "model", "Unknown"),
+                        # Update token usage in the UI
+                        app_tui.display_model_usage(
+                            prompt_tokens=prompt_tokens,
+                            completion_tokens=completion_tokens,
+                            total_tokens=total_tokens,
+                            thinking_tokens=thinking_tokens,
+                            model_name=getattr(root_agent, "model", "Unknown"),
+                        )
+            except ValueError as e:
+                # Handle missing function errors gracefully
+                error_msg = str(e)
+                if (
+                    "Function" in error_msg
+                    and "is not found in the tools_dict" in error_msg
+                ):
+                    # Extract function name from error message
+                    import re
+
+                    match = re.search(
+                        r"Function (\w+) is not found in the tools_dict", error_msg
                     )
+                    missing_function = match.group(1) if match else "unknown function"
+
+                    # Display user-friendly error message in TUI
+                    app_tui.add_output(
+                        f"⚠️  The agent tried to call a function '{missing_function}' that doesn't exist.",
+                        author="System",
+                        rich_format=True,
+                        style="warning",
+                    )
+                    app_tui.add_output(
+                        "💡 This is likely a hallucination. The agent can answer your question without this function.",
+                        author="System",
+                        rich_format=True,
+                        style="info",
+                    )
+                    app_tui.add_output(
+                        "✅ You can rephrase your question or ask the agent to use available tools instead.",
+                        author="System",
+                        rich_format=True,
+                        style="success",
+                    )
+
+                    # Log the error for debugging
+                    logger.warning(
+                        f"Agent attempted to call missing function: {missing_function}"
+                    )
+                    logger.debug(f"Full error: {error_msg}")
+                else:
+                    # Re-raise other ValueError exceptions
+                    raise
+            except Exception as e:
+                # Handle other unexpected errors
+                error_msg = str(e)
+                app_tui.add_output(
+                    f"❌ An unexpected error occurred: {error_msg}",
+                    author="System",
+                    rich_format=True,
+                    style="error",
+                )
+                app_tui.add_output(
+                    "💡 You can try rephrasing your question or continue with a new request.",
+                    author="System",
+                    rich_format=True,
+                    style="info",
+                )
+
+                # Log the error for debugging
+                logger.error(
+                    f"Unexpected error during agent execution: {e}", exc_info=True
+                )
         except Exception as e:
             app_tui.add_output(
                 f"❌ Error: {str(e)}", author="System", rich_format=True, style="error"
@@ -495,20 +623,24 @@ async def run_interactively_with_tui(
         # in the MCP client library during cleanup
         error_msg = str(e)
         exception_str = str(type(e).__name__)
-        
+
         # Check if this is a known MCP cleanup error
-        is_mcp_cleanup_error = any([
-            "Attempted to exit cancel scope in a different task" in error_msg,
-            "stdio_client" in error_msg,
-            "MCP session cleanup" in error_msg,
-            "CancelledError" in error_msg,
-            "CancelledError" in exception_str,
-            "cancel scope" in error_msg.lower(),
-            isinstance(e, asyncio.CancelledError)
-        ])
-        
+        is_mcp_cleanup_error = any(
+            [
+                "Attempted to exit cancel scope in a different task" in error_msg,
+                "stdio_client" in error_msg,
+                "MCP session cleanup" in error_msg,
+                "CancelledError" in error_msg,
+                "CancelledError" in exception_str,
+                "cancel scope" in error_msg.lower(),
+                isinstance(e, asyncio.CancelledError),
+            ]
+        )
+
         if is_mcp_cleanup_error:
-            logger.warning(f"MCP cleanup completed with expected async context warnings: {error_msg}")
+            logger.warning(
+                f"MCP cleanup completed with expected async context warnings: {error_msg}"
+            )
         else:
             # Re-raise unexpected errors
             raise

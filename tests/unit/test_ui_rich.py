@@ -394,3 +394,193 @@ class TestIntegrationScenarios:
         assert dark_panel.border_style != light_panel.border_style
         assert isinstance(dark_panel, Panel)
         assert isinstance(light_panel, Panel)
+
+    def test_format_message(self):
+        """Test formatting messages with various options."""
+        renderer = RichRenderer(UITheme.DARK)
+
+        # Test simple text message
+        message = renderer.format_message("Hello, World!", "Agent")
+        assert message is not None
+
+        # Test markdown message
+        message = renderer.format_message("**Bold text**", "Agent", markdown=True)
+        assert message is not None
+
+        # Test rich format message
+        message = renderer.format_message(
+            "[bold]Bold text[/bold]", "Agent", rich_format=True
+        )
+        assert message is not None
+
+        # Test with style
+        message = renderer.format_message("Styled text", "Agent", style="green")
+        assert message is not None
+
+        # Test with Text object
+        from rich.text import Text
+
+        text_obj = Text("Text object")
+        message = renderer.format_message(text_obj, "Agent")
+        assert message is text_obj
+
+    def test_format_agent_response(self):
+        """Test formatting agent response panels."""
+        renderer = RichRenderer(UITheme.DARK)
+
+        # Test basic response
+        panel = renderer.format_agent_response("Agent response text")
+        assert panel is not None
+
+        # Test with custom author
+        panel = renderer.format_agent_response("Agent response", "CustomAgent")
+        assert panel is not None
+
+        # Test with markdown content
+        panel = renderer.format_agent_response("**Bold response**")
+        assert panel is not None
+
+    def test_format_agent_thought(self):
+        """Test formatting agent thought panels."""
+        renderer = RichRenderer(UITheme.DARK)
+
+        # Test basic thought
+        panel = renderer.format_agent_thought("Agent thinking...")
+        assert panel is not None
+
+        # Test with markdown content
+        panel = renderer.format_agent_thought("*Thinking process*")
+        assert panel is not None
+
+    def test_format_model_usage(self):
+        """Test formatting model usage panels."""
+        renderer = RichRenderer(UITheme.DARK)
+
+        # Test basic usage
+        panel = renderer.format_model_usage("Tokens: 150")
+        assert panel is not None
+
+        # Test with detailed usage
+        panel = renderer.format_model_usage("Input: 100, Output: 50, Total: 150")
+        assert panel is not None
+
+    def test_format_running_tool(self):
+        """Test formatting running tool panels."""
+        renderer = RichRenderer(UITheme.DARK)
+
+        # Test with no args
+        panel = renderer.format_running_tool("test_tool", None)
+        assert panel is not None
+
+        # Test with args
+        panel = renderer.format_running_tool(
+            "test_tool", {"arg1": "value1", "arg2": "value2"}
+        )
+        assert panel is not None
+
+        # Test with empty args
+        panel = renderer.format_running_tool("test_tool", {})
+        assert panel is not None
+
+    def test_format_tool_finished(self):
+        """Test formatting tool finished panels."""
+        renderer = RichRenderer(UITheme.DARK)
+
+        # Test with duration
+        panel = renderer.format_tool_finished("test_tool", "success", 2.5)
+        assert panel is not None
+
+        # Test without duration
+        panel = renderer.format_tool_finished("test_tool", "success", None)
+        assert panel is not None
+
+        # Test with long result
+        long_result = "A" * 200
+        panel = renderer.format_tool_finished("test_tool", long_result, 1.0)
+        assert panel is not None
+
+    def test_format_tool_error(self):
+        """Test formatting tool error panels."""
+        renderer = RichRenderer(UITheme.DARK)
+
+        # Test basic error
+        panel = renderer.format_tool_error("test_tool", "Something went wrong")
+        assert panel is not None
+
+        # Test with detailed error
+        panel = renderer.format_tool_error(
+            "test_tool", "FileNotFoundError: file.txt not found"
+        )
+        assert panel is not None
+
+    def test_display_agent_response(self):
+        """Test displaying agent response."""
+        renderer = RichRenderer(UITheme.DARK)
+
+        # Mock console
+        from unittest.mock import Mock
+
+        mock_console = Mock()
+
+        # Test basic response
+        renderer.display_agent_response(mock_console, "Agent response")
+        mock_console.print.assert_called_once()
+
+        # Test with custom author
+        mock_console.reset_mock()
+        renderer.display_agent_response(mock_console, "Agent response", "CustomAgent")
+        mock_console.print.assert_called_once()
+
+    def test_display_agent_thought(self):
+        """Test displaying agent thought."""
+        renderer = RichRenderer(UITheme.DARK)
+
+        # Mock console
+        from unittest.mock import Mock
+
+        mock_console = Mock()
+
+        # Test basic thought
+        renderer.display_agent_thought(mock_console, "Agent thinking...")
+        mock_console.print.assert_called_once()
+
+        # Test with markdown
+        mock_console.reset_mock()
+        renderer.display_agent_thought(mock_console, "**Important thought**")
+        mock_console.print.assert_called_once()
+
+    def test_render_with_light_theme(self):
+        """Test rendering with light theme."""
+        renderer = RichRenderer(UITheme.LIGHT)
+
+        # Test panel with light theme
+        panel = renderer.format_agent_response("Light theme content")
+        assert panel is not None
+
+    def test_render_with_none_theme(self):
+        """Test rendering with None theme (should use default)."""
+        renderer = RichRenderer(None)
+
+        # Test basic rendering still works
+        panel = renderer.format_agent_response("Default theme content")
+        assert panel is not None
+
+    def test_rich_theme_property(self):
+        """Test accessing the rich_theme property."""
+        renderer = RichRenderer(UITheme.DARK)
+        theme = renderer.rich_theme
+        assert theme is not None
+
+        # Test with light theme
+        renderer = RichRenderer(UITheme.LIGHT)
+        theme = renderer.rich_theme
+        assert theme is not None
+
+    def test_markdown_enabled_property(self):
+        """Test the markdown_enabled property."""
+        renderer = RichRenderer(UITheme.DARK)
+        assert renderer.markdown_enabled is True
+
+        # Test that it can be modified
+        renderer.markdown_enabled = False
+        assert renderer.markdown_enabled is False

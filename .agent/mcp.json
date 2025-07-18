@@ -29,18 +29,6 @@
         "GITHUB_PERSONAL_ACCESS_TOKEN": "{{env.GITHUB_PERSONAL_ACCESS_TOKEN}}"
       }
     },
-    "sonarqube": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "sonarqube-mcp-server@latest"
-      ],
-      "env": {
-        "SONARQUBE_URL": "https://sonarcloud.io",
-        "SONARQUBE_TOKEN": "{{env.SONAR_TOKEN}}",
-        "SONARQUBE_ORGANIZATION": "{{env.SONAR_ORGANIZATION}}"
-      }
-    },
     "playwright": {
       "command": "npx",
       "args": [
