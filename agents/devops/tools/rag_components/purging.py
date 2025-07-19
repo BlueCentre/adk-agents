@@ -1,10 +1,13 @@
-import shutil
+import logging  # It's good practice to use logging
 import os
-import logging # It's good practice to use logging
+import shutil
 
 # Attempt to import CHROMA_DATA_PATH from indexing.py in the same directory
 try:
-    from .indexing import CHROMA_DATA_PATH, CHROMA_COLLECTION_NAME # Also get collection name for context
+    from .indexing import (  # Also get collection name for context
+        CHROMA_COLLECTION_NAME,
+        CHROMA_DATA_PATH,
+    )
 except ImportError as e:
     # This fallback is less likely to be needed if they are in the same directory
     # and the package structure is standard.

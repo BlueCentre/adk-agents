@@ -4,17 +4,17 @@ import logging
 import shlex
 import shutil
 import subprocess
-from pydantic import BaseModel, Field
-from typing import Literal, Optional, Dict, Any, List
+from typing import Any, Dict, List, Literal, Optional
 
 # Import ToolContext for state management
+from google.adk.tools import FunctionTool  # Ensure FunctionTool is imported if not already
 from google.adk.tools import (
-    FunctionTool,  # Ensure FunctionTool is imported if not already
     ToolContext,
 )
+from pydantic import BaseModel, Field
 
 from .. import config as agent_config
-from ..components.learning_system import learning_system # Import the learning system
+from ..components.learning_system import learning_system  # Import the learning system
 
 logger = logging.getLogger(__name__)
 
@@ -500,7 +500,7 @@ def suggest_command_alternatives(original_command: str, error_type: str = "parsi
         try:
             # Extract the commit message from various patterns
             import re
-            
+
             # Pattern 1: git commit -m "message" -m "description"
             if '-m ' in original_command:
                 # Try to extract and properly escape commit messages

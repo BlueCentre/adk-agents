@@ -1,11 +1,11 @@
 """Enhanced telemetry implementation for DevOps Agent."""
 
-import time
 import functools
 import logging
-from typing import Dict, Any, Optional, List, Callable
+import time
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Callable, Dict, List, Optional
 
 from . import config as agent_config
 
@@ -16,13 +16,13 @@ OBSERVABILITY_ENABLED = agent_config.should_enable_observability()
 
 if OBSERVABILITY_ENABLED:
     # OpenTelemetry imports for custom instrumentation
-    from opentelemetry import trace, metrics
-    from opentelemetry.trace import Status, StatusCode
+    from opentelemetry import metrics, trace
+    from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
     from opentelemetry.metrics import CallbackOptions, Observation
     from opentelemetry.sdk.metrics import MeterProvider
-    from opentelemetry.sdk.trace import TracerProvider
     from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
-    from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.trace import Status, StatusCode
 else:
     # Create no-op imports when observability is disabled
     class NoOpTrace:
@@ -374,8 +374,10 @@ class DevOpsAgentTelemetry:
     def _get_disk_usage(self, options):
         """Callback for disk usage metric."""
         try:
-            import psutil
             import os
+
+            import psutil
+
             # Get disk usage for current working directory
             disk_usage = psutil.disk_usage(os.getcwd())
             used_mb = disk_usage.used / 1024 / 1024

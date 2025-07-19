@@ -1,14 +1,15 @@
 """Enhanced logging configuration with correlation IDs and structured logging."""
 
+import json
 import logging
 import logging.config
-import json
-import uuid
-import threading
 import os
 import sys
-from typing import Dict, Any, Optional
+import threading
+import uuid
 from contextvars import ContextVar
+from typing import Any, Dict, Optional
+
 from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
 

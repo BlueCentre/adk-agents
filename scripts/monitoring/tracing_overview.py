@@ -6,6 +6,7 @@ Shows all available tracing capabilities including OpenLIT and custom tracing.
 
 import os
 
+
 def show_openlit_tracing_features():
     """Show OpenLIT tracing features that are automatically available."""
     print("🔍 OpenLIT Auto-Instrumentation Tracing")

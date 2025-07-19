@@ -14,7 +14,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import time
 from datetime import datetime
@@ -29,7 +28,6 @@ from google.adk.auth.credential_service.base_credential_service import (
 from google.adk.auth.credential_service.in_memory_credential_service import (
     InMemoryCredentialService,
 )
-from google.adk.runners import Runner
 from google.adk.sessions.base_session_service import BaseSessionService
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.adk.sessions.session import Session
@@ -40,8 +38,26 @@ from rich.console import Console
 
 from .utils import envs  # Modified to use our packaged path
 from .utils.agent_loader import AgentLoader  # Modified to use our packaged path
+from .utils.command_handling import (  # Import for refactoring
+    CommandHandler,
+    CommandResult,
+    ConsoleCommandDisplay,
+    ConsoleThemeHandler,
+    TUICommandDisplay,
+    TUIThemeHandler,
+)
+from .utils.error_handling import (  # Import for refactoring
+    ConsoleErrorDisplay,
+    ErrorHandler,
+    TUIErrorDisplay,
+)
+from .utils.event_processing import (  # Import for refactoring
+    AgentEventProcessor,
+    ConsoleEventDisplay,
+    TUIEventDisplay,
+)
+from .utils.runner_factory import RunnerFactory  # Import for refactoring
 from .utils.ui import get_cli_instance, get_textual_cli_instance
-from .utils.ui_common import UITheme
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +76,7 @@ async def run_input_file(
     credential_service: BaseCredentialService,
     input_path: str,
 ) -> Session:
-    runner = Runner(
+    runner = RunnerFactory.create_runner_from_app_name(
         app_name=app_name,
         agent=root_agent,
         artifact_service=artifact_service,
@@ -144,13 +160,37 @@ async def run_interactively(
         console.print(f"🚀 Starting interactive session with agent {root_agent.name}")
         console.print("Enhanced UI features are disabled. Basic CLI mode active.")
 
-    runner = Runner(
-        app_name=session.app_name,
+    runner = RunnerFactory.create_runner(
+        session=session,
         agent=root_agent,
         artifact_service=artifact_service,
         session_service=session_service,
         credential_service=credential_service,
     )
+
+    # Create error handler for this UI mode
+    error_display = ConsoleErrorDisplay(console, fallback_mode, cli)
+    error_handler = ErrorHandler(error_display)
+
+    # Create event processor for this UI mode
+    event_display = ConsoleEventDisplay(console, cli=cli, fallback_mode=fallback_mode)
+    event_processor = AgentEventProcessor(event_display)
+
+    # Create command handler for this UI mode
+    command_display = ConsoleCommandDisplay(
+        console, cli=cli, fallback_mode=fallback_mode
+    )
+
+    def recreate_prompt_session():
+        """Recreate the prompt session with the new theme."""
+        nonlocal prompt_session
+        if cli:
+            prompt_session = cli.create_enhanced_prompt_session(
+                root_agent.name, session.id
+            )
+
+    theme_handler = ConsoleThemeHandler(cli, recreate_prompt_session)
+    command_handler = CommandHandler(command_display, theme_handler)
 
     while True:
         # Display the user input prompt
@@ -189,43 +229,14 @@ async def run_interactively(
         # Handle special independent commands
         if not query or not query.strip():
             continue
-        if query.strip().lower() in ["exit", "quit", "bye"]:
-            output_console = (
-                console if fallback_mode else (cli.console if cli else console)
-            )
-            output_console.print("👋 [warning]Goodbye![/warning]")
+
+        # Use CommandHandler to process built-in commands
+        command_result = command_handler.process_command(query)
+        if command_result == CommandResult.EXIT_REQUESTED:
             break
-        # Handle special mutually exclusive commands
-        if query.strip().lower() == "clear":
-            output_console = (
-                console if fallback_mode else (cli.console if cli else console)
-            )
-            output_console.clear()
+        elif command_result == CommandResult.HANDLED:
             continue
-        elif query.strip().lower() == "help":
-            if not fallback_mode and cli:
-                cli.print_help()
-            else:
-                console.print("[blue]Available Commands:[/blue]")
-                console.print("  • exit, quit, bye - Exit the CLI")
-                console.print("  • clear - Clear the screen")
-                console.print("  • help - Show this help message")
-            continue
-        elif query.strip().lower().startswith("theme") and not fallback_mode and cli:
-            theme_cmd = query.strip().lower().split()
-            if len(theme_cmd) == 1 or theme_cmd[1] == "toggle":
-                cli.toggle_theme()
-                # Recreate prompt session with new theme
-                prompt_session = cli.create_enhanced_prompt_session(
-                    root_agent.name, session.id
-                )
-            elif len(theme_cmd) == 2 and theme_cmd[1] in ["dark", "light"]:
-                cli.set_theme(UITheme(theme_cmd[1]))
-                # Recreate prompt session with new theme
-                prompt_session = cli.create_enhanced_prompt_session(
-                    root_agent.name, session.id
-                )
-            continue
+        # If NOT_HANDLED, continue to agent processing
 
         # Run the agent and process events with error handling
         try:
@@ -241,119 +252,23 @@ async def run_interactively(
                 #     frequency_penalty=0.0,
                 # ),
             ):
-                if event.content and event.content.parts:
-                    regular_parts = []
-                    thought_parts = []
-
-                    # Separate agent thought and response content from parts
-                    for part in event.content.parts:
-                        if hasattr(part, "thought") and part.thought:
-                            thought_parts.append(part)
-                        else:
-                            regular_parts.append(part)
-
-                    # Handle thought content
-                    # if cli and hasattr(cli, "agent_thought_enabled") and thought_parts:
-                    if cli and thought_parts:
-                        for part in thought_parts:
-                            if part.text:
-                                # cli.add_agent_thought(part.text)
-                                cli.display_agent_thought(console, part.text)
-
-                    # Handle regular content
-                    if regular_text := "".join(
-                        part.text or "" for part in regular_parts
-                    ):
-                        if regular_text.strip():
-                            if not fallback_mode and cli:
-                                # cli.add_agent_output(regular_text, event.author)
-                                cli.display_agent_response(
-                                    console, regular_text, event.author
-                                )
-                            else:
-                                # Simple output for fallback mode
-                                console.print(f"🤖 {event.author} > {regular_text}")
+                # Use AgentEventProcessor for event handling
+                event_processor.process_event(
+                    event, model_name=getattr(root_agent, "model", "Unknown")
+                )
         except ValueError as e:
-            # Handle missing function errors gracefully
-            error_msg = str(e)
-            if (
-                "Function" in error_msg
-                and "is not found in the tools_dict" in error_msg
-            ):
-                # Extract function name from error message
-                import re
-
-                match = re.search(
-                    r"Function (\w+) is not found in the tools_dict", error_msg
-                )
-                missing_function = match.group(1) if match else "unknown function"
-
-                # Display user-friendly error message
-                output_console = (
-                    console if fallback_mode else (cli.console if cli else console)
-                )
-                output_console.print(
-                    f"[yellow]⚠️  The agent tried to call a function '{missing_function}' that doesn't exist.[/yellow]"
-                )
-                output_console.print(
-                    f"[blue]💡 This is likely a hallucination. The agent can answer your question without this function.[/blue]"
-                )
-                output_console.print(
-                    f"[green]✅ You can rephrase your question or ask the agent to use available tools instead.[/green]"
-                )
-
-                # Log the error for debugging
-                logger.warning(
-                    f"Agent attempted to call missing function: {missing_function}"
-                )
-                logger.debug(f"Full error: {error_msg}")
-            else:
-                # Re-raise other ValueError exceptions
+            # Use ErrorHandler for missing function errors
+            if not error_handler.handle_missing_function_error(e):
                 raise
         except Exception as e:
-            # Handle other unexpected errors
-            error_msg = str(e)
-            output_console = (
-                console if fallback_mode else (cli.console if cli else console)
-            )
-            output_console.print(
-                f"[red]❌ An unexpected error occurred: {error_msg}[/red]"
-            )
-            output_console.print(
-                f"[blue]💡 You can try rephrasing your question or continue with a new request.[/blue]"
-            )
-
-            # Log the error for debugging
-            logger.error(f"Unexpected error during agent execution: {e}", exc_info=True)
+            # Use ErrorHandler for general errors
+            error_handler.handle_general_error(e)
 
     try:
         await runner.close()
-    except (asyncio.CancelledError, Exception) as e:
-        # Handle MCP client library cleanup errors gracefully
-        # These errors are harmless but occur due to async context mismatches
-        # in the MCP client library during cleanup
-        error_msg = str(e)
-        exception_str = str(type(e).__name__)
-
-        # Check if this is a known MCP cleanup error
-        is_mcp_cleanup_error = any(
-            [
-                "Attempted to exit cancel scope in a different task" in error_msg,
-                "stdio_client" in error_msg,
-                "MCP session cleanup" in error_msg,
-                "CancelledError" in error_msg,
-                "CancelledError" in exception_str,
-                "cancel scope" in error_msg.lower(),
-                isinstance(e, asyncio.CancelledError),
-            ]
-        )
-
-        if is_mcp_cleanup_error:
-            logger.warning(
-                f"MCP cleanup completed with expected async context warnings: {error_msg}"
-            )
-        else:
-            # Re-raise unexpected errors
+    except Exception as e:
+        # Use ErrorHandler for MCP cleanup errors
+        if not ErrorHandler.handle_mcp_cleanup_error(e):
             raise
 
 
@@ -378,11 +293,31 @@ async def run_interactively_with_tui(
         root_agent.name, root_agent.description, getattr(root_agent, "tools", [])
     )
 
+    # Create error handler for TUI mode
+    error_display = TUIErrorDisplay(app_tui)
+    error_handler = ErrorHandler(error_display)
+
+    # Create event processor for TUI mode
+    event_display = TUIEventDisplay(app_tui)
+    event_processor = AgentEventProcessor(event_display)
+
+    # Create command handler for TUI mode
+    command_display = TUICommandDisplay(app_tui)
+    theme_handler = TUIThemeHandler(app_tui)
+    command_handler = CommandHandler(command_display, theme_handler)
+
     # App TUI handlers for user input and interruption
     async def handle_user_input(user_input: str):
         """Handle user input by running the agent and processing output."""
         try:
-            # Display the user input in the UI
+            # Use CommandHandler to process built-in commands first
+            command_result = command_handler.process_command(user_input)
+            if command_result == CommandResult.EXIT_REQUESTED:
+                return  # TUI will exit via command_handler
+            elif command_result == CommandResult.HANDLED:
+                return  # Command was handled, don't process further
+
+            # Display the user input in the UI (only for agent queries)
             app_tui.add_output(
                 f"🔄 Processing: {user_input}",
                 author="User",
@@ -398,123 +333,17 @@ async def run_interactively_with_tui(
                 async for event in runner.run_async(
                     user_id=session.user_id, session_id=session.id, new_message=content
                 ):
-                    if event.content and event.content.parts:
-                        regular_parts = []
-                        thought_parts = []
-                        function_parts = []
-
-                        # Separate agent thought and response content
-                        for part in event.content.parts:
-                            if hasattr(part, "thought") and part.thought:
-                                thought_parts.append(part)
-                            elif hasattr(part, "function_call") and part.function_call:
-                                function_parts.append(part)
-                            else:
-                                regular_parts.append(part)
-
-                        if function_parts:
-                            for part in function_parts:
-                                if part.text:
-                                    app_tui.add_output(
-                                        part.text,
-                                        author="Tool",
-                                        rich_format=True,
-                                        style="accent",
-                                    )
-
-                        # Handle thought content
-                        # if app_tui.agent_thought_enabled and thought_parts:
-                        if thought_parts:
-                            for part in thought_parts:
-                                if part.text:
-                                    app_tui.add_agent_thought(part.text)
-
-                        # Handle agent response content
-                        if regular_text := "".join(
-                            part.text or "" for part in regular_parts
-                        ):
-                            if regular_text.strip():
-                                app_tui.add_agent_output(regular_text, event.author)
-
-                    # Handle token usage from LLM responses
-                    if hasattr(event, "usage_metadata") and event.usage_metadata:
-                        usage = event.usage_metadata
-                        prompt_tokens = getattr(usage, "prompt_token_count", 0)
-                        completion_tokens = getattr(usage, "candidates_token_count", 0)
-                        total_tokens = getattr(usage, "total_token_count", 0)
-                        thinking_tokens = getattr(usage, "thoughts_token_count", 0) or 0
-
-                        # Update token usage in the UI
-                        app_tui.display_model_usage(
-                            prompt_tokens=prompt_tokens,
-                            completion_tokens=completion_tokens,
-                            total_tokens=total_tokens,
-                            thinking_tokens=thinking_tokens,
-                            model_name=getattr(root_agent, "model", "Unknown"),
-                        )
+                    # Use AgentEventProcessor for event handling
+                    event_processor.process_event(
+                        event, model_name=getattr(root_agent, "model", "Unknown")
+                    )
             except ValueError as e:
-                # Handle missing function errors gracefully
-                error_msg = str(e)
-                if (
-                    "Function" in error_msg
-                    and "is not found in the tools_dict" in error_msg
-                ):
-                    # Extract function name from error message
-                    import re
-
-                    match = re.search(
-                        r"Function (\w+) is not found in the tools_dict", error_msg
-                    )
-                    missing_function = match.group(1) if match else "unknown function"
-
-                    # Display user-friendly error message in TUI
-                    app_tui.add_output(
-                        f"⚠️  The agent tried to call a function '{missing_function}' that doesn't exist.",
-                        author="System",
-                        rich_format=True,
-                        style="warning",
-                    )
-                    app_tui.add_output(
-                        "💡 This is likely a hallucination. The agent can answer your question without this function.",
-                        author="System",
-                        rich_format=True,
-                        style="info",
-                    )
-                    app_tui.add_output(
-                        "✅ You can rephrase your question or ask the agent to use available tools instead.",
-                        author="System",
-                        rich_format=True,
-                        style="success",
-                    )
-
-                    # Log the error for debugging
-                    logger.warning(
-                        f"Agent attempted to call missing function: {missing_function}"
-                    )
-                    logger.debug(f"Full error: {error_msg}")
-                else:
-                    # Re-raise other ValueError exceptions
+                # Use ErrorHandler for missing function errors
+                if not error_handler.handle_missing_function_error(e):
                     raise
             except Exception as e:
-                # Handle other unexpected errors
-                error_msg = str(e)
-                app_tui.add_output(
-                    f"❌ An unexpected error occurred: {error_msg}",
-                    author="System",
-                    rich_format=True,
-                    style="error",
-                )
-                app_tui.add_output(
-                    "💡 You can try rephrasing your question or continue with a new request.",
-                    author="System",
-                    rich_format=True,
-                    style="info",
-                )
-
-                # Log the error for debugging
-                logger.error(
-                    f"Unexpected error during agent execution: {e}", exc_info=True
-                )
+                # Use ErrorHandler for general errors
+                error_handler.handle_general_error(e)
         except Exception as e:
             app_tui.add_output(
                 f"❌ Error: {str(e)}", author="System", rich_format=True, style="error"
@@ -534,8 +363,8 @@ async def run_interactively_with_tui(
     app_tui.register_interrupt_callback(interrupt_agent)
 
     # Create runner
-    runner = Runner(
-        app_name=session.app_name,
+    runner = RunnerFactory.create_runner(
+        session=session,
         agent=root_agent,
         artifact_service=artifact_service,
         session_service=session_service,
@@ -617,32 +446,9 @@ async def run_interactively_with_tui(
 
     try:
         await runner.close()
-    except (asyncio.CancelledError, Exception) as e:
-        # Handle MCP client library cleanup errors gracefully
-        # These errors are harmless but occur due to async context mismatches
-        # in the MCP client library during cleanup
-        error_msg = str(e)
-        exception_str = str(type(e).__name__)
-
-        # Check if this is a known MCP cleanup error
-        is_mcp_cleanup_error = any(
-            [
-                "Attempted to exit cancel scope in a different task" in error_msg,
-                "stdio_client" in error_msg,
-                "MCP session cleanup" in error_msg,
-                "CancelledError" in error_msg,
-                "CancelledError" in exception_str,
-                "cancel scope" in error_msg.lower(),
-                isinstance(e, asyncio.CancelledError),
-            ]
-        )
-
-        if is_mcp_cleanup_error:
-            logger.warning(
-                f"MCP cleanup completed with expected async context warnings: {error_msg}"
-            )
-        else:
-            # Re-raise unexpected errors
+    except Exception as e:
+        # Use ErrorHandler for MCP cleanup errors
+        if not ErrorHandler.handle_mcp_cleanup_error(e):
             raise
 
 

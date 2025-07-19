@@ -1,10 +1,10 @@
 """File change detection for improved context tracking."""
 
-import os
-import logging
-from typing import List, Dict, Set, Optional, Tuple
 import hashlib
+import logging
+import os
 import re
+from typing import Dict, List, Optional, Set, Tuple
 
 # Set up logging
 logger = logging.getLogger(__name__)

@@ -6,8 +6,8 @@ from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
 from google.genai import types as genai_types
 
-from .. import prompts as agent_prompts 
-from .. import config as agent_config 
+from .. import config as agent_config
+from .. import prompts as agent_prompts
 
 logger = logging.getLogger(__name__)
 

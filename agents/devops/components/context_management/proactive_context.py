@@ -1,11 +1,11 @@
 """Proactive context gathering for enhanced agent understanding."""
 
+import json
+import logging
 import os
 import subprocess
-import logging
-from typing import Dict, List, Optional, Tuple, Any
 from pathlib import Path
-import json
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 

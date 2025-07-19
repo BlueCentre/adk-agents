@@ -6,6 +6,7 @@ Shows all available metrics without requiring complex dependencies.
 
 import os
 
+
 def show_openlit_metrics():
     """Show OpenLIT metrics that are automatically collected."""
     print("🤖 OpenLIT Auto-Instrumentation Metrics")

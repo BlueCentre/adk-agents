@@ -6,6 +6,7 @@ Shows the status of all available metrics including OpenLIT and custom metrics.
 
 import os
 import sys
+
 sys.path.insert(0, '.')
 
 def check_openlit_status():

@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import importlib.resources
 import logging
 import os
-import importlib.resources
 from typing import Optional
 
 from dotenv import load_dotenv

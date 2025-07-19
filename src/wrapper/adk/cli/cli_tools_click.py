@@ -554,7 +554,6 @@ def cli_web_packaged(
     # import sys
     try:
         # Try to find the agents directory in the package
-        import importlib.util
 
         # First, try to import the agents module to see if it's available
         try:

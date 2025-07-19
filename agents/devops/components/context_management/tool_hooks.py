@@ -1,14 +1,16 @@
 """Tool hooks for context management in agent loop."""
 
-import re
 import logging
+import re
 from typing import Any, Dict, List, Optional, Tuple, Type, Union
 
 from google.adk.tools.base_tool import BaseTool
-# from google.adk.tools.tool_context import ToolContext # Not needed if passing state directly
 
 # from .context_manager import ContextManager # Not needed if operating on state dict directly
 from .file_tracker import file_change_tracker
+
+# from google.adk.tools.tool_context import ToolContext # Not needed if passing state directly
+
 
 # Set up logging
 logger = logging.getLogger(__name__)

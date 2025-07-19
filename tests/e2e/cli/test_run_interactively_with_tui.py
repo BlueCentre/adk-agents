@@ -11,10 +11,10 @@ class TestRunInteractivelyWithTui:
 
     @pytest.mark.asyncio
     @patch("src.wrapper.adk.cli.cli.get_textual_cli_instance")
-    @patch("src.wrapper.adk.cli.cli.Runner")
+    @patch("src.wrapper.adk.cli.cli.RunnerFactory")
     async def test_run_interactively_with_tui_basic(
         self,
-        mock_runner_class,
+        mock_runner_factory,
         mock_get_textual_cli_instance,
         mock_services,
         mock_agent,
@@ -48,7 +48,7 @@ class TestRunInteractivelyWithTui:
             yield mock_event
 
         mock_runner.run_async = async_gen
-        mock_runner_class.return_value = mock_runner
+        mock_runner_factory.create_runner.return_value = mock_runner
         mock_runner.close = AsyncMock()
 
         # Test function
@@ -68,10 +68,10 @@ class TestRunInteractivelyWithTui:
 
     @pytest.mark.asyncio
     @patch("src.wrapper.adk.cli.cli.get_textual_cli_instance")
-    @patch("src.wrapper.adk.cli.cli.Runner")
+    @patch("src.wrapper.adk.cli.cli.RunnerFactory")
     async def test_run_interactively_with_tui_with_thought_content(
         self,
-        mock_runner_class,
+        mock_runner_factory,
         mock_get_textual_cli_instance,
         mock_services,
         mock_agent,
@@ -116,7 +116,7 @@ class TestRunInteractivelyWithTui:
             yield mock_event
 
         mock_runner.run_async = async_gen
-        mock_runner_class.return_value = mock_runner
+        mock_runner_factory.create_runner.return_value = mock_runner
         mock_runner.close = AsyncMock()
         # Test function
         await run_interactively_with_tui(
@@ -135,10 +135,10 @@ class TestRunInteractivelyWithTui:
 
     @pytest.mark.asyncio
     @patch("src.wrapper.adk.cli.cli.get_textual_cli_instance")
-    @patch("src.wrapper.adk.cli.cli.Runner")
+    @patch("src.wrapper.adk.cli.cli.RunnerFactory")
     async def test_event_extraction_with_function_calls(
         self,
-        mock_runner_class,
+        mock_runner_factory,
         mock_get_textual_cli_instance,
         mock_services,
         mock_agent,
@@ -186,7 +186,7 @@ class TestRunInteractivelyWithTui:
             yield mock_event
 
         mock_runner.run_async = async_gen
-        mock_runner_class.return_value = mock_runner
+        mock_runner_factory.create_runner.return_value = mock_runner
         mock_runner.close = AsyncMock()
 
         # Test function
@@ -206,10 +206,10 @@ class TestRunInteractivelyWithTui:
 
     @pytest.mark.asyncio
     @patch("src.wrapper.adk.cli.cli.get_textual_cli_instance")
-    @patch("src.wrapper.adk.cli.cli.Runner")
+    @patch("src.wrapper.adk.cli.cli.RunnerFactory")
     async def test_run_interactively_with_tui_tool_callbacks(
         self,
-        mock_runner_class,
+        mock_runner_factory,
         mock_get_textual_cli_instance,
         mock_services,
         mock_agent,
@@ -236,7 +236,7 @@ class TestRunInteractivelyWithTui:
         mock_agent.after_tool_callback = AsyncMock()
 
         # Mock runner
-        mock_runner_class.return_value = mock_runner
+        mock_runner_factory.create_runner.return_value = mock_runner
         mock_runner.close = AsyncMock()
         # Test function
         await run_interactively_with_tui(
@@ -254,10 +254,10 @@ class TestRunInteractivelyWithTui:
 
     @pytest.mark.asyncio
     @patch("src.wrapper.adk.cli.cli.get_textual_cli_instance")
-    @patch("src.wrapper.adk.cli.cli.Runner")
+    @patch("src.wrapper.adk.cli.cli.RunnerFactory")
     async def test_run_interactively_with_tui_handle_user_input(
         self,
-        mock_runner_class,
+        mock_runner_factory,
         mock_get_textual_cli_instance,
         mock_services,
         mock_agent,
@@ -305,7 +305,7 @@ class TestRunInteractivelyWithTui:
             yield mock_event
 
         mock_runner.run_async = async_gen
-        mock_runner_class.return_value = mock_runner
+        mock_runner_factory.create_runner.return_value = mock_runner
         mock_runner.close = AsyncMock()
         # Test function
         await run_interactively_with_tui(
@@ -324,10 +324,10 @@ class TestRunInteractivelyWithTui:
 
     @pytest.mark.asyncio
     @patch("src.wrapper.adk.cli.cli.get_textual_cli_instance")
-    @patch("src.wrapper.adk.cli.cli.Runner")
+    @patch("src.wrapper.adk.cli.cli.RunnerFactory")
     async def test_run_interactively_with_tui_error_handling(
         self,
-        mock_runner_class,
+        mock_runner_factory,
         mock_get_textual_cli_instance,
         mock_services,
         mock_agent,
@@ -350,7 +350,7 @@ class TestRunInteractivelyWithTui:
 
         # Mock runner to raise exception
         mock_runner.run_async.side_effect = Exception("Test error")
-        mock_runner_class.return_value = mock_runner
+        mock_runner_factory.create_runner.return_value = mock_runner
         mock_runner.close = AsyncMock()
         # Test function
         await run_interactively_with_tui(

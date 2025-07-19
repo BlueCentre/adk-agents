@@ -1,9 +1,11 @@
 # Agents/devops/tools/file_summarizer_tool.py
+import logging  # Good practice!
 import os
-import logging # Good practice!
-from google.adk.tools import FunctionTool # Assuming this is the correct base class
-from vertexai.generative_models import GenerativeModel # For direct Gemini API calls
-from typing import Optional # Import Optional
+from typing import Optional  # Import Optional
+
+from google.adk.tools import FunctionTool  # Assuming this is the correct base class
+from vertexai.generative_models import GenerativeModel  # For direct Gemini API calls
+
 from .. import config as agent_config
 
 # Initialize logger for this tool

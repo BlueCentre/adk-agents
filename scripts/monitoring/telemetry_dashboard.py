@@ -11,30 +11,31 @@ Usage:
     uv run scripts/telemetry_dashboard.py export
 """
 
-import sys
 import os
+import sys
+
 # Add the project root to the path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import argparse
+import asyncio
 import json
 import time
-import asyncio
-import argparse
-from typing import Dict, Any, List
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any, Dict, List
 
 try:
     # Rich console for beautiful output
+    from rich import box
+    from rich.align import Align
     from rich.console import Console
-    from rich.table import Table
-    from rich.panel import Panel
     from rich.layout import Layout
     from rich.live import Live
-    from rich import box
-    from rich.text import Text
+    from rich.panel import Panel
     from rich.progress import Progress, SpinnerColumn, TextColumn
-    from rich.align import Align
+    from rich.table import Table
+    from rich.text import Text
 except ImportError:
     print("⚠️ Rich not available - install with: uv add rich")
     sys.exit(1)
@@ -43,7 +44,7 @@ except ImportError:
 try:
     # Try to import telemetry directly without going through devops.__init__
     import importlib.util
-    
+
     # Import telemetry module directly
     telemetry_spec = importlib.util.spec_from_file_location("telemetry", "agents/devops/telemetry.py")
     telemetry_module = importlib.util.module_from_spec(telemetry_spec)
