@@ -1,8 +1,6 @@
 import io
-import os
 import sys
 from typing import Optional
-from unittest.mock import patch
 
 import pytest
 
@@ -15,7 +13,7 @@ pytestmark = pytest.mark.skip(
 )
 
 
-def run_cli_command(command_args: list[str], input_str: Optional[str] = None):
+def run_cli_command(command_args: list[str], _input_str: Optional[str] = None):
     """Helper to run CLI commands by directly invoking cli_main and capturing output."""
     # Import only when needed to avoid module-level import errors
     try:

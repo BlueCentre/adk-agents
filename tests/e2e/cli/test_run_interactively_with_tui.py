@@ -1,4 +1,3 @@
-import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -42,7 +41,7 @@ class TestRunInteractivelyWithTui:
         mock_event.usage_metadata.total_token_count = 30
         mock_event.usage_metadata.thoughts_token_count = 5
 
-        async def async_gen(*args, **kwargs):
+        async def async_gen(*_, **__):
             yield mock_event
 
         mock_runner.run_async = async_gen
@@ -108,7 +107,7 @@ class TestRunInteractivelyWithTui:
         mock_event.usage_metadata.total_token_count = 30
         mock_event.usage_metadata.thoughts_token_count = 5
 
-        async def async_gen(*args, **kwargs):
+        async def async_gen(*_, **__):
             yield mock_event
 
         mock_runner.run_async = async_gen
@@ -176,7 +175,7 @@ class TestRunInteractivelyWithTui:
         mock_event.usage_metadata.total_token_count = 40
         mock_event.usage_metadata.thoughts_token_count = 0
 
-        async def async_gen(*args, **kwargs):
+        async def async_gen(*_, **__):
             yield mock_event
 
         mock_runner.run_async = async_gen
@@ -291,7 +290,7 @@ class TestRunInteractivelyWithTui:
         mock_event.usage_metadata.total_token_count = 30
         mock_event.usage_metadata.thoughts_token_count = 5
 
-        async def async_gen(*args, **kwargs):
+        async def async_gen(*_, **__):
             yield mock_event
 
         mock_runner.run_async = async_gen

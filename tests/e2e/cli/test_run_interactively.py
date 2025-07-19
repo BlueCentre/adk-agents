@@ -1,4 +1,3 @@
-import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -13,10 +12,8 @@ class TestRunInteractively:
     @patch("src.wrapper.adk.cli.cli.get_cli_instance")
     @patch("src.wrapper.adk.cli.cli.Console")
     @patch("src.wrapper.adk.cli.cli.RunnerFactory")
-    @patch("prompt_toolkit.patch_stdout.patch_stdout")
     async def test_run_interactively_basic_flow(
         self,
-        mock_patch_stdout,
         mock_runner_factory,
         mock_console_class,
         mock_get_cli_instance,
@@ -39,7 +36,7 @@ class TestRunInteractively:
         mock_console_class.return_value = mock_console
 
         # Mock runner - use a simple async generator function
-        async def mock_run_async(*args, **kwargs):
+        async def mock_run_async(*_, **__):
             mock_event = MagicMock()
             mock_event.author = "assistant"
             mock_event.content = MagicMock()
@@ -55,7 +52,7 @@ class TestRunInteractively:
         # Mock prompt session to simulate single query then exit
         mock_prompt_session = AsyncMock()
 
-        async def prompt_side_effect(*args, **kwargs):
+        async def prompt_side_effect(*_, **__):
             # First call returns a query, second raises KeyboardInterrupt to exit
             if not hasattr(prompt_side_effect, "call_count"):
                 prompt_side_effect.call_count = 0
@@ -233,7 +230,7 @@ class TestRunInteractively:
 
         mock_event_with_thought.content.parts = [regular_part, thought_part]
 
-        async def async_gen_with_thought(*args, **kwargs):
+        async def async_gen_with_thought(*_, **__):
             yield mock_event_with_thought
 
         mock_runner.run_async = async_gen_with_thought

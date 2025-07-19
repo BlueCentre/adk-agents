@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 import tempfile
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -69,10 +69,8 @@ class TestRunCli:
     @patch("src.wrapper.adk.cli.cli.AgentLoader")
     @patch("src.wrapper.adk.cli.cli.envs.load_dotenv_for_agent")
     @patch("src.wrapper.adk.cli.cli.run_interactively")
-    @patch("src.wrapper.adk.cli.cli.click.echo")
     async def test_run_cli_with_saved_session(
         self,
-        mock_click_echo,
         mock_run_interactively,
         mock_load_dotenv,
         mock_agent_loader_class,
@@ -211,7 +209,6 @@ class TestRunCli:
     @patch("src.wrapper.adk.cli.cli.AgentLoader")
     @patch("src.wrapper.adk.cli.cli.envs.load_dotenv_for_agent")
     @patch("src.wrapper.adk.cli.cli.run_interactively")
-    @patch("src.wrapper.adk.cli.cli.click.echo")
     @patch("builtins.input", return_value="test_session_123")
     @patch("builtins.open")
     @patch("builtins.print")
@@ -220,7 +217,6 @@ class TestRunCli:
         mock_print,
         mock_open,
         mock_input,
-        mock_click_echo,
         mock_run_interactively,
         mock_load_dotenv,
         mock_agent_loader_class,
