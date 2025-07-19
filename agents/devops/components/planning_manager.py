@@ -4,7 +4,6 @@ from typing import Optional, Tuple
 
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
-
 from google.genai import types as genai_types
 
 from .. import config as agent_config, prompts as agent_prompts

@@ -8,10 +8,9 @@ import os
 import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from rich.console import Console
-
 from google import genai
 from google.genai.types import Content, CountTokensResponse, Part  # For native token counting
+from rich.console import Console
 
 from .cross_turn_correlation import CrossTurnCorrelator
 from .dynamic_context_expansion import DiscoveredContent, DynamicContextExpander, ExpansionContext

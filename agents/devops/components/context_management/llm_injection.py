@@ -7,7 +7,6 @@ from typing import Any, Dict, List, Optional, Union
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
-
 from google.genai import types as genai_types
 
 # Set up logging

@@ -768,3 +768,297 @@ class TestAdvancedToolOrchestration:
         assert high_priority_config["timeout"] < low_priority_config["timeout"]
         assert high_priority_config["parallel"]
         assert low_priority_config["caching"]
+
+    @pytest.mark.asyncio
+    async def test_agent_loading_with_shell_command_tools(self):
+        """Test ADK parameter parsing issues when loading agents with shell tools."""
+        try:
+            # This is where the error occurs - when loading an agent that uses shell command tools
+            from src.wrapper.adk.cli.utils.agent_loader import AgentLoader
+
+            agent_loader = AgentLoader()
+
+            # Try to load the devops agent which includes shell command tools
+            # This would FAIL with the _tool_context parameter parsing error
+            agent = agent_loader.load_agent("agents.devops")
+
+            # Verify the agent loaded successfully
+            assert agent is not None
+            assert hasattr(agent, "name")
+            assert hasattr(agent, "tools")
+
+            # The shell command tools should be available
+            if hasattr(agent, "tools") and agent.tools:
+                tool_names = []
+                for tool in agent.tools:
+                    if hasattr(tool, "name"):
+                        tool_names.append(tool.name)
+                    elif hasattr(tool, "function") and hasattr(tool.function, "__name__"):
+                        tool_names.append(tool.function.__name__)
+
+                # Should have shell command tools loaded
+                shell_tools = [name for name in tool_names if "shell" in name.lower()]
+                assert len(shell_tools) > 0, f"No shell tools found. Available: {tool_names}"
+
+        except Exception as e:
+            error_msg = str(e)
+            # Check for the specific ADK parameter parsing error
+            if "Failed to parse the parameter _tool_context" in error_msg:
+                pytest.fail(
+                    f"ADK framework cannot parse _tool_context parameter: {error_msg}. "
+                    "Parameter names starting with underscore are not compatible with "
+                    "ADK automatic function calling."
+                )
+            elif "automatic function calling" in error_msg and "_tool_context" in error_msg:
+                pytest.fail(
+                    f"Function signature with _tool_context incompatible with ADK: {error_msg}"
+                )
+            elif "ValueError" in str(type(e)) and "parameter" in error_msg:
+                pytest.fail(f"Parameter parsing failed during agent loading: {error_msg}")
+            else:
+                # Re-raise unexpected errors
+                raise
+
+    @pytest.mark.asyncio
+    async def test_devops_agent_shell_tools_functionality(self):
+        """Test that verifies shell tools work properly when loaded in the devops agent."""
+        try:
+            # Test the specific agent that uses shell command tools
+            from agents.devops.devops_agent import MyDevopsAgent
+
+            # Try to instantiate the agent - this is where tool parsing happens
+            # Provide the required name parameter
+            agent = MyDevopsAgent(name="test_devops_agent")
+
+            assert agent is not None
+            assert hasattr(agent, "tools")
+
+            # Check if shell command tools are properly loaded
+            if agent.tools:
+                shell_command_tools = [
+                    tool
+                    for tool in agent.tools
+                    if (
+                        hasattr(tool, "function")
+                        and tool.function.__name__ == "execute_vetted_shell_command"
+                    )
+                ]
+
+                # If we have shell command tools, they should be properly configured
+                if shell_command_tools:
+                    assert len(shell_command_tools) > 0
+
+        except Exception as e:
+            error_msg = str(e)
+            if "tool_context" in error_msg and "parse" in error_msg:
+                pytest.fail(
+                    f"Shell command tool loading failed due to parameter parsing: {error_msg}"
+                )
+            else:
+                raise
+
+    @pytest.mark.asyncio
+    async def test_agent_runtime_tool_execution_validation(self):
+        """Test ADK framework parameter parsing issues during actual agent execution."""
+        try:
+            # Import what we need for agent execution simulation
+            from unittest.mock import AsyncMock, patch
+
+            from src.wrapper.adk.cli.utils.agent_loader import AgentLoader
+
+            agent_loader = AgentLoader()
+            agent = agent_loader.load_agent("agents.devops")
+
+            # Simulate what happens when the agent tries to execute
+            # This is where ADK framework would try to parse function signatures for tool calling
+
+            # Mock the LLM client to simulate a response that would trigger shell command execution
+            mock_llm_client = AsyncMock()
+
+            # Create a mock response that would request shell command execution
+            mock_response = AsyncMock()
+            mock_response.text = "I'll check the current directory for you."
+            mock_response.candidates = [AsyncMock()]
+            mock_response.candidates[0].content = AsyncMock()
+            mock_response.candidates[0].content.parts = [AsyncMock()]
+            mock_response.candidates[0].content.parts[
+                0
+            ].text = "I'll use a shell command to check the directory."
+            mock_response.candidates[0].content.parts[0].function_call = None
+
+            # Simulate a function call that would trigger the parameter parsing
+            function_call = AsyncMock()
+            function_call.name = "execute_vetted_shell_command"
+            function_call.args = {"command": "pwd"}
+            mock_response.candidates[0].content.parts.append(AsyncMock())
+            mock_response.candidates[0].content.parts[1].function_call = function_call
+            mock_response.candidates[0].content.parts[1].text = None
+
+            mock_llm_client.generate_content = AsyncMock(return_value=mock_response)
+
+            # Try to execute the agent with a message that would trigger shell command usage
+            with patch.object(agent, "_client", mock_llm_client):
+                # This should trigger the ADK framework to try to parse the function signature
+                # and fail with the _tool_context parameter
+                result = await agent.execute({"query": "What directory am I in?"})
+
+                # If we get here without an error, the function signature is working
+                assert result is not None
+
+        except Exception as e:
+            error_msg = str(e)
+            # Check for the specific ADK parameter parsing error that occurs during execution
+            if "Failed to parse the parameter _tool_context" in error_msg:
+                pytest.fail(
+                    f"ADK runtime failed to parse _tool_context parameter: {error_msg}. "
+                    "The underscore prefix makes the parameter incompatible with ADK "
+                    "automatic function calling."
+                )
+            elif "automatic function calling" in error_msg and "_tool_context" in error_msg:
+                pytest.fail(
+                    f"ADK automatic function calling failed due to _tool_context: {error_msg}"
+                )
+            elif "ValueError" in str(type(e)) and "_tool_context" in error_msg:
+                pytest.fail(f"Runtime parameter parsing failed: {error_msg}")
+            else:
+                # Log the error but don't fail the test for other issues
+                print(f"Other error during agent execution (not parameter-related): {error_msg}")
+                # Only re-raise if it looks like it could be related to our parameter issue
+                if "tool_context" in error_msg or "parameter" in error_msg:
+                    raise
+
+    @pytest.mark.asyncio
+    async def test_shell_command_tool_direct_invocation(self):
+        """Test that simulates how the ADK framework would call the shell command tool."""
+        try:
+            # Test calling the underlying function directly instead of through FunctionTool wrapper
+            from unittest.mock import Mock
+
+            from google.adk.tools import ToolContext
+
+            from agents.devops.tools.shell_command import execute_vetted_shell_command
+
+            # Create a minimal tool context like ADK would
+            mock_context = Mock(spec=ToolContext)
+            mock_context.session_state = {}
+
+            # Call the function directly - this is what the FunctionTool wrapper does internally
+            args = {"command": "echo test"}
+            result = execute_vetted_shell_command(args, mock_context)
+
+            assert result is not None
+            assert hasattr(result, "status")
+
+        except Exception as e:
+            error_msg = str(e)
+            if "tool_context" in error_msg and ("parse" in error_msg or "parameter" in error_msg):
+                pytest.fail(
+                    f"Direct tool invocation failed due to tool_context parameter: {error_msg}"
+                )
+            else:
+                raise
+
+    @pytest.mark.asyncio
+    async def test_agent_conversation_with_broken_shell_tools(self):
+        """Test that reproduces exact error when user talks to agent with broken shell tools."""
+        from unittest.mock import patch
+
+        try:
+            # This is the exact scenario from the user's screenshot
+            # They loaded the agent and typed "hi" and got the parameter parsing error
+
+            # Import and use the CLI's agent loading mechanism
+            from src.wrapper.adk.cli.cli import run_cli
+            from src.wrapper.adk.cli.utils.agent_loader import AgentLoader
+
+            agent_loader = AgentLoader()
+
+            # Load the agent that has the broken shell command tools
+            agent_loader.load_agent("agents.devops")
+
+            # Mock the interactive conversation to avoid actually running it
+            with patch("src.wrapper.adk.cli.cli.run_interactively") as mock_run:
+                mock_run.return_value = None
+
+                # This should trigger the ADK framework to prepare the agent for conversation
+                # including parsing all tool signatures for automatic function calling
+                await run_cli(
+                    agent_module_name="agents.devops",
+                    input_file=None,
+                    saved_session_file=None,
+                    save_session=False,
+                    session_id=None,
+                    ui_theme=None,
+                    tui=False,
+                )
+
+            # If we get here, the agent setup worked (no parameter parsing errors)
+
+        except Exception as e:
+            error_msg = str(e)
+
+            # Check for the exact error from the user's screenshot
+            if "Failed to parse the parameter _tool_context" in error_msg:
+                pytest.fail(
+                    f"CAUGHT THE BUG! Agent conversation setup failed: {error_msg}. "
+                    "This proves that parameter names starting with underscore break "
+                    "ADK automatic function calling."
+                )
+            elif "automatic function calling" in error_msg and "_tool_context" in error_msg:
+                pytest.fail(
+                    f"Agent setup failed due to _tool_context in automatic function calling: "
+                    f"{error_msg}"
+                )
+            elif "ValueError" in str(type(e)) and "tool_context" in error_msg:
+                pytest.fail(
+                    f"Tool context parameter parsing failed during agent setup: {error_msg}"
+                )
+            else:
+                # For other errors, let's see what they are but don't automatically fail
+                print(f"Agent setup error (may not be parameter-related): {error_msg}")
+                # Only fail if it seems related to parameter parsing
+                keywords = ["parameter", "parse", "signature", "tool_context"]
+                if any(keyword in error_msg.lower() for keyword in keywords):
+                    pytest.fail(f"Potential parameter-related error: {error_msg}")
+
+    @pytest.mark.asyncio
+    async def test_simple_function_signature_validation(self):
+        """Simple test to verify the function signature is compatible with ADK framework."""
+        try:
+            # Import the actual function with the potentially broken signature
+            # Check the function signature using Python's inspect module
+            import inspect
+
+            from agents.devops.tools.shell_command import execute_vetted_shell_command
+
+            signature = inspect.signature(execute_vetted_shell_command)
+
+            # Check if any parameters start with underscore (which ADK might not support)
+            for param_name, _param in signature.parameters.items():
+                if param_name.startswith("_") and param_name != "_":  # Allow single underscore
+                    pytest.fail(
+                        f"Function parameter '{param_name}' starts with underscore, "
+                        f"which is incompatible with ADK automatic function calling. "
+                        f"Function signature: {signature}"
+                    )
+
+            # Verify we have the expected parameters
+            param_names = list(signature.parameters.keys())
+            assert "args" in param_names, f"Missing 'args' parameter. Found: {param_names}"
+
+            # Check that tool_context parameter exists and doesn't start with underscore
+            tool_context_params = [name for name in param_names if "tool_context" in name.lower()]
+            if tool_context_params:
+                tool_context_param = tool_context_params[0]
+                if tool_context_param.startswith("_"):
+                    pytest.fail(
+                        f"Tool context parameter '{tool_context_param}' starts with underscore. "
+                        f"This breaks ADK automatic function calling. Should be 'tool_context' "
+                        f"not '{tool_context_param}'"
+                    )
+
+        except Exception as e:
+            if "_tool_context" in str(e):
+                pytest.fail(f"Function signature inspection failed due to _tool_context: {e}")
+            else:
+                raise

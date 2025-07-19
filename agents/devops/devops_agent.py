@@ -10,6 +10,7 @@ import time
 import traceback
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from google import genai
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.agents.llm_agent import LlmAgent
@@ -18,13 +19,11 @@ from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
 from google.adk.tools.base_tool import BaseTool
 from google.adk.tools.tool_context import ToolContext
+from google.genai import types as genai_types
 from pydantic import PrivateAttr
 from rich.console import Console
 from rich.status import Status
 from typing_extensions import override
-
-from google import genai
-from google.genai import types as genai_types
 
 from . import config as agent_config
 from .components.context_management import (

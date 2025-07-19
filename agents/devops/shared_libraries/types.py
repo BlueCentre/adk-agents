@@ -4,9 +4,8 @@ from datetime import datetime
 from enum import Enum
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
-
 from google.genai.types import GenerateContentConfig
+from pydantic import BaseModel, Field
 
 # Configure JSON response format
 json_response_config = GenerateContentConfig(

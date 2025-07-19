@@ -5,9 +5,8 @@ from dataclasses import dataclass
 from enum import Enum
 import functools
 import logging
-import os
 import time
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Optional
 
 try:
     import openlit
@@ -18,7 +17,6 @@ except ImportError:
     logging.warning("OpenLIT not available - manual tracing will be disabled")
 
 from opentelemetry import trace
-from opentelemetry.trace import Status, StatusCode
 
 # Import agent configuration
 from .config import (
@@ -296,7 +294,7 @@ class DevOpsAgentTracer:
 
         return decorator
 
-    def create_custom_trace(self, name: str, category: TraceCategory, **attributes):
+    def create_custom_trace(self, name: str, _category: TraceCategory, **_attributes):
         """Create a custom trace with OpenTelemetry fallback."""
         if self.openlit_available and self.should_trace():
             return openlit.start_trace(name=name)
@@ -378,7 +376,7 @@ def set_trace_sampling_rate(rate: float):
 
 
 # Integration with existing telemetry
-def create_grouped_trace(name: str, operations: list[Callable]):
+def create_grouped_trace(_name: str, operations: list[Callable]):
     """Create a grouped trace that encompasses multiple operations."""
     if not agent_tracer.openlit_available:
         # Execute operations without tracing

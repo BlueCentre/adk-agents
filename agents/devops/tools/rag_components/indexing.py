@@ -8,7 +8,6 @@ from typing import Any, Dict, List, Optional
 
 import chromadb
 from dotenv import load_dotenv  # Added import
-
 from google import (
     genai as google_genai_sdk,  # Renamed to avoid conflict with a potential genai client instance
 )

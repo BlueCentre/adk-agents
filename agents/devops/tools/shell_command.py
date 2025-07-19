@@ -337,12 +337,14 @@ def _truncate_output(output: str, max_len: int, head_tail_len: int) -> str:
 
 
 def execute_vetted_shell_command(
-    args: dict, tool_context: ToolContext
+    args: dict,
+    tool_context: ToolContext,  # noqa: ARG001
 ) -> ExecuteVettedShellCommandOutput:
     """Executes a shell command that has ALREADY BEEN VETTED or explicitly approved.
 
     ***WARNING:*** DO NOT CALL THIS TOOL directly unless you have either:
-    1. Called `check_shell_command_safety` and received a status of 'whitelisted' or 'approval_disabled'.
+    1. Called `check_shell_command_safety` and received a status of 'whitelisted' or
+       'approval_disabled'.
     2. Received explicit user confirmation to run this specific command.
 
     This tool performs NO safety checks itself.
@@ -415,7 +417,8 @@ def execute_vetted_shell_command(
             )
 
             logger.info(
-                f"Vetted command '{command}' finished with return code {process.returncode} using strategy '{strategy_name}'"
+                f"Vetted command '{command}' finished with return code "
+                f"{process.returncode} using strategy '{strategy_name}'"
             )
 
             stdout_processed = _truncate_output(
@@ -663,7 +666,10 @@ def execute_vetted_shell_command_with_retry(
             status="failed_with_suggestions",
             command_executed=command,
             suggestions=suggestions,
-            message=f"Command failed: {standard_result.message}. Auto-retry disabled. See suggestions for alternatives.",
+            message=(
+                f"Command failed: {standard_result.message}. Auto-retry disabled. See "
+                "suggestions for alternatives."
+            ),
         )
 
     # If it failed due to parsing issues, try alternatives
@@ -704,7 +710,9 @@ def execute_vetted_shell_command_with_retry(
                     strategy_used="alternative",
                     alternatives_tried=alternatives_tried,
                     status="executed",
-                    message=f"Original command failed, but alternative succeeded: {alt_result.message}",
+                    message=(
+                        f"Original command failed, but alternative succeeded: {alt_result.message}"
+                    ),
                 )
 
         # All alternatives failed
@@ -715,7 +723,8 @@ def execute_vetted_shell_command_with_retry(
             suggestions=[
                 alt for alt in alternatives if alt.startswith("#") or alt not in alternatives_tried
             ],
-            message=f"Original command and {len(alternatives_tried)} alternatives failed. Original error: {standard_result.message}",
+            message=f"Original command and {len(alternatives_tried)} alternatives failed. Original "
+            f"error: {standard_result.message}",
         )
 
     # For non-parsing errors, return the original error with suggestions
