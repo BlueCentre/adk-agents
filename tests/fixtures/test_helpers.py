@@ -6,18 +6,15 @@ used across the test suite.
 """
 
 import asyncio
-from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 
 # Note: These imports would normally be from devops_agent
 # For testing purposes, we'll define minimal versions here
 from enum import Enum
-import json
-import os
 from pathlib import Path
 import tempfile
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 from unittest.mock import AsyncMock, Mock
 
 
@@ -586,8 +583,8 @@ async def run_with_timeout(coro, timeout: float = 5.0):
     """Run a coroutine with a timeout for testing."""
     try:
         return await asyncio.wait_for(coro, timeout=timeout)
-    except asyncio.TimeoutError:
-        raise AssertionError(f"Operation timed out after {timeout} seconds")
+    except asyncio.TimeoutError as e:
+        raise AssertionError(f"Operation timed out after {timeout} seconds") from e
 
 
 def create_error_scenarios() -> list[tuple]:
@@ -648,7 +645,7 @@ def create_mock_llm_client():
     client = AsyncMock()
 
     # Mock generate_content method
-    async def mock_generate_content(*args, **kwargs):
+    async def mock_generate_content(*_, **__):
         response = AsyncMock()
         response.text = "Mock LLM response for testing"
         response.usage_metadata = Mock()
@@ -1047,7 +1044,7 @@ def create_mock_workflow_agents():
         agent.description = f"Mock {agent_type} for testing"
 
         # Mock execution behavior
-        async def mock_execute(*args, **kwargs):
+        async def mock_execute(*_, agent_type=agent_type, **__):
             return Mock(
                 success=True,
                 result=f"Mock result from {agent_type}",
