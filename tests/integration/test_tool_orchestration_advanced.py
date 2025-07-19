@@ -9,13 +9,8 @@ and performance verification.
 import asyncio
 from dataclasses import dataclass
 from enum import Enum
-import json
-import os
-from pathlib import Path
-import tempfile
 import time
-from typing import Any, Dict, List, Optional, Tuple
-from unittest.mock import AsyncMock, MagicMock, Mock, call, patch
+from typing import Any, Optional
 
 import pytest
 
@@ -28,13 +23,13 @@ try:
     )
 except ImportError:
     # Define mock functions if imports fail
-    def index_directory_tool(*args, **kwargs):
+    def index_directory_tool(*_, **__):
         return {"indexed_files": 10, "chunks": 100}
 
-    def retrieve_code_context_tool(*args, **kwargs):
+    def retrieve_code_context_tool(*_, **__):
         return {"contexts": [{"file": "src/auth.py", "relevance": 0.9}]}
 
-    def purge_rag_index_tool(*args, **kwargs):
+    def purge_rag_index_tool(*_, **__):
         return {"status": "success"}
 
 
@@ -45,11 +40,7 @@ from agents.devops.components.context_management import ContextManager
 
 # Test utilities
 from tests.fixtures.test_helpers import (
-    create_mock_agent_with_tools,
     create_mock_llm_client,
-    create_mock_session_state,
-    create_performance_test_data,
-    create_test_workspace,
 )
 
 logger = logging.getLogger(__name__)
@@ -285,7 +276,7 @@ class ToolOrchestrator:
 
     # Error recovery strategies
     async def _handle_file_not_found(
-        self, execution: ToolExecution, error: Exception
+        self, execution: ToolExecution, _error: Exception
     ) -> Optional[Any]:
         """Handle file not found errors."""
         if execution.tool_name == "read_file":
@@ -300,13 +291,13 @@ class ToolOrchestrator:
             for alt_path in alternatives:
                 try:
                     return await self.tools["read_file"](file_path=alt_path)
-                except:
+                except:  # noqa: E722
                     continue
 
         return None
 
     async def _handle_permission_denied(
-        self, execution: ToolExecution, error: Exception
+        self, execution: ToolExecution, _error: Exception
     ) -> Optional[Any]:
         """Handle permission denied errors."""
         if execution.tool_name == "execute_shell":
@@ -319,7 +310,7 @@ class ToolOrchestrator:
         return None
 
     async def _handle_command_failed(
-        self, execution: ToolExecution, error: Exception
+        self, execution: ToolExecution, _error: Exception
     ) -> Optional[Any]:
         """Handle command execution failures."""
         if execution.tool_name == "execute_shell":
@@ -333,7 +324,7 @@ class ToolOrchestrator:
 
         return None
 
-    async def _handle_timeout(self, execution: ToolExecution, error: Exception) -> Optional[Any]:
+    async def _handle_timeout(self, execution: ToolExecution, _error: Exception) -> Optional[Any]:
         """Handle timeout errors."""
         # Increase timeout and retry
         if "timeout" in execution.args:
@@ -344,7 +335,7 @@ class ToolOrchestrator:
         return await self.tools[execution.tool_name](**execution.args)
 
     async def _handle_resource_exhausted(
-        self, execution: ToolExecution, error: Exception
+        self, execution: ToolExecution, _error: Exception
     ) -> Optional[Any]:
         """Handle resource exhausted errors."""
         # Wait and retry
@@ -455,7 +446,8 @@ class TestAdvancedToolOrchestration:
         assert execution_time < 0.5  # Should complete quickly in parallel
 
     @pytest.mark.skip(
-        reason="Tool dependency management has timing assertion issues - complex orchestration timing is difficult to predict reliably. Requires more robust timing strategies."
+        reason="Tool dependency management has timing assertion issues - complex orchestration "
+        "timing is difficult to predict reliably. Requires more robust timing strategies."
     )
     def test_tool_dependency_management(self):
         """Test tool dependency management in complex scenarios."""
@@ -689,7 +681,8 @@ class TestAdvancedToolOrchestration:
         assert success_count + failure_count == 4
 
     @pytest.mark.skip(
-        reason="Performance optimization needs algorithm improvements - current score 0.525 vs expected ≥0.8. Requires better optimization algorithms."
+        reason="Performance optimization needs algorithm improvements - current score 0.525 vs "
+        "expected ≥0.8. Requires better optimization algorithms."
     )
     def test_performance_optimization(self):
         """Test performance optimization during tool orchestration."""
@@ -729,7 +722,8 @@ class TestAdvancedToolOrchestration:
         assert optimization_score >= 0.8, f"Optimization score too low: {optimization_score}"
 
     @pytest.mark.skip(
-        reason="Adaptive tool configuration has boolean assertion failure - configuration validation logic needs debugging. Requires investigation of configuration system."
+        reason="Adaptive tool configuration has boolean assertion failure - configuration "
+        "validation logic needs debugging. Requires investigation of configuration system."
     )
     def test_adaptive_tool_configuration(self):
         """Test adaptive tool configuration based on context."""

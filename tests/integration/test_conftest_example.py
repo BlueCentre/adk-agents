@@ -5,9 +5,6 @@ This test serves as documentation and validation for the integration test
 infrastructure provided by conftest.py.
 """
 
-import asyncio
-from unittest.mock import MagicMock
-
 import pytest
 
 
@@ -243,7 +240,8 @@ class TestParametrizedFixtures:
         assert workflow_scenario["agent_count"] > 0
 
         print(
-            f"✅ Workflow scenario: {workflow_scenario['workflow_type']} with {workflow_scenario['agent_count']} agents"
+            f"✅ Workflow scenario: {workflow_scenario['workflow_type']} with "
+            f"{workflow_scenario['agent_count']} agents"
         )
 
     def test_context_scenario(self, context_scenario):
@@ -256,7 +254,8 @@ class TestParametrizedFixtures:
         assert context_scenario["token_limit"] > context_scenario["context_size"]
 
         print(
-            f"✅ Context scenario: {context_scenario['context_size']} context size, {context_scenario['token_limit']} token limit"
+            f"✅ Context scenario: {context_scenario['context_size']} context size, "
+            f"{context_scenario['token_limit']} token limit"
         )
 
 
@@ -277,7 +276,8 @@ class TestPerformanceFixtures:
         assert load_test_scenario["operations_per_user"] == 100
 
         print(
-            f"✅ Load test scenario: {load_test_scenario['concurrent_users']} users, {load_test_scenario['operations_per_user']} ops/user"
+            f"✅ Load test scenario: {load_test_scenario['concurrent_users']} users, "
+            f"{load_test_scenario['operations_per_user']} ops/user"
         )
 
     def test_performance_thresholds(self, test_config):

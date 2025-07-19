@@ -8,10 +8,8 @@ tool usage, and response quality.
 
 import json
 import logging
-import os
 from pathlib import Path
-import tempfile
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import pytest
 
@@ -40,7 +38,7 @@ class TestADKEvaluationPatterns:
         """Load evaluation configuration."""
         config_path = self._get_config_file_path()
         if config_path.exists():
-            with open(config_path) as f:
+            with Path.open(config_path) as f:
                 return json.load(f)
         return {"criteria": {"tool_trajectory_avg_score": 0.8, "response_match_score": 0.7}}
 
@@ -83,7 +81,7 @@ class TestADKEvaluationPatterns:
 
             # Verify it's valid JSON
             try:
-                with open(test_path) as f:
+                with Path.open(test_path) as f:
                     json.load(f)
             except json.JSONDecodeError as e:
                 pytest.fail(f"Invalid JSON in {test_file}: {e}")
@@ -103,7 +101,7 @@ class TestADKEvaluationPatterns:
         for test_file in test_files:
             test_path = test_dir / test_file
 
-            with open(test_path) as f:
+            with Path.open(test_path) as f:
                 test_data = json.load(f)
 
             # Check if it's the new format (with test_scenarios) or old format (direct list)
@@ -135,7 +133,8 @@ class TestADKEvaluationPatterns:
                     )
                     # Handle both 'tool_input' and 'inputs' formats
                     assert "tool_input" in tool_use or "inputs" in tool_use, (
-                        f"Tool use {j} in test case {i} of {test_file} missing 'tool_input' or 'inputs'"
+                        f"Tool use {j} in test case {i} of {test_file} missing 'tool_input' or "
+                        "'inputs'"
                     )
 
     def test_evaluation_config_validation(self):
@@ -172,7 +171,7 @@ class TestADKEvaluationPatterns:
         for test_file in test_files:
             test_path = test_dir / test_file
 
-            with open(test_path) as f:
+            with Path.open(test_path) as f:
                 test_data = json.load(f)
 
             # Handle both new format (with test_scenarios) and old format
@@ -228,7 +227,7 @@ class TestADKEvaluationPatterns:
         for test_file in test_files:
             test_path = test_dir / test_file
 
-            with open(test_path) as f:
+            with Path.open(test_path) as f:
                 test_data = json.load(f)
 
             for test_case in test_data:
@@ -262,7 +261,7 @@ class TestADKEvaluationPatterns:
         # Verify each evalset file has multiple test cases
         for evalset_file in required_files[:-1]:  # Exclude config file
             file_path = test_files_dir / evalset_file
-            with open(file_path) as f:
+            with Path.open(file_path) as f:
                 test_data = json.load(f)
 
             assert len(test_data) > 0, f"Evaluation file {evalset_file} should have test cases"
@@ -332,7 +331,7 @@ class TestADKEvaluationPatterns:
         test_file = self._get_test_file_path("multi_agent_coordination")
         assert test_file.exists(), "Multi-agent coordination evaluation file should exist"
 
-        with open(test_file) as f:
+        with Path.open(test_file) as f:
             data = json.load(f)
 
         # Validate structure
@@ -385,7 +384,7 @@ class TestADKEvaluationPatterns:
         test_file = self._get_test_file_path("agent_memory_persistence")
         assert test_file.exists(), "Agent memory persistence evaluation file should exist"
 
-        with open(test_file) as f:
+        with Path.open(test_file) as f:
             data = json.load(f)
 
         # Validate structure

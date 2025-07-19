@@ -8,39 +8,10 @@ implemented in the project, based on Google ADK patterns.
 import asyncio
 from dataclasses import dataclass
 import time
-from typing import Any, Dict, List, Optional
-from unittest.mock import AsyncMock, MagicMock, patch
+from typing import Any, Optional
+from unittest.mock import MagicMock
 
 import pytest
-
-from agents.software_engineer.workflows.human_in_loop_workflows import (
-    create_approval_workflow,
-    create_architecture_decision_workflow,
-    create_collaborative_review_workflow,
-    create_deployment_approval_workflow,
-)
-from agents.software_engineer.workflows.iterative_workflows import (
-    create_iterative_code_generation_workflow,
-    create_iterative_debug_workflow,
-    create_iterative_refinement_workflow,
-    create_iterative_test_improvement_workflow,
-)
-from agents.software_engineer.workflows.parallel_workflows import (
-    create_parallel_analysis_workflow,
-    create_parallel_implementation_workflow,
-    create_parallel_validation_workflow,
-)
-
-# Import workflow patterns
-from agents.software_engineer.workflows.sequential_workflows import (
-    create_bug_fix_workflow,
-    create_code_review_workflow,
-    create_feature_development_workflow,
-    create_refactoring_workflow,
-)
-
-# Test utilities
-from tests.fixtures.test_helpers import create_mock_session_state
 
 
 @dataclass
@@ -172,7 +143,7 @@ class TestSequentialWorkflows:
         assert result.session_state_changes.get("refactoring_status") == "completed"
 
     async def _execute_workflow(
-        self, workflow, workflow_name: str, session_state: dict[str, Any]
+        self, _workflow, workflow_name: str, session_state: dict[str, Any]
     ) -> WorkflowExecutionResult:
         """Simulate workflow execution."""
         start_time = time.time()
@@ -319,7 +290,7 @@ class TestParallelWorkflows:
         assert result.session_state_changes.get("validation_status") == "completed"
 
     async def _execute_parallel_workflow(
-        self, workflow, workflow_name: str, session_state: dict[str, Any]
+        self, _workflow, workflow_name: str, session_state: dict[str, Any]
     ) -> WorkflowExecutionResult:
         """Simulate parallel workflow execution."""
         start_time = time.time()
@@ -471,7 +442,7 @@ class TestIterativeWorkflows:
         assert result.session_state_changes.get("code_quality_score") >= 8.0
 
     async def _execute_iterative_workflow(
-        self, workflow, workflow_name: str, session_state: dict[str, Any]
+        self, _workflow, workflow_name: str, session_state: dict[str, Any]
     ) -> WorkflowExecutionResult:
         """Simulate iterative workflow execution."""
         start_time = time.time()
@@ -687,7 +658,7 @@ class TestHumanInLoopWorkflows:
         assert result.session_state_changes.get("deployment_status") == "completed"
 
     async def _execute_human_workflow(
-        self, workflow, workflow_name: str, session_state: dict[str, Any]
+        self, _workflow, workflow_name: str, session_state: dict[str, Any]
     ) -> WorkflowExecutionResult:
         """Simulate human-in-the-loop workflow execution."""
         start_time = time.time()
@@ -808,7 +779,7 @@ class TestWorkflowChaining:
         assert result.session_state_changes.get("approval_status") == "approved"
 
     async def _execute_workflow_chain(
-        self, workflows, chain_name: str, session_state: dict[str, Any]
+        self, _workflows, chain_name: str, session_state: dict[str, Any]
     ) -> WorkflowExecutionResult:
         """Simulate chained workflow execution."""
         start_time = time.time()

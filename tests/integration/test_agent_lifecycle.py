@@ -9,38 +9,15 @@ Based on Google ADK patterns and the project's multi-agent architecture.
 
 import asyncio
 from dataclasses import dataclass
-import json
 import logging
-import os
-from pathlib import Path
-import tempfile
-from typing import Any, Dict, List, Optional
-from unittest.mock import AsyncMock, MagicMock, patch
+from typing import Any, Optional
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 # Import project components
 from agents.devops.components.context_management import ContextManager
-from agents.devops.components.context_management.context_manager import (
-    ContextPriority,
-    ContextState,
-    ConversationTurn,
-)
-from agents.software_engineer.workflows.human_in_loop_workflows import (
-    create_approval_workflow,
-    create_collaborative_review_workflow,
-)
-from agents.software_engineer.workflows.iterative_workflows import (
-    create_iterative_debug_workflow,
-    create_iterative_refinement_workflow,
-)
-from agents.software_engineer.workflows.parallel_workflows import (
-    create_parallel_analysis_workflow,
-    create_parallel_implementation_workflow,
-)
 from agents.software_engineer.workflows.sequential_workflows import (
-    create_bug_fix_workflow,
-    create_code_review_workflow,
     create_feature_development_workflow,
 )
 
@@ -96,7 +73,7 @@ class TestAgentLifecycle:
         """Create a test workspace with sample files."""
         return create_test_workspace()
 
-    def test_complete_turn_execution(self, context_manager, mock_session_state):
+    def test_complete_turn_execution(self, context_manager):
         """Test complete conversation turn execution with context management."""
         # Arrange
         user_message = "Analyze the authentication system and suggest improvements"
@@ -441,12 +418,12 @@ class TestWorkflowOrchestration:
         workflow.name = "parallel_implementation_workflow"
 
         # Mock agents that share state
-        def mock_implementation_agent(*args, **kwargs):
+        def mock_implementation_agent(*_, **__):
             # Agent should read and update shared state
             mock_session_state["implementation_progress"] = {"files_created": 3}
             return {"status": "completed"}
 
-        def mock_testing_agent(*args, **kwargs):
+        def mock_testing_agent(*_, **__):
             # Agent should read implementation progress
             progress = mock_session_state.get("implementation_progress", {})
             return {"tests_created": progress.get("files_created", 0) * 2}
@@ -467,7 +444,7 @@ class TestWorkflowOrchestration:
 
     async def _simulate_workflow_execution(
         self,
-        workflow,
+        _workflow,
         workflow_type: str,
         session_state: dict[str, Any],
         mock_agents: Optional[dict[str, Any]] = None,
@@ -616,7 +593,7 @@ class TestToolOrchestration:
         """Test complete tool execution flow with context updates."""
         # Arrange
         mock_tools["read_file_tool"].return_value = {
-            "content": "def authenticate(user, password):\n    return check_password(user, password)",
+            "content": "def authenticate(user, password):\n    return check_password(user, password)",  # noqa: E501
             "file_path": "src/auth.py",
         }
 

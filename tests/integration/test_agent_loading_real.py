@@ -94,7 +94,6 @@ class TestRealAgentLoading:
 
     def test_cli_command_simulation_with_real_agent_loading(self):
         """Simulate the CLI command execution path with real agent loading."""
-        from src.wrapper.adk.cli.cli import run_cli
         from src.wrapper.adk.cli.utils import envs
 
         # Test agent module that should work
@@ -114,7 +113,10 @@ class TestRealAgentLoading:
         print(f"✅ CLI simulation test passed for {agent_module_name}")
 
     def test_exact_cli_command_scenario_now_works(self):
-        """Test the exact scenario that was failing now works: 'uv run agent run agents.swe.enhanced_agent'"""
+        """
+        Test the exact scenario that was failing now works:
+        'uv run agent run agents.swe.enhanced_agent'
+        """
         from src.wrapper.adk.cli.utils import envs
 
         # Test the exact scenario that was previously failing

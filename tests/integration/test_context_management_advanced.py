@@ -6,15 +6,13 @@ context management features including smart prioritization, cross-turn
 correlation, intelligent summarization, dynamic context expansion, and RAG integration.
 """
 
-import asyncio
-import json
 import logging
 import os
 from pathlib import Path
 import tempfile
 import time
-from typing import Any, Dict, List, Optional
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from typing import Optional  # noqa: F401
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -23,7 +21,6 @@ from agents.devops.components.context_management import (
     ContentType,
     ContextManager,
     CrossTurnCorrelator,
-    DiscoveredContent,
     DynamicContextExpander,
     ExpansionContext,
     IntelligentSummarizer,
@@ -35,7 +32,6 @@ from agents.devops.tools.rag_components.chunking import chunk_file_content
 # Import RAG components
 from agents.devops.tools.rag_components.indexing import (
     clear_index,
-    embed_chunks_batch,
     get_chroma_collection,
     get_index_stats,
     index_file_chunks,
@@ -44,10 +40,7 @@ from agents.devops.tools.rag_components.retriever import retrieve_relevant_chunk
 
 # Test utilities
 from tests.fixtures.test_helpers import (
-    create_mock_context_manager_with_sample_data,
     create_mock_llm_client,
-    create_mock_session_state,
-    create_performance_test_data,
     create_test_workspace,
 )
 
@@ -69,7 +62,7 @@ class TestSmartPrioritization:
             "code_snippets": [
                 {
                     "file_path": "src/auth.py",
-                    "content": "class AuthManager:\n    def authenticate(self, user, password):\n        return jwt.encode(payload)",
+                    "content": "class AuthManager:\n    def authenticate(self, user, password):\n        return jwt.encode(payload)",  # noqa: E501
                     "start_line": 1,
                     "end_line": 10,
                     "turn": 1,
@@ -85,7 +78,7 @@ class TestSmartPrioritization:
                 },
                 {
                     "file_path": "tests/test_auth.py",
-                    "content": "def test_authenticate():\n    assert auth.authenticate('user', 'pass') is not None",
+                    "content": "def test_authenticate():\n    assert auth.authenticate('user', 'pass') is not None",  # noqa: E501
                     "start_line": 10,
                     "end_line": 15,
                     "turn": 3,
@@ -175,7 +168,8 @@ class TestSmartPrioritization:
         assert prioritized[2]["tool"] == "test_runner"
 
     @pytest.mark.skip(
-        reason="Relevance scoring algorithm needs fine-tuning - current score 0.43 vs expected >0.8. Requires algorithmic improvements to content relevance calculation."
+        reason="Relevance scoring algorithm needs fine-tuning - current score 0.43 vs expected "
+        ">0.8. Requires algorithmic improvements to content relevance calculation."
     )
     def test_relevance_scoring_components(self, prioritizer):
         """Test individual relevance scoring components."""
@@ -331,7 +325,8 @@ FAILED tests/test_auth.py::test_validate_token - jwt.exceptions.InvalidKeyError
         }
 
     @pytest.mark.skip(
-        reason="Code summarization needs improved keyword extraction - JWT/token keywords not being preserved in summaries. Requires enhanced code parsing logic."
+        reason="Code summarization needs improved keyword extraction - JWT/token keywords not "
+        "being preserved in summaries. Requires enhanced code parsing logic."
     )
     def test_summarize_code_with_context_awareness(self, summarizer, sample_content):
         """Test context-aware code summarization."""
@@ -637,7 +632,7 @@ class TestContextManagerIntegration:
             critical_turns = [t for t in history if "Critical" in t.get("user_message", "")]
             assert len(critical_turns) > 0  # Should include critical turns
 
-    def test_emergency_optimization_mode(self, context_manager):
+    def test_emergency_optimization_mode(self):
         """Test emergency optimization when normal optimization fails."""
         # Create a context manager with very low token limit to force emergency mode
         mock_client = create_mock_llm_client()
@@ -673,7 +668,9 @@ class TestContextManagerIntegration:
         assert len(history) <= 1  # Should only include most recent
 
     @pytest.mark.skip(
-        reason="Proactive context integration has complex initialization issues - gather_all_context not being called due to mock setup complexity. Requires deeper investigation of context gatherer lifecycle."
+        reason="Proactive context integration has complex initialization issues - "
+        "gather_all_context not being called due to mock setup complexity. Requires deeper "
+        "investigation of context gatherer lifecycle."
     )
     def test_proactive_context_integration(self, context_manager):
         """Test integration of proactive context gathering."""
@@ -693,9 +690,10 @@ class TestContextManagerIntegration:
             assert token_count > 0
 
     @pytest.mark.skip(
-        reason="RAG chunking strategy needs algorithm improvements - current chunking not identifying method chunks correctly. Requires enhanced code structure analysis."
+        reason="RAG chunking strategy needs algorithm improvements - current chunking not "
+        "identifying method chunks correctly. Requires enhanced code structure analysis."
     )
-    def test_chunking_strategy_effectiveness(self, sample_code_files):
+    def test_chunking_strategy_effectiveness(self):
         """Test effectiveness of different chunking strategies."""
         # Test data with clear structural boundaries
         test_code = '''
@@ -723,7 +721,8 @@ class TestClass:
         assert len(method_chunks) >= 2, "Should identify individual methods"
 
     @pytest.mark.skip(
-        reason="Memory usage optimization needs algorithm improvements - current implementation using 102MB vs expected ≤100MB. Requires memory profiling and optimization."
+        reason="Memory usage optimization needs algorithm improvements - current implementation "
+        "using 102MB vs expected ≤100MB. Requires memory profiling and optimization."
     )
     def test_memory_usage_optimization(self):
         """Test memory usage optimization during context assembly."""
@@ -761,7 +760,8 @@ class TestClass:
         assert memory_increase <= 100, f"Memory increase too high: {memory_increase:.1f}MB"
 
     @pytest.mark.skip(
-        reason="Token optimization effectiveness needs algorithm improvements - current ratio 1.05 vs expected <1.0. Requires better optimization strategies."
+        reason="Token optimization effectiveness needs algorithm improvements - current ratio 1.05 "
+        "vs expected <1.0. Requires better optimization strategies."
     )
     def test_token_optimization_effectiveness(self):
         """Test effectiveness of token optimization strategies."""
@@ -862,7 +862,7 @@ class TestAuthManager:
                 auth_chunks = [r for r in results if "authenticate" in r["document"].lower()]
                 assert len(auth_chunks) > 0
 
-    def test_rag_query_relevance_ranking(self, sample_code_files):
+    def test_rag_query_relevance_ranking(self):
         """Test RAG query relevance ranking accuracy."""
         # This test would require actual embeddings, so we'll mock the key components
         with patch("agents.devops.tools.rag_components.retriever.embed_chunks_batch") as mock_embed:

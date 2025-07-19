@@ -48,12 +48,14 @@ class TestEnhancedAgentFeatureParity:
         ]
 
         for agent in factory_based_agents:
-            # These agents should have their sophisticated features (callbacks, generate_config, etc.)
+            # These agents should have their sophisticated features (callbacks, generate_config,
+            # etc.)
             assert hasattr(agent, "tools"), f"Factory-based agent {agent.name} missing tools"
             assert len(agent.tools) > 0, f"Factory-based agent {agent.name} has no tools"
 
         print(
-            f"✅ Efficient approach: {len(agents_with_tools)} agents with tools, {len(factory_based_agents)} use factory functions"
+            f"✅ Efficient approach: {len(agents_with_tools)} agents with tools, "
+            f"{len(factory_based_agents)} use factory functions"
         )
         print("📋 This approach reuses already-loaded tools, avoiding unnecessary re-computation")
 
@@ -66,7 +68,8 @@ class TestEnhancedAgentFeatureParity:
         enhanced_names = [name for name in agent_names if name.startswith("enhanced_")]
 
         assert len(enhanced_names) == 8, (
-            f"Expected all 8 agents to have 'enhanced_' prefix, got {len(enhanced_names)}: {agent_names}"
+            f"Expected all 8 agents to have 'enhanced_' prefix, got {len(enhanced_names)}: "
+            f"{agent_names}"
         )
 
         # Verify no duplicate names
@@ -75,7 +78,8 @@ class TestEnhancedAgentFeatureParity:
         )
 
         print(
-            f"✅ All {len(enhanced_agents)} enhanced agents have unique names to avoid parent conflicts"
+            f"✅ All {len(enhanced_agents)} enhanced agents have unique names to avoid parent "
+            "conflicts"
         )
 
     def test_design_pattern_agent_uses_static_tools_like_original(self):
@@ -127,7 +131,8 @@ class TestEnhancedAgentFeatureParity:
                 )
 
         print(
-            f"✅ Factory function agents ({len(factory_based_agents)}/8) maintain sophisticated features"
+            f"✅ Factory function agents ({len(factory_based_agents)}/8) maintain sophisticated "
+            "features"
         )
         print("📋 Only design_pattern agent uses static tools (by design)")
 

@@ -7,11 +7,7 @@ on prompt adherence, role-based behavior, constraint enforcement, and
 instruction interpretation across different scenarios.
 """
 
-import asyncio
-import json
 import logging
-from typing import Any, Dict, List, Optional
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -53,7 +49,7 @@ class TestSystemInstructionCompliance:
         return create_test_workspace()
 
     @pytest.mark.asyncio
-    async def test_role_based_behavior_consistency(self, mock_llm_client, mock_session_state):
+    async def test_role_based_behavior_consistency(self):
         """Test agent maintains consistent role-based behavior."""
         # Test software engineer agent role consistency
         instruction = software_engineer_agent.instruction.lower()
@@ -70,7 +66,7 @@ class TestSystemInstructionCompliance:
         assert len(instruction) > 100  # Should be substantial
 
     @pytest.mark.asyncio
-    async def test_constraint_enforcement_structure(self, mock_llm_client, mock_session_state):
+    async def test_constraint_enforcement_structure(self):
         """Test agent structure supports constraint enforcement."""
         # Test that sub-agents have specialized constraints
 
@@ -89,7 +85,7 @@ class TestSystemInstructionCompliance:
             assert len(agent.instruction) > 20  # Should have substantial instructions
 
     @pytest.mark.asyncio
-    async def test_output_format_compliance_capability(self, mock_llm_client, mock_session_state):
+    async def test_output_format_compliance_capability(self):
         """Test agent structure supports output format compliance."""
         # Test that agents have generation configuration for formatting
         agents_to_test = [software_engineer_agent, code_quality_agent, testing_agent]
@@ -104,7 +100,7 @@ class TestSystemInstructionCompliance:
             assert has_generation_config
 
     @pytest.mark.asyncio
-    async def test_context_aware_instruction_structure(self, mock_llm_client, mock_session_state):
+    async def test_context_aware_instruction_structure(self):
         """Test agent structure supports context-aware instruction following."""
         # Test software engineer agent's context awareness through sub-agents
         assert hasattr(software_engineer_agent, "sub_agents")
@@ -130,9 +126,7 @@ class TestSystemInstructionCompliance:
         assert len(found_contexts) >= 3
 
     @pytest.mark.asyncio
-    async def test_multi_turn_instruction_consistency_structure(
-        self, mock_llm_client, mock_session_state
-    ):
+    async def test_multi_turn_instruction_consistency_structure(self):
         """Test agent structure supports multi-turn instruction consistency."""
         # Test that agents have state management capabilities
 
@@ -145,9 +139,7 @@ class TestSystemInstructionCompliance:
             )
 
     @pytest.mark.asyncio
-    async def test_conditional_instruction_following_structure(
-        self, mock_llm_client, mock_session_state
-    ):
+    async def test_conditional_instruction_following_structure(self):
         """Test agent structure supports conditional instruction following."""
         # Test that different sub-agents handle different conditions
         sub_agents = software_engineer_agent.sub_agents
@@ -164,9 +156,7 @@ class TestSystemInstructionCompliance:
             assert len(instruction) > 30
 
     @pytest.mark.asyncio
-    async def test_instruction_priority_resolution_structure(
-        self, mock_llm_client, mock_session_state
-    ):
+    async def test_instruction_priority_resolution_structure(self):
         """Test agent structure supports instruction priority resolution."""
         # Test that the main agent can coordinate with sub-agents (priority resolution)
         assert hasattr(software_engineer_agent, "sub_agents")
@@ -201,9 +191,7 @@ class TestSystemInstructionCompliance:
         assert len(set(specialization_found)) >= 2
 
     @pytest.mark.asyncio
-    async def test_instruction_interpretation_edge_cases_structure(
-        self, mock_llm_client, mock_session_state
-    ):
+    async def test_instruction_interpretation_edge_cases_structure(self):
         """Test agent structure supports edge case handling."""
         # Test that agents have comprehensive instructions to handle edge cases
         agents_to_test = [software_engineer_agent, code_quality_agent, testing_agent]
@@ -218,9 +206,7 @@ class TestSystemInstructionCompliance:
             assert len(agent.description) > 10
 
     @pytest.mark.asyncio
-    async def test_system_instruction_inheritance_structure(
-        self, mock_llm_client, mock_session_state
-    ):
+    async def test_system_instruction_inheritance_structure(self):
         """Test that system instructions are properly structured in the hierarchy."""
         # Main agent should have general instructions
         main_agent = software_engineer_agent
@@ -240,9 +226,7 @@ class TestSystemInstructionCompliance:
             assert len(sub_agent.instruction.strip()) > 30
 
     @pytest.mark.asyncio
-    async def test_instruction_validation_and_compliance_readiness(
-        self, mock_llm_client, mock_session_state
-    ):
+    async def test_instruction_validation_and_compliance_readiness(self):
         """Test that the agent structure is ready for instruction compliance validation."""
         # Test that agents have the necessary structure for compliance testing
         test_agents = [software_engineer_agent, *software_engineer_agent.sub_agents]

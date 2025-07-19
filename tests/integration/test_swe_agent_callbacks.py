@@ -8,12 +8,11 @@ and performance monitoring.
 Based on Google ADK patterns and the project's multi-agent architecture.
 """
 
-import asyncio
 from dataclasses import dataclass, field
 import logging
 import time
-from typing import Any, Dict, List, Optional
-from unittest.mock import AsyncMock, MagicMock, patch
+from typing import Any
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -25,16 +24,11 @@ from agents.software_engineer.shared_libraries.callbacks import (
 
 # Test utilities
 from tests.fixtures.test_helpers import (
-    MockCallbackContext,
     MockInvocationContext,
     MockLlmRequest,
     MockLlmResponse,
     MockTool,
     MockToolContext,
-    create_mock_agent,
-    create_mock_llm_client,
-    create_mock_session_state,
-    run_with_timeout,
 )
 
 logger = logging.getLogger(__name__)
@@ -265,9 +259,7 @@ class TestBasicCallbacks:
         assert hasattr(mock_invocation_context, "_model_request_start_time")
         assert isinstance(mock_invocation_context._model_request_start_time, float)
 
-    def test_basic_after_model_callback(
-        self, mock_llm_request, mock_llm_response, mock_invocation_context, caplog
-    ):
+    def test_basic_after_model_callback(self, mock_llm_response, mock_invocation_context, caplog):
         """Test basic after_model callback execution."""
         callbacks = create_telemetry_callbacks("test_agent")
         after_model_callback = callbacks["after_model"]
@@ -500,7 +492,8 @@ class TestEnhancedCallbacks:
         mock_test_tool,
     ):
         """Test that enhanced callbacks track session metrics correctly."""
-        # Use basic callbacks for testing metrics tracking since enhanced callbacks fall back to basic when telemetry is not available
+        # Use basic callbacks for testing metrics tracking since enhanced callbacks fall back to
+        # basic when telemetry is not available
         callbacks = create_telemetry_callbacks("test_agent")
         before_agent = callbacks["before_agent"]
         after_agent = callbacks["after_agent"]
@@ -736,7 +729,7 @@ class TestCallbackIntegration:
     """Test callback integration functionality."""
 
     @pytest.mark.asyncio
-    async def test_callback_execution_order(self, callback_collector):
+    async def test_callback_execution_order(self):
         """Test that callbacks execute in the correct order during agent execution."""
         callbacks = create_telemetry_callbacks("test_agent")
         before_agent = callbacks["before_agent"]
@@ -780,7 +773,7 @@ class TestCallbackIntegration:
         assert metrics["total_output_tokens"] == 200
 
     @pytest.mark.asyncio
-    async def test_callback_with_multiple_tools(self, callback_collector):
+    async def test_callback_with_multiple_tools(self):
         """Test callback behavior with multiple tool executions."""
         callbacks = create_telemetry_callbacks("test_agent")
         before_tool, after_tool = callbacks["before_tool"], callbacks["after_tool"]

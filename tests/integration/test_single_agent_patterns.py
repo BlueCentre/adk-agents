@@ -6,11 +6,7 @@ based on Google ADK integration testing approaches. These tests focus
 on fundamental agent behaviors and instruction compliance.
 """
 
-import asyncio
-import json
 import logging
-from typing import Any, Dict, List, Optional
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -49,7 +45,7 @@ class TestSingleAgentPatterns:
         return create_test_workspace()
 
     @pytest.mark.asyncio
-    async def test_single_agent_basic_response_structure(self, mock_llm_client, mock_session_state):
+    async def test_single_agent_basic_response_structure(self):
         """Test basic agent response generation structure."""
         # Test the software engineer agent structure
         assert hasattr(software_engineer_agent, "name")
@@ -63,7 +59,7 @@ class TestSingleAgentPatterns:
         assert len(software_engineer_agent.instruction) > 0
 
     @pytest.mark.asyncio
-    async def test_single_agent_instruction_structure(self, mock_llm_client, mock_session_state):
+    async def test_single_agent_instruction_structure(self):
         """Test agent instruction structure and content."""
         # Verify the software engineer agent has proper instructions
         assert hasattr(software_engineer_agent, "instruction")
@@ -86,9 +82,7 @@ class TestSingleAgentPatterns:
         )
 
     @pytest.mark.asyncio
-    async def test_single_agent_tool_availability(
-        self, mock_llm_client, mock_session_state, test_workspace
-    ):
+    async def test_single_agent_tool_availability(self):
         """Test agent has tools configured correctly."""
         # Verify the software engineer agent has tools
         assert hasattr(software_engineer_agent, "tools")
@@ -100,7 +94,7 @@ class TestSingleAgentPatterns:
             assert hasattr(tool, "name") or hasattr(tool, "__class__")
 
     @pytest.mark.asyncio
-    async def test_single_agent_model_configuration(self, mock_llm_client, mock_session_state):
+    async def test_single_agent_model_configuration(self):
         """Test agent model configuration."""
         # Verify the software engineer agent has a model configured
         assert hasattr(software_engineer_agent, "model")
@@ -112,7 +106,7 @@ class TestSingleAgentPatterns:
         )
 
     @pytest.mark.asyncio
-    async def test_single_agent_sub_agent_structure(self, mock_llm_client, mock_session_state):
+    async def test_single_agent_sub_agent_structure(self):
         """Test agent sub-agent management structure."""
         # Verify the software engineer agent has sub-agents
         assert hasattr(software_engineer_agent, "sub_agents")
@@ -125,7 +119,7 @@ class TestSingleAgentPatterns:
             assert hasattr(sub_agent, "description")
 
     @pytest.mark.asyncio
-    async def test_agent_class_structure(self, mock_llm_client, mock_session_state):
+    async def test_agent_class_structure(self):
         """Test the MyDevopsAgent class has the expected structure."""
         # Test class attributes and methods without instantiation
         assert hasattr(MyDevopsAgent, "__init__")
@@ -147,7 +141,7 @@ class TestSingleAgentPatterns:
             )
 
     @pytest.mark.asyncio
-    async def test_agent_output_capabilities(self, mock_llm_client, mock_session_state):
+    async def test_agent_output_capabilities(self):
         """Test agent output and response capabilities."""
         # Test the software engineer agent's output configuration
         assert hasattr(software_engineer_agent, "output_key")
@@ -158,7 +152,7 @@ class TestSingleAgentPatterns:
         assert len(software_engineer_agent.name) > 0
 
     @pytest.mark.asyncio
-    async def test_agent_role_consistency_structure(self, mock_llm_client, mock_session_state):
+    async def test_agent_role_consistency_structure(self):
         """Test agent maintains consistent role structure."""
         # Check that the software engineer agent has role-appropriate configuration
         instruction = software_engineer_agent.instruction.lower()
@@ -177,7 +171,7 @@ class TestSingleAgentPatterns:
         assert len(software_engineer_agent.sub_agents) > 3  # Should have multiple specializations
 
     @pytest.mark.asyncio
-    async def test_agent_boundary_and_scope_structure(self, mock_llm_client, mock_session_state):
+    async def test_agent_boundary_and_scope_structure(self):
         """Test agent has proper boundary and scope definition."""
         # Software engineer agent should have defined scope through sub-agents
         sub_agent_names = [agent.name for agent in software_engineer_agent.sub_agents]

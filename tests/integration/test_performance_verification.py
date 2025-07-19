@@ -7,17 +7,12 @@ comparison, token optimization validation, and resource utilization monitoring.
 """
 
 import asyncio
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 import json
 import logging
 import os
-from pathlib import Path
 import statistics
-import tempfile
 import time
-from typing import Any, Dict, List, Optional, Tuple
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import psutil
 import pytest
@@ -25,20 +20,11 @@ import pytest
 # Import system components
 from agents.devops.components.context_management import ContextManager
 from agents.devops.components.context_management.cross_turn_correlation import CrossTurnCorrelator
-from agents.devops.components.context_management.dynamic_context_expansion import (
-    DynamicContextExpander,
-)
-from agents.devops.components.context_management.intelligent_summarization import (
-    IntelligentSummarizer,
-)
-from agents.devops.components.context_management.smart_prioritization import SmartPrioritizer
 
 # Test utilities
 from tests.fixtures.test_helpers import (
     create_mock_llm_client,
-    create_mock_session_state,
     create_performance_test_data,
-    create_test_workspace,
 )
 
 logger = logging.getLogger(__name__)
@@ -186,7 +172,8 @@ class TestPerformanceVerification:
         # Add large amounts of context data
         for i in range(100):
             context_manager.start_new_turn(
-                f"Test user message {i} with substantial content to test token counting and context assembly performance"
+                f"Test user message {i} with substantial content to test token counting and "
+                "context assembly performance"
             )
 
             # Add code snippets
@@ -206,7 +193,7 @@ class TestPerformanceVerification:
 
         # Measure context assembly performance
         assembly_times = []
-        for i in range(10):
+        for _ in range(10):
             start_time = time.time()
             context_dict, token_count = context_manager.assemble_context(5000)
             assembly_time = time.time() - start_time
@@ -227,7 +214,8 @@ class TestPerformanceVerification:
         assert metrics.token_count > 0, "No tokens were processed"
 
         logger.info(
-            f"Context assembly performance: {avg_assembly_time:.3f}s avg, {metrics.memory_usage_mb:.1f}MB memory"
+            f"Context assembly performance: {avg_assembly_time:.3f}s avg, "
+            f"{metrics.memory_usage_mb:.1f}MB memory"
         )
 
     @pytest.mark.asyncio
@@ -279,11 +267,13 @@ class TestPerformanceVerification:
         )
 
         logger.info(
-            f"Sequential: {sequential_time:.3f}s, Parallel: {parallel_time:.3f}s, Speedup: {speedup:.2f}x"
+            f"Sequential: {sequential_time:.3f}s, Parallel: {parallel_time:.3f}s, "
+            f"Speedup: {speedup:.2f}x"
         )
 
     @pytest.mark.skip(
-        reason="Token optimization performance needs algorithm improvements - current implementation exceeds 1000 token limit (1007). Requires better budget management."
+        reason="Token optimization performance needs algorithm improvements - current "
+        "implementation exceeds 1000 token limit (1007). Requires better budget management."
     )
     def test_token_optimization_performance(self):
         """Test token optimization performance under constraints."""
@@ -310,7 +300,8 @@ class TestPerformanceVerification:
         assert len(context_dict["conversation_history"]) > 0
 
     @pytest.mark.skip(
-        reason="Smart prioritization performance needs memory optimization - current memory usage 470.5MB vs expected <100MB. Requires memory profiling and optimization."
+        reason="Smart prioritization performance needs memory optimization - current memory "
+        "usage 470.5MB vs expected <100MB. Requires memory profiling and optimization."
     )
     def test_smart_prioritization_performance(self):
         """Test smart prioritization performance and memory usage."""
@@ -348,7 +339,7 @@ class TestPerformanceVerification:
         assert "conversation_history" in context_dict
 
     @pytest.mark.asyncio
-    async def test_cross_turn_correlation_performance(self, context_manager, performance_monitor):
+    async def test_cross_turn_correlation_performance(self, performance_monitor):
         """Test cross-turn correlation performance."""
 
         # Setup correlation test
@@ -508,7 +499,8 @@ class TestPerformanceVerification:
         )
 
         logger.info(
-            f"Load test: {total_operations} ops, {success_rate:.2f} success rate, {metrics.throughput_ops_per_sec:.1f} ops/sec"
+            f"Load test: {total_operations} ops, {success_rate:.2f} success rate, "
+            f"{metrics.throughput_ops_per_sec:.1f} ops/sec"
         )
 
     @pytest.mark.asyncio
@@ -560,7 +552,8 @@ class TestPerformanceVerification:
         )
 
         logger.info(
-            f"Memory optimization: {total_memory_growth:.1f}MB growth, {metrics.memory_usage_mb:.1f}MB peak"
+            f"Memory optimization: {total_memory_growth:.1f}MB growth, "
+            f"{metrics.memory_usage_mb:.1f}MB peak"
         )
 
     @pytest.mark.asyncio
@@ -804,5 +797,6 @@ class TestStressTests:
         total_growth = final_memory - initial_memory
 
         logger.info(
-            f"Memory exhaustion recovery: {total_growth:.1f}MB growth, {token_count:,} tokens assembled"
+            f"Memory exhaustion recovery: {total_growth:.1f}MB growth, {token_count:,} "
+            "tokens assembled"
         )

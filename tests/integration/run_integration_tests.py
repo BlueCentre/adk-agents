@@ -9,16 +9,13 @@ and coverage analysis.
 
 import argparse
 import asyncio
-import concurrent.futures
+from asyncio import subprocess
 from datetime import datetime
 import json
 import logging
-import os
 from pathlib import Path
-import subprocess
 import sys
 import time
-from typing import Dict, List, Optional, Tuple
 
 # Add the project root to the Python path
 project_root = Path(__file__).parent.parent.parent
@@ -195,7 +192,7 @@ class IntegrationTestRunner:
         self.test_suites.append(
             TestSuite(
                 name="Multi-Agent Coordination Evaluation Tests",
-                description="Evaluation-based tests for multi-agent coordination patterns following ADK evaluation framework",
+                description="Evaluation-based tests for multi-agent coordination patterns following ADK evaluation framework",  # noqa: E501
                 tests=[
                     "tests/integration/test_adk_evaluation_patterns.py::TestADKEvaluationPatterns::test_multi_agent_coordination_evaluation",
                 ],
@@ -206,7 +203,7 @@ class IntegrationTestRunner:
         self.test_suites.append(
             TestSuite(
                 name="Agent Memory and Persistence Evaluation Tests",
-                description="Evaluation-based tests for agent memory and persistence mechanisms following ADK evaluation framework",
+                description="Evaluation-based tests for agent memory and persistence mechanisms following ADK evaluation framework",  # noqa: E501
                 tests=[
                     "tests/integration/test_adk_evaluation_patterns.py::TestADKEvaluationPatterns::test_agent_memory_persistence_evaluation",
                 ],
@@ -498,7 +495,8 @@ class IntegrationTestRunner:
             slow_tests = [r for r in suite.results if r.duration > slow_threshold]
             if slow_tests:
                 recommendations.append(
-                    f"⏱️ {suite.name} has {len(slow_tests)} slow tests (>{slow_threshold}s) - consider optimization"
+                    f"⏱️ {suite.name} has {len(slow_tests)} slow tests (>{slow_threshold}s) - "
+                    "consider optimization"
                 )
 
         # Check overall success rate
@@ -508,7 +506,8 @@ class IntegrationTestRunner:
 
         if success_rate < 95.0:
             recommendations.append(
-                f"🎯 Overall success rate is {success_rate:.1f}% - aim for >95% for production readiness"
+                f"🎯 Overall success rate is {success_rate:.1f}% - aim for >95% for production "
+                "readiness"
             )
         elif success_rate == 100.0:
             recommendations.append("🎉 Perfect test suite! All tests passing - excellent work!")
@@ -528,7 +527,7 @@ class IntegrationTestRunner:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         report_file = reports_dir / f"integration_test_report_{timestamp}.json"
 
-        with open(report_file, "w") as f:
+        with Path.open(report_file, "w") as f:
             json.dump(report, f, indent=2)
 
         logger.info(f"📊 Comprehensive report saved to: {report_file}")
@@ -551,18 +550,22 @@ class IntegrationTestRunner:
         for suite_data in report["test_suites"]:
             status = "✅" if suite_data["failed_count"] == 0 else "❌"
             print(
-                f"  {status} {suite_data['name']}: {suite_data['passed_count']}/{len(suite_data['tests'])} passed ({suite_data['success_rate']:.1f}%)"
+                f"  {status} {suite_data['name']}:"
+                f" {suite_data['passed_count']}/{len(suite_data['tests'])} passed"
+                f" ({suite_data['success_rate']:.1f}%)"
             )
 
         print("\n⚡ PERFORMANCE METRICS:")
         perf = report["performance_metrics"]
         if perf.get("fastest_test"):
             print(
-                f"  Fastest Test: {perf['fastest_test']['name']} ({perf['fastest_test']['duration']:.3f}s)"
+                f"  Fastest Test: {perf['fastest_test']['name']}"
+                f" ({perf['fastest_test']['duration']:.3f}s)"
             )
         if perf.get("slowest_test"):
             print(
-                f"  Slowest Test: {perf['slowest_test']['name']} ({perf['slowest_test']['duration']:.3f}s)"
+                f"  Slowest Test: {perf['slowest_test']['name']}"
+                f" ({perf['slowest_test']['duration']:.3f}s)"
             )
         if perf.get("average_test_duration"):
             print(f"  Average Test Duration: {perf['average_test_duration']:.3f}s")

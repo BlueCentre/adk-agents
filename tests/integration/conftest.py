@@ -12,34 +12,19 @@ import os
 from pathlib import Path
 import tempfile
 import time
-from typing import Any, Dict, List, Optional
-from unittest.mock import AsyncMock, MagicMock
+from typing import Any, Optional
+from unittest.mock import MagicMock
 
 import pytest
 
 # Import test helpers
 from tests.fixtures.test_helpers import (
-    MetricsCollector,
-    MockCallbackContext,
-    MockEvent,
-    MockInvocationContext,
-    MockLlmResponse,
-    MockTool,
-    MockToolContext,
-    create_error_scenarios,
-    create_mock_agent,
-    create_mock_agent_with_tools,
-    create_mock_context_manager_with_sample_data,
     create_mock_llm_client,
     create_mock_session_state,
-    create_mock_workflow_agents,
     create_performance_test_data,
-    create_sample_app_state,
     create_sample_code_snippets,
     create_sample_conversation_history,
     create_test_workspace,
-    patch_human_approval_responses,
-    run_with_timeout,
 )
 
 # Configure logging for integration tests
@@ -88,7 +73,7 @@ class MockContextManager:
         )
         return turn_number
 
-    def assemble_context(self, token_limit):
+    def assemble_context(self, _token_limit):
         context_dict = {
             "conversation_history": self.conversation_history,
             "code_snippets": self.code_snippets,
@@ -107,7 +92,7 @@ class MockContextManager:
 class MockSmartPrioritizer:
     """Mock smart prioritizer for testing."""
 
-    def prioritize_code_snippets(self, snippets, context, current_turn=1):
+    def prioritize_code_snippets(self, snippets, _context, _current_turn=1):
         # Simple prioritization - just add relevance scores
         for snippet in snippets:
             snippet["_relevance_score"] = MagicMock(final_score=0.5)
@@ -124,14 +109,14 @@ class MockCrossTurnCorrelator:
 class MockIntelligentSummarizer:
     """Mock intelligent summarizer for testing."""
 
-    def summarize_content(self, content, max_tokens=500):
+    def summarize_content(self, _content, _max_tokens=500):
         return {"summary": "Test summary", "token_count": 100}
 
 
 class MockRAGSystem:
     """Mock RAG system for testing."""
 
-    def query(self, query, top_k=5):
+    def query(self, _query, top_k=5):
         return [{"content": f"RAG result {i}", "score": 0.9 - i * 0.1} for i in range(top_k)]
 
 
@@ -174,14 +159,14 @@ class MockSWEAgent(MockAgent):
 class MockWorkflowEngine:
     """Mock workflow engine for testing."""
 
-    async def execute_workflow(self, workflow_type, agents, config=None):
+    async def execute_workflow(self, workflow_type, agents, config=None):  # noqa: ARG002
         return {"workflow_type": workflow_type, "agents": len(agents), "success": True}
 
 
 class MockToolOrchestrator:
     """Mock tool orchestrator for testing."""
 
-    async def execute_tool(self, tool_name, args, dependencies=None, tool_id=None):
+    async def execute_tool(self, tool_name, args, dependencies=None, tool_id=None):  # noqa: ARG002
         return MagicMock(
             status="COMPLETED",
             result={"tool": tool_name, "success": True},
@@ -333,7 +318,7 @@ def pytest_configure(config):
     logger.info("Integration test environment configured")
 
 
-def pytest_unconfigure(config):
+def pytest_unconfigure(config):  # noqa: ARG001
     """Cleanup after integration tests."""
     # Clean up environment variables
     env_vars = [
@@ -373,7 +358,7 @@ def integration_test_env():
     # Cleanup
     import shutil
 
-    if os.path.exists(env["workspace_dir"]):
+    if Path(env["workspace_dir"]).exists():
         shutil.rmtree(env["workspace_dir"], ignore_errors=True)
 
 
@@ -779,9 +764,9 @@ def cleanup_after_test():
     ]
 
     for temp_file in temp_files:
-        if os.path.exists(temp_file):
+        if Path(temp_file).exists():
             try:
-                os.remove(temp_file)
+                Path(temp_file).unlink()
             except Exception as e:
                 logger.warning(f"Failed to cleanup {temp_file}: {e}")
 
@@ -804,7 +789,7 @@ def setup_integration_test_session():
         "environment": "integration_test",
     }
 
-    with open(reports_dir / "session_info.json", "w") as f:
+    with Path.open(reports_dir / "session_info.json", "w") as f:
         json.dump(session_info, f, indent=2)
 
     yield session_info
@@ -816,7 +801,7 @@ def setup_integration_test_session():
     session_info["end_time"] = time.time()
     session_info["duration"] = session_info["end_time"] - session_info["start_time"]
 
-    with open(reports_dir / "session_info.json", "w") as f:
+    with Path.open(reports_dir / "session_info.json", "w") as f:
         json.dump(session_info, f, indent=2)
 
 

@@ -6,11 +6,7 @@ based on Google ADK integration testing approaches. These tests focus
 on agent structure and basic multi-agent concepts.
 """
 
-import asyncio
-import json
 import logging
-from typing import Any, Dict, List, Optional
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -274,7 +270,8 @@ class TestSubAgentDelegation:
             assert "test-server" in available_servers["sub_agent"]
 
         except Exception as e:
-            # If MCP configuration fails, just log it - it might not be available in test environment
+            # If MCP configuration fails, just log it - it might not be available in test
+            # environment
             logger.warning(f"MCP configuration test failed (expected in test environment): {e}")
 
     @pytest.mark.asyncio
@@ -418,7 +415,7 @@ class TestSubAgentDelegation:
         )
 
     @pytest.mark.asyncio
-    async def test_devops_agent_class_structure(self, mock_llm_client):
+    async def test_devops_agent_class_structure(self):
         """Test that the MyDevopsAgent class has the expected structure for delegation."""
         # Test class attributes and methods without instantiation
         assert hasattr(MyDevopsAgent, "__init__")
@@ -495,7 +492,7 @@ class TestSubAgentDelegation:
             assert hasattr(agent, "tools")
 
     @pytest.mark.asyncio
-    async def test_delegation_readiness_structure(self, mock_llm_client):
+    async def test_delegation_readiness_structure(self):
         """Test that the agent structure supports delegation patterns."""
         # Test that the software engineer agent can coordinate with sub-agents
         assert hasattr(software_engineer_agent, "sub_agents")
