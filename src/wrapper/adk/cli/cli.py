@@ -38,6 +38,14 @@ from rich.console import Console
 
 from .utils import envs  # Modified to use our packaged path
 from .utils.agent_loader import AgentLoader  # Modified to use our packaged path
+from .utils.command_handling import (  # Import for refactoring
+    CommandHandler,
+    CommandResult,
+    ConsoleCommandDisplay,
+    ConsoleThemeHandler,
+    TUICommandDisplay,
+    TUIThemeHandler,
+)
 from .utils.error_handling import (  # Import for refactoring
     ConsoleErrorDisplay,
     ErrorHandler,
@@ -50,7 +58,6 @@ from .utils.event_processing import (  # Import for refactoring
 )
 from .utils.runner_factory import RunnerFactory  # Import for refactoring
 from .utils.ui import get_cli_instance, get_textual_cli_instance
-from .utils.ui_common import UITheme
 
 logger = logging.getLogger(__name__)
 
@@ -169,6 +176,22 @@ async def run_interactively(
     event_display = ConsoleEventDisplay(console, cli=cli, fallback_mode=fallback_mode)
     event_processor = AgentEventProcessor(event_display)
 
+    # Create command handler for this UI mode
+    command_display = ConsoleCommandDisplay(
+        console, cli=cli, fallback_mode=fallback_mode
+    )
+
+    def recreate_prompt_session():
+        """Recreate the prompt session with the new theme."""
+        nonlocal prompt_session
+        if cli:
+            prompt_session = cli.create_enhanced_prompt_session(
+                root_agent.name, session.id
+            )
+
+    theme_handler = ConsoleThemeHandler(cli, recreate_prompt_session)
+    command_handler = CommandHandler(command_display, theme_handler)
+
     while True:
         # Display the user input prompt
         try:
@@ -206,43 +229,14 @@ async def run_interactively(
         # Handle special independent commands
         if not query or not query.strip():
             continue
-        if query.strip().lower() in ["exit", "quit", "bye"]:
-            output_console = (
-                console if fallback_mode else (cli.console if cli else console)
-            )
-            output_console.print("👋 [warning]Goodbye![/warning]")
+
+        # Use CommandHandler to process built-in commands
+        command_result = command_handler.process_command(query)
+        if command_result == CommandResult.EXIT_REQUESTED:
             break
-        # Handle special mutually exclusive commands
-        if query.strip().lower() == "clear":
-            output_console = (
-                console if fallback_mode else (cli.console if cli else console)
-            )
-            output_console.clear()
+        elif command_result == CommandResult.HANDLED:
             continue
-        elif query.strip().lower() == "help":
-            if not fallback_mode and cli:
-                cli.print_help()
-            else:
-                console.print("[blue]Available Commands:[/blue]")
-                console.print("  • exit, quit, bye - Exit the CLI")
-                console.print("  • clear - Clear the screen")
-                console.print("  • help - Show this help message")
-            continue
-        elif query.strip().lower().startswith("theme") and not fallback_mode and cli:
-            theme_cmd = query.strip().lower().split()
-            if len(theme_cmd) == 1 or theme_cmd[1] == "toggle":
-                cli.toggle_theme()
-                # Recreate prompt session with new theme
-                prompt_session = cli.create_enhanced_prompt_session(
-                    root_agent.name, session.id
-                )
-            elif len(theme_cmd) == 2 and theme_cmd[1] in ["dark", "light"]:
-                cli.set_theme(UITheme(theme_cmd[1]))
-                # Recreate prompt session with new theme
-                prompt_session = cli.create_enhanced_prompt_session(
-                    root_agent.name, session.id
-                )
-            continue
+        # If NOT_HANDLED, continue to agent processing
 
         # Run the agent and process events with error handling
         try:
@@ -307,11 +301,23 @@ async def run_interactively_with_tui(
     event_display = TUIEventDisplay(app_tui)
     event_processor = AgentEventProcessor(event_display)
 
+    # Create command handler for TUI mode
+    command_display = TUICommandDisplay(app_tui)
+    theme_handler = TUIThemeHandler(app_tui)
+    command_handler = CommandHandler(command_display, theme_handler)
+
     # App TUI handlers for user input and interruption
     async def handle_user_input(user_input: str):
         """Handle user input by running the agent and processing output."""
         try:
-            # Display the user input in the UI
+            # Use CommandHandler to process built-in commands first
+            command_result = command_handler.process_command(user_input)
+            if command_result == CommandResult.EXIT_REQUESTED:
+                return  # TUI will exit via command_handler
+            elif command_result == CommandResult.HANDLED:
+                return  # Command was handled, don't process further
+
+            # Display the user input in the UI (only for agent queries)
             app_tui.add_output(
                 f"🔄 Processing: {user_input}",
                 author="User",

@@ -2,21 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, List, Protocol
-
-from google.genai import types
-
-
-@dataclass
-class ProcessedAgentEvent:
-    """Represents a processed agent event with categorized content parts."""
-
-    regular_text: str
-    thought_parts: List[types.Part]
-    function_parts: List[types.Part]
-    author: str
-    usage_metadata: Any = None
+from typing import Any, Protocol
 
 
 class EventDisplayInterface(Protocol):
@@ -93,38 +79,6 @@ class AgentEventProcessor:
         if hasattr(event, "usage_metadata") and event.usage_metadata:
             self.display_interface.display_usage_metadata(
                 event.usage_metadata, model_name
-            )
-
-    def display_processed_event(
-        self, processed_event: ProcessedAgentEvent, model_name: str = "Unknown"
-    ) -> None:
-        """
-        Display a processed agent event using the configured display interface.
-
-        Args:
-            processed_event: The processed event to display
-            model_name: The name of the model (for usage metadata display)
-        """
-        # Display function content
-        for part in processed_event.function_parts:
-            if part.text:
-                self.display_interface.display_function_content(part.text)
-
-        # Display thought content
-        for part in processed_event.thought_parts:
-            if part.text:
-                self.display_interface.display_agent_thought(part.text)
-
-        # Display regular content
-        if processed_event.regular_text.strip():
-            self.display_interface.display_agent_response(
-                processed_event.regular_text, processed_event.author
-            )
-
-        # Display usage metadata if available
-        if processed_event.usage_metadata:
-            self.display_interface.display_usage_metadata(
-                processed_event.usage_metadata, model_name
             )
 
 

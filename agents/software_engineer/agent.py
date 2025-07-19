@@ -20,51 +20,10 @@ from .sub_agents.ollama.agent import ollama_agent
 from .sub_agents.testing.agent import testing_agent
 from .tools.setup import load_all_tools_and_toolsets
 
-# from .tools import (
-#     codebase_search_tool,
-#     edit_file_tool,
-#     execute_shell_command_tool,
-#     get_os_info_tool,
-#     list_dir_tool,
-#     read_file_tool,
-# )
-
-# from typing import Optional, Any, Dict, List
-
-
-# from .tools.memory_tools import add_memory_fact, search_memory_facts
-# from .tools.project_context import load_project_context
-
-
 # litellm.turn_off_message_logging()
 
 logging.getLogger("LiteLLM").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
-
-# def initialize_session_memory(tool_context):
-#     """Initialize session memory in tool_context if it doesn't exist."""
-#     if not hasattr(tool_context, "session_state"):
-#         logger.warning("Tool context does not have session_state. Cannot initialize memory.")
-#         return
-
-#     if "memory" not in tool_context.session_state:
-#         logger.info("Initializing agent session memory.")
-#         tool_context.session_state["memory"] = {
-#             "context": {
-#                 "project_path": None,
-#                 "current_file": None,
-#             },
-#             "tasks": {
-#                 "active_task": None,
-#                 "completed_tasks": [],
-#             },
-#             "history": {
-#                 "last_read_file": None,
-#                 "last_search_query": None,
-#                 "last_error": None,
-#             },
-#             "user_preferences": {},
-#         }
 
 # Load tools synchronously (MCP tools will be loaded later if in async context)
 tools = load_all_tools_and_toolsets()
@@ -95,18 +54,6 @@ root_agent = Agent(
         ollama_agent,  # 8. Local model sandbox environment
     ],
     tools=tools,
-    # tools=[
-    #     read_file_tool,
-    #     list_dir_tool,
-    #     edit_file_tool,
-    #     execute_shell_command_tool,
-    #     codebase_search_tool,
-    #     get_os_info_tool,
-    #     # Memory Tools
-    #     load_memory,
-    #     # add_memory_fact,
-    #     # search_memory_facts,
-    # ],
     # Add telemetry callbacks for observability
     before_agent_callback=callbacks["before_agent"],
     after_agent_callback=callbacks["after_agent"],

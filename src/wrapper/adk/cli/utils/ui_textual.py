@@ -379,7 +379,7 @@ class AgentTUI(App):
             status_bar_widget = self.query_one("#status-bar", Static)
             status_bar_widget.update(status_text)
 
-        except Exception as e:
+        except Exception:
             # Silently fail footer updates to avoid disrupting the UI
             pass
 
@@ -676,7 +676,7 @@ class AgentTUI(App):
                     tool_name, error_msg
                 )
                 event_log.write(content_panel)
-        except Exception as e:
+        except Exception:
             # Fallback to regular output if thought pane fails
             self.add_output(f"Tool {event_type}: {tool_name}", style="info")
 
@@ -727,7 +727,7 @@ class AgentTUI(App):
             content_panel = self.rich_renderer.format_agent_thought(thought_text)
             event_log = self.query_one("#event-log", RichLog)
             event_log.write(content_panel)
-        except Exception as e:
+        except Exception:
             # Fallback to regular output if thought pane fails
             self.add_output(f"💭 {thought_text}", style="info")
 
@@ -862,7 +862,7 @@ class AgentTUI(App):
                 )
                 event_log.write(content_panel)
 
-            except Exception as e:
+            except Exception:
                 self.add_output(f"📊 Model Usage: {total_tokens} tokens", style="info")
         # else:
         #     # If thoughts are disabled, show in main output as before

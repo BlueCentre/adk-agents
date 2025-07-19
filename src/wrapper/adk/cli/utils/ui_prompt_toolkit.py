@@ -7,15 +7,11 @@ from typing import Awaitable, Callable, Optional
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
-from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.history import InMemoryHistory
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.styles import Style
 from rich.console import Console
-from rich.markdown import Markdown
-from rich.panel import Panel
-from rich.text import Text
 
 from .ui_common import StatusBar, ThemeConfig, UITheme
 from .ui_rich import RichRenderer
@@ -81,7 +77,7 @@ class EnhancedCLI:
         """Safely format the toolbar with error handling."""
         try:
             return self.status_bar.format_toolbar(agent_name, session_id)
-        except Exception as e:
+        except Exception:
             # Fallback to simple toolbar if formatting fails
             return f" 🤖 {agent_name} | Session: {session_id[:8]}... | 💡 Alt+Enter:multi-line | 🚪 Ctrl+D:exit"
 

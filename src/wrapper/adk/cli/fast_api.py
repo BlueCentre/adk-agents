@@ -49,8 +49,6 @@ from google.adk.evaluation.eval_metrics import (
     EvalMetricResultPerInvocation,
 )
 from google.adk.evaluation.eval_result import EvalSetResult
-from google.adk.evaluation.gcs_eval_set_results_manager import GcsEvalSetResultsManager
-from google.adk.evaluation.gcs_eval_sets_manager import GcsEvalSetsManager
 from google.adk.evaluation.local_eval_set_results_manager import LocalEvalSetResultsManager
 from google.adk.evaluation.local_eval_sets_manager import LocalEvalSetsManager
 from google.adk.events.event import Event

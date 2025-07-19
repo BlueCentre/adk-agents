@@ -584,8 +584,8 @@ class TestInteractiveMode:
         # Verify help was called
         mock_cli.print_help.assert_called()
 
-        # Verify console clear was called
-        mock_cli.console.clear.assert_called()
+        # Verify console clear was called (now handled by ConsoleCommandDisplay)
+        mock_console.clear.assert_called()
 
     @pytest.mark.asyncio
     @patch("src.wrapper.adk.cli.cli.get_cli_instance")

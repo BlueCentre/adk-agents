@@ -191,7 +191,7 @@ class TestRunInteractively:
 
         # Assertions
         mock_cli.print_help.assert_called_once()
-        mock_cli.console.clear.assert_called_once()
+        mock_console.clear.assert_called_once()  # Now handled by ConsoleCommandDisplay
         mock_cli.set_theme.assert_called_once()
 
     @pytest.mark.asyncio

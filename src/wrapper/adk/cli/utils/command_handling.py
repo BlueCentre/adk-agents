@@ -203,21 +203,29 @@ class TUICommandDisplay:
 class ConsoleThemeHandler:
     """Theme handler for console/prompt-toolkit UI."""
 
-    def __init__(self, cli):
+    def __init__(self, cli, prompt_session_factory):
         self.cli = cli
+        self.prompt_session_factory = prompt_session_factory
 
     def toggle_theme(self) -> None:
+        """Toggle between light and dark themes."""
         if self.cli:
             self.cli.toggle_theme()
+            # Recreate prompt session with new theme
+            self.prompt_session_factory()
 
     def set_theme(self, theme: UITheme) -> None:
+        """Set a specific theme."""
         if self.cli:
             self.cli.set_theme(theme)
+            # Recreate prompt session with new theme
+            self.prompt_session_factory()
 
     def get_current_theme(self) -> UITheme:
+        """Get the current theme."""
         if self.cli:
             return self.cli.theme
-        return UITheme.DARK  # Default fallback
+        return UITheme.DARK
 
 
 class TUIThemeHandler:
@@ -227,9 +235,11 @@ class TUIThemeHandler:
         self.tui_app = tui_app
 
     def toggle_theme(self) -> None:
+        """Toggle between light and dark themes."""
         self.tui_app.action_toggle_theme()
 
     def set_theme(self, theme: UITheme) -> None:
+        """Set a specific theme."""
         self.tui_app._current_ui_theme = theme
         if theme == UITheme.DARK:
             self.tui_app.add_class("dark", "theme-mode")
@@ -239,4 +249,8 @@ class TUIThemeHandler:
             self.tui_app.remove_class("dark", "theme-mode")
 
     def get_current_theme(self) -> UITheme:
+        """Get the current theme."""
         return getattr(self.tui_app, "_current_ui_theme", UITheme.DARK)
+
+
+

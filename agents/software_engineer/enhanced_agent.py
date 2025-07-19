@@ -1,7 +1,7 @@
 """Enhanced Software Engineer Agent with ADK Workflow Patterns."""
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from google.adk.agents import Agent, LlmAgent
 from google.adk.models.lite_llm import LiteLlm
@@ -11,43 +11,58 @@ from google.genai.types import GenerateContentConfig
 from . import config as agent_config
 from . import prompt
 from .shared_libraries.callbacks import create_enhanced_telemetry_callbacks
-from .sub_agents.code_quality.agent import code_quality_agent
-from .sub_agents.code_review.agent import code_review_agent
-from .sub_agents.debugging.agent import debugging_agent
-from .sub_agents.design_pattern.agent import design_pattern_agent
-from .sub_agents.devops.agent import devops_agent
-from .sub_agents.documentation.agent import documentation_agent
-from .sub_agents.ollama.agent import ollama_agent
-from .sub_agents.testing.agent import testing_agent
+
+# Import sub-agent prompts and tools to create separate instances
 from .tools.setup import load_all_tools_and_toolsets
-from .workflows.human_in_loop_workflows import (
-    create_approval_workflow,
-    create_architecture_decision_workflow,
-    create_collaborative_review_workflow,
-    create_deployment_approval_workflow,
-)
-from .workflows.iterative_workflows import (
-    create_iterative_code_generation_workflow,
-    create_iterative_debug_workflow,
-    create_iterative_refinement_workflow,
-    create_iterative_test_improvement_workflow,
-)
 
 # Import workflow patterns
-from .workflows.parallel_workflows import (
-    create_parallel_analysis_workflow,
-    create_parallel_implementation_workflow,
-    create_parallel_validation_workflow,
-)
-from .workflows.sequential_workflows import (
-    create_bug_fix_workflow,
-    create_code_review_workflow,
-    create_feature_development_workflow,
-    create_refactoring_workflow,
-)
 
 logging.getLogger("LiteLLM").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
+
+
+def create_enhanced_sub_agents():
+    """Create separate sub-agent instances for the enhanced agent to avoid parent conflicts.
+
+    Uses factory functions from each sub-agent module to eliminate code duplication
+    while maintaining full feature parity with sophisticated tool loading and callbacks.
+    """
+    # Import factory functions from each sub-agent module
+    from .sub_agents.code_quality.agent import create_code_quality_agent
+    from .sub_agents.code_review.agent import create_code_review_agent
+    from .sub_agents.debugging.agent import create_debugging_agent
+    from .sub_agents.design_pattern.agent import (  # Static tools, no factory needed
+        design_pattern_agent,
+    )
+    from .sub_agents.devops.agent import create_devops_agent
+    from .sub_agents.documentation.agent import create_documentation_agent
+    from .sub_agents.ollama.agent import create_ollama_agent
+    from .sub_agents.testing.agent import create_testing_agent
+
+    # Create enhanced instances using factory functions
+    enhanced_sub_agents = []
+
+    # 1. Design Pattern Agent - Create new instance with different name (uses static tools)
+    enhanced_design_pattern_agent = LlmAgent(
+        model=design_pattern_agent.model,
+        name="enhanced_design_pattern_agent",
+        description=design_pattern_agent.description,
+        instruction=design_pattern_agent.instruction,
+        tools=design_pattern_agent.tools,  # Reuse same static tools
+        output_key="design_pattern",
+    )
+    enhanced_sub_agents.append(enhanced_design_pattern_agent)
+
+    # 2-8. All other agents - Use factory functions (eliminates all duplication!)
+    enhanced_sub_agents.append(create_code_review_agent("enhanced_"))
+    enhanced_sub_agents.append(create_testing_agent("enhanced_"))
+    enhanced_sub_agents.append(create_code_quality_agent("enhanced_"))
+    enhanced_sub_agents.append(create_debugging_agent("enhanced_"))
+    enhanced_sub_agents.append(create_documentation_agent("enhanced_"))
+    enhanced_sub_agents.append(create_devops_agent("enhanced_"))
+    enhanced_sub_agents.append(create_ollama_agent("enhanced_"))
+
+    return enhanced_sub_agents
 
 
 def workflow_selector_tool(
@@ -230,19 +245,7 @@ def create_enhanced_software_engineer_agent() -> Agent:
             top_p=0.95,
             # max_output_tokens=4096,
         ),
-        sub_agents=[
-            # Traditional sub-agents for direct delegation
-            design_pattern_agent,
-            code_review_agent,
-            code_quality_agent,
-            testing_agent,
-            debugging_agent,
-            documentation_agent,
-            devops_agent,
-            ollama_agent,
-            # Note: Workflows are created on-demand using the workflow creation tools
-            # This avoids agent parent conflicts while still providing workflow capabilities
-        ],
+        sub_agents=create_enhanced_sub_agents(),  # Create separate instances to avoid parent conflicts
         tools=tools,
         # Add telemetry callbacks for observability
         before_agent_callback=callbacks["before_agent"],
