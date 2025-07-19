@@ -3,6 +3,7 @@ Tests for cli.py module with comprehensive coverage.
 """
 
 import json
+from pathlib import Path
 from unittest.mock import AsyncMock, Mock, mock_open, patch
 
 from pydantic import ValidationError
@@ -88,7 +89,7 @@ class TestRunInputFile:
         mock_runner.close = AsyncMock()
 
         # Mock async generator for runner.run_async
-        async def mock_run_async(*args, **kwargs):
+        async def mock_run_async(*_, **__):
             mock_event = Mock()
             mock_event.author = "assistant"
             mock_event.content = Mock()
@@ -237,7 +238,6 @@ class TestRunCliCore:
         assert call_args[1]["input_path"] == "/path/to/input.json"
 
     @pytest.mark.asyncio
-    @patch("src.wrapper.adk.cli.cli.envs.load_dotenv_for_agent")
     @patch("src.wrapper.adk.cli.cli.AgentLoader")
     @patch("src.wrapper.adk.cli.cli.InMemorySessionService")
     @patch("src.wrapper.adk.cli.cli.InMemoryArtifactService")
@@ -252,7 +252,6 @@ class TestRunCliCore:
         mock_artifact_service_class,
         mock_session_service_class,
         mock_agent_loader_class,
-        mock_load_dotenv,
     ):
         """Test run_cli with TUI mode."""
         # Setup mocks
@@ -298,7 +297,6 @@ class TestSessionManagement:
     """Test session file loading and saving functionality."""
 
     @pytest.mark.asyncio
-    @patch("src.wrapper.adk.cli.cli.envs.load_dotenv_for_agent")
     @patch("src.wrapper.adk.cli.cli.AgentLoader")
     @patch("src.wrapper.adk.cli.cli.InMemorySessionService")
     @patch("src.wrapper.adk.cli.cli.InMemoryArtifactService")
@@ -317,7 +315,6 @@ class TestSessionManagement:
         mock_artifact_service_class,
         mock_session_service_class,
         mock_agent_loader_class,
-        mock_load_dotenv,
     ):
         """Test loading a saved session file."""
         # Setup
@@ -390,24 +387,20 @@ class TestSessionManagement:
         mock_run_interactively.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch("src.wrapper.adk.cli.cli.envs.load_dotenv_for_agent")
     @patch("src.wrapper.adk.cli.cli.AgentLoader")
     @patch("src.wrapper.adk.cli.cli.InMemorySessionService")
     @patch("src.wrapper.adk.cli.cli.InMemoryArtifactService")
     @patch("src.wrapper.adk.cli.cli.InMemoryCredentialService")
-    @patch("src.wrapper.adk.cli.cli.run_interactively")
     @patch("builtins.input", return_value="custom_session")
     @patch("builtins.print")
     async def test_session_saving_flow(
         self,
         mock_print,
         mock_input,
-        mock_run_interactively,
         mock_credential_service_class,
         mock_artifact_service_class,
         mock_session_service_class,
         mock_agent_loader_class,
-        mock_load_dotenv,
     ):
         """Test session saving workflow."""
         # Setup
@@ -449,24 +442,20 @@ class TestSessionManagement:
             mock_print.assert_called_with("Session saved to", "custom_session.session.json")
 
     @pytest.mark.asyncio
-    @patch("src.wrapper.adk.cli.cli.envs.load_dotenv_for_agent")
     @patch("src.wrapper.adk.cli.cli.AgentLoader")
     @patch("src.wrapper.adk.cli.cli.InMemorySessionService")
     @patch("src.wrapper.adk.cli.cli.InMemoryArtifactService")
     @patch("src.wrapper.adk.cli.cli.InMemoryCredentialService")
-    @patch("src.wrapper.adk.cli.cli.run_interactively")
     @patch("builtins.open", new_callable=mock_open)
     @patch("builtins.print")
     async def test_session_saving_complete_flow(
         self,
         mock_print,
         mock_file,
-        mock_run_interactively,
         mock_credential_service_class,
         mock_artifact_service_class,
         mock_session_service_class,
         mock_agent_loader_class,
-        mock_load_dotenv,
     ):
         """Test complete session saving flow with file writing."""
         # Setup
@@ -515,10 +504,8 @@ class TestInteractiveMode:
     @patch("src.wrapper.adk.cli.cli.get_cli_instance")
     @patch("src.wrapper.adk.cli.cli.Console")
     @patch("src.wrapper.adk.cli.cli.RunnerFactory")
-    @patch("src.wrapper.adk.cli.cli.patch_stdout")
     async def test_interactive_special_commands(
         self,
-        mock_patch_stdout,
         mock_runner_factory,
         mock_console_class,
         mock_get_cli_instance,
@@ -1022,7 +1009,6 @@ class TestEdgeCases:
     """Test edge cases and boundary conditions."""
 
     @pytest.mark.asyncio
-    @patch("src.wrapper.adk.cli.cli.envs.load_dotenv_for_agent")
     @patch("src.wrapper.adk.cli.cli.AgentLoader")
     @patch("src.wrapper.adk.cli.cli.InMemorySessionService")
     @patch("src.wrapper.adk.cli.cli.InMemoryArtifactService")
@@ -1033,7 +1019,6 @@ class TestEdgeCases:
         mock_artifact_service_class,
         mock_session_service_class,
         mock_agent_loader_class,
-        mock_load_dotenv,
     ):
         """Test run_cli with None input_file and saved_session_file."""
         # Setup
@@ -1138,7 +1123,7 @@ class TestInteractiveAgentResponses:
         prompt_session.prompt_async = AsyncMock(side_effect=["test query", "exit"])
 
         # Mock runner to return our test event
-        async def mock_run_async(*args, **kwargs):
+        async def mock_run_async(*_, **__):
             yield mock_event
 
         mock_runner.run_async = mock_run_async
@@ -1210,7 +1195,7 @@ class TestInteractiveAgentResponses:
             prompt_session.prompt_async = AsyncMock(side_effect=["test query", "exit"])
 
             # Mock runner to return our test event
-            async def mock_run_async(*args, **kwargs):
+            async def mock_run_async(*_, **__):
                 yield mock_event
 
             mock_runner.run_async = mock_run_async
@@ -1280,19 +1265,15 @@ class TestSessionSaving:
 
     def teardown_method(self):
         """Clean up any session files created during tests."""
-        import glob
-        import os
-
         # Remove any .session.json files that might have been created
-        session_files = glob.glob("*.session.json")
+        session_files = Path().glob("*.session.json")
         for file in session_files:
             try:
-                os.remove(file)
+                Path(file).remove()
             except (OSError, FileNotFoundError):
                 pass  # File already removed or doesn't exist
 
     @pytest.mark.asyncio
-    @patch("src.wrapper.adk.cli.cli.envs.load_dotenv_for_agent")
     @patch("src.wrapper.adk.cli.cli.AgentLoader")
     @patch("src.wrapper.adk.cli.cli.InMemorySessionService")
     @patch("src.wrapper.adk.cli.cli.InMemoryArtifactService")
@@ -1300,10 +1281,8 @@ class TestSessionSaving:
     @patch("src.wrapper.adk.cli.cli.run_interactively")
     @patch("builtins.open", new_callable=mock_open)
     @patch("builtins.input", return_value="")
-    @patch("builtins.print")
     async def test_session_saving_with_empty_input(
         self,
-        mock_print,
         mock_input,
         mock_file,
         mock_run_interactively,
@@ -1311,7 +1290,6 @@ class TestSessionSaving:
         mock_artifact_service_class,
         mock_session_service_class,
         mock_agent_loader_class,
-        mock_load_dotenv,
     ):
         """Test session saving with empty session ID input."""
         # Setup
@@ -1359,24 +1337,20 @@ class TestSessionSaving:
         mock_file().write.assert_called_with('{"test": "session"}')
 
     @pytest.mark.asyncio
-    @patch("src.wrapper.adk.cli.cli.envs.load_dotenv_for_agent")
     @patch("src.wrapper.adk.cli.cli.AgentLoader")
     @patch("src.wrapper.adk.cli.cli.InMemorySessionService")
     @patch("src.wrapper.adk.cli.cli.InMemoryArtifactService")
     @patch("src.wrapper.adk.cli.cli.InMemoryCredentialService")
-    @patch("src.wrapper.adk.cli.cli.run_interactively")
     @patch("builtins.open", new_callable=mock_open)
     @patch("builtins.print")
     async def test_session_saving_complete_flow(
         self,
         mock_print,
         mock_file,
-        mock_run_interactively,
         mock_credential_service_class,
         mock_artifact_service_class,
         mock_session_service_class,
         mock_agent_loader_class,
-        mock_load_dotenv,
     ):
         """Test complete session saving flow with file writing."""
         # Setup
@@ -1608,13 +1582,16 @@ class TestErrorHandlingForMissingFunctions:
 
         # Simulate the console output calls from error handling
         mock_console.print(
-            f"[yellow]⚠️  The agent tried to call a function '{missing_function}' that doesn't exist.[/yellow]"
+            f"[yellow]⚠️  The agent tried to call a function '{missing_function}' that doesn't "
+            "exist.[/yellow]"
         )
         mock_console.print(
-            "[blue]💡 This is likely a hallucination. The agent can answer your question without this function.[/blue]"
+            "[blue]💡 This is likely a hallucination. The agent can answer your question without "
+            "this function.[/blue]"
         )
         mock_console.print(
-            "[green]✅ You can rephrase your question or ask the agent to use available tools instead.[/green]"
+            "[green]✅ You can rephrase your question or ask the agent to use available tools "
+            "instead.[/green]"
         )
 
         # Verify all three messages were printed
@@ -1623,8 +1600,8 @@ class TestErrorHandlingForMissingFunctions:
         # Verify the specific messages
         calls = mock_console.print.call_args_list
         assert (
-            "[yellow]⚠️  The agent tried to call a function 'test_function' that doesn't exist.[/yellow]"
-            in str(calls[0])
+            "[yellow]⚠️  The agent tried to call a function 'test_function' that doesn't exist."
+            "[/yellow]" in str(calls[0])
         )
         assert "[blue]💡 This is likely a hallucination" in str(calls[1])
         assert "[green]✅ You can rephrase your question" in str(calls[2])
@@ -1687,8 +1664,7 @@ class TestErrorHandlingForMissingFunctions:
 
         # This should result in the exception being re-raised (not handled by our error handling)
 
-    @patch("src.wrapper.adk.cli.cli.logger")
-    def test_console_selection_logic(self, mock_logger):
+    def test_console_selection_logic(self):
         """Test the console selection logic for different modes."""
         from unittest.mock import Mock
 
@@ -1792,7 +1768,8 @@ class TestErrorHandlingForMissingFunctions:
             style="warning",
         )
         mock_app_tui.add_output(
-            "💡 This is likely a hallucination. The agent can answer your question without this function.",
+            "💡 This is likely a hallucination. The agent can answer your question without this "
+            "function.",
             author="System",
             rich_format=True,
             style="info",
@@ -1917,13 +1894,16 @@ class TestErrorHandlingForMissingFunctions:
         # Step 3: Mock console output
         mock_console = Mock()
         mock_console.print(
-            f"[yellow]⚠️  The agent tried to call a function '{missing_function}' that doesn't exist.[/yellow]"
+            f"[yellow]⚠️  The agent tried to call a function '{missing_function}' that doesn't "
+            "exist.[/yellow]"
         )
         mock_console.print(
-            "[blue]💡 This is likely a hallucination. The agent can answer your question without this function.[/blue]"
+            "[blue]💡 This is likely a hallucination. The agent can answer your question without "
+            "this function.[/blue]"
         )
         mock_console.print(
-            "[green]✅ You can rephrase your question or ask the agent to use available tools instead.[/green]"
+            "[green]✅ You can rephrase your question or ask the agent to use available tools "
+            "instead.[/green]"
         )
 
         # Step 4: Mock logging

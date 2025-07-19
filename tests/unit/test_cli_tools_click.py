@@ -5,8 +5,9 @@ Tests all CLI commands, decorators, and utility classes in the CLI module.
 """
 
 import os
+from pathlib import Path
 import tempfile
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 import warnings
 
 import click
@@ -15,7 +16,6 @@ import pytest
 
 from src.wrapper.adk.cli.cli_tools_click import (
     HelpfulCommand,
-    adk_services_options,
     cli_api_server,
     cli_create_cmd,
     cli_deploy_agent_engine,
@@ -24,7 +24,6 @@ from src.wrapper.adk.cli.cli_tools_click import (
     cli_web,
     cli_web_packaged,
     deploy,
-    fast_api_common_options,
     main,
     validate_exclusive,
 )
@@ -222,10 +221,8 @@ class TestCLICommands:
             tui=False,
         )
 
-    @patch("src.wrapper.adk.cli.cli_tools_click.asyncio.run")
     @patch("src.wrapper.adk.cli.cli_tools_click.run_cli", new_callable=AsyncMock)
-    @patch("src.wrapper.adk.cli.cli_tools_click.logs.log_to_tmp_folder")
-    def test_cli_run_with_options(self, mock_log_to_tmp, mock_run_cli, mock_asyncio_run):
+    def test_cli_run_with_options(self, mock_run_cli):
         """Test the run command with all options."""
         # Set up AsyncMock to return a proper value
         mock_run_cli.return_value = None
@@ -263,12 +260,11 @@ class TestCLICommands:
             assert call_kwargs["input_file"] is not None
             assert "tmp" in call_kwargs["input_file"]
         finally:
-            os.unlink(replay_file)
+            Path(replay_file).unlink()
 
     @patch("src.wrapper.adk.cli.cli_tools_click.uvicorn.Server")
     @patch("src.wrapper.adk.cli.cli_tools_click.get_fast_api_app")
-    @patch("src.wrapper.adk.cli.cli_tools_click.logs.setup_adk_logger")
-    def test_cli_web_basic(self, mock_setup_logger, mock_get_app, mock_server_class):
+    def test_cli_web_basic(self, mock_get_app, mock_server_class):
         """Test the web command with basic arguments."""
         mock_server = Mock()
         mock_server_class.return_value = mock_server
@@ -284,8 +280,7 @@ class TestCLICommands:
 
     @patch("src.wrapper.adk.cli.cli_tools_click.uvicorn.Server")
     @patch("src.wrapper.adk.cli.cli_tools_click.get_fast_api_app")
-    @patch("src.wrapper.adk.cli.cli_tools_click.logs.setup_adk_logger")
-    def test_cli_web_with_options(self, mock_setup_logger, mock_get_app, mock_server_class):
+    def test_cli_web_with_options(self, mock_get_app, mock_server_class):
         """Test the web command with options."""
         mock_server = Mock()
         mock_server_class.return_value = mock_server
@@ -335,14 +330,12 @@ class TestCLICommands:
 
     @patch("src.wrapper.adk.cli.cli_tools_click.uvicorn.Server")
     @patch("src.wrapper.adk.cli.cli_tools_click.get_fast_api_app")
-    @patch("src.wrapper.adk.cli.cli_tools_click.logs.setup_adk_logger")
     @patch("src.wrapper.adk.cli.cli_tools_click.os.path.exists")
     @patch("src.wrapper.adk.cli.cli_tools_click.os.path.dirname")
     def test_cli_web_packaged_basic(
         self,
         mock_dirname,
         mock_exists,
-        mock_setup_logger,
         mock_get_app,
         mock_server_class,
     ):
@@ -368,8 +361,7 @@ class TestCLICommands:
 
     @patch("src.wrapper.adk.cli.cli_tools_click.uvicorn.Server")
     @patch("src.wrapper.adk.cli.cli_tools_click.get_fast_api_app")
-    @patch("src.wrapper.adk.cli.cli_tools_click.logs.setup_adk_logger")
-    def test_cli_api_server_basic(self, mock_setup_logger, mock_get_app, mock_server_class):
+    def test_cli_api_server_basic(self, mock_get_app, mock_server_class):
         """Test the api_server command."""
         mock_server = Mock()
         mock_server_class.return_value = mock_server
@@ -536,8 +528,8 @@ class TestErrorHandling:
             assert result.exit_code != 0
             assert "cannot be set together" in result.output
         finally:
-            os.unlink(file1)
-            os.unlink(file2)
+            Path(file1).unlink()
+            Path(file2).unlink()
 
     def test_nonexistent_file_paths(self):
         """Test behavior with nonexistent file paths."""
@@ -589,10 +581,7 @@ class TestLifespanFunctions:
 
     @patch("src.wrapper.adk.cli.cli_tools_click.uvicorn.Server")
     @patch("src.wrapper.adk.cli.cli_tools_click.get_fast_api_app")
-    @patch("src.wrapper.adk.cli.cli_tools_click.logs.setup_adk_logger")
-    def test_cli_web_lifespan_function_created(
-        self, mock_setup_logger, mock_get_app, mock_server_class
-    ):
+    def test_cli_web_lifespan_function_created(self, mock_get_app, mock_server_class):
         """Test that cli_web creates a lifespan function and passes it to get_fast_api_app."""
         mock_server = Mock()
         mock_server_class.return_value = mock_server
@@ -615,18 +604,19 @@ class TestLifespanFunctions:
 
     @patch("src.wrapper.adk.cli.cli_tools_click.uvicorn.Server")
     @patch("src.wrapper.adk.cli.cli_tools_click.get_fast_api_app")
-    @patch("src.wrapper.adk.cli.cli_tools_click.logs.setup_adk_logger")
     @patch("src.wrapper.adk.cli.cli_tools_click.os.path.exists")
     @patch("src.wrapper.adk.cli.cli_tools_click.os.path.dirname")
     def test_cli_web_packaged_lifespan_function_created(
         self,
         mock_dirname,
         mock_exists,
-        mock_setup_logger,
         mock_get_app,
         mock_server_class,
     ):
-        """Test that cli_web_packaged creates a lifespan function and passes it to get_fast_api_app."""
+        """
+        Test that cli_web_packaged creates a lifespan function and
+        passes it to get_fast_api_app.
+        """
         mock_server = Mock()
         mock_server_class.return_value = mock_server
         mock_app = Mock()
@@ -649,8 +639,7 @@ class TestLifespanFunctions:
             assert "lifespan" in call_kwargs
             assert callable(call_kwargs["lifespan"])
 
-    @patch("src.wrapper.adk.cli.cli_tools_click.click.secho")
-    def test_lifespan_messages_manual(self, mock_secho):
+    def test_lifespan_messages_manual(self):
         """Test the lifespan context manager messages by manually testing the pattern."""
         # We can't easily test the actual lifespan functions since they're defined inside
         # the CLI functions, but we can test that secho is called during CLI invocation
@@ -680,8 +669,7 @@ class TestWebPackagedErrorHandling:
         """Set up test fixtures."""
         self.runner = CliRunner()
 
-    @patch("src.wrapper.adk.cli.cli_tools_click.logs.setup_adk_logger")
-    def test_cli_web_packaged_successful_run(self, mock_setup_logger):
+    def test_cli_web_packaged_successful_run(self):
         """Test cli_web_packaged when it runs successfully through the lifespan setup."""
         with patch("src.wrapper.adk.cli.cli_tools_click.uvicorn.Server") as mock_server_class:
             with patch("src.wrapper.adk.cli.cli_tools_click.get_fast_api_app") as mock_get_app:
@@ -747,8 +735,6 @@ class TestDirectFunctionCoverage:
     @patch("src.wrapper.adk.cli.cli_tools_click.click.secho")
     def test_lifespan_execution_simulation(self, mock_secho):
         """Test to simulate lifespan function execution patterns."""
-        import asyncio
-
         # Simulate the pattern of calls that would happen in the lifespan functions
         # This tests the general pattern of message output similar to what happens
         # in the _lifespan functions without needing to execute them directly
@@ -783,7 +769,6 @@ class TestDirectFunctionCoverage:
     async def test_extracted_lifespan_function(self, mock_secho):
         """Test the lifespan function by extracting it from CLI commands."""
         import tempfile
-        from unittest.mock import Mock
 
         from fastapi import FastAPI
 

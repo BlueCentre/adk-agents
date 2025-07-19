@@ -1,11 +1,11 @@
 import asyncio
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
-from textual.widgets import Input, RichLog
+from textual.widgets import RichLog
 
 from src.wrapper.adk.cli.utils.ui_common import UITheme
 from src.wrapper.adk.cli.utils.ui_rich import RichRenderer

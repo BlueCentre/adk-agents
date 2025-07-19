@@ -6,26 +6,21 @@ ensuring all functionality works correctly while using proper
 mocking to avoid external dependencies.
 """
 
-import asyncio
 from contextlib import asynccontextmanager
-import json
 import os
 from pathlib import Path
 import tempfile
 import time
-from typing import Any, Dict, List, Optional
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
-from fastapi import HTTPException
+from click.exceptions import ClickException
 from fastapi.testclient import TestClient
-from google.adk.cli.cli_eval import EVAL_SESSION_ID_PREFIX, EvalStatus
+from google.adk.cli.cli_eval import EVAL_SESSION_ID_PREFIX
 from google.adk.evaluation.eval_case import EvalCase, SessionInput
 from google.adk.evaluation.eval_metrics import EvalMetric
-from google.adk.events.event import Event
 from google.adk.sessions.session import Session
-import pytest
-
 from google.genai import types
+import pytest
 
 # Import the function under test
 from src.wrapper.adk.cli.fast_api import (
@@ -36,7 +31,6 @@ from src.wrapper.adk.cli.fast_api import (
     GetEventGraphResult,
     InMemoryExporter,
     RunEvalRequest,
-    RunEvalResult,
     get_fast_api_app,
 )
 
@@ -498,7 +492,7 @@ class TestFastAPIApp:
             }
 
     @pytest.fixture
-    def test_client(self, temp_agents_dir, mock_services):
+    def test_client(self, temp_agents_dir, mock_services):  # noqa: ARG002
         """Create a test client for the FastAPI app."""
         app = get_fast_api_app(agents_dir=temp_agents_dir, web=False, trace_to_cloud=False)
         return TestClient(app)
@@ -770,7 +764,7 @@ class TestServiceConfiguration:
     def test_memory_service_invalid_uri(self):
         """Test invalid memory service URI."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            with pytest.raises(Exception):  # Should raise ClickException
+            with pytest.raises(ClickException):  # Should raise ClickException
                 get_fast_api_app(agents_dir=temp_dir, memory_service_uri="invalid://uri", web=False)
 
     def test_session_service_agentengine_configuration(self):
@@ -878,7 +872,7 @@ class TestErrorHandling:
     def test_empty_agent_engine_id(self):
         """Test empty agent engine ID error."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            with pytest.raises(Exception):  # Should raise ClickException
+            with pytest.raises(ClickException):  # Should raise ClickException
                 get_fast_api_app(
                     agents_dir=temp_dir,
                     session_service_uri="agentengine://",  # Empty agent engine ID
@@ -888,7 +882,7 @@ class TestErrorHandling:
     def test_empty_rag_corpus(self):
         """Test empty RAG corpus error."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            with pytest.raises(Exception):  # Should raise ClickException
+            with pytest.raises(ClickException):  # Should raise ClickException
                 get_fast_api_app(
                     agents_dir=temp_dir,
                     memory_service_uri="rag://",  # Empty corpus
@@ -962,7 +956,7 @@ class TestAdditionalEndpoints:
             }
 
     @pytest.fixture
-    def test_client(self, temp_agents_dir, mock_services):
+    def test_client(self, temp_agents_dir, mock_services):  # noqa: ARG002
         """Create a test client for the FastAPI app."""
         app = get_fast_api_app(agents_dir=temp_agents_dir, web=False, trace_to_cloud=False)
         return TestClient(app)
@@ -1007,7 +1001,7 @@ class TestAdditionalEndpoints:
         )
         assert response.status_code == 200
 
-    def test_update_eval_id_mismatch(self, test_client, mock_services):
+    def test_update_eval_id_mismatch(self, test_client, mock_services):  # noqa: ARG002
         """Test updating eval case with mismatched eval_id."""
         eval_case = EvalCase(
             eval_id="different_eval",  # Mismatch with URL
@@ -1251,12 +1245,12 @@ class TestComplexIntegrationScenarios:
         """Create a temporary agents directory with a test agent."""
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create a test agent directory structure
-            agent_dir = os.path.join(temp_dir, "test_app")
-            os.makedirs(agent_dir, exist_ok=True)
+            agent_dir = Path(temp_dir) / "test_app"
+            agent_dir.mkdir(exist_ok=True)
 
             # Create a simple agent.py file
-            agent_file = os.path.join(agent_dir, "agent.py")
-            with open(agent_file, "w") as f:
+            agent_file = Path(agent_dir) / "agent.py"
+            with agent_file.open("w") as f:
                 f.write("""
 class Agent:
     def __init__(self):
@@ -1264,8 +1258,8 @@ class Agent:
 """)
 
             # Create a file that's not a directory to test filtering
-            not_dir_file = os.path.join(temp_dir, "not_a_directory.txt")
-            with open(not_dir_file, "w") as f:
+            not_dir_file = Path(temp_dir) / "not_a_directory.txt"
+            with not_dir_file.open("w") as f:
                 f.write("This is not a directory")
 
             yield temp_dir
@@ -1287,7 +1281,7 @@ class Agent:
         lifespan_called = []
 
         @asynccontextmanager
-        async def custom_lifespan(app):
+        async def custom_lifespan(_app):
             lifespan_called.append("startup")
             try:
                 yield
@@ -1326,8 +1320,8 @@ class TestAdvancedEndpoints:
     def temp_agents_dir(self):
         """Create a temporary agents directory."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            agent_dir = os.path.join(temp_dir, "test_app")
-            os.makedirs(agent_dir, exist_ok=True)
+            agent_dir = Path(temp_dir) / "test_app"
+            agent_dir.mkdir(exist_ok=True)
             yield temp_dir
 
     @pytest.fixture
@@ -1381,7 +1375,7 @@ class TestAdvancedEndpoints:
             }
 
     @pytest.fixture
-    def test_client(self, temp_agents_dir, mock_services):
+    def test_client(self, temp_agents_dir, mock_services):  # noqa: ARG002
         """Create a test client for the FastAPI app."""
         app = get_fast_api_app(agents_dir=temp_agents_dir, web=False, trace_to_cloud=False)
         return TestClient(app)
@@ -1390,7 +1384,6 @@ class TestAdvancedEndpoints:
     async def test_run_eval_success(self, test_client, mock_services):
         """Test successful eval run."""
         # Mock eval set and eval cases
-        from google.adk.cli.cli_eval import EvalCaseResult
         from google.adk.evaluation.eval_set import EvalSet
         from google.adk.evaluation.evaluator import EvalStatus
 
@@ -1429,7 +1422,7 @@ class TestAdvancedEndpoints:
         mock_services["session"].get_session.return_value = session
 
         # Mock the run_evals function
-        async def mock_run_evals(*args, **kwargs):
+        async def mock_run_evals(*_, **__):
             yield mock_eval_case_result
 
         with patch("google.adk.cli.cli_eval.run_evals", mock_run_evals):
@@ -1476,7 +1469,7 @@ class TestAdvancedEndpoints:
         mock_services["agent_loader"].load_agent.return_value = mock_agent
 
         # Mock run_evals to raise ModuleNotFoundError
-        async def mock_run_evals_error(*args, **kwargs):
+        async def mock_run_evals_error(*_, **__):
             raise ModuleNotFoundError("Test module not found")
             yield  # This line won't execute, but needed for generator
 
@@ -1493,7 +1486,6 @@ class TestAdvancedEndpoints:
     @pytest.mark.asyncio
     async def test_run_eval_empty_eval_ids(self, test_client, mock_services):
         """Test run eval with empty eval_ids (should run all evals)."""
-        from google.adk.cli.cli_eval import EvalCaseResult
         from google.adk.evaluation.eval_set import EvalSet
         from google.adk.evaluation.evaluator import EvalStatus
 
@@ -1529,7 +1521,7 @@ class TestAdvancedEndpoints:
         )
         mock_services["session"].get_session.return_value = session
 
-        async def mock_run_evals(*args, **kwargs):
+        async def mock_run_evals(*_, **__):
             yield mock_eval_case_result
 
         with patch("google.adk.cli.cli_eval.run_evals", mock_run_evals):
@@ -1603,7 +1595,7 @@ class TestAdvancedEndpoints:
             "timestamp": time.time(),
         }
 
-        async def mock_run_async(*args, **kwargs):
+        async def mock_run_async(*_, **__):
             yield mock_event
 
         mock_services["runner"].run_async = mock_run_async
@@ -1656,7 +1648,7 @@ class TestAdvancedEndpoints:
         # Mock runner with streaming
         mock_event = Mock()
 
-        async def mock_run_async(*args, **kwargs):
+        async def mock_run_async(*_, **__):
             yield mock_event
 
         mock_services["runner"].run_async = mock_run_async
@@ -1705,7 +1697,7 @@ class TestAdvancedEndpoints:
         mock_event.get_function_responses.return_value = []
 
         # Mock the session service to find the event directly
-        def mock_find_event(events_list, event_id):
+        def mock_find_event(_events_list, event_id):
             return mock_event if event_id == "test_event" else None
 
         # Mock session without requiring real Event objects
@@ -1725,7 +1717,7 @@ class TestAdvancedEndpoints:
         mock_dot_graph = Mock()
         mock_dot_graph.source = "digraph { A -> B; }"
 
-        async def mock_get_agent_graph(*args, **kwargs):
+        async def mock_get_agent_graph(*_, **__):
             return mock_dot_graph
 
         with patch(
@@ -1789,7 +1781,7 @@ class TestAdvancedEndpoints:
         mock_dot_graph = Mock()
         mock_dot_graph.source = "digraph { B -> A; }"
 
-        async def mock_get_agent_graph(*args, **kwargs):
+        async def mock_get_agent_graph(*_, **__):
             return mock_dot_graph
 
         with patch(
@@ -1830,7 +1822,7 @@ class TestAdvancedEndpoints:
         mock_dot_graph = Mock()
         mock_dot_graph.source = "digraph { agent; }"
 
-        async def mock_get_agent_graph(*args, **kwargs):
+        async def mock_get_agent_graph(*_, **__):
             return mock_dot_graph
 
         with patch(
@@ -1868,7 +1860,7 @@ class TestAdvancedEndpoints:
         mock_agent = Mock()
         mock_services["agent_loader"].load_agent.return_value = mock_agent
 
-        async def mock_get_agent_graph(*args, **kwargs):
+        async def mock_get_agent_graph(*_, **__):
             return None
 
         with patch(
@@ -1933,15 +1925,15 @@ class TestWebStaticFiles:
     def test_web_static_files_enabled(self, temp_agents_dir):
         """Test web static file serving when web=True."""
         # Create a real browser directory to avoid StaticFiles error
-        browser_dir = os.path.join(os.path.dirname(__file__), "..", "..", "fake_browser")
-        os.makedirs(browser_dir, exist_ok=True)
+        browser_dir = Path(__file__).parent.parent.parent / "fake_browser"
+        browser_dir.mkdir(exist_ok=True)
 
         try:
             with (
                 patch("os.path.dirname") as mock_dirname,
                 patch("os.path.join") as mock_join,
             ):
-                mock_dirname.return_value = os.path.dirname(__file__)
+                mock_dirname.return_value = Path(__file__).parent
                 mock_join.return_value = browser_dir
 
                 app = get_fast_api_app(
@@ -1962,7 +1954,7 @@ class TestWebStaticFiles:
                 assert response.headers["location"] == "/dev-ui/"
         finally:
             # Clean up the fake browser directory
-            if os.path.exists(browser_dir):
+            if browser_dir.exists():
                 import shutil
 
                 shutil.rmtree(browser_dir)
@@ -1985,12 +1977,12 @@ class TestReloadAgentsConfiguration:
         """Create a temporary agents directory."""
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create a test agent directory
-            agent_dir = os.path.join(temp_dir, "test_agent")
-            os.makedirs(agent_dir, exist_ok=True)
+            agent_dir = Path(temp_dir) / "test_agent"
+            agent_dir.mkdir(exist_ok=True)
 
             # Create agent.py file
-            agent_file = os.path.join(agent_dir, "agent.py")
-            with open(agent_file, "w") as f:
+            agent_file = Path(agent_dir) / "agent.py"
+            with Path.open(agent_file, "w") as f:
                 f.write("# Test agent file\n")
 
             yield temp_dir
@@ -2077,7 +2069,10 @@ class TestReloadAgentsConfiguration:
                 mock_observer.start.assert_not_called()
 
     def test_get_fast_api_app_reload_agents_lifespan_cleanup(self, temp_agents_dir):
-        """Test that observer is properly cleaned up during lifespan shutdown when reload_agents=True."""
+        """
+        Test that observer is properly cleaned up during lifespan shutdown
+        when reload_agents=True.
+        """
         with patch("src.wrapper.adk.cli.fast_api.Observer") as mock_observer_class:
             mock_observer = Mock()
             mock_observer_class.return_value = mock_observer
@@ -2108,7 +2103,10 @@ class TestReloadAgentsConfiguration:
                     assert hasattr(mock_observer, "join")
 
     def test_get_fast_api_app_reload_agents_agent_loader_integration(self, temp_agents_dir):
-        """Test that AgentChangeEventHandler is properly initialized with AgentLoader when reload_agents=True."""
+        """
+        Test that AgentChangeEventHandler is properly initialized with AgentLoader
+        when reload_agents=True.
+        """
         with patch("src.wrapper.adk.cli.fast_api.Observer") as mock_observer_class:
             mock_observer = Mock()
             mock_observer_class.return_value = mock_observer
@@ -2144,7 +2142,7 @@ class TestReloadAgentsConfiguration:
         lifespan_events = []
 
         @asynccontextmanager
-        async def custom_lifespan(app):
+        async def custom_lifespan():
             lifespan_events.append("startup")
             try:
                 yield

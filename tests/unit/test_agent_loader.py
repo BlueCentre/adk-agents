@@ -1,8 +1,7 @@
-import os
-from pathlib import Path
+import pathlib
 import sys
 import tempfile
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -65,33 +64,33 @@ class TestGetAvailableAgentModules:
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create various agent structures
             # 1. Package-style agent (directory with __init__.py)
-            agent_pkg_dir = os.path.join(temp_dir, "package_agent")
-            os.makedirs(agent_pkg_dir)
-            with open(os.path.join(agent_pkg_dir, "__init__.py"), "w") as f:
+            agent_pkg_dir = pathlib.Path(temp_dir) / "package_agent"
+            agent_pkg_dir.mkdir()
+            with (agent_pkg_dir / "__init__.py").open("w") as f:
                 f.write("# Package agent\n")
 
             # 2. Module-style agent (.py file)
-            with open(os.path.join(temp_dir, "module_agent.py"), "w") as f:
+            with (pathlib.Path(temp_dir) / "module_agent.py").open("w") as f:
                 f.write("# Module agent\n")
 
             # 3. Directory without __init__.py (should still be included)
-            simple_dir = os.path.join(temp_dir, "simple_agent")
-            os.makedirs(simple_dir)
+            simple_dir = pathlib.Path(temp_dir) / "simple_agent"
+            simple_dir.mkdir()
 
             # 4. Hidden directory (should be excluded)
-            hidden_dir = os.path.join(temp_dir, ".hidden_agent")
-            os.makedirs(hidden_dir)
+            hidden_dir = pathlib.Path(temp_dir) / ".hidden_agent"
+            hidden_dir.mkdir()
 
             # 5. __pycache__ directory (should be excluded)
-            pycache_dir = os.path.join(temp_dir, "__pycache__")
-            os.makedirs(pycache_dir)
+            pycache_dir = pathlib.Path(temp_dir) / "__pycache__"
+            pycache_dir.mkdir()
 
             # 6. Hidden .py file (should be excluded)
-            with open(os.path.join(temp_dir, ".hidden.py"), "w") as f:
+            with (pathlib.Path(temp_dir) / ".hidden.py").open("w") as f:
                 f.write("# Hidden file\n")
 
             # 7. __init__.py file (should be excluded as separate agent)
-            with open(os.path.join(temp_dir, "__init__.py"), "w") as f:
+            with (pathlib.Path(temp_dir) / "__init__.py").open("w") as f:
                 f.write("# Init file\n")
 
             # Get available modules
@@ -124,8 +123,8 @@ class TestGetAvailableAgentModules:
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create agents in non-alphabetical order
             for name in ["zebra_agent", "alpha_agent", "beta_agent"]:
-                agent_dir = os.path.join(temp_dir, name)
-                os.makedirs(agent_dir)
+                agent_dir = pathlib.Path(temp_dir) / name
+                agent_dir.mkdir()
 
             modules = AgentLoader.get_available_agent_modules(temp_dir)
 
@@ -566,16 +565,16 @@ class TestIntegrationScenarios:
         """Test agent discovery with real filesystem."""
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create a realistic agent structure
-            agent_dir = os.path.join(temp_dir, "test_agent")
-            os.makedirs(agent_dir)
+            agent_dir = pathlib.Path(temp_dir) / "test_agent"
+            agent_dir.mkdir()
 
             # Create agent.py with mock content
-            agent_file = os.path.join(agent_dir, "agent.py")
-            with open(agent_file, "w") as f:
+            agent_file = agent_dir / "agent.py"
+            with agent_file.open("w") as f:
                 f.write("# Mock agent file\n")
 
             # Create another agent as .py file
-            with open(os.path.join(temp_dir, "simple_agent.py"), "w") as f:
+            with (pathlib.Path(temp_dir) / "simple_agent.py").open("w") as f:
                 f.write("# Simple agent\n")
 
             # Test discovery

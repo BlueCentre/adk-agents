@@ -1,6 +1,4 @@
-from unittest.mock import MagicMock, Mock, patch
-
-import pytest
+from unittest.mock import Mock, patch
 
 # Import the functions we're testing
 from src.wrapper.adk.cli.utils.ui import get_cli_instance, get_textual_cli_instance
@@ -356,7 +354,11 @@ class TestIntegrationScenarios:
     @patch("src.wrapper.adk.cli.utils.ui.RichRenderer")
     @patch("src.wrapper.adk.cli.utils.ui.UITheme")
     def test_numeric_theme_handling(
-        self, mock_ui_theme, mock_rich_renderer, mock_agent_tui, mock_enhanced_cli
+        self,
+        mock_ui_theme,
+        mock_rich_renderer,
+        mock_agent_tui,
+        mock_enhanced_cli,  # noqa: ARG002
     ):
         """Test how functions handle numeric themes."""
         # Setup mocks - numeric theme should cause ValueError
@@ -384,7 +386,11 @@ class TestIntegrationScenarios:
     @patch("src.wrapper.adk.cli.utils.ui.RichRenderer")
     @patch("src.wrapper.adk.cli.utils.ui.UITheme")
     def test_special_characters_in_theme(
-        self, mock_ui_theme, mock_rich_renderer, mock_agent_tui, mock_enhanced_cli
+        self,
+        mock_ui_theme,
+        mock_rich_renderer,
+        mock_agent_tui,
+        mock_enhanced_cli,  # noqa: ARG002
     ):
         """Test how functions handle themes with special characters."""
         # Setup mocks - special characters should cause ValueError

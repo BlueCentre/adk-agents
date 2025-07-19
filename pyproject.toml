@@ -3,7 +3,7 @@
 # https://packaging.python.org/en/latest/specifications/declaring-project-metadata
 
 name = "adk-agent"
-description = "DevOps Agent v2 with RAG capabilities."
+description = "DevOps & Software Engineer Agents with ADK compatibility."
 readme = "README.md"
 requires-python = ">=3.9"
 #license = { file = "LICENSE" }
@@ -249,7 +249,7 @@ select = [
   # flake8-bugbear
   "B",  # flake8-bugbear
   # flake8-simplify
-  "SIM", # flake8-simplify
+  # "SIM", # flake8-simplify (temporarily disabled)
   # isort
   "I",  # isort
   # flake8-comprehensions
@@ -296,8 +296,8 @@ unfixable = [
 ban-relative-imports = "all"
 
 [tool.ruff.lint.isort]
-known-first-party = ["wrapper", "agents", "google"]
-known-third-party = ["google.adk"]
+known-first-party = ["wrapper", "agents"]
+known-third-party = ["google", "google.adk"]
 section-order = [
   "future",
   "standard-library", 

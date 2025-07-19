@@ -4,10 +4,10 @@ Unit tests for __main__.py
 Tests the main entry point module for the CLI package.
 """
 
-import importlib
+from pathlib import Path
 import subprocess
 import sys
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -112,7 +112,7 @@ except SystemExit:
 
         spec = importlib.util.find_spec("src.wrapper.adk.cli.__main__")
 
-        with open(spec.origin) as f:
+        with Path.open(spec.origin) as f:
             content = f.read()
 
         # Check for copyright header
@@ -139,7 +139,7 @@ except SystemExit:
 
         spec = importlib.util.find_spec("src.wrapper.adk.cli.__main__")
 
-        with open(spec.origin) as f:
+        with Path.open(spec.origin) as f:
             content = f.read()
 
         # Verify the module contains the if __name__ == '__main__': block

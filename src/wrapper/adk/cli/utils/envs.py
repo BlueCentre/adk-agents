@@ -14,7 +14,7 @@
 
 import importlib.resources
 import logging
-import os
+from pathlib import Path
 from typing import Optional
 
 from dotenv import load_dotenv
@@ -23,12 +23,13 @@ logger = logging.getLogger(__file__)
 
 
 def _walk_to_root_until_found(folder, filename) -> str:
-    checkpath = os.path.join(folder, filename)
-    if os.path.exists(checkpath) and os.path.isfile(checkpath):
-        return checkpath
+    folder = Path(folder)  # Ensure folder is a Path object
+    checkpath = folder / filename
+    if checkpath.exists() and checkpath.is_file():
+        return str(checkpath)
 
-    parent_folder = os.path.dirname(folder)
-    if parent_folder == folder:  # reached the root
+    parent_folder = folder.parent
+    if parent_folder == Path(folder):  # reached the root
         return ""
 
     return _walk_to_root_until_found(parent_folder, filename)
@@ -41,13 +42,13 @@ def load_dotenv_for_agent(
 
     # Gets the folder of agent_module as starting_folder
     if agent_parent_folder:
-        starting_folder = os.path.abspath(os.path.join(agent_parent_folder, agent_name))
+        starting_folder = (Path(agent_parent_folder) / agent_name).resolve()
     else:
         # If agent_parent_folder is not provided, assume it's an installed package
         # and try to find the module's location
         try:
             module_path = importlib.resources.files(agent_name.replace("/", "."))
-            starting_folder = str(module_path)  # Convert Path to string
+            starting_folder = module_path.resolve()  # Convert Path to string and resolve
         except Exception as e:
             logger.warning(f"Could not determine agent module path for {agent_name}: {e}")
             logger.info("No %s file found for %s", filename, agent_name)

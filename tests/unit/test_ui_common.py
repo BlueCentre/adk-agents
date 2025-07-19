@@ -1,7 +1,6 @@
 """Test ui_common.py module."""
 
-from datetime import datetime, timedelta
-from unittest.mock import Mock, patch
+from datetime import datetime
 
 import pytest
 from rich.theme import Theme

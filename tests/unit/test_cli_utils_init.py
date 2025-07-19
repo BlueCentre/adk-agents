@@ -5,9 +5,7 @@ Tests the utility functions for creating empty states for agents.
 """
 
 import re
-from typing import Any, Optional
-
-import pytest
+from typing import Optional
 
 from src.wrapper.adk.cli.utils import create_empty_state
 

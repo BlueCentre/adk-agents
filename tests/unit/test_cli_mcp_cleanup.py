@@ -7,11 +7,7 @@ cleanup errors during agent shutdown.
 
 import asyncio
 import unittest
-from unittest.mock import MagicMock, patch
-
-import pytest
-
-from src.wrapper.adk.cli.cli import logger
+from unittest.mock import patch
 
 
 class TestMCPCleanupExceptionHandling(unittest.TestCase):

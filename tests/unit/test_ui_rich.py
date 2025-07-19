@@ -2,7 +2,6 @@
 
 from unittest.mock import Mock
 
-import pytest
 from rich.panel import Panel
 from rich.text import Text
 
