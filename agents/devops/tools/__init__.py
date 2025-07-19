@@ -1,4 +1,3 @@
-# ruff: noqa: I001, F401
 """Tools for the Software Engineer Multi-Agent."""
 
 from . import (  # code_analysis,; code_search,; filesystem,; search,; shell_command,; rag_tools,
@@ -51,23 +50,23 @@ from .shell_command import (
 # )
 
 
-
 # Import system info tools
-
 
 
 # This file contains the tool registry for the devops agent
 
 
 __all__ = [
+    "DynamicToolDiscovery",
     # Filesystem Tools - DISABLED to avoid confusion with MCP filesystem tools
     # "read_file_tool",
-    # "list_dir_tool", 
+    # "list_dir_tool",
     # "edit_file_tool",
     # "configure_approval_tool",
     # Shell Command Tools
     "check_command_exists_tool",
     "check_shell_command_safety_tool",
+    "codebase_search_tool",
     "configure_shell_approval_tool",
     "configure_shell_whitelist_tool",
     "execute_vetted_shell_command_tool",
@@ -78,23 +77,22 @@ __all__ = [
     # "suggest_code_fixes_tool",
     # Search Tools
     "google_search_grounding",
-    "codebase_search_tool",
-    # Placeholder Persistent Memory Tools
-    "save_current_session_to_file_tool",
-    "load_memory_from_file_tool",
     # RAG Tools
     "index_directory_tool",
-    "retrieve_code_context_tool",
+    "load_memory_from_file_tool",
     "purge_rag_index_tool",
-    
-    'tool_discovery', 
-    'DynamicToolDiscovery'
+    "retrieve_code_context_tool",
+    # Placeholder Persistent Memory Tools
+    "save_current_session_to_file_tool",
+    "tool_discovery",
 ]
+
 
 # Initialize tool discovery on module import
 def get_environment_capabilities():
     """Get cached environment capabilities."""
     return tool_discovery.discover_environment_capabilities()
+
 
 def get_tool_suggestions(task_description: str):
     """Get tool suggestions for a task."""

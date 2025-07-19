@@ -2,7 +2,7 @@
 
 import logging
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from google.adk.tools import FunctionTool, ToolContext
 from google.adk.tools.base_tool import BaseTool
@@ -15,7 +15,9 @@ logger = logging.getLogger(__name__)
 # === Tool Implementation Functions (Commented Out) ===
 
 
-def _save_current_session_to_file_impl(tool_context: ToolContext, filepath: str = None) -> Dict[str, str]:
+def _save_current_session_to_file_impl(
+    tool_context: ToolContext, filepath: Optional[str] = None
+) -> dict[str, str]:
     """
     (Placeholder) Saves the *current* session's state to a specified JSON file.
     NOTE: This is a placeholder and not fully implemented.
@@ -32,7 +34,7 @@ def _save_current_session_to_file_impl(tool_context: ToolContext, filepath: str 
 
     # Get the current conversation history from the tool context state
     history = tool_context.state.get("conversation_history", [])
-    
+
     if not history:
         return {"status": "error", "message": "No conversation history to save."}
 
@@ -82,7 +84,7 @@ def _save_current_session_to_file_impl(tool_context: ToolContext, filepath: str 
     return {"status": "skipped", "message": "Tool is not implemented."}
 
 
-def _load_memory_from_file_impl(query: str, filepath: str = None) -> Dict[str, Any]:
+def _load_memory_from_file_impl(query: str, filepath: Optional[str] = None) -> dict[str, Any]:
     """
     (Placeholder) Loads memory from a JSON file and performs a simple query.
     NOTE: This is a placeholder and not fully implemented.
@@ -99,11 +101,7 @@ def _load_memory_from_file_impl(query: str, filepath: str = None) -> Dict[str, A
 
     # Check if file exists
     if not os.path.exists(filepath):
-        return {
-            "status": "error", 
-            "message": f"Memory file not found: {filepath}",
-            "results": []
-        }
+        return {"status": "error", "message": f"Memory file not found: {filepath}", "results": []}
 
     # TODO: Implement this tool if manual file-based persistence is needed
     #       for the standard 'adk run' environment.

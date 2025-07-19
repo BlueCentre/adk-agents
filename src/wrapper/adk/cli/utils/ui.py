@@ -8,7 +8,7 @@ from .ui_rich import RichRenderer
 from .ui_textual import AgentTUI
 
 
-def get_cli_instance(theme: Optional[str] = None) -> EnhancedCLI:
+def get_cli_instance(theme: str | None = None) -> EnhancedCLI:
     """Factory function to create an EnhancedCLI instance with optional theme."""
     ui_theme = None
     if theme:
@@ -24,7 +24,7 @@ def get_cli_instance(theme: Optional[str] = None) -> EnhancedCLI:
     return EnhancedCLI(theme=ui_theme, rich_renderer=rich_renderer)
 
 
-def get_textual_cli_instance(theme: Optional[str] = None) -> AgentTUI:
+def get_textual_cli_instance(theme: str | None = None) -> AgentTUI:
     """Factory function to create an AgentTUI (Textual) instance with optional theme."""
     ui_theme = None
     if theme:

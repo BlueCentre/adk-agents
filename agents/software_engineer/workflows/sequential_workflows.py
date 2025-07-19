@@ -1,6 +1,6 @@
 """Sequential workflow patterns for the Software Engineer Agent."""
 
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 from google.adk.agents import BaseAgent, LlmAgent, SequentialAgent
 from google.adk.agents.invocation_context import InvocationContext
@@ -28,9 +28,7 @@ class WorkflowOrchestratorAgent(LlmAgent):
             output_key="workflow_orchestrator",
         )
 
-    async def _run_async_impl(
-        self, ctx: InvocationContext
-    ) -> AsyncGenerator[Event, None]:
+    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
         """Orchestrate workflow and manage state."""
 
         # Get current workflow state
@@ -82,7 +80,7 @@ def create_feature_development_workflow() -> SequentialAgent:
         2. Set up the workflow state in session.state['workflow_state']
         3. Prepare context for subsequent agents
         4. Determine the scope and complexity of the feature
-        
+
         Store your analysis in session.state['feature_plan'] for other agents to use.
         Set workflow_state with total_steps and current_step.
         """,
@@ -145,7 +143,7 @@ def create_feature_development_workflow() -> SequentialAgent:
     )
 
     # Create sequential workflow
-    feature_development = SequentialAgent(
+    return SequentialAgent(
         name="feature_development_workflow",
         description="Complete feature development pipeline",
         sub_agents=[
@@ -159,8 +157,6 @@ def create_feature_development_workflow() -> SequentialAgent:
             orchestrator,  # 8. Finalize workflow
         ],
     )
-
-    return feature_development
 
 
 def create_bug_fix_workflow() -> SequentialAgent:
@@ -178,7 +174,7 @@ def create_bug_fix_workflow() -> SequentialAgent:
         description="Analyzes bug reports and reproduction steps",
         instruction="""
         You analyze bug reports and prepare context for the debugging workflow.
-        
+
         Your tasks:
         1. Understand the bug report and symptoms
         2. Gather relevant context from the codebase
@@ -196,7 +192,7 @@ def create_bug_fix_workflow() -> SequentialAgent:
         description="Verifies bug fixes and ensures no regressions",
         instruction="""
         You verify that bug fixes work correctly and don't introduce regressions.
-        
+
         Your tasks:
         1. Check that the original issue is resolved
         2. Run tests to ensure no regressions
@@ -234,7 +230,7 @@ def create_bug_fix_workflow() -> SequentialAgent:
         output_key="documentation",
     )
 
-    bug_fix_workflow = SequentialAgent(
+    return SequentialAgent(
         name="bug_fix_workflow",
         description="Systematic bug fixing process",
         sub_agents=[
@@ -245,8 +241,6 @@ def create_bug_fix_workflow() -> SequentialAgent:
             workflow_documentation_agent,  # 5. Document the fix
         ],
     )
-
-    return bug_fix_workflow
 
 
 def create_code_review_workflow() -> SequentialAgent:
@@ -264,7 +258,7 @@ def create_code_review_workflow() -> SequentialAgent:
         description="Prepares code review context and scope",
         instruction="""
         You prepare the context for code review.
-        
+
         Your tasks:
         1. Analyze the code changes and scope
         2. Identify files and components to review
@@ -281,7 +275,7 @@ def create_code_review_workflow() -> SequentialAgent:
         description="Summarizes code review findings",
         instruction="""
         You summarize code review findings from all review agents.
-        
+
         Your tasks:
         1. Collect findings from code_quality, code_review, and testing agents
         2. Prioritize issues by severity and impact
@@ -319,7 +313,7 @@ def create_code_review_workflow() -> SequentialAgent:
         output_key="testing",
     )
 
-    code_review_workflow = SequentialAgent(
+    return SequentialAgent(
         name="code_review_workflow",
         description="Comprehensive code review process",
         sub_agents=[
@@ -330,8 +324,6 @@ def create_code_review_workflow() -> SequentialAgent:
             review_summary_agent,  # 5. Summarize findings
         ],
     )
-
-    return code_review_workflow
 
 
 def create_refactoring_workflow() -> SequentialAgent:
@@ -349,7 +341,7 @@ def create_refactoring_workflow() -> SequentialAgent:
         description="Analyzes code for refactoring opportunities",
         instruction="""
         You analyze code for refactoring opportunities.
-        
+
         Your tasks:
         1. Identify code smells and improvement opportunities
         2. Analyze dependencies and impact of changes
@@ -405,7 +397,7 @@ def create_refactoring_workflow() -> SequentialAgent:
         output_key="documentation",
     )
 
-    refactoring_workflow = SequentialAgent(
+    return SequentialAgent(
         name="refactoring_workflow",
         description="Safe code refactoring process",
         sub_agents=[
@@ -417,5 +409,3 @@ def create_refactoring_workflow() -> SequentialAgent:
             workflow_documentation_agent,  # 6. Update documentation
         ],
     )
-
-    return refactoring_workflow

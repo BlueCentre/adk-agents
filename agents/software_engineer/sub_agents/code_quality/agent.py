@@ -1,6 +1,7 @@
 """Code quality agent implementation."""
 
 from google.adk.agents import Agent
+
 from google.genai.types import GenerateContentConfig
 
 from ... import config as agent_config
@@ -17,9 +18,7 @@ def create_code_quality_agent(name_suffix=""):
     Returns:
         Agent: Configured code quality agent instance
     """
-    agent_name = (
-        f"{name_suffix}code_quality_agent" if name_suffix else "code_quality_agent"
-    )
+    agent_name = f"{name_suffix}code_quality_agent" if name_suffix else "code_quality_agent"
 
     # Load tools using the profile-based loading with per-sub-agent MCP configuration
     # This uses the new per-sub-agent MCP tool loading system

@@ -1,10 +1,10 @@
 """Smart prioritization for context components using relevance-based ranking."""
 
+from dataclasses import dataclass
+from datetime import datetime, timezone
 import logging
 import math
 import re
-from dataclasses import dataclass
-from datetime import datetime, timezone
 from typing import Any, Dict, List, Tuple
 
 logger = logging.getLogger(__name__)
@@ -76,10 +76,10 @@ class SmartPrioritizer:
 
     def prioritize_code_snippets(
         self,
-        snippets: List[Dict[str, Any]],
+        snippets: list[dict[str, Any]],
         current_context: str = "",
         current_turn: int = 0,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Prioritize code snippets based on relevance scoring."""
 
         if not snippets:
@@ -90,9 +90,7 @@ class SmartPrioritizer:
         # Calculate relevance scores for each snippet
         scored_snippets = []
         for snippet in snippets:
-            score = self._calculate_snippet_relevance(
-                snippet, current_context, current_turn
-            )
+            score = self._calculate_snippet_relevance(snippet, current_context, current_turn)
             snippet_with_score = snippet.copy()
             snippet_with_score["_relevance_score"] = score
             scored_snippets.append((score.final_score, snippet_with_score))
@@ -124,38 +122,30 @@ class SmartPrioritizer:
 
     def prioritize_tool_results(
         self,
-        tool_results: List[Dict[str, Any]],
+        tool_results: list[dict[str, Any]],
         current_context: str = "",
         current_turn: int = 0,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Prioritize tool results based on relevance scoring."""
 
         if not tool_results:
             return tool_results
 
-        logger.info(
-            f"SMART PRIORITIZATION: Ranking {len(tool_results)} tool results..."
-        )
+        logger.info(f"SMART PRIORITIZATION: Ranking {len(tool_results)} tool results...")
 
         # Calculate relevance scores for each tool result
         scored_results = []
         for result in tool_results:
-            score = self._calculate_tool_result_relevance(
-                result, current_context, current_turn
-            )
+            score = self._calculate_tool_result_relevance(result, current_context, current_turn)
             result_with_score = result.copy()
             result_with_score["_relevance_score"] = score
             scored_results.append((score.final_score, result_with_score))
 
-            logger.debug(
-                f"  Tool {result.get('tool', 'unknown')} (turn {result.get('turn', 0)})"
-            )
+            logger.debug(f"  Tool {result.get('tool', 'unknown')} (turn {result.get('turn', 0)})")
             logger.debug(
                 f"    Content: {score.content_relevance:.3f}, Recency: {score.recency_score:.3f}"
             )
-            logger.debug(
-                f"    Error: {score.error_priority:.3f}, Final: {score.final_score:.3f}"
-            )
+            logger.debug(f"    Error: {score.error_priority:.3f}, Final: {score.final_score:.3f}")
 
         # Sort by relevance score (highest first)
         scored_results.sort(key=lambda x: x[0], reverse=True)
@@ -174,7 +164,7 @@ class SmartPrioritizer:
         return [result for _, result in scored_results]
 
     def _calculate_snippet_relevance(
-        self, snippet: Dict[str, Any], current_context: str, current_turn: int
+        self, snippet: dict[str, Any], current_context: str, current_turn: int
     ) -> RelevanceScore:
         """Calculate relevance score for a code snippet."""
 
@@ -201,9 +191,7 @@ class SmartPrioritizer:
         score.error_priority = self._calculate_error_priority(code_content)
 
         # 5. Context Coherence - based on file type and location
-        score.context_coherence = self._calculate_context_coherence(
-            file_path, current_context
-        )
+        score.context_coherence = self._calculate_context_coherence(file_path, current_context)
 
         # Calculate final weighted score
         score.final_score = (
@@ -217,7 +205,7 @@ class SmartPrioritizer:
         return score
 
     def _calculate_tool_result_relevance(
-        self, tool_result: Dict[str, Any], current_context: str, current_turn: int
+        self, tool_result: dict[str, Any], current_context: str, current_turn: int
     ) -> RelevanceScore:
         """Calculate relevance score for a tool result."""
 
@@ -237,9 +225,7 @@ class SmartPrioritizer:
 
         # 2. Recency Score - based on turn number
         turn_distance = current_turn - turn_number
-        score.recency_score = max(
-            0.0, 1.0 - (turn_distance / 20.0)
-        )  # Decay over 20 turns
+        score.recency_score = max(0.0, 1.0 - (turn_distance / 20.0))  # Decay over 20 turns
 
         # 3. Error Priority - much higher for error results, also consider severity
         if is_error:
@@ -302,8 +288,7 @@ class SmartPrioritizer:
             if keyword in content_lower:
                 # Check if this keyword is also mentioned in context or is contextually important
                 if keyword in context_lower or any(
-                    k in context_lower
-                    for k in ["auth", "security", "error", "fix", "debug"]
+                    k in context_lower for k in ["auth", "security", "error", "fix", "debug"]
                 ):
                     high_value_matches += 1
 
@@ -335,16 +320,12 @@ class SmartPrioritizer:
         for domain, keywords in domain_keywords.items():
             if domain in context_lower:
                 # If domain term is in context, boost score for related keywords in content
-                domain_matches = sum(
-                    1 for keyword in keywords if keyword in content_lower
-                )
+                domain_matches = sum(1 for keyword in keywords if keyword in content_lower)
                 semantic_score += min(domain_matches * 0.2, 0.6)
 
         # 4. File path relevance (if applicable)
         file_relevance_score = 0.0
-        if any(
-            ext in content_lower for ext in [".py", ".js", ".ts", ".java", ".go", ".rs"]
-        ):
+        if any(ext in content_lower for ext in [".py", ".js", ".ts", ".java", ".go", ".rs"]):
             file_relevance_score = 0.2  # Source code files are generally relevant
         elif any(ext in content_lower for ext in [".json", ".yaml", ".yml", ".toml"]):
             file_relevance_score = 0.3  # Config files highly relevant
@@ -369,14 +350,13 @@ class SmartPrioritizer:
 
         if turn_distance <= 0:
             return 1.0  # Current turn
-        elif turn_distance <= 3:
+        if turn_distance <= 3:
             return 0.8  # Very recent
-        elif turn_distance <= 10:
+        if turn_distance <= 10:
             return 0.6  # Recent
-        elif turn_distance <= 20:
+        if turn_distance <= 20:
             return 0.3  # Somewhat old
-        else:
-            return 0.1  # Old
+        return 0.1  # Old
 
     def _calculate_error_priority(self, content: str) -> float:
         """Calculate error priority based on error-related keywords."""
@@ -385,16 +365,12 @@ class SmartPrioritizer:
             return 0.0
 
         content_lower = content.lower()
-        error_matches = sum(
-            1 for keyword in self.error_keywords if keyword in content_lower
-        )
+        error_matches = sum(1 for keyword in self.error_keywords if keyword in content_lower)
 
         # Higher score for more error keywords
         return min(error_matches * 0.3, 1.0)
 
-    def _calculate_context_coherence(
-        self, file_path: str, current_context: str
-    ) -> float:
+    def _calculate_context_coherence(self, file_path: str, current_context: str) -> float:
         """Calculate how well the item fits with the current context."""
 
         if not file_path:
@@ -424,9 +400,7 @@ class SmartPrioritizer:
             score += test_bonus
 
         # Directory structure relevance
-        if any(
-            dir_name in file_path_lower for dir_name in ["src", "lib", "core", "main"]
-        ):
+        if any(dir_name in file_path_lower for dir_name in ["src", "lib", "core", "main"]):
             score += 0.2
         elif any(dir_name in file_path_lower for dir_name in ["config", "settings"]):
             score += 0.3

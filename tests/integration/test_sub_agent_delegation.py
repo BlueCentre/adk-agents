@@ -155,9 +155,7 @@ class TestSubAgentDelegation:
             "list_directory_contents",
             "_analyze_code",
         ]
-        assert any(
-            tool in code_quality_tool_names for tool in expected_code_quality_tools
-        ), (
+        assert any(tool in code_quality_tool_names for tool in expected_code_quality_tools), (
             f"Code quality agent should have analysis tools, got: {code_quality_tool_names}"
         )
 
@@ -199,16 +197,11 @@ class TestSubAgentDelegation:
             create_sub_agent_mcp_config,
             get_sub_agent_mcp_config,
             list_available_mcp_servers,
-            load_tools_for_sub_agent,
         )
 
         # Test that we can load tools for different sub-agents with different profiles
-        debugging_tools = load_tools_for_sub_agent(
-            "debugging", sub_agent_name="debugging_agent"
-        )
-        testing_tools = load_tools_for_sub_agent(
-            "testing", sub_agent_name="testing_agent"
-        )
+        debugging_tools = load_tools_for_sub_agent("debugging", sub_agent_name="debugging_agent")
+        testing_tools = load_tools_for_sub_agent("testing", sub_agent_name="testing_agent")
         code_quality_tools = load_tools_for_sub_agent(
             "code_quality", sub_agent_name="code_quality_agent"
         )
@@ -282,17 +275,11 @@ class TestSubAgentDelegation:
 
         except Exception as e:
             # If MCP configuration fails, just log it - it might not be available in test environment
-            logger.warning(
-                f"MCP configuration test failed (expected in test environment): {e}"
-            )
+            logger.warning(f"MCP configuration test failed (expected in test environment): {e}")
 
     @pytest.mark.asyncio
     async def test_backward_compatibility_and_security_policies(self):
         """Test that backward compatibility is maintained and security policies are enforced."""
-        from agents.software_engineer.tools import (
-            create_sub_agent_tool_profiles,
-            load_tools_for_sub_agent,
-        )
         from agents.software_engineer.tools.sub_agent_tool_config import (
             EnvironmentType,
             SecurityLevel,
@@ -336,25 +323,19 @@ class TestSubAgentDelegation:
 
         # Test profile metadata
         debugging_profile = get_tool_profile("debugging")
-        assert (
-            debugging_profile["description"]
-            == "Debugging and troubleshooting assistance"
-        )
+        assert debugging_profile["description"] == "Debugging and troubleshooting assistance"
         assert debugging_profile["security_level"] == SecurityLevel.STANDARD
         assert EnvironmentType.DEVELOPMENT in debugging_profile["suitable_environments"]
 
         # Test that security levels are properly applied to profiles
         security_auditor_profile = get_tool_profile("security_auditor")
         assert security_auditor_profile["security_level"] == SecurityLevel.RESTRICTED
-        assert (
-            "shell_command" in security_auditor_profile["config"]["excluded_categories"]
-        )
+        assert "shell_command" in security_auditor_profile["config"]["excluded_categories"]
 
     @pytest.mark.asyncio
     async def test_updated_sub_agents_use_new_system(self):
         """Test that updated sub-agents are using the new per-sub-agent MCP loading system."""
         from agents.software_engineer.sub_agents.debugging.agent import debugging_agent
-        from agents.software_engineer.tools import load_tools_for_sub_agent
 
         # Verify that the debugging agent has tools loaded
         assert debugging_agent.tools is not None
@@ -469,9 +450,7 @@ class TestSubAgentDelegation:
         specializations = []
         for agent in sub_agents:
             # Check that each agent has distinct instructions
-            specializations.append(
-                agent.instruction[:50]
-            )  # First 50 chars as identifier
+            specializations.append(agent.instruction[:50])  # First 50 chars as identifier
 
         # All specializations should be unique (no identical instructions)
         assert len(set(specializations)) == len(specializations)
@@ -539,6 +518,4 @@ class TestSubAgentDelegation:
             assert sub_agent.name is not None
             assert sub_agent.description is not None
             assert hasattr(sub_agent, "instruction")
-            assert (
-                len(sub_agent.instruction) > 20
-            )  # Should have substantial instructions
+            assert len(sub_agent.instruction) > 20  # Should have substantial instructions

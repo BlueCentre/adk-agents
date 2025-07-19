@@ -9,9 +9,9 @@ Based on Google ADK patterns and the project's multi-agent architecture.
 """
 
 import asyncio
+from dataclasses import dataclass, field
 import logging
 import time
-from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -53,9 +53,9 @@ class CallbackTestMetrics:
     total_response_time: float = 0.0
     total_tool_time: float = 0.0
     total_session_time: float = 0.0
-    errors: List[str] = field(default_factory=list)
-    token_usage: Dict[str, int] = field(default_factory=dict)
-    project_contexts: List[Dict[str, Any]] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
+    token_usage: dict[str, int] = field(default_factory=dict)
+    project_contexts: list[dict[str, Any]] = field(default_factory=list)
 
 
 class CallbackTestCollector:
@@ -162,14 +162,10 @@ class CallbackTestCollector:
             self.metrics.total_session_time += session_time
 
         # Track project context if available
-        if hasattr(context, "_agent_metrics") and context._agent_metrics.get(
-            "project_context"
-        ):
-            self.metrics.project_contexts.append(
-                context._agent_metrics["project_context"]
-            )
+        if hasattr(context, "_agent_metrics") and context._agent_metrics.get("project_context"):
+            self.metrics.project_contexts.append(context._agent_metrics["project_context"])
 
-    def get_execution_summary(self) -> Dict[str, Any]:
+    def get_execution_summary(self) -> dict[str, Any]:
         """Get summary of callback execution."""
         return {
             "total_callbacks": len(self.execution_log),
@@ -252,9 +248,7 @@ class TestBasicCallbacks:
             assert key in callbacks
             assert callable(callbacks[key])
 
-    def test_basic_before_model_callback(
-        self, mock_llm_request, mock_invocation_context, caplog
-    ):
+    def test_basic_before_model_callback(self, mock_llm_request, mock_invocation_context, caplog):
         """Test basic before_model callback execution."""
         callbacks = create_telemetry_callbacks("test_agent")
         before_model_callback = callbacks["before_model"]
@@ -541,9 +535,7 @@ class TestEnhancedCallbacks:
 
         # Simulate tool call
         before_tool(mock_test_tool, {"param": "value"}, None, mock_invocation_context)
-        after_tool(
-            mock_test_tool, "success", mock_invocation_context, {"param": "value"}, None
-        )
+        after_tool(mock_test_tool, "success", mock_invocation_context, {"param": "value"}, None)
 
         # Verify final metrics
         assert metrics["total_model_calls"] == 1
@@ -679,9 +671,7 @@ class TestProjectContextLoading:
 class TestCallbackLogging:
     """Test callback logging functionality."""
 
-    def test_callback_log_levels(
-        self, mock_llm_request, mock_invocation_context, caplog
-    ):
+    def test_callback_log_levels(self, mock_llm_request, mock_invocation_context, caplog):
         """Test that callbacks log at appropriate levels."""
         callbacks = create_telemetry_callbacks("test_agent")
         before_model_callback = callbacks["before_model"]
@@ -690,9 +680,7 @@ class TestCallbackLogging:
         with caplog.at_level(logging.DEBUG):
             before_model_callback(mock_invocation_context, mock_llm_request)
 
-        debug_logs = [
-            record for record in caplog.records if record.levelno == logging.DEBUG
-        ]
+        debug_logs = [record for record in caplog.records if record.levelno == logging.DEBUG]
         assert len(debug_logs) > 0, "Should have DEBUG level logs"
 
         # Test INFO level logging for agent callbacks
@@ -701,14 +689,10 @@ class TestCallbackLogging:
         with caplog.at_level(logging.INFO):
             before_agent_callback(mock_invocation_context)
 
-        info_logs = [
-            record for record in caplog.records if record.levelno == logging.INFO
-        ]
+        info_logs = [record for record in caplog.records if record.levelno == logging.INFO]
         assert len(info_logs) > 0, "Should have INFO level logs for agent callbacks"
 
-    def test_callback_log_content(
-        self, mock_llm_request, mock_invocation_context, caplog
-    ):
+    def test_callback_log_content(self, mock_llm_request, mock_invocation_context, caplog):
         """Test that callbacks log useful content."""
         callbacks = create_telemetry_callbacks("test_agent")
         before_model_callback = callbacks["before_model"]
@@ -779,9 +763,7 @@ class TestCallbackIntegration:
         before_model(mock_context, mock_request)
         after_model(mock_context, mock_response)
         before_tool(mock_tool, {"param": "value"}, mock_tool_context, mock_context)
-        after_tool(
-            mock_tool, "success", mock_context, {"param": "value"}, mock_tool_context
-        )
+        after_tool(mock_tool, "success", mock_context, {"param": "value"}, mock_tool_context)
         after_agent(mock_context)
 
         # Verify timing was tracked (new attribute name)
@@ -901,9 +883,7 @@ class TestCallbackErrorHandling:
         # Should log with "unknown" identifiers
         assert "unknown" in caplog.text
 
-    def test_callback_handles_project_context_errors(
-        self, mock_invocation_context, caplog
-    ):
+    def test_callback_handles_project_context_errors(self, mock_invocation_context, caplog):
         """Test that callbacks handle project context loading errors gracefully."""
         callbacks = create_telemetry_callbacks("test_agent")
         before_agent_callback = callbacks["before_agent"]

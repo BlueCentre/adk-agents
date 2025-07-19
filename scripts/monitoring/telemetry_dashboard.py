@@ -19,11 +19,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import argparse
 import asyncio
-import json
-import time
 from datetime import datetime, timedelta
+import json
 from pathlib import Path
-from typing import Any, Dict, List
+import time
+from typing import Any, Dict, List, Optional
 
 try:
     # Rich console for beautiful output
@@ -46,16 +46,20 @@ try:
     import importlib.util
 
     # Import telemetry module directly
-    telemetry_spec = importlib.util.spec_from_file_location("telemetry", "agents/devops/telemetry.py")
+    telemetry_spec = importlib.util.spec_from_file_location(
+        "telemetry", "agents/devops/telemetry.py"
+    )
     telemetry_module = importlib.util.module_from_spec(telemetry_spec)
     telemetry_spec.loader.exec_module(telemetry_module)
-    
+
     telemetry = telemetry_module.telemetry
     OperationType = telemetry_module.OperationType
-    
+
     # Try to import other modules
     try:
-        logging_spec = importlib.util.spec_from_file_location("logging_config", "agents/devops/disabled/logging_config.py")
+        logging_spec = importlib.util.spec_from_file_location(
+            "logging_config", "agents/devops/disabled/logging_config.py"
+        )
         logging_module = importlib.util.module_from_spec(logging_spec)
         logging_spec.loader.exec_module(logging_module)
         log_performance_metrics = logging_module.log_performance_metrics
@@ -63,18 +67,20 @@ try:
     except:
         log_performance_metrics = None
         log_business_event = None
-    
+
     try:
-        analytics_spec = importlib.util.spec_from_file_location("analytics", "agents/devops/tools/disabled/analytics.py")
+        analytics_spec = importlib.util.spec_from_file_location(
+            "analytics", "agents/devops/tools/disabled/analytics.py"
+        )
         analytics_module = importlib.util.module_from_spec(analytics_spec)
         analytics_spec.loader.exec_module(analytics_module)
         tool_analytics = analytics_module.tool_analytics
     except:
         tool_analytics = None
-    
+
     TELEMETRY_AVAILABLE = True
     print("✅ Telemetry modules loaded successfully")
-    
+
 except Exception as e:
     print(f"⚠️ Telemetry modules not available: {e}")
     print("This dashboard is for development use when telemetry modules are present.")
@@ -87,59 +93,63 @@ except Exception as e:
 
 console = Console()
 
+
 class TelemetryDashboard:
     """Development telemetry dashboard for local monitoring."""
-    
+
     def __init__(self):
         self.console = console
         self.refresh_interval = 5.0  # seconds
         self.running = False
-        
+
         if not TELEMETRY_AVAILABLE:
             self.console.print("[red]❌ Telemetry modules not available[/red]")
             self.console.print("This dashboard requires the DevOps agent telemetry modules.")
             return
-        
+
         # Check if Grafana Cloud is configured
-        grafana_endpoint = os.getenv('GRAFANA_OTLP_ENDPOINT')
+        grafana_endpoint = os.getenv("GRAFANA_OTLP_ENDPOINT")
         if grafana_endpoint:
             self.console.print(f"[green]✅ Grafana Cloud configured: {grafana_endpoint}[/green]")
             self.console.print("[dim]Production metrics are being exported to Grafana Cloud[/dim]")
         else:
-            self.console.print("[yellow]📊 Local development mode - no Grafana Cloud export[/yellow]")
-    
+            self.console.print(
+                "[yellow]📊 Local development mode - no Grafana Cloud export[/yellow]"
+            )
+
     def display_header(self) -> Panel:
         """Create the dashboard header."""
-        grafana_status = "🌐 Grafana Cloud" if os.getenv('GRAFANA_OTLP_ENDPOINT') else "🏠 Local Dev Mode"
-        
+        grafana_status = (
+            "🌐 Grafana Cloud" if os.getenv("GRAFANA_OTLP_ENDPOINT") else "🏠 Local Dev Mode"
+        )
+
         title = Text("🔍 DevOps Agent Telemetry Dashboard", style="bold blue")
         subtitle = Text(f"Development Monitoring Tool | {grafana_status}", style="dim")
-        
+
         header_text = Align.center(f"{title}\n{subtitle}")
-        
+
         return Panel(
             header_text,
             box=box.DOUBLE,
             style="bright_blue",
             title="[bold white]Local Development Dashboard[/bold white]",
-            title_align="center"
+            title_align="center",
         )
 
-    def get_grafana_info(self) -> Dict[str, Any]:
+    def get_grafana_info(self) -> dict[str, Any]:
         """Get Grafana Cloud configuration info."""
-        endpoint = os.getenv('GRAFANA_OTLP_ENDPOINT')
+        endpoint = os.getenv("GRAFANA_OTLP_ENDPOINT")
         if endpoint:
             return {
                 "status": "✅ Configured",
                 "endpoint": endpoint,
-                "note": "Production metrics exported to Grafana Cloud"
+                "note": "Production metrics exported to Grafana Cloud",
             }
-        else:
-            return {
-                "status": "📊 Local Only", 
-                "endpoint": "Not configured",
-                "note": "Set GRAFANA_OTLP_ENDPOINT and GRAFANA_OTLP_TOKEN for production export"
-            }
+        return {
+            "status": "📊 Local Only",
+            "endpoint": "Not configured",
+            "note": "Set GRAFANA_OTLP_ENDPOINT and GRAFANA_OTLP_TOKEN for production export",
+        }
 
     def create_metrics_table(self) -> Table:
         """Create table showing current metrics."""
@@ -157,29 +167,27 @@ class TelemetryDashboard:
         try:
             summary = telemetry.get_performance_summary()
             current_metrics = summary.get("current_metrics", {})
-            
+
             table.add_row(
                 "Memory Usage",
                 f"{current_metrics.get('memory_usage_mb', 0):.1f} MB",
-                "Current process memory"
+                "Current process memory",
             )
-            
+
             table.add_row(
                 "Operations",
                 f"{current_metrics.get('total_operations', 0):,}",
-                "Total operations tracked"
+                "Total operations tracked",
             )
-            
+
             table.add_row(
-                "Error Rate",
-                f"{summary.get('error_rate', 0):.2%}",
-                "Operation failure rate"
+                "Error Rate", f"{summary.get('error_rate', 0):.2%}", "Operation failure rate"
             )
-            
+
             table.add_row(
                 "Response Time",
                 f"{current_metrics.get('average_response_time', 0):.3f}s",
-                "Average operation duration"
+                "Average operation duration",
             )
 
         except Exception as e:
@@ -190,56 +198,53 @@ class TelemetryDashboard:
     def create_grafana_panel(self) -> Panel:
         """Create Grafana Cloud status panel."""
         grafana_info = self.get_grafana_info()
-        
+
         content = f"[bold]Status:[/bold] {grafana_info['status']}\n"
         content += f"[bold]Endpoint:[/bold] {grafana_info['endpoint']}\n\n"
         content += f"[dim]{grafana_info['note']}[/dim]"
-        
-        style = "bright_green" if "✅" in grafana_info['status'] else "yellow"
-        
-        return Panel(
-            content,
-            title="🌐 Grafana Cloud Integration",
-            box=box.ROUNDED,
-            style=style
-        )
+
+        style = "bright_green" if "✅" in grafana_info["status"] else "yellow"
+
+        return Panel(content, title="🌐 Grafana Cloud Integration", box=box.ROUNDED, style=style)
 
     def display_static_summary(self):
         """Display a static summary for development."""
         if not TELEMETRY_AVAILABLE:
             console.print("[red]Telemetry modules not available for summary[/red]")
             return
-            
+
         console.print(self.display_header())
         console.print()
         console.print(self.create_metrics_table())
         console.print()
         console.print(self.create_grafana_panel())
 
-    def export_dev_metrics(self, filename: str = None):
+    def export_dev_metrics(self, filename: Optional[str] = None):
         """Export development metrics to file."""
         if not TELEMETRY_AVAILABLE:
             console.print("[red]Cannot export - telemetry not available[/red]")
             return None
-            
+
         if not filename:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"dev_metrics_{timestamp}.json"
-        
+
         try:
             report = {
                 "timestamp": datetime.now().isoformat(),
                 "mode": "development",
                 "grafana_cloud": self.get_grafana_info(),
-                "telemetry_summary": telemetry.get_performance_summary() if TELEMETRY_AVAILABLE else {},
+                "telemetry_summary": telemetry.get_performance_summary()
+                if TELEMETRY_AVAILABLE
+                else {},
             }
-            
-            with open(filename, 'w') as f:
+
+            with open(filename, "w") as f:
                 json.dump(report, f, indent=2, default=str)
-                
+
             console.print(f"[green]✅ Development metrics exported: {filename}[/green]")
             return filename
-            
+
         except Exception as e:
             console.print(f"[red]❌ Export failed: {e}[/red]")
             return None
@@ -249,32 +254,27 @@ def main():
     """Main CLI interface."""
     parser = argparse.ArgumentParser(description="DevOps Agent Development Dashboard")
     parser.add_argument(
-        "command",
-        choices=["summary", "export", "grafana-check"],
-        help="Command to run"
+        "command", choices=["summary", "export", "grafana-check"], help="Command to run"
     )
-    parser.add_argument(
-        "--output",
-        help="Output filename for export command"
-    )
-    
+    parser.add_argument("--output", help="Output filename for export command")
+
     args = parser.parse_args()
-    
+
     dashboard = TelemetryDashboard()
-    
+
     try:
         if args.command == "summary":
             dashboard.display_static_summary()
-            
+
         elif args.command == "export":
             dashboard.export_dev_metrics(args.output)
-            
+
         elif args.command == "grafana-check":
             info = dashboard.get_grafana_info()
             console.print(f"Grafana Cloud Status: {info['status']}")
             console.print(f"Endpoint: {info['endpoint']}")
             console.print(f"Note: {info['note']}")
-            
+
     except KeyboardInterrupt:
         console.print("\n[yellow]👋 Dashboard stopped[/yellow]")
     except Exception as e:
@@ -282,4 +282,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main() 
+    main()

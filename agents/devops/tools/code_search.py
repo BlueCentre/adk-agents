@@ -7,7 +7,9 @@ from typing import Any, Dict, List, Optional
 from google.adk.tools import FunctionTool
 
 
-def ripgrep_code_search(query: str, target_directories: Optional[List[str]] = None, explanation: Optional[str] = None) -> Dict[str, Any]:
+def ripgrep_code_search(
+    query: str, target_directories: Optional[list[str]] = None, explanation: Optional[str] = None
+) -> dict[str, Any]:
     """
     Perform a code search using ripgrep (rg) and return the results.
 
@@ -61,14 +63,23 @@ def ripgrep_code_search(query: str, target_directories: Optional[List[str]] = No
                     if data.get("type") == "match":
                         file_path = data.get("data", {}).get("path", {}).get("text", "")
                         line_number = data.get("data", {}).get("line_number", 0)
-                        match_content = data.get("data", {}).get("lines", {}).get("text", "").strip()
+                        match_content = (
+                            data.get("data", {}).get("lines", {}).get("text", "").strip()
+                        )
 
-                        results.append({"file": file_path, "line": line_number, "content": match_content})
+                        results.append(
+                            {"file": file_path, "line": line_number, "content": match_content}
+                        )
                 except json.JSONDecodeError:
                     # Skip lines that aren't valid JSON
                     continue
 
-        return {"snippets": results, "status": "success", "query": query, "explanation": explanation or "Code search results"}
+        return {
+            "snippets": results,
+            "status": "success",
+            "query": query,
+            "explanation": explanation or "Code search results",
+        }
 
     except Exception as e:
         return {"snippets": [], "status": "error", "error_message": str(e), "query": query}

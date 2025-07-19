@@ -22,9 +22,7 @@ class TestRunInteractivelyWithTui:
     ):
         """Test basic TUI initialization and setup."""
         # Setup mocks
-        artifact_service, session_service, credential_service, mock_session = (
-            mock_services
-        )
+        artifact_service, session_service, credential_service, mock_session = mock_services
 
         # Mock Textual app
         mock_app_tui = MagicMock()
@@ -79,9 +77,7 @@ class TestRunInteractivelyWithTui:
     ):
         """Test TUI with thought content extraction."""
         # Setup mocks following the established pattern
-        artifact_service, session_service, credential_service, mock_session = (
-            mock_services
-        )
+        artifact_service, session_service, credential_service, mock_session = mock_services
 
         # Mock Textual app
         mock_app_tui = MagicMock()
@@ -146,9 +142,7 @@ class TestRunInteractivelyWithTui:
     ):
         """Test event extraction with function call content."""
         # Setup mocks
-        artifact_service, session_service, credential_service, mock_session = (
-            mock_services
-        )
+        artifact_service, session_service, credential_service, mock_session = mock_services
 
         # Mock Textual app
         mock_app_tui = MagicMock()
@@ -217,9 +211,7 @@ class TestRunInteractivelyWithTui:
     ):
         """Test that tool callbacks are properly set up."""
         # Setup mocks
-        artifact_service, session_service, credential_service, mock_session = (
-            mock_services
-        )
+        artifact_service, session_service, credential_service, mock_session = mock_services
 
         # Mock Textual app
         mock_app_tui = AsyncMock()
@@ -265,9 +257,7 @@ class TestRunInteractivelyWithTui:
     ):
         """Test that input callback is properly registered."""
         # Setup mocks
-        artifact_service, session_service, credential_service, mock_session = (
-            mock_services
-        )
+        artifact_service, session_service, credential_service, mock_session = mock_services
 
         # Mock Textual app
         mock_app_tui = AsyncMock()
@@ -335,9 +325,7 @@ class TestRunInteractivelyWithTui:
     ):
         """Test error handling in TUI mode."""
         # Setup mocks
-        artifact_service, session_service, credential_service, mock_session = (
-            mock_services
-        )
+        artifact_service, session_service, credential_service, mock_session = mock_services
 
         # Mock Textual app
         mock_app_tui = AsyncMock()

@@ -8,12 +8,12 @@ Based on Google ADK patterns and the project's multi-agent architecture.
 """
 
 import asyncio
+from dataclasses import dataclass
 import json
 import logging
 import os
-import tempfile
-from dataclasses import dataclass
 from pathlib import Path
+import tempfile
 from typing import Any, Dict, List, Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -60,8 +60,8 @@ class WorkflowTestResult:
 
     workflow_type: str
     execution_time: float
-    agent_calls: List[str]
-    state_changes: Dict[str, Any]
+    agent_calls: list[str]
+    state_changes: dict[str, Any]
     success: bool
     error: Optional[str] = None
 
@@ -117,9 +117,7 @@ class TestAgentLifecycle:
             "code_analysis", {"issues": ["Hardcoded secret key"], "severity": "high"}
         )
 
-        agent_response = (
-            "Analysis complete. Found security vulnerability in JWT validation."
-        )
+        agent_response = "Analysis complete. Found security vulnerability in JWT validation."
         context_manager.update_agent_response(turn_number, agent_response)
 
         # Assemble context for next turn
@@ -133,9 +131,7 @@ class TestAgentLifecycle:
         assert len(context_dict["tool_results"]) == 1
         assert token_count > 0
         assert context_dict["conversation_history"][0]["user_message"] == user_message
-        assert (
-            context_dict["conversation_history"][0]["agent_message"] == agent_response
-        )
+        assert context_dict["conversation_history"][0]["agent_message"] == agent_response
 
     def test_multi_turn_context_flow(self, context_manager):
         """Test context flow across multiple conversation turns."""
@@ -143,17 +139,13 @@ class TestAgentLifecycle:
         turn1 = context_manager.start_new_turn("Review the user authentication code")
         context_manager.update_phase("Code Review")
         context_manager.add_code_snippet("src/auth.py", "class AuthManager:", 1, 50)
-        context_manager.update_agent_response(
-            turn1, "Found several issues in authentication"
-        )
+        context_manager.update_agent_response(turn1, "Found several issues in authentication")
 
         # Turn 2 - Context should carry forward
         turn2 = context_manager.start_new_turn("Fix the authentication issues")
         context_manager.update_phase("Implementation")
         context_manager.add_key_decision("Implement bcrypt for password hashing")
-        context_manager.update_agent_response(
-            turn2, "Implemented secure password hashing"
-        )
+        context_manager.update_agent_response(turn2, "Implemented secure password hashing")
 
         # Turn 3 - Verify context accumulation
         turn3 = context_manager.start_new_turn("Test the fixed authentication")
@@ -200,8 +192,7 @@ class TestAgentLifecycle:
 
         # Critical security turn should be included
         turn_messages = [
-            turn.get("user_message", "")
-            for turn in context_dict["conversation_history"]
+            turn.get("user_message", "") for turn in context_dict["conversation_history"]
         ]
         assert any("Critical security issue" in msg for msg in turn_messages)
 
@@ -238,10 +229,10 @@ def function_{i}():
             # Create larger tool results
             large_tool_result = {
                 "result": f"Tool {i} executed successfully with detailed output. "
-                + f"Processing completed with {i * 10} items analyzed. "
-                + f"Found {i * 3} issues and {i * 5} suggestions for improvement. "
-                + f"Memory usage: {i * 100}MB, CPU usage: {i * 2}%. "
-                + f"Execution time: {i * 1.5} seconds. Status: completed successfully."
+                f"Processing completed with {i * 10} items analyzed. "
+                f"Found {i * 3} issues and {i * 5} suggestions for improvement. "
+                f"Memory usage: {i * 100}MB, CPU usage: {i * 2}%. "
+                f"Execution time: {i * 1.5} seconds. Status: completed successfully."
             }
             context_manager.add_tool_result(
                 f"tool_{i}",
@@ -252,15 +243,11 @@ def function_{i}():
         small_budget_context, small_tokens = context_manager.assemble_context(
             500
         )  # Very small budget
-        large_budget_context, large_tokens = context_manager.assemble_context(
-            50000
-        )  # Large budget
+        large_budget_context, large_tokens = context_manager.assemble_context(50000)  # Large budget
 
         # Assert - More realistic expectations
         assert small_tokens <= 500 + 3000  # Budget + generous safety margin
-        assert (
-            large_tokens >= small_tokens
-        )  # Large budget should have at least as many tokens
+        assert large_tokens >= small_tokens  # Large budget should have at least as many tokens
 
         # Test that different budgets produce different results
         # If they're equal, it means the content was small enough to fit both budgets
@@ -363,9 +350,7 @@ class TestWorkflowOrchestration:
         assert execution_result.workflow_type == "parallel"
         # In parallel execution, agents should run concurrently
         assert len(execution_result.agent_calls) >= 3
-        assert (
-            execution_result.execution_time < 5.0
-        )  # Should be fast due to parallelism
+        assert execution_result.execution_time < 5.0  # Should be fast due to parallelism
 
     @pytest.mark.asyncio
     async def test_iterative_workflow_execution(self, mock_agents, mock_session_state):
@@ -484,8 +469,8 @@ class TestWorkflowOrchestration:
         self,
         workflow,
         workflow_type: str,
-        session_state: Dict[str, Any],
-        mock_agents: Dict[str, Any] = None,
+        session_state: dict[str, Any],
+        mock_agents: Optional[dict[str, Any]] = None,
     ) -> WorkflowTestResult:
         """Simulate workflow execution for testing purposes."""
         import time
@@ -554,9 +539,7 @@ class TestWorkflowOrchestration:
                         raise e
 
             elif workflow_type == "parallel_with_state":
-                agent_calls.extend(
-                    ["parallel_implementation_agent", "parallel_testing_agent"]
-                )
+                agent_calls.extend(["parallel_implementation_agent", "parallel_testing_agent"])
                 await asyncio.sleep(0.1)
 
                 # Actually call the mock functions to update state
@@ -648,7 +631,7 @@ class TestToolOrchestration:
             ]
         }
 
-        turn_number = context_manager.start_new_turn("Analyze authentication security")
+        context_manager.start_new_turn("Analyze authentication security")
 
         # Act - Simulate tool execution sequence
         # Tool 1: Read file
@@ -683,7 +666,7 @@ class TestToolOrchestration:
         mock_tools["read_file_tool"].side_effect = FileNotFoundError("File not found")
         mock_tools["codebase_search_tool"].return_value = {"matches": []}
 
-        turn_number = context_manager.start_new_turn("Read non-existent file")
+        context_manager.start_new_turn("Read non-existent file")
 
         # Act
         try:
@@ -704,9 +687,7 @@ class TestToolOrchestration:
         # Assert
         assert len(context_dict["tool_results"]) == 2
         error_result = next(
-            r
-            for r in context_dict["tool_results"]
-            if r["tool_name"] == "read_file_tool"
+            r for r in context_dict["tool_results"] if r["tool_name"] == "read_file_tool"
         )
 
         # FIXME: There's a bug where is_error field gets the summary value instead of boolean
@@ -737,7 +718,7 @@ class TestToolOrchestration:
             ]
         }
 
-        turn_number = context_manager.start_new_turn("Understand authentication system")
+        context_manager.start_new_turn("Understand authentication system")
 
         # Act
         # Index project
@@ -745,9 +726,7 @@ class TestToolOrchestration:
         context_manager.add_tool_result("index_directory_tool", index_result)
 
         # Retrieve relevant context
-        context_result = mock_tools["retrieve_code_context_tool"](
-            "authentication system"
-        )
+        context_result = mock_tools["retrieve_code_context_tool"]("authentication system")
         context_manager.add_tool_result("retrieve_code_context_tool", context_result)
 
         # Add retrieved contexts as code snippets
@@ -809,9 +788,7 @@ class TestErrorRecovery:
             )
 
         # Act - Try to assemble context
-        context_dict, token_count = context_manager.assemble_context(
-            500
-        )  # Base prompt tokens
+        context_dict, token_count = context_manager.assemble_context(500)  # Base prompt tokens
 
         # Assert - Should use emergency optimization
         assert token_count <= 1000  # Should not exceed limit
@@ -837,7 +814,6 @@ class TestErrorRecovery:
     def test_agent_failure_recovery(self, mock_agents, mock_session_state):
         """Test recovery when an agent fails during workflow execution."""
         # This would be expanded with actual agent integration
-        pass
 
     def test_context_corruption_recovery(self, context_manager):
         """Test recovery when context becomes corrupted."""

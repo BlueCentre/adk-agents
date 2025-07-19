@@ -9,9 +9,9 @@ import asyncio
 import json
 import logging
 import os
+from pathlib import Path
 import tempfile
 import time
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 from unittest.mock import AsyncMock, MagicMock
 
@@ -54,9 +54,7 @@ logger = logging.getLogger(__name__)
 class MockContextManager:
     """Mock context manager for testing."""
 
-    def __init__(
-        self, model_name="test-model", max_llm_token_limit=100000, llm_client=None
-    ):
+    def __init__(self, model_name="test-model", max_llm_token_limit=100000, llm_client=None):
         self.model_name = model_name
         self.max_llm_token_limit = max_llm_token_limit
         self.llm_client = llm_client
@@ -134,9 +132,7 @@ class MockRAGSystem:
     """Mock RAG system for testing."""
 
     def query(self, query, top_k=5):
-        return [
-            {"content": f"RAG result {i}", "score": 0.9 - i * 0.1} for i in range(top_k)
-        ]
+        return [{"content": f"RAG result {i}", "score": 0.9 - i * 0.1} for i in range(top_k)]
 
 
 class MockAgent:
@@ -327,9 +323,7 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "foundation: Foundation phase tests")
     config.addinivalue_line("markers", "core: Core integration phase tests")
     config.addinivalue_line("markers", "orchestration: Tool orchestration phase tests")
-    config.addinivalue_line(
-        "markers", "verification: Performance verification phase tests"
-    )
+    config.addinivalue_line("markers", "verification: Performance verification phase tests")
 
     # Set environment variables for integration testing
     os.environ["DEVOPS_AGENT_TESTING"] = "true"
@@ -414,10 +408,9 @@ def mock_session_state():
 @pytest.fixture(scope="function")
 def mock_context_manager(mock_llm_client):
     """Create mock context manager with realistic behavior."""
-    context_manager = MockContextManager(
+    return MockContextManager(
         model_name="test-model", max_llm_token_limit=100000, llm_client=mock_llm_client
     )
-    return context_manager
 
 
 @pytest.fixture(scope="function")
@@ -448,9 +441,7 @@ def mock_rag_system():
 @pytest.fixture(scope="function")
 def mock_devops_agent(mock_context_manager, mock_llm_client):
     """Create mock DevOps agent for testing."""
-    return MockDevOpsAgent(
-        context_manager=mock_context_manager, llm_client=mock_llm_client
-    )
+    return MockDevOpsAgent(context_manager=mock_context_manager, llm_client=mock_llm_client)
 
 
 @pytest.fixture(scope="function")
@@ -464,17 +455,13 @@ def mock_software_engineer_agent(mock_context_manager, mock_llm_client):
 @pytest.fixture(scope="function")
 def mock_swe_agent(mock_context_manager, mock_llm_client):
     """Create mock SWE agent for testing."""
-    return MockSWEAgent(
-        context_manager=mock_context_manager, llm_client=mock_llm_client
-    )
+    return MockSWEAgent(context_manager=mock_context_manager, llm_client=mock_llm_client)
 
 
 @pytest.fixture(scope="function")
 def mock_agent_pool(mock_devops_agent, mock_software_engineer_agent, mock_swe_agent):
     """Create pool of mock agents for testing."""
-    return create_mock_agent_pool(
-        [mock_devops_agent, mock_software_engineer_agent, mock_swe_agent]
-    )
+    return create_mock_agent_pool([mock_devops_agent, mock_software_engineer_agent, mock_swe_agent])
 
 
 # Workflow orchestration fixtures
@@ -755,9 +742,7 @@ def test_metrics_collector():
             self.metrics = []
             self.start_time = time.time()
 
-        def record_metric(
-            self, name: str, value: float, tags: Optional[Dict[str, str]] = None
-        ):
+        def record_metric(self, name: str, value: float, tags: Optional[dict[str, str]] = None):
             self.metrics.append(
                 {
                     "name": name,
@@ -767,10 +752,10 @@ def test_metrics_collector():
                 }
             )
 
-        def get_metrics(self) -> List[Dict[str, Any]]:
+        def get_metrics(self) -> list[dict[str, Any]]:
             return self.metrics
 
-        def get_summary(self) -> Dict[str, Any]:
+        def get_summary(self) -> dict[str, Any]:
             return {
                 "total_metrics": len(self.metrics),
                 "execution_time": time.time() - self.start_time,
@@ -849,9 +834,8 @@ def pytest_runtest_setup(item):
             pytest.skip("Stress tests skipped unless explicitly requested")
 
     # Skip load tests unless explicitly requested
-    if "load" in item.keywords:
-        if os.environ.get("RUN_LOAD_TESTS", "false").lower() != "true":
-            pytest.skip("Load tests skipped unless explicitly requested")
+    if "load" in item.keywords and os.environ.get("RUN_LOAD_TESTS", "false").lower() != "true":
+        pytest.skip("Load tests skipped unless explicitly requested")
 
 
 # Test execution hooks
@@ -870,9 +854,7 @@ def pytest_runtest_teardown(item):
 
         # Log slow tests
         if execution_time > 5.0:
-            logger.warning(
-                f"Slow test detected: {item.name} took {execution_time:.2f}s"
-            )
+            logger.warning(f"Slow test detected: {item.name} took {execution_time:.2f}s")
 
         # Store execution time for reporting
         if not hasattr(item, "_integration_test_metrics"):

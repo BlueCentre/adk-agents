@@ -2,9 +2,9 @@
 
 # Export the main instruction for consistency
 __all__ = [
-    "SOFTWARE_ENGINEER_INSTR",
-    "SEARCH_AGENT_INSTR",
     "CODE_EXECUTION_AGENT_INSTR",
+    "SEARCH_AGENT_INSTR",
+    "SOFTWARE_ENGINEER_INSTR",
 ]
 
 SOFTWARE_ENGINEER_INSTR = """
@@ -35,7 +35,7 @@ SOFTWARE_ENGINEER_INSTR = """
 
 **Workflow Dependencies (Typical Order):**
 1. **design_pattern_agent** → Architecture and design decisions
-2. **code_review_agent** → Code analysis and initial implementation guidance  
+2. **code_review_agent** → Code analysis and initial implementation guidance
 3. **code_quality_agent** → Quality validation and improvement suggestions
 4. **testing_agent** → Test strategy and implementation
 5. **debugging_agent** → Issue identification and resolution

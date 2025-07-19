@@ -10,9 +10,9 @@ import asyncio
 import json
 import logging
 import os
+from pathlib import Path
 import tempfile
 import time
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
@@ -117,9 +117,7 @@ class TestSmartPrioritization:
             ],
         }
 
-    def test_prioritize_code_snippets_by_relevance(
-        self, prioritizer, sample_context_items
-    ):
+    def test_prioritize_code_snippets_by_relevance(self, prioritizer, sample_context_items):
         """Test that code snippets are prioritized by relevance to current context."""
         # Arrange
         current_context = "Fix authentication security issues"
@@ -155,9 +153,7 @@ class TestSmartPrioritization:
         top_2_files = [prioritized[0]["file_path"], prioritized[1]["file_path"]]
         assert any("config.py" in f or "auth.py" in f for f in top_2_files)
 
-    def test_prioritize_tool_results_by_error_priority(
-        self, prioritizer, sample_context_items
-    ):
+    def test_prioritize_tool_results_by_error_priority(self, prioritizer, sample_context_items):
         """Test that tool results with errors get higher priority."""
         # Arrange
         current_context = "Debug authentication system"
@@ -244,18 +240,14 @@ class TestCrossTurnCorrelation:
 
         # Assert
         # Find auth.py snippets (exact match for src/auth.py, not tests/test_auth.py)
-        auth_snippets = [
-            s for s in enhanced_snippets if s["file_path"] == "src/auth.py"
-        ]
+        auth_snippets = [s for s in enhanced_snippets if s["file_path"] == "src/auth.py"]
         assert len(auth_snippets) == 2
 
         # They should have high correlation scores
         for snippet in auth_snippets:
             assert snippet["_correlation_score"].file_similarity > 0.8
 
-    def test_detect_tool_sequence_correlations(
-        self, correlator, sample_conversation_data
-    ):
+    def test_detect_tool_sequence_correlations(self, correlator, sample_conversation_data):
         """Test detection of tool operation sequence correlations."""
         # Act
         enhanced_snippets, enhanced_tools = correlator.correlate_context_items(
@@ -312,7 +304,7 @@ def authenticate(self, username: str, password: str) -> Optional[str]:
     """Authenticate user and return JWT token."""
     # Simple password hashing - needs improvement
     password_hash = hashlib.md5(password.encode()).hexdigest()
-    
+
     if username in self.users and self.users[username] == password_hash:
         token = jwt.encode({"user": username}, SECRET_KEY, algorithm="HS256")
         return token
@@ -352,9 +344,7 @@ FAILED tests/test_auth.py::test_validate_token - jwt.exceptions.InvalidKeyError
         )
 
         # Act
-        summary = summarizer.summarize_code_snippet(
-            sample_content["code"], "src/auth.py", context
-        )
+        summary = summarizer.summarize_code_snippet(sample_content["code"], "src/auth.py", context)
 
         # Assert
         assert len(summary) <= 120  # Close to target length
@@ -457,7 +447,7 @@ class User:
     email: str
     password_hash: str
     is_active: bool = True
-    
+
     def verify_password(self, password: str) -> bool:
         from ..utils.security import verify_password
         return verify_password(password, self.password_hash)
@@ -485,9 +475,7 @@ class User:
 
         # Act
         with patch.object(expander, "workspace_root", test_workspace_with_errors):
-            discovered = expander.expand_context(
-                expansion_context, {"src/auth.py"}, current_errors
-            )
+            discovered = expander.expand_context(expansion_context, {"src/auth.py"}, current_errors)
 
         # Assert
         assert len(discovered) > 0
@@ -598,17 +586,11 @@ class TestContextManagerIntegration:
     def test_comprehensive_context_assembly(self, context_manager):
         """Test complete context assembly with all advanced features."""
         # Arrange - Create a complex conversation scenario
-        context_manager.start_new_turn(
-            "Review authentication system for security issues"
-        )
+        context_manager.start_new_turn("Review authentication system for security issues")
         context_manager.update_phase("Security Analysis")
-        context_manager.add_code_snippet(
-            "src/auth.py", "SECRET_KEY = 'hardcoded'", 5, 5
-        )
+        context_manager.add_code_snippet("src/auth.py", "SECRET_KEY = 'hardcoded'", 5, 5)
         context_manager.add_tool_result("security_scan", {"critical": 1, "high": 2})
-        context_manager.update_agent_response(
-            1, "Found critical security vulnerability"
-        )
+        context_manager.update_agent_response(1, "Found critical security vulnerability")
 
         context_manager.start_new_turn("Fix the hardcoded secret key issue")
         context_manager.update_phase("Implementation")
@@ -616,9 +598,7 @@ class TestContextManagerIntegration:
             "src/config.py", "SECRET_KEY = os.environ.get('SECRET_KEY')", 5, 5
         )
         context_manager.add_tool_result("test_runner", {"passed": 8, "failed": 1})
-        context_manager.update_agent_response(
-            2, "Implemented environment variable configuration"
-        )
+        context_manager.update_agent_response(2, "Implemented environment variable configuration")
 
         # Act
         context_dict, token_count = context_manager.assemble_context(5000)
@@ -646,9 +626,7 @@ class TestContextManagerIntegration:
             context_manager.update_agent_response(i + 1, f"Response {i}")
 
         # Act - Request with limited budget
-        context_dict, token_count = context_manager.assemble_context(
-            1000
-        )  # Very limited budget
+        context_dict, token_count = context_manager.assemble_context(1000)  # Very limited budget
 
         # Assert
         assert token_count <= 1000
@@ -656,9 +634,7 @@ class TestContextManagerIntegration:
         # Should prioritize critical items
         history = context_dict.get("conversation_history", [])
         if history:
-            critical_turns = [
-                t for t in history if "Critical" in t.get("user_message", "")
-            ]
+            critical_turns = [t for t in history if "Critical" in t.get("user_message", "")]
             assert len(critical_turns) > 0  # Should include critical turns
 
     def test_emergency_optimization_mode(self, context_manager):
@@ -682,9 +658,7 @@ class TestContextManagerIntegration:
             emergency_context_manager.add_code_snippet(
                 f"file_{i}.py", "code content " * 1000, 1, 100
             )
-            emergency_context_manager.update_agent_response(
-                i + 1, f"Very long response {i} " * 100
-            )
+            emergency_context_manager.update_agent_response(i + 1, f"Very long response {i} " * 100)
 
         # Act - Request with moderate base prompt to force emergency mode due to low max limit
         context_dict, token_count = emergency_context_manager.assemble_context(
@@ -704,16 +678,10 @@ class TestContextManagerIntegration:
     def test_proactive_context_integration(self, context_manager):
         """Test integration of proactive context gathering."""
         # Arrange
-        with patch.object(
-            context_manager.proactive_gatherer, "gather_all_context"
-        ) as mock_gather:
+        with patch.object(context_manager.proactive_gatherer, "gather_all_context") as mock_gather:
             mock_gather.return_value = {
-                "project_files": [
-                    {"path": "README.md", "content": "Project documentation"}
-                ],
-                "git_history": [
-                    {"commit": "abc123", "message": "Fix authentication bug"}
-                ],
+                "project_files": [{"path": "README.md", "content": "Project documentation"}],
+                "git_history": [{"commit": "abc123", "message": "Fix authentication bug"}],
             }
 
             # Act
@@ -736,7 +704,7 @@ def method_one():
     return 1
 
 def method_two():
-    """Second method.""" 
+    """Second method."""
     return 2
 
 class TestClass:
@@ -777,9 +745,7 @@ class TestClass:
 
         # Add substantial content
         for i in range(100):
-            context_manager.start_new_turn(
-                f"Large task {i} with substantial content " * 50
-            )
+            context_manager.start_new_turn(f"Large task {i} with substantial content " * 50)
             context_manager.add_code_snippet(f"file_{i}.py", "content " * 500, 1, 100)
             context_manager.add_tool_result(f"tool_{i}", {"data": "result " * 200})
 
@@ -792,9 +758,7 @@ class TestClass:
         memory_increase = memory_after - memory_before
 
         # Should keep memory usage reasonable
-        assert memory_increase <= 100, (
-            f"Memory increase too high: {memory_increase:.1f}MB"
-        )
+        assert memory_increase <= 100, f"Memory increase too high: {memory_increase:.1f}MB"
 
     @pytest.mark.skip(
         reason="Token optimization effectiveness needs algorithm improvements - current ratio 1.05 vs expected <1.0. Requires better optimization strategies."
@@ -818,9 +782,7 @@ class TestClass:
         _, tokens_optimized = context_manager.assemble_context(500)  # Tighter budget
 
         optimization_ratio = tokens_optimized / tokens_normal
-        assert optimization_ratio < 1.0, (
-            f"Optimization should reduce tokens: {optimization_ratio}"
-        )
+        assert optimization_ratio < 1.0, f"Optimization should reduce tokens: {optimization_ratio}"
 
 
 class TestRAGIntegration:
@@ -835,7 +797,7 @@ class AuthManager:
     def __init__(self):
         self.users = {}
         self.sessions = {}
-    
+
     def authenticate(self, username: str, password: str) -> Optional[str]:
         password_hash = hashlib.md5(password.encode()).hexdigest()
         if username in self.users and self.users[username] == password_hash:
@@ -885,9 +847,7 @@ class TestAuthManager:
 
                 # Index files
                 for file_path, content in sample_code_files.items():
-                    chunks = chunk_file_content(
-                        str(Path(temp_dir) / file_path), content
-                    )
+                    chunks = chunk_file_content(str(Path(temp_dir) / file_path), content)
                     success = index_file_chunks(collection, chunks)
                     assert success, f"Failed to index {file_path}"
 
@@ -899,17 +859,13 @@ class TestAuthManager:
                 assert results is not None
                 assert len(results) > 0
                 # Should find authentication-related chunks
-                auth_chunks = [
-                    r for r in results if "authenticate" in r["document"].lower()
-                ]
+                auth_chunks = [r for r in results if "authenticate" in r["document"].lower()]
                 assert len(auth_chunks) > 0
 
     def test_rag_query_relevance_ranking(self, sample_code_files):
         """Test RAG query relevance ranking accuracy."""
         # This test would require actual embeddings, so we'll mock the key components
-        with patch(
-            "agents.devops.tools.rag_components.retriever.embed_chunks_batch"
-        ) as mock_embed:
+        with patch("agents.devops.tools.rag_components.retriever.embed_chunks_batch") as mock_embed:
             with patch(
                 "agents.devops.tools.rag_components.retriever.get_chroma_collection"
             ) as mock_collection:
@@ -942,19 +898,13 @@ class TestAuthManager:
                 }
 
                 # Act
-                results = retrieve_relevant_chunks(
-                    "How does authentication work?", top_k=3
-                )
+                results = retrieve_relevant_chunks("How does authentication work?", top_k=3)
 
                 # Assert
                 assert results is not None
                 assert len(results) == 3
                 # Should be sorted by relevance (lowest distance first)
-                assert (
-                    results[0]["distance"]
-                    <= results[1]["distance"]
-                    <= results[2]["distance"]
-                )
+                assert results[0]["distance"] <= results[1]["distance"] <= results[2]["distance"]
                 # Most relevant should be the authenticate method
                 assert "authenticate" in results[0]["document"]
 

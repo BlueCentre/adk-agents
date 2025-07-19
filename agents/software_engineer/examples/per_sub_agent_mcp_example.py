@@ -42,9 +42,7 @@ def example_1_basic_per_sub_agent_mcp():
     print(f"Debugging agent tools loaded: {len(debugging_tools)}")
 
     # Load tools for testing agent with per-sub-agent MCP configuration
-    testing_tools = load_tools_for_sub_agent(
-        profile_name="testing", sub_agent_name="testing_agent"
-    )
+    testing_tools = load_tools_for_sub_agent(profile_name="testing", sub_agent_name="testing_agent")
 
     print(f"Testing agent tools loaded: {len(testing_tools)}")
 
@@ -147,13 +145,13 @@ def example_4_configuration_management():
 
     # List available MCP servers for debugging agent
     available_servers = list_available_mcp_servers("debugging_agent")
-    print(f"Available MCP servers for debugging_agent:")
+    print("Available MCP servers for debugging_agent:")
     print(f"  Global servers: {available_servers.get('global', [])}")
     print(f"  Sub-agent servers: {available_servers.get('sub_agent', [])}")
 
     # Get current configuration for debugging agent
     current_config = get_sub_agent_mcp_config("debugging_agent")
-    print(f"Current MCP configuration for debugging_agent:")
+    print("Current MCP configuration for debugging_agent:")
     print(f"  MCP servers: {list(current_config.get('mcpServers', {}).keys())}")
     print(f"  Global servers: {current_config.get('globalServers', [])}")
     print(f"  Excluded servers: {current_config.get('excludedServers', [])}")
@@ -216,9 +214,7 @@ def example_6_dynamic_mcp_server_selection():
         {
             "name": "performance_debugging",
             "servers": ["profiler", "monitoring"],
-            "overrides": {
-                "profiler": {"env": {"PROFILE_CPU": "1", "PROFILE_MEMORY": "1"}}
-            },
+            "overrides": {"profiler": {"env": {"PROFILE_CPU": "1", "PROFILE_MEMORY": "1"}}},
         },
         {
             "name": "security_analysis",

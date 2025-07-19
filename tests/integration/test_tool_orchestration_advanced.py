@@ -7,13 +7,13 @@ and performance verification.
 """
 
 import asyncio
-import json
-import os
-import tempfile
-import time
 from dataclasses import dataclass
 from enum import Enum
+import json
+import os
 from pathlib import Path
+import tempfile
+import time
 from typing import Any, Dict, List, Optional, Tuple
 from unittest.mock import AsyncMock, MagicMock, Mock, call, patch
 
@@ -70,12 +70,12 @@ class ToolExecution:
     """Container for tool execution information."""
 
     tool_name: str
-    args: Dict[str, Any]
+    args: dict[str, Any]
     status: ToolExecutionStatus = ToolExecutionStatus.PENDING
     result: Optional[Any] = None
     error: Optional[str] = None
     execution_time: float = 0.0
-    dependencies: List[str] = None
+    dependencies: list[str] = None
     retry_count: int = 0
     max_retries: int = 3
 
@@ -89,9 +89,9 @@ class ToolOrchestrator:
 
     def __init__(self, context_manager: ContextManager):
         self.context_manager = context_manager
-        self.active_executions: Dict[str, ToolExecution] = {}
-        self.execution_history: List[ToolExecution] = []
-        self.dependency_graph: Dict[str, List[str]] = {}
+        self.active_executions: dict[str, ToolExecution] = {}
+        self.execution_history: list[ToolExecution] = []
+        self.dependency_graph: dict[str, list[str]] = {}
 
         # Tool registry
         self.tools = {
@@ -116,9 +116,9 @@ class ToolOrchestrator:
     async def execute_tool(
         self,
         tool_name: str,
-        args: Dict[str, Any],
-        dependencies: List[str] = None,
-        execution_id: str = None,
+        args: dict[str, Any],
+        dependencies: Optional[list[str]] = None,
+        execution_id: Optional[str] = None,
     ) -> ToolExecution:
         """Execute a tool with dependency management and error handling."""
 
@@ -173,7 +173,7 @@ class ToolOrchestrator:
                 self.context_manager.add_tool_result(
                     tool_name,
                     {"error": str(e)},
-                    summary=f"Tool {tool_name} failed: {str(e)}",
+                    summary=f"Tool {tool_name} failed: {e!s}",
                 )
 
         finally:
@@ -184,8 +184,8 @@ class ToolOrchestrator:
         return execution
 
     async def execute_tool_sequence(
-        self, sequence: List[Tuple[str, Dict[str, Any]]]
-    ) -> List[ToolExecution]:
+        self, sequence: list[tuple[str, dict[str, Any]]]
+    ) -> list[ToolExecution]:
         """Execute a sequence of tools with proper dependency management."""
         results = []
 
@@ -193,16 +193,14 @@ class ToolOrchestrator:
             dependencies = [f"{sequence[j][0]}_{j}" for j in range(i)] if i > 0 else []
             execution_id = f"{tool_name}_{i}"
 
-            result = await self.execute_tool(
-                tool_name, args, dependencies, execution_id
-            )
+            result = await self.execute_tool(tool_name, args, dependencies, execution_id)
             results.append(result)
 
         return results
 
     async def execute_tools_parallel(
-        self, tools: List[Tuple[str, Dict[str, Any]]]
-    ) -> List[ToolExecution]:
+        self, tools: list[tuple[str, dict[str, Any]]]
+    ) -> list[ToolExecution]:
         """Execute tools in parallel where possible."""
         tasks = []
 
@@ -232,7 +230,7 @@ class ToolOrchestrator:
 
         return processed_results
 
-    async def _wait_for_dependencies(self, dependencies: List[str]):
+    async def _wait_for_dependencies(self, dependencies: list[str]):
         """Wait for dependency executions to complete."""
         while dependencies:
             completed_deps = []
@@ -265,9 +263,7 @@ class ToolOrchestrator:
             try:
                 return await self.error_strategies[error_type](execution, error)
             except Exception as recovery_error:
-                logger.error(
-                    f"Error recovery failed for {execution.tool_name}: {recovery_error}"
-                )
+                logger.error(f"Error recovery failed for {execution.tool_name}: {recovery_error}")
 
         return None
 
@@ -277,16 +273,15 @@ class ToolOrchestrator:
 
         if "file not found" in error_str or "no such file" in error_str:
             return "file_not_found"
-        elif "permission denied" in error_str:
+        if "permission denied" in error_str:
             return "permission_denied"
-        elif "command failed" in error_str or "exit code" in error_str:
+        if "command failed" in error_str or "exit code" in error_str:
             return "command_failed"
-        elif "timeout" in error_str:
+        if "timeout" in error_str:
             return "timeout"
-        elif "resource exhausted" in error_str or "quota" in error_str:
+        if "resource exhausted" in error_str or "quota" in error_str:
             return "resource_exhausted"
-        else:
-            return "unknown"
+        return "unknown"
 
     # Error recovery strategies
     async def _handle_file_not_found(
@@ -338,9 +333,7 @@ class ToolOrchestrator:
 
         return None
 
-    async def _handle_timeout(
-        self, execution: ToolExecution, error: Exception
-    ) -> Optional[Any]:
+    async def _handle_timeout(self, execution: ToolExecution, error: Exception) -> Optional[Any]:
         """Handle timeout errors."""
         # Increase timeout and retry
         if "timeout" in execution.args:
@@ -359,43 +352,39 @@ class ToolOrchestrator:
         return await self.tools[execution.tool_name](**execution.args)
 
     # Mock tool implementations for testing
-    async def _mock_read_file_tool(self, file_path: str) -> Dict[str, Any]:
+    async def _mock_read_file_tool(self, file_path: str) -> dict[str, Any]:
         """Mock read file tool."""
         if "nonexistent" in file_path:
             raise FileNotFoundError(f"File not found: {file_path}")
         return {"content": f"Mock content of {file_path}", "path": file_path}
 
-    async def _mock_edit_file_tool(
-        self, file_path: str, content: str
-    ) -> Dict[str, Any]:
+    async def _mock_edit_file_tool(self, file_path: str, content: str) -> dict[str, Any]:
         """Mock edit file tool."""
         if "readonly" in file_path:
             raise PermissionError(f"Permission denied: {file_path}")
         return {"success": True, "path": file_path, "changes": len(content)}
 
-    async def _mock_shell_tool(self, command: str) -> Dict[str, Any]:
+    async def _mock_shell_tool(self, command: str) -> dict[str, Any]:
         """Mock shell command tool."""
         if "fail" in command:
             raise RuntimeError(f"Command failed: {command}")
         return {"output": f"Mock output of: {command}", "exit_code": 0}
 
-    async def _mock_code_search_tool(self, query: str) -> Dict[str, Any]:
+    async def _mock_code_search_tool(self, query: str) -> dict[str, Any]:
         """Mock code search tool."""
         return {"matches": [{"file": "src/auth.py", "line": 10, "context": query}]}
 
-    async def _mock_code_analysis_tool(self, file_path: str) -> Dict[str, Any]:
+    async def _mock_code_analysis_tool(self, file_path: str) -> dict[str, Any]:
         """Mock code analysis tool."""
         return {"issues": ["Mock issue"], "score": 85, "file": file_path}
 
-    async def _mock_index_directory_tool(self, directory: str) -> Dict[str, Any]:
+    async def _mock_index_directory_tool(self, directory: str) -> dict[str, Any]:
         """Mock RAG index directory tool."""
         return {"indexed_files": 10, "chunks": 100, "directory": directory}
 
-    async def _mock_retrieve_context_tool(self, query: str) -> Dict[str, Any]:
+    async def _mock_retrieve_context_tool(self, query: str) -> dict[str, Any]:
         """Mock RAG context retrieval tool."""
-        return {
-            "contexts": [{"file": "src/auth.py", "relevance": 0.9, "content": query}]
-        }
+        return {"contexts": [{"file": "src/auth.py", "relevance": 0.9, "content": query}]}
 
 
 class TestAdvancedToolOrchestration:
@@ -579,9 +568,7 @@ class TestAdvancedToolOrchestration:
         orchestrator.context_manager.start_new_turn("Analyze authentication code")
 
         # Act
-        result = await orchestrator.execute_tool(
-            "read_file", {"file_path": "src/auth.py"}
-        )
+        result = await orchestrator.execute_tool("read_file", {"file_path": "src/auth.py"})
 
         # Assemble context
         context_dict, _ = orchestrator.context_manager.assemble_context(10000)
@@ -652,14 +639,10 @@ class TestAdvancedToolOrchestration:
         search_results = [r for r in results if r.tool_name == "code_search"]
         assert len(search_results) == 2
 
-        analysis_results = [
-            r for r in results if r.tool_name in ["read_file", "code_analysis"]
-        ]
+        analysis_results = [r for r in results if r.tool_name in ["read_file", "code_analysis"]]
         assert len(analysis_results) == 2
 
-        rag_results = [
-            r for r in results if r.tool_name in ["index_directory", "retrieve_context"]
-        ]
+        rag_results = [r for r in results if r.tool_name in ["index_directory", "retrieve_context"]]
         assert len(rag_results) == 2
 
     @pytest.mark.asyncio
@@ -697,12 +680,8 @@ class TestAdvancedToolOrchestration:
         assert len(results) == 4
 
         # Check success/failure isolation
-        success_count = sum(
-            1 for r in results if r.status == ToolExecutionStatus.COMPLETED
-        )
-        failure_count = sum(
-            1 for r in results if r.status == ToolExecutionStatus.FAILED
-        )
+        success_count = sum(1 for r in results if r.status == ToolExecutionStatus.COMPLETED)
+        failure_count = sum(1 for r in results if r.status == ToolExecutionStatus.FAILED)
 
         # Should have both successes and failures
         assert success_count > 0
@@ -729,9 +708,7 @@ class TestAdvancedToolOrchestration:
         start_time = time.time()
         for tool in tools:
             context_manager.start_new_turn(f"Execute {tool}")
-            context_manager.add_tool_result(
-                tool, {"status": "success", "optimization": "none"}
-            )
+            context_manager.add_tool_result(tool, {"status": "success", "optimization": "none"})
             time.sleep(0.01)  # Simulate tool execution time
 
         sequential_time = time.time() - start_time
@@ -740,9 +717,7 @@ class TestAdvancedToolOrchestration:
         start_time = time.time()
         for tool in tools:
             context_manager.start_new_turn(f"Execute {tool} optimized")
-            context_manager.add_tool_result(
-                tool, {"status": "success", "optimization": "parallel"}
-            )
+            context_manager.add_tool_result(tool, {"status": "success", "optimization": "parallel"})
 
         time.sleep(0.02)  # Simulate parallel execution time
         optimized_time = time.time() - start_time
@@ -751,9 +726,7 @@ class TestAdvancedToolOrchestration:
         optimization_score = (sequential_time - optimized_time) / sequential_time
 
         # Assert - Should achieve significant optimization
-        assert optimization_score >= 0.8, (
-            f"Optimization score too low: {optimization_score}"
-        )
+        assert optimization_score >= 0.8, f"Optimization score too low: {optimization_score}"
 
     @pytest.mark.skip(
         reason="Adaptive tool configuration has boolean assertion failure - configuration validation logic needs debugging. Requires investigation of configuration system."
@@ -787,9 +760,7 @@ class TestAdvancedToolOrchestration:
                 "caching": context["priority"] != "high",
             }
 
-            context_manager.add_tool_result(
-                "configurator", {"config": config, "context": context}
-            )
+            context_manager.add_tool_result("configurator", {"config": config, "context": context})
 
             configs.append(config)
 
@@ -801,5 +772,5 @@ class TestAdvancedToolOrchestration:
         low_priority_config = configs[2]
 
         assert high_priority_config["timeout"] < low_priority_config["timeout"]
-        assert high_priority_config["parallel"] == True
-        assert low_priority_config["caching"] == True
+        assert high_priority_config["parallel"]
+        assert low_priority_config["caching"]

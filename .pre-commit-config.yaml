@@ -1,32 +1,24 @@
 repos:
-  - repo: https://github.com/PyCQA/isort
-    rev: 6.0.1
-    hooks:
-      - id: isort
-        args: ["--profile", "black", "tests/"]
-  # - repo: https://github.com/psf/black
-  #   rev: 23.3.0
-  #   hooks:
-  #     - id: black
-  #       args: ["--line-length", "100", "--preview"]
-  # - repo: https://github.com/pycqa/flake8
-  #   rev: 7.1.0
-  #   hooks:
-  #     - id: flake8
-  #       args: ["--show-source"]
+  # Use ruff for linting, formatting, and import sorting via uv
   - repo: local
     hooks:
+      # - id: ruff-check
+      #   name: ruff check
+      #   entry: uv run ruff check --fix
+      #   language: system
+      #   types: [python]
+      #   require_serial: false
+      
+      - id: ruff-format
+        name: ruff format
+        entry: uv run ruff format .
+        language: system
+        types: [python]
+        require_serial: false
+      
       - id: pytest-coverage
         name: pytest with coverage
         entry: uv run pytest tests/ --cov=src --cov-config=pyproject.toml --cov-report=xml --cov-report=term
         language: system
         pass_filenames: false
         always_run: true
-
-  # - repo: https://github.com/codespell-project/codespell
-  #   rev: v2.2.6
-  #   hooks:
-  #     - id: codespell
-  #       args: ["--skip", "aider/website/docs/languages.md"]
-  #       additional_dependencies:
-  #         - tomli

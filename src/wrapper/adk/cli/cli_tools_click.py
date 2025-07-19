@@ -15,20 +15,20 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import asynccontextmanager
+from datetime import datetime
 import functools
 import logging
 import os
 import tempfile
-import warnings
-from contextlib import asynccontextmanager
-from datetime import datetime
 from typing import Optional
+import warnings
 
-import rich_click as click
-import uvicorn
 from fastapi import FastAPI
 from google.adk.cli import cli_create, cli_deploy
 from google.adk.cli.utils import logs
+import rich_click as click
+import uvicorn
 
 from .. import version
 from .cli import run_cli
@@ -117,13 +117,11 @@ logger = logging.getLogger("google_adk." + __name__)
 @click.version_option(version.__version__)
 def main():
     """Agent Development Kit CLI tools."""
-    pass
 
 
 @main.group()
 def deploy():
     """Deploys agent to hosted environments."""
-    pass
 
 
 @main.command("create", cls=HelpfulCommand)
@@ -150,10 +148,10 @@ def deploy():
 @click.argument("app_name", type=str, required=True)
 def cli_create_cmd(
     app_name: str,
-    model: Optional[str],
-    api_key: Optional[str],
-    project: Optional[str],
-    region: Optional[str],
+    model: str | None,
+    api_key: str | None,
+    project: str | None,
+    region: str | None,
 ):
     """Creates a new app in the current folder with prepopulated agent template.
 
@@ -253,10 +251,10 @@ def validate_exclusive(ctx, param, value):
 def cli_run(
     agent_module_name: str,
     save_session: bool,
-    session_id: Optional[str],
-    replay: Optional[str],
-    resume: Optional[str],
-    ui_theme: Optional[str],  # Extend for TUI
+    session_id: str | None,
+    replay: str | None,
+    resume: str | None,
+    ui_theme: str | None,  # Extend for TUI
     tui: bool,  # Extend for TUI
 ):
     """Runs an interactive CLI for a certain agent.
@@ -333,40 +331,40 @@ def adk_services_options():
 
 
 def deprecated_adk_services_options():
-  """Depracated ADK services options."""
+    """Depracated ADK services options."""
 
-  def warn(alternative_param, ctx, param, value):
-    if value:
-      click.echo(
-          click.style(
-              f"WARNING: Deprecated option {param.name} is used. Please use"
-              f" {alternative_param} instead.",
-              fg="yellow",
-          ),
-          err=True,
-      )
-    return value
+    def warn(alternative_param, ctx, param, value):
+        if value:
+            click.echo(
+                click.style(
+                    f"WARNING: Deprecated option {param.name} is used. Please use"
+                    f" {alternative_param} instead.",
+                    fg="yellow",
+                ),
+                err=True,
+            )
+        return value
 
-  def decorator(func):
-    @click.option(
-        "--session_db_url",
-        help="Deprecated. Use --session_service_uri instead.",
-        callback=functools.partial(warn, "--session_service_uri"),
-    )
-    @click.option(
-        "--artifact_storage_uri",
-        type=str,
-        help="Deprecated. Use --artifact_service_uri instead.",
-        callback=functools.partial(warn, "--artifact_service_uri"),
-        default=None,
-    )
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-      return func(*args, **kwargs)
+    def decorator(func):
+        @click.option(
+            "--session_db_url",
+            help="Deprecated. Use --session_service_uri instead.",
+            callback=functools.partial(warn, "--session_service_uri"),
+        )
+        @click.option(
+            "--artifact_storage_uri",
+            type=str,
+            help="Deprecated. Use --artifact_service_uri instead.",
+            callback=functools.partial(warn, "--artifact_service_uri"),
+            default=None,
+        )
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
 
-    return wrapper
+        return wrapper
 
-  return decorator
+    return decorator
 
 
 def fast_api_common_options():
@@ -401,8 +399,7 @@ def fast_api_common_options():
             "--reload/--no-reload",
             default=True,
             help=(
-                "Optional. Whether to enable auto reload for server. Not supported"
-                " for Cloud Run."
+                "Optional. Whether to enable auto reload for server. Not supported for Cloud Run."
             ),
         )
         @click.option(
@@ -446,17 +443,17 @@ def fast_api_common_options():
 def cli_web(
     agents_dir: str,
     log_level: str = "INFO",
-    allow_origins: Optional[list[str]] = None,
+    allow_origins: list[str] | None = None,
     host: str = "127.0.0.1",
     port: int = 8000,
     trace_to_cloud: bool = False,
     reload: bool = True,
-    session_service_uri: Optional[str] = None,
-    artifact_service_uri: Optional[str] = None,
-    memory_service_uri: Optional[str] = None,
-    eval_storage_uri: Optional[str] = None,
-    session_db_url: Optional[str] = None,  # Deprecated
-    artifact_storage_uri: Optional[str] = None,  # Deprecated
+    session_service_uri: str | None = None,
+    artifact_service_uri: str | None = None,
+    memory_service_uri: str | None = None,
+    eval_storage_uri: str | None = None,
+    session_db_url: str | None = None,  # Deprecated
+    artifact_storage_uri: str | None = None,  # Deprecated
     a2a: bool = False,
     reload_agents: bool = False,
 ):
@@ -523,17 +520,17 @@ def cli_web(
 @fast_api_common_options()
 def cli_web_packaged(
     log_level: str = "INFO",
-    allow_origins: Optional[list[str]] = None,
+    allow_origins: list[str] | None = None,
     host: str = "127.0.0.1",
     port: int = 8000,
     trace_to_cloud: bool = False,
     reload: bool = True,
-    session_service_uri: Optional[str] = None,
-    artifact_service_uri: Optional[str] = None,
-    memory_service_uri: Optional[str] = None,
-    eval_storage_uri: Optional[str] = None,
-    session_db_url: Optional[str] = None,  # Deprecated
-    artifact_storage_uri: Optional[str] = None,  # Deprecated
+    session_service_uri: str | None = None,
+    artifact_service_uri: str | None = None,
+    memory_service_uri: str | None = None,
+    eval_storage_uri: str | None = None,
+    session_db_url: str | None = None,  # Deprecated
+    artifact_storage_uri: str | None = None,  # Deprecated
     a2a: bool = False,
     reload_agents: bool = False,
 ):
@@ -681,18 +678,18 @@ def cli_web_packaged(
 )
 def cli_api_server(
     agents_dir: str,
-    eval_storage_uri: Optional[str] = None,
+    eval_storage_uri: str | None = None,
     log_level: str = "INFO",
-    allow_origins: Optional[list[str]] = None,
+    allow_origins: list[str] | None = None,
     host: str = "127.0.0.1",
     port: int = 8000,
     trace_to_cloud: bool = False,
     reload: bool = True,
-    session_service_uri: Optional[str] = None,
-    artifact_service_uri: Optional[str] = None,
-    memory_service_uri: Optional[str] = None,
-    session_db_url: Optional[str] = None,  # Deprecated
-    artifact_storage_uri: Optional[str] = None,  # Deprecated
+    session_service_uri: str | None = None,
+    artifact_service_uri: str | None = None,
+    memory_service_uri: str | None = None,
+    session_db_url: str | None = None,  # Deprecated
+    artifact_storage_uri: str | None = None,  # Deprecated
     a2a: bool = False,
     reload_agents: bool = False,
 ):
@@ -753,10 +750,7 @@ def cli_api_server(
     "--service_name",
     type=str,
     default="adk-default-service-name",
-    help=(
-        "Optional. The service name to use in Cloud Run (default:"
-        " 'adk-default-service-name')."
-    ),
+    help=("Optional. The service name to use in Cloud Run (default: 'adk-default-service-name')."),
 )
 @click.option(
     "--app_name",
@@ -802,9 +796,7 @@ def cli_api_server(
 )
 @click.option(
     "--verbosity",
-    type=click.Choice(
-        ["debug", "info", "warning", "error", "critical"], case_sensitive=False
-    ),
+    type=click.Choice(["debug", "info", "warning", "error", "critical"], case_sensitive=False),
     default="WARNING",
     help="Optional. Override the default verbosity level.",
 )
@@ -845,8 +837,8 @@ def cli_api_server(
 )
 def cli_deploy_cloud_run(
     agent: str,
-    project: Optional[str],
-    region: Optional[str],
+    project: str | None,
+    region: str | None,
     service_name: str,
     app_name: str,
     temp_folder: str,
@@ -855,7 +847,7 @@ def cli_deploy_cloud_run(
     with_ui: bool,
     verbosity: str,
     session_db_url: str,
-    artifact_storage_uri: Optional[str],
+    artifact_storage_uri: str | None,
     adk_version: str,
 ):
     """Deploys an agent to Cloud Run.

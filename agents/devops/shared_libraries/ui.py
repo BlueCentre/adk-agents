@@ -123,9 +123,7 @@ def display_tool_execution_start(console: Console, tool_name: str, args: dict):
         logger.error(f"Error displaying tool execution start: {e}")
 
 
-def display_tool_finished(
-    console: Console, tool_name: str, result: Any, duration: float
-):
+def display_tool_finished(console: Console, tool_name: str, result: Any, duration: float):
     """Displays the result of a tool execution in a Rich panel."""
     try:
         result_summary = escape(str(result)[:300])
@@ -145,9 +143,7 @@ def display_tool_finished(
         logger.error(f"Error displaying tool finished: {e}")
 
 
-def display_tool_error(
-    console: Console, tool_name: str, error_response: dict, duration: float
-):
+def display_tool_error(console: Console, tool_name: str, error_response: dict, duration: float):
     """Displays a tool error in a Rich panel."""
     try:
         error_message = error_response.get("message", "Unknown error")
@@ -157,9 +153,7 @@ def display_tool_error(
             f"[b]Error:[/b] {error_summary}{'...' if len(error_message) > 500 else ''}\n"
             f"[b]Duration:[/b] {duration:.4f} seconds[/dim]"
         )
-        panel = Panel(
-            content, title="[red]❌ Tool Error[/red]", border_style="red", expand=True
-        )
+        panel = Panel(content, title="[red]❌ Tool Error[/red]", border_style="red", expand=True)
         console.print(panel)
     except Exception as e:
         logger.error(f"Error displaying tool error: {e}")
@@ -192,9 +186,7 @@ def display_tool_error_with_suggestions(
             content_parts.append(f"[yellow]{escape(suggestion_text)}[/yellow]")
 
         if alternatives_tried:
-            content_parts.append(
-                f"[dim][b]Alternatives Tried:[/b] {len(alternatives_tried)}[/dim]"
-            )
+            content_parts.append(f"[dim][b]Alternatives Tried:[/b] {len(alternatives_tried)}[/dim]")
 
         if suggestions:
             content_parts.append(
@@ -215,9 +207,7 @@ def display_tool_error_with_suggestions(
         logger.error(f"Error displaying tool error with suggestions: {e}")
 
 
-def display_unhandled_error(
-    console: Console, error_type: str, error_message: str, mcp_hint: str
-):
+def display_unhandled_error(console: Console, error_type: str, error_message: str, mcp_hint: str):
     """Displays an unhandled agent error in a Rich panel."""
     try:
         rich_error_message_display = f"Type: {escape(error_type)}\nMessage: {escape(error_message)}\n{escape(mcp_hint) if mcp_hint else ''}"
@@ -249,9 +239,7 @@ def display_retry_suggestions(console: Console, command: str, suggestions: list)
                 content_parts.append(f"  {i}. [cyan]{escape(suggestion)}[/cyan]")
 
         if len(suggestions) > 5:
-            content_parts.append(
-                f"  [dim]... and {len(suggestions) - 5} more suggestions[/dim]"
-            )
+            content_parts.append(f"  [dim]... and {len(suggestions) - 5} more suggestions[/dim]")
 
         content = Text.from_markup("\n".join(content_parts))
         panel = Panel(

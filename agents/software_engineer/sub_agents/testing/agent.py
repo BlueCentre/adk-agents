@@ -1,6 +1,7 @@
 """Testing Agent Implementation."""
 
 from google.adk.agents import LlmAgent
+
 from google.genai.types import GenerateContentConfig
 
 from ... import config as agent_config
@@ -28,9 +29,7 @@ def create_testing_agent(name_suffix=""):
         "excluded_categories": [],  # Override profile to allow search tools
     }
 
-    tools = load_tools_for_sub_agent(
-        "testing", custom_testing_config, sub_agent_name=agent_name
-    )
+    tools = load_tools_for_sub_agent("testing", custom_testing_config, sub_agent_name=agent_name)
 
     return LlmAgent(
         model=agent_config.DEFAULT_SUB_AGENT_MODEL,

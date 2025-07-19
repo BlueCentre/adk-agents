@@ -11,7 +11,7 @@ from typing import Any, Dict
 from google.adk.tools import FunctionTool, ToolContext
 
 
-def get_analysis_issues(tool_context: ToolContext) -> Dict[str, Any]:
+def get_analysis_issues(tool_context: ToolContext) -> dict[str, Any]:
     """
     Retrieves code analysis issues stored under the key 'analysis_issues' in the session state.
 

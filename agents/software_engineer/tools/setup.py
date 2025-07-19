@@ -4,11 +4,11 @@ It is used in the software_engineer_agent.py file to load the core tools and too
 """
 
 import asyncio
+from contextlib import AsyncExitStack
 import json
 import logging
 import os
-from contextlib import AsyncExitStack
-from typing import Any, List
+from typing import Any, List, Optional
 
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.tools.agent_tool import AgentTool
@@ -19,8 +19,7 @@ from google.adk.tools.mcp_tool.mcp_toolset import (
     StdioServerParameters,
 )
 
-from .. import config as agent_config
-from .. import prompt
+from .. import config as agent_config, prompt
 
 if agent_config.ENABLE_CODE_EXECUTION:
     from google.adk.code_executors import BuiltInCodeExecutor
@@ -121,14 +120,10 @@ async def load_user_tools_and_toolsets_async():
         _loaded_mcp_toolsets = {}
 
     # Check if MCPToolset.from_server is available (latest ADK)
-    has_from_server = hasattr(MCPToolset, "from_server") and callable(
-        getattr(MCPToolset, "from_server")
-    )
+    has_from_server = hasattr(MCPToolset, "from_server") and callable(MCPToolset.from_server)
 
     if has_from_server:
-        logger.info(
-            "Latest ADK detected: Using async pattern with MCPToolset.from_server()"
-        )
+        logger.info("Latest ADK detected: Using async pattern with MCPToolset.from_server()")
         # Initialize global exit stack if not already done
         if _global_mcp_exit_stack is None:
             _global_mcp_exit_stack = AsyncExitStack()
@@ -139,7 +134,7 @@ async def load_user_tools_and_toolsets_async():
         logger.info("mcp.json not found. No user-defined MCP toolsets will be loaded.")
         return user_mcp_tools_list, _global_mcp_exit_stack if has_from_server else None
 
-    with open(mcp_config_path, "r") as f:
+    with open(mcp_config_path) as f:
         mcp_config = json.load(f)
 
     servers = mcp_config.get("mcpServers", {})
@@ -205,9 +200,7 @@ async def load_user_tools_and_toolsets_async():
                     continue
             else:
                 # Use the simple MCPToolset pattern compatible with older ADK versions
-                logger.info(
-                    f"Loading MCP Toolset '{server_name}' using simple pattern..."
-                )
+                logger.info(f"Loading MCP Toolset '{server_name}' using simple pattern...")
 
                 try:
                     mcp_toolset = MCPToolset(connection_params=connection_params)
@@ -242,7 +235,7 @@ def load_user_tools_and_toolsets():
         logger.info("mcp.json not found. No user-defined MCP toolsets will be loaded.")
         return user_mcp_tools_list
 
-    with open(mcp_config_path, "r") as f:
+    with open(mcp_config_path) as f:
         mcp_config = json.load(f)
 
     servers = mcp_config.get("mcpServers", {})
@@ -252,14 +245,10 @@ def load_user_tools_and_toolsets():
         )
         return user_mcp_tools_list
 
-    logger.info(
-        f"Found {len(servers)} MCP servers in mcp.json. Attempting to load them..."
-    )
+    logger.info(f"Found {len(servers)} MCP servers in mcp.json. Attempting to load them...")
 
     # Check if MCPToolset.from_server is available (latest ADK)
-    has_from_server = hasattr(MCPToolset, "from_server") and callable(
-        getattr(MCPToolset, "from_server")
-    )
+    has_from_server = hasattr(MCPToolset, "from_server") and callable(MCPToolset.from_server)
 
     # Always use the async pattern if available, regardless of context
     # This ensures consistent cleanup behavior
@@ -274,9 +263,7 @@ def load_user_tools_and_toolsets():
             global _global_mcp_exit_stack
             _global_mcp_exit_stack = exit_stack
             user_mcp_tools_list.extend(tools)
-            logger.info(
-                f"MCP toolsets loaded using async pattern. Total: {len(tools)} tools."
-            )
+            logger.info(f"MCP toolsets loaded using async pattern. Total: {len(tools)} tools.")
 
         except Exception as e:
             logger.warning(f"Failed to load MCP toolsets using async pattern: {e}")
@@ -331,23 +318,20 @@ def _substitute_env_vars(value):
             if env_value is not None:
                 if value == f"{{{{env.{var_name}}}}}":
                     return env_value
-                else:
-                    logger.warning(
-                        f"Environment variable placeholder '{match.group(0)}' found within a string. Full string substitution is not supported. Skipping substitution."
-                    )
-                    return value
-            else:
                 logger.warning(
-                    f"Environment variable '{var_name}' not found. Could not substitute placeholder '{match.group(0)}'."
+                    f"Environment variable placeholder '{match.group(0)}' found within a string. Full string substitution is not supported. Skipping substitution."
                 )
-                return ""
+                return value
+            logger.warning(
+                f"Environment variable '{var_name}' not found. Could not substitute placeholder '{match.group(0)}'."
+            )
+            return ""
         return value
-    elif isinstance(value, list):
+    if isinstance(value, list):
         return [_substitute_env_vars(item) for item in value]
-    elif isinstance(value, dict):
+    if isinstance(value, dict):
         return {k: _substitute_env_vars(v) for k, v in value.items()}
-    else:
-        return value
+    return value
 
 
 def _create_connection_params(server_name, processed_config):
@@ -471,7 +455,7 @@ def load_all_tools_and_toolsets():
     return all_tools
 
 
-def _load_filtered_mcp_tools(mcp_server_filter: List[str]) -> List[Any]:
+def _load_filtered_mcp_tools(mcp_server_filter: list[str]) -> list[Any]:
     """
     Load MCP tools filtered by server names.
 
@@ -492,7 +476,7 @@ def _load_filtered_mcp_tools(mcp_server_filter: List[str]) -> List[Any]:
         logger.info("mcp.json not found. No MCP tools will be loaded.")
         return filtered_tools
 
-    with open(mcp_config_path, "r") as f:
+    with open(mcp_config_path) as f:
         mcp_config = json.load(f)
 
     servers = mcp_config.get("mcpServers", {})
@@ -503,9 +487,7 @@ def _load_filtered_mcp_tools(mcp_server_filter: List[str]) -> List[Any]:
     # Only load servers that are in the filter list
     for server_name in mcp_server_filter:
         if server_name not in servers:
-            logger.warning(
-                f"MCP server '{server_name}' not found in configuration. Skipping."
-            )
+            logger.warning(f"MCP server '{server_name}' not found in configuration. Skipping.")
             continue
 
         server_config = servers[server_name]
@@ -536,16 +518,16 @@ def _load_filtered_mcp_tools(mcp_server_filter: List[str]) -> List[Any]:
 
 
 def load_selective_tools_and_toolsets_enhanced(
-    included_categories: List[str] = None,
-    excluded_categories: List[str] = None,
-    included_tools: List[str] = None,
-    excluded_tools: List[str] = None,
+    included_categories: Optional[list[str]] = None,
+    excluded_categories: Optional[list[str]] = None,
+    included_tools: Optional[list[str]] = None,
+    excluded_tools: Optional[list[str]] = None,
     include_mcp_tools: bool = True,
-    mcp_server_filter: List[str] = None,
-    sub_agent_name: str = None,
+    mcp_server_filter: Optional[list[str]] = None,
+    sub_agent_name: Optional[str] = None,
     include_global_servers: bool = True,
-    excluded_servers: List[str] = None,
-    server_overrides: dict = None,
+    excluded_servers: Optional[list[str]] = None,
+    server_overrides: Optional[dict] = None,
 ):
     """
     Enhanced version of selective tool loading that supports per-sub-agent MCP configurations.
@@ -590,9 +572,7 @@ def load_selective_tools_and_toolsets_enhanced(
                     server_overrides=server_overrides,
                 )
                 selected_tools.extend(mcp_tools)
-                logger.info(
-                    f"Added {len(mcp_tools)} per-sub-agent MCP tools for {sub_agent_name}"
-                )
+                logger.info(f"Added {len(mcp_tools)} per-sub-agent MCP tools for {sub_agent_name}")
             except ImportError as e:
                 logger.warning(f"Per-sub-agent MCP loading not available: {e}")
                 # Fallback to global MCP loading
@@ -607,12 +587,12 @@ def load_selective_tools_and_toolsets_enhanced(
 
 
 def load_selective_tools_and_toolsets(
-    included_categories: List[str] = None,
-    excluded_categories: List[str] = None,
-    included_tools: List[str] = None,
-    excluded_tools: List[str] = None,
+    included_categories: Optional[list[str]] = None,
+    excluded_categories: Optional[list[str]] = None,
+    included_tools: Optional[list[str]] = None,
+    excluded_tools: Optional[list[str]] = None,
     include_mcp_tools: bool = True,
-    mcp_server_filter: List[str] = None,
+    mcp_server_filter: Optional[list[str]] = None,
 ):
     """
     Load tools selectively based on categories and specific tool names.
@@ -807,7 +787,7 @@ def create_sub_agent_tool_profiles():
 
 
 def load_tools_for_sub_agent(
-    profile_name: str, custom_config: dict = None, sub_agent_name: str = None
+    profile_name: str, custom_config: Optional[dict] = None, sub_agent_name: Optional[str] = None
 ):
     """
     Load tools for a sub-agent using a predefined profile or custom configuration.

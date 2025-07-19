@@ -16,7 +16,6 @@ import logging
 import os
 from typing import Optional
 
-import rich_click as click
 from google.adk.artifacts.gcs_artifact_service import GcsArtifactService
 from google.adk.artifacts.in_memory_artifact_service import InMemoryArtifactService
 from google.adk.auth.credential_service.in_memory_credential_service import (
@@ -27,10 +26,12 @@ from google.adk.memory.vertex_ai_rag_memory_service import VertexAiRagMemoryServ
 from google.adk.sessions.database_session_service import DatabaseSessionService
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.adk.sessions.vertex_ai_session_service import VertexAiSessionService
+import rich_click as click
 
 from .cli.utils import envs
 
 logger = logging.getLogger("google_adk." + __name__)
+
 
 class ServiceFactory:
     def __init__(self, agents_dir: str):
@@ -41,10 +42,7 @@ class ServiceFactory:
             if artifact_service_uri.startswith("gs://"):
                 gcs_bucket = artifact_service_uri.split("://")[1]
                 return GcsArtifactService(bucket_name=gcs_bucket)
-            else:
-                raise click.ClickException(
-                    f"Unsupported artifact service URI: {artifact_service_uri}"
-                )
+            raise click.ClickException(f"Unsupported artifact service URI: {artifact_service_uri}")
         return InMemoryArtifactService()
 
     def get_session_service(self, session_service_uri: Optional[str]):
@@ -59,8 +57,7 @@ class ServiceFactory:
                     location=os.environ["GOOGLE_CLOUD_LOCATION"],
                     agent_engine_id=agent_engine_id,
                 )
-            else:
-                return DatabaseSessionService(db_url=session_service_uri)
+            return DatabaseSessionService(db_url=session_service_uri)
         return InMemorySessionService()
 
     def get_memory_service(self, memory_service_uri: Optional[str]):
@@ -71,9 +68,9 @@ class ServiceFactory:
                     raise click.ClickException("Rag corpus can not be empty.")
                 envs.load_dotenv_for_agent("", self.agents_dir)
                 return VertexAiRagMemoryService(
-                    rag_corpus=f'projects/{os.environ["GOOGLE_CLOUD_PROJECT"]}/locations/{os.environ["GOOGLE_CLOUD_LOCATION"]}/ragCorpora/{rag_corpus}'
+                    rag_corpus=f"projects/{os.environ['GOOGLE_CLOUD_PROJECT']}/locations/{os.environ['GOOGLE_CLOUD_LOCATION']}/ragCorpora/{rag_corpus}"
                 )
-            elif memory_service_uri.startswith("agentengine://"):
+            if memory_service_uri.startswith("agentengine://"):
                 agent_engine_id = memory_service_uri.split("://")[1]
                 if not agent_engine_id:
                     raise click.ClickException("Agent engine id can not be empty.")
@@ -85,11 +82,10 @@ class ServiceFactory:
                 #     location=os.environ["GOOGLE_CLOUD_LOCATION"],
                 #     agent_engine_id=agent_engine_id,
                 # )
-                raise NotImplementedError("VertexAiMemoryBankService is not yet implemented in ServiceFactory.")
-            else:
-                raise click.ClickException(
-                    f"Unsupported memory service URI: {memory_service_uri}"
+                raise NotImplementedError(
+                    "VertexAiMemoryBankService is not yet implemented in ServiceFactory."
                 )
+            raise click.ClickException(f"Unsupported memory service URI: {memory_service_uri}")
         return InMemoryMemoryService()
 
     def get_credential_service(self):

@@ -45,9 +45,7 @@ class ErrorHandler:
         error_msg = str(error)
         if "Function" in error_msg and "is not found in the tools_dict" in error_msg:
             # Extract function name from error message
-            match = re.search(
-                r"Function (\w+) is not found in the tools_dict", error_msg
-            )
+            match = re.search(r"Function (\w+) is not found in the tools_dict", error_msg)
             missing_function = match.group(1) if match else "unknown function"
 
             # Display user-friendly error messages
@@ -62,9 +60,7 @@ class ErrorHandler:
             )
 
             # Log the error for debugging
-            logger.warning(
-                f"Agent attempted to call missing function: {missing_function}"
-            )
+            logger.warning(f"Agent attempted to call missing function: {missing_function}")
             logger.debug(f"Full error: {error_msg}")
 
             return True
@@ -79,9 +75,7 @@ class ErrorHandler:
             error: The exception to handle
         """
         error_msg = str(error)
-        self.display_interface.display_error(
-            f"❌ An unexpected error occurred: {error_msg}"
-        )
+        self.display_interface.display_error(f"❌ An unexpected error occurred: {error_msg}")
         self.display_interface.display_info(
             "💡 You can try rephrasing your question or continue with a new request."
         )
@@ -162,16 +156,10 @@ class TUIErrorDisplay:
         self.tui_app = tui_app
 
     def display_error(self, message: str, style: str = "error") -> None:
-        self.tui_app.add_output(
-            message, author="System", rich_format=True, style="error"
-        )
+        self.tui_app.add_output(message, author="System", rich_format=True, style="error")
 
     def display_warning(self, message: str, style: str = "warning") -> None:
-        self.tui_app.add_output(
-            message, author="System", rich_format=True, style="warning"
-        )
+        self.tui_app.add_output(message, author="System", rich_format=True, style="warning")
 
     def display_info(self, message: str, style: str = "info") -> None:
-        self.tui_app.add_output(
-            message, author="System", rich_format=True, style="info"
-        )
+        self.tui_app.add_output(message, author="System", rich_format=True, style="info")

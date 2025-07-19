@@ -5,8 +5,8 @@ Tests for cli.py module with comprehensive coverage.
 import json
 from unittest.mock import AsyncMock, Mock, mock_open, patch
 
-import pytest
 from pydantic import ValidationError
+import pytest
 
 from src.wrapper.adk.cli.cli import (
     InputFile,
@@ -114,8 +114,11 @@ class TestRunInputFile:
             input_path="/path/to/input.json",
         )
 
-        # Verify file was opened
-        mock_file.assert_called_once_with("/path/to/input.json", "r", encoding="utf-8")
+        # Verify file was opened (either with explicit "r" mode or default)
+        assert mock_file.call_count == 1
+        call_args = mock_file.call_args
+        assert call_args[0][0] == "/path/to/input.json"  # First argument is the file path
+        assert call_args[1]["encoding"] == "utf-8"  # encoding is specified
 
         # Verify session was created
         mock_session_service.create_session.assert_called_once()
@@ -156,9 +159,7 @@ class TestRunInputFile:
     @pytest.mark.asyncio
     async def test_run_input_file_validation_error(self):
         """Test run_input_file with validation error."""
-        with patch(
-            "builtins.open", new_callable=mock_open, read_data='{"invalid": "data"}'
-        ):
+        with patch("builtins.open", new_callable=mock_open, read_data='{"invalid": "data"}'):
             with pytest.raises(ValidationError):
                 await run_input_file(
                     app_name="test_app",
@@ -363,9 +364,7 @@ class TestSessionManagement:
         mock_session_class.model_validate_json.return_value = mock_loaded_session
 
         # Mock file content
-        session_data = {
-            "events": [{"author": "user", "content": {"parts": [{"text": "Hello"}]}}]
-        }
+        session_data = {"events": [{"author": "user", "content": {"parts": [{"text": "Hello"}]}}]}
         mock_file.return_value.read.return_value = json.dumps(session_data)
 
         await run_cli(
@@ -373,10 +372,11 @@ class TestSessionManagement:
             saved_session_file="/path/to/session.json",
         )
 
-        # Verify session loading
-        mock_file.assert_called_once_with(
-            "/path/to/session.json", "r", encoding="utf-8"
-        )
+        # Verify session loading (either with explicit "r" mode or default)
+        assert mock_file.call_count == 1
+        call_args = mock_file.call_args
+        assert call_args[0][0] == "/path/to/session.json"  # First argument is the file path
+        assert call_args[1]["encoding"] == "utf-8"  # encoding is specified
         mock_session_class.model_validate_json.assert_called_once()
 
         # Verify events were echoed
@@ -444,13 +444,9 @@ class TestSessionManagement:
 
             # Verify session saving
             mock_input.assert_called_once_with("Session ID to save: ")
-            mock_file.assert_called_once_with(
-                "custom_session.session.json", "w", encoding="utf-8"
-            )
+            mock_file.assert_called_once_with("custom_session.session.json", "w", encoding="utf-8")
             mock_file().write.assert_called_once_with('{"session": "data"}')
-            mock_print.assert_called_with(
-                "Session saved to", "custom_session.session.json"
-            )
+            mock_print.assert_called_with("Session saved to", "custom_session.session.json")
 
     @pytest.mark.asyncio
     @patch("src.wrapper.adk.cli.cli.envs.load_dotenv_for_agent")
@@ -507,9 +503,7 @@ class TestSessionManagement:
         )
 
         # Verify session was saved to file
-        mock_file.assert_called_with(
-            "my_session_id.session.json", "w", encoding="utf-8"
-        )
+        mock_file.assert_called_with("my_session_id.session.json", "w", encoding="utf-8")
         mock_file().write.assert_called_with('{"test": "session"}')
         mock_print.assert_called_with("Session saved to", "my_session_id.session.json")
 
@@ -683,9 +677,7 @@ class TestInteractiveMode:
             mock_console.print.assert_any_call(
                 "[warning]⚠️ Enhanced UI initialization failed: UI failed[/warning]"
             )
-            mock_console.print.assert_any_call(
-                "[info]Falling back to basic CLI mode...[/info]"
-            )
+            mock_console.print.assert_any_call("[info]Falling back to basic CLI mode...[/info]")
 
             # Verify console operations in fallback mode
             mock_console.clear.assert_called()
@@ -804,9 +796,7 @@ class TestTUIFunctionality:
     @pytest.mark.asyncio
     @patch("src.wrapper.adk.cli.cli.get_textual_cli_instance")
     @patch("src.wrapper.adk.cli.cli.RunnerFactory")
-    async def test_tui_enhanced_callbacks_coverage(
-        self, mock_runner_factory, mock_get_textual_cli
-    ):
+    async def test_tui_enhanced_callbacks_coverage(self, mock_runner_factory, mock_get_textual_cli):
         """Test TUI enhanced callback functionality."""
         # Setup
         mock_agent = Mock()
@@ -862,9 +852,7 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     @patch("src.wrapper.adk.cli.cli.envs.load_dotenv_for_agent")
     @patch("src.wrapper.adk.cli.cli.AgentLoader")
-    async def test_run_cli_agent_load_error(
-        self, mock_agent_loader_class, mock_load_dotenv
-    ):
+    async def test_run_cli_agent_load_error(self, mock_agent_loader_class, mock_load_dotenv):
         """Test run_cli when agent loading fails."""
         mock_agent_loader = Mock()
         mock_agent_loader.load_agent.side_effect = Exception("Agent not found")
@@ -1020,15 +1008,11 @@ class TestErrorHandling:
         )
 
         # Verify error messages were printed
-        mock_cli.console.print.assert_any_call(
-            "\n[red]❌ Prompt error: Prompt failed[/red]"
-        )
+        mock_cli.console.print.assert_any_call("\n[red]❌ Prompt error: Prompt failed[/red]")
         mock_cli.console.print.assert_any_call(
             "[yellow]💡 Try using a simpler terminal or check your environment.[/yellow]"
         )
-        mock_cli.console.print.assert_any_call(
-            "[blue]Falling back to basic input mode...[/blue]"
-        )
+        mock_cli.console.print.assert_any_call("[blue]Falling back to basic input mode...[/blue]")
 
         # Verify input() was called as fallback
         mock_input.assert_called_with("😜 user > ")
@@ -1076,9 +1060,7 @@ class TestEdgeCases:
         mock_credential_service = Mock()
         mock_credential_service_class.return_value = mock_credential_service
 
-        with patch(
-            "src.wrapper.adk.cli.cli.run_interactively"
-        ) as mock_run_interactively:
+        with patch("src.wrapper.adk.cli.cli.run_interactively") as mock_run_interactively:
             with patch("src.wrapper.adk.cli.cli.click.echo") as mock_echo:
                 await run_cli(
                     agent_module_name="test_agent",
@@ -1088,9 +1070,7 @@ class TestEdgeCases:
                 )
 
                 # Verify welcome message
-                mock_echo.assert_called_with(
-                    "Running agent TestAgent, type exit to exit."
-                )
+                mock_echo.assert_called_with("Running agent TestAgent, type exit to exit.")
 
                 # Verify interactive mode was called
                 mock_run_interactively.assert_called_once()
@@ -1165,7 +1145,7 @@ class TestInteractiveAgentResponses:
 
         # Mock CLI to have agent thought enabled
         mock_cli.agent_thought_enabled = True
-        setattr(mock_cli, "agent_thought_enabled", True)
+        mock_cli.agent_thought_enabled = True
 
         await run_interactively(
             root_agent=mock_agent,
@@ -1179,9 +1159,7 @@ class TestInteractiveAgentResponses:
         mock_cli.display_agent_response.assert_called_with(
             mock_console, "This is regular response", "agent"
         )
-        mock_cli.display_agent_thought.assert_called_with(
-            mock_console, "This is agent thinking"
-        )
+        mock_cli.display_agent_thought.assert_called_with(mock_console, "This is agent thinking")
 
     @pytest.mark.asyncio
     @patch("src.wrapper.adk.cli.cli.get_cli_instance")
@@ -1435,9 +1413,7 @@ class TestSessionSaving:
         )
 
         # Verify session was saved to file (mocked)
-        mock_file.assert_called_with(
-            "my_session_id.session.json", "w", encoding="utf-8"
-        )
+        mock_file.assert_called_with("my_session_id.session.json", "w", encoding="utf-8")
         mock_file().write.assert_called_with('{"test": "session"}')
         mock_print.assert_called_with("Session saved to", "my_session_id.session.json")
 
@@ -1480,9 +1456,7 @@ class TestTUIInterruptHandling:
         mock_session.user_id = "test_user"
         mock_session.id = "test_session"
 
-        with patch(
-            "src.wrapper.adk.cli.cli.get_textual_cli_instance", return_value=mock_tui
-        ):
+        with patch("src.wrapper.adk.cli.cli.get_textual_cli_instance", return_value=mock_tui):
             with patch("src.wrapper.adk.cli.cli.RunnerFactory") as mock_runner_factory:
                 mock_runner = Mock()
                 mock_runner.close = AsyncMock()
@@ -1599,14 +1573,10 @@ class TestErrorHandlingForMissingFunctions:
 
         # Test negative cases
         error_msg3 = "Some other validation error"
-        assert not (
-            "Function" in error_msg3 and "is not found in the tools_dict" in error_msg3
-        )
+        assert not ("Function" in error_msg3 and "is not found in the tools_dict" in error_msg3)
 
         error_msg4 = "Function exists but has other issues"
-        assert not (
-            "Function" in error_msg4 and "is not found in the tools_dict" in error_msg4
-        )
+        assert not ("Function" in error_msg4 and "is not found in the tools_dict" in error_msg4)
 
     @patch("src.wrapper.adk.cli.cli.logger")
     def test_error_logging_behavior(self, mock_logger):
@@ -1619,9 +1589,7 @@ class TestErrorHandlingForMissingFunctions:
         missing_function = match.group(1) if match else "unknown function"
 
         # Simulate the logging calls
-        mock_logger.warning(
-            f"Agent attempted to call missing function: {missing_function}"
-        )
+        mock_logger.warning(f"Agent attempted to call missing function: {missing_function}")
         mock_logger.debug(f"Full error: {error_msg}")
 
         # Verify logging was called correctly
@@ -1763,8 +1731,7 @@ class TestErrorHandlingForMissingFunctions:
         for error_msg in other_errors:
             # These should not match our pattern
             is_missing_function_error = (
-                "Function" in error_msg
-                and "is not found in the tools_dict" in error_msg
+                "Function" in error_msg and "is not found in the tools_dict" in error_msg
             )
             assert is_missing_function_error is False
 
@@ -1789,9 +1756,7 @@ class TestErrorHandlingForMissingFunctions:
         ]
 
         for error_msg, expected_function in test_cases:
-            match = re.search(
-                r"Function (\w+) is not found in the tools_dict", error_msg
-            )
+            match = re.search(r"Function (\w+) is not found in the tools_dict", error_msg)
             assert match is not None, f"Pattern should match: {error_msg}"
             assert match.group(1) == expected_function, (
                 f"Expected {expected_function}, got {match.group(1)}"
@@ -1808,9 +1773,7 @@ class TestErrorHandlingForMissingFunctions:
         ]
 
         for error_msg in no_match_cases:
-            match = re.search(
-                r"Function (\w+) is not found in the tools_dict", error_msg
-            )
+            match = re.search(r"Function (\w+) is not found in the tools_dict", error_msg)
             assert match is None, f"Pattern should NOT match: {error_msg}"
 
     def test_tui_error_output_formatting(self):
@@ -1886,9 +1849,7 @@ class TestErrorHandlingForMissingFunctions:
         assert mock_console.print.call_count == 2
 
         calls = mock_console.print.call_args_list
-        assert f"[red]❌ An unexpected error occurred: {error_msg}[/red]" in str(
-            calls[0]
-        )
+        assert f"[red]❌ An unexpected error occurred: {error_msg}[/red]" in str(calls[0])
         assert (
             "[blue]💡 You can try rephrasing your question or continue with a new request.[/blue]"
             in str(calls[1])
@@ -1966,9 +1927,7 @@ class TestErrorHandlingForMissingFunctions:
         )
 
         # Step 4: Mock logging
-        mock_logger.warning(
-            f"Agent attempted to call missing function: {missing_function}"
-        )
+        mock_logger.warning(f"Agent attempted to call missing function: {missing_function}")
         mock_logger.debug(f"Full error: {error_msg}")
 
         # Verify all components work together
@@ -2001,16 +1960,13 @@ class TestErrorHandlingForMissingFunctions:
         match_fallback = re.search(
             r"Function (\w+) is not found in the tools_dict", malformed_error
         )
-        missing_function = (
-            match_fallback.group(1) if match_fallback else "unknown function"
-        )
+        missing_function = match_fallback.group(1) if match_fallback else "unknown function"
         assert missing_function == "unknown function"
 
         # Component 4: Non-matching error detection
         other_error = "Some other validation error"
         is_other_error = (
-            "Function" in other_error
-            and "is not found in the tools_dict" in other_error
+            "Function" in other_error and "is not found in the tools_dict" in other_error
         )
         assert is_other_error is False
 

@@ -408,9 +408,7 @@ class TestIntegrationScenarios:
         assert message is not None
 
         # Test rich format message
-        message = renderer.format_message(
-            "[bold]Bold text[/bold]", "Agent", rich_format=True
-        )
+        message = renderer.format_message("[bold]Bold text[/bold]", "Agent", rich_format=True)
         assert message is not None
 
         # Test with style
@@ -473,9 +471,7 @@ class TestIntegrationScenarios:
         assert panel is not None
 
         # Test with args
-        panel = renderer.format_running_tool(
-            "test_tool", {"arg1": "value1", "arg2": "value2"}
-        )
+        panel = renderer.format_running_tool("test_tool", {"arg1": "value1", "arg2": "value2"})
         assert panel is not None
 
         # Test with empty args
@@ -508,9 +504,7 @@ class TestIntegrationScenarios:
         assert panel is not None
 
         # Test with detailed error
-        panel = renderer.format_tool_error(
-            "test_tool", "FileNotFoundError: file.txt not found"
-        )
+        panel = renderer.format_tool_error("test_tool", "FileNotFoundError: file.txt not found")
         assert panel is not None
 
     def test_display_agent_response(self):
@@ -518,7 +512,6 @@ class TestIntegrationScenarios:
         renderer = RichRenderer(UITheme.DARK)
 
         # Mock console
-        from unittest.mock import Mock
 
         mock_console = Mock()
 
@@ -536,7 +529,6 @@ class TestIntegrationScenarios:
         renderer = RichRenderer(UITheme.DARK)
 
         # Mock console
-        from unittest.mock import Mock
 
         mock_console = Mock()
 

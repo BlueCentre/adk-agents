@@ -10,14 +10,14 @@ and coverage analysis.
 import argparse
 import asyncio
 import concurrent.futures
+from datetime import datetime
 import json
 import logging
 import os
+from pathlib import Path
 import subprocess
 import sys
 import time
-from datetime import datetime
-from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 # Add the project root to the Python path
@@ -48,7 +48,7 @@ class TestResult:
         self.output = output
         self.error = error
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
         return {
             "name": self.name,
@@ -62,11 +62,11 @@ class TestResult:
 class TestSuite:
     """Container for a group of related tests."""
 
-    def __init__(self, name: str, description: str, tests: List[str]):
+    def __init__(self, name: str, description: str, tests: list[str]):
         self.name = name
         self.description = description
         self.tests = tests
-        self.results: List[TestResult] = []
+        self.results: list[TestResult] = []
         self.total_duration = 0.0
         self.passed_count = 0
         self.failed_count = 0
@@ -85,7 +85,7 @@ class TestSuite:
         total = self.passed_count + self.failed_count
         return (self.passed_count / total * 100) if total > 0 else 0.0
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
         return {
             "name": self.name,
@@ -106,7 +106,7 @@ class IntegrationTestRunner:
         self.verbose = verbose
         self.parallel = parallel
         self.project_root = Path(__file__).parent.parent.parent
-        self.test_suites: List[TestSuite] = []
+        self.test_suites: list[TestSuite] = []
         self.start_time = None
         self.end_time = None
 
@@ -198,18 +198,18 @@ class IntegrationTestRunner:
                 description="Evaluation-based tests for multi-agent coordination patterns following ADK evaluation framework",
                 tests=[
                     "tests/integration/test_adk_evaluation_patterns.py::TestADKEvaluationPatterns::test_multi_agent_coordination_evaluation",
-                ]
+                ],
             )
         )
-        
+
         # Phase 1.8: Agent Memory and Persistence Evaluation Tests
         self.test_suites.append(
             TestSuite(
-                name="Agent Memory and Persistence Evaluation Tests", 
+                name="Agent Memory and Persistence Evaluation Tests",
                 description="Evaluation-based tests for agent memory and persistence mechanisms following ADK evaluation framework",
                 tests=[
                     "tests/integration/test_adk_evaluation_patterns.py::TestADKEvaluationPatterns::test_agent_memory_persistence_evaluation",
-                ]
+                ],
             )
         )
 
@@ -278,7 +278,7 @@ class IntegrationTestRunner:
             )
         )
 
-    async def run_all_tests(self) -> Dict:
+    async def run_all_tests(self) -> dict:
         """Run all integration tests and return comprehensive results."""
         logger.info("🚀 Starting comprehensive integration test suite")
         self.start_time = time.time()
@@ -401,18 +401,16 @@ class IntegrationTestRunner:
                 name=test_name,
                 passed=False,
                 duration=0.0,
-                error=f"Test execution error: {str(e)}",
+                error=f"Test execution error: {e!s}",
             )
 
-    def _generate_comprehensive_report(self, total_duration: float) -> Dict:
+    def _generate_comprehensive_report(self, total_duration: float) -> dict:
         """Generate comprehensive test report."""
         # Calculate overall statistics
         total_tests = sum(len(suite.tests) for suite in self.test_suites)
         total_passed = sum(suite.passed_count for suite in self.test_suites)
         total_failed = sum(suite.failed_count for suite in self.test_suites)
-        overall_success_rate = (
-            (total_passed / total_tests * 100) if total_tests > 0 else 0.0
-        )
+        overall_success_rate = (total_passed / total_tests * 100) if total_tests > 0 else 0.0
 
         # Get system information
         system_info = {
@@ -425,7 +423,7 @@ class IntegrationTestRunner:
         }
 
         # Generate report
-        report = {
+        return {
             "system_info": system_info,
             "summary": {
                 "total_duration": total_duration,
@@ -440,9 +438,7 @@ class IntegrationTestRunner:
             "recommendations": self._generate_recommendations(),
         }
 
-        return report
-
-    def _extract_performance_metrics(self) -> Dict:
+    def _extract_performance_metrics(self) -> dict:
         """Extract performance metrics from test results."""
         metrics = {
             "fastest_test": None,
@@ -485,7 +481,7 @@ class IntegrationTestRunner:
 
         return metrics
 
-    def _generate_recommendations(self) -> List[str]:
+    def _generate_recommendations(self) -> list[str]:
         """Generate recommendations based on test results."""
         recommendations = []
 
@@ -515,9 +511,7 @@ class IntegrationTestRunner:
                 f"🎯 Overall success rate is {success_rate:.1f}% - aim for >95% for production readiness"
             )
         elif success_rate == 100.0:
-            recommendations.append(
-                "🎉 Perfect test suite! All tests passing - excellent work!"
-            )
+            recommendations.append("🎉 Perfect test suite! All tests passing - excellent work!")
 
         if not recommendations:
             recommendations.append(
@@ -526,7 +520,7 @@ class IntegrationTestRunner:
 
         return recommendations
 
-    def _save_report(self, report: Dict):
+    def _save_report(self, report: dict):
         """Save comprehensive report to file."""
         reports_dir = self.project_root / "test_reports"
         reports_dir.mkdir(exist_ok=True)
@@ -539,7 +533,7 @@ class IntegrationTestRunner:
 
         logger.info(f"📊 Comprehensive report saved to: {report_file}")
 
-    def _print_summary(self, report: Dict):
+    def _print_summary(self, report: dict):
         """Print comprehensive test summary."""
         summary = report["summary"]
 
@@ -583,9 +577,7 @@ class IntegrationTestRunner:
 async def main():
     """Main entry point for the integration test runner."""
     parser = argparse.ArgumentParser(description="Run comprehensive integration tests")
-    parser.add_argument(
-        "--verbose", "-v", action="store_true", help="Enable verbose output"
-    )
+    parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose output")
     parser.add_argument(
         "--parallel",
         "-p",
@@ -602,9 +594,7 @@ async def main():
 
     # Filter test suites if requested
     if args.suite:
-        runner.test_suites = [
-            s for s in runner.test_suites if args.suite.lower() in s.name.lower()
-        ]
+        runner.test_suites = [s for s in runner.test_suites if args.suite.lower() in s.name.lower()]
         if not runner.test_suites:
             logger.error(f"No test suites found matching '{args.suite}'")
             return 1
@@ -621,11 +611,8 @@ async def main():
         if report["summary"]["total_failed"] == 0:
             logger.info("🎉 All integration tests passed!")
             return 0
-        else:
-            logger.error(
-                f"❌ {report['summary']['total_failed']} integration tests failed"
-            )
-            return 1
+        logger.error(f"❌ {report['summary']['total_failed']} integration tests failed")
+        return 1
 
     except KeyboardInterrupt:
         logger.info("Integration tests interrupted by user")

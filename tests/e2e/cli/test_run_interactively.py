@@ -26,9 +26,7 @@ class TestRunInteractively:
     ):
         """Test basic interactive flow with enhanced UI."""
         # Setup mocks
-        artifact_service, session_service, credential_service, mock_session = (
-            mock_services
-        )
+        artifact_service, session_service, credential_service, mock_session = mock_services
 
         # Mock CLI instance
         mock_cli = MagicMock()
@@ -65,8 +63,7 @@ class TestRunInteractively:
 
             if prompt_side_effect.call_count == 1:
                 return "test query"
-            else:
-                raise KeyboardInterrupt()
+            raise KeyboardInterrupt()
 
         mock_prompt_session.prompt_async.side_effect = prompt_side_effect
         mock_cli.create_enhanced_prompt_session.return_value = mock_prompt_session
@@ -104,9 +101,7 @@ class TestRunInteractively:
     ):
         """Test fallback mode when enhanced UI fails."""
         # Setup mocks
-        artifact_service, session_service, credential_service, mock_session = (
-            mock_services
-        )
+        artifact_service, session_service, credential_service, mock_session = mock_services
 
         # Mock CLI instance to raise exception
         mock_get_cli_instance.side_effect = Exception("UI failed")
@@ -137,9 +132,7 @@ class TestRunInteractively:
         mock_console.print.assert_any_call(
             "[warning]⚠️ Enhanced UI initialization failed: UI failed[/warning]"
         )
-        mock_console.print.assert_any_call(
-            "[info]Falling back to basic CLI mode...[/info]"
-        )
+        mock_console.print.assert_any_call("[info]Falling back to basic CLI mode...[/info]")
         mock_runner_factory.create_runner.assert_called_once()
 
     @pytest.mark.asyncio
@@ -157,9 +150,7 @@ class TestRunInteractively:
     ):
         """Test special commands (help, clear, theme) in enhanced mode."""
         # Setup mocks
-        artifact_service, session_service, credential_service, mock_session = (
-            mock_services
-        )
+        artifact_service, session_service, credential_service, mock_session = mock_services
 
         # Mock CLI instance
         mock_cli = MagicMock()
@@ -209,9 +200,7 @@ class TestRunInteractively:
     ):
         """Test handling of thought content in enhanced mode."""
         # Setup mocks
-        artifact_service, session_service, credential_service, mock_session = (
-            mock_services
-        )
+        artifact_service, session_service, credential_service, mock_session = mock_services
 
         # Mock CLI instance
         mock_cli = MagicMock()
@@ -272,6 +261,4 @@ class TestRunInteractively:
         mock_cli.display_agent_response.assert_called_once_with(
             mock_console, "Regular response", "assistant"
         )
-        mock_cli.display_agent_thought.assert_called_once_with(
-            mock_console, "Agent thinking..."
-        )
+        mock_cli.display_agent_thought.assert_called_once_with(mock_console, "Agent thinking...")

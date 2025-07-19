@@ -16,8 +16,8 @@ Usage:
     tools = apply_security_policy(tools, 'restricted')
 """
 
-import logging
 from enum import Enum
+import logging
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -323,7 +323,7 @@ ENVIRONMENT_CONFIGS = {
 }
 
 
-def get_tool_profile(profile_name: str) -> Dict[str, Any]:
+def get_tool_profile(profile_name: str) -> dict[str, Any]:
     """
     Get a tool profile configuration by name.
 
@@ -345,9 +345,7 @@ def get_tool_profile(profile_name: str) -> Dict[str, Any]:
     return SUB_AGENT_PROFILES[profile_name].copy()
 
 
-def apply_security_policy(
-    config: Dict[str, Any], security_level: SecurityLevel
-) -> Dict[str, Any]:
+def apply_security_policy(config: dict[str, Any], security_level: SecurityLevel) -> dict[str, Any]:
     """
     Apply security policy constraints to a tool configuration.
 
@@ -366,9 +364,7 @@ def apply_security_policy(
         if "included_categories" in modified_config:
             allowed_categories = set(policy["allowed_categories"])
             current_categories = set(modified_config["included_categories"] or [])
-            modified_config["included_categories"] = list(
-                current_categories & allowed_categories
-            )
+            modified_config["included_categories"] = list(current_categories & allowed_categories)
 
         # Add blocked categories to exclusion list
         if "excluded_categories" not in modified_config:
@@ -396,7 +392,7 @@ def apply_security_policy(
     return modified_config
 
 
-def get_environment_config(env_type: EnvironmentType) -> Dict[str, Any]:
+def get_environment_config(env_type: EnvironmentType) -> dict[str, Any]:
     """
     Get environment-specific configuration.
 
@@ -409,9 +405,7 @@ def get_environment_config(env_type: EnvironmentType) -> Dict[str, Any]:
     return ENVIRONMENT_CONFIGS[env_type].copy()
 
 
-def validate_profile_for_environment(
-    profile_name: str, env_type: EnvironmentType
-) -> bool:
+def validate_profile_for_environment(profile_name: str, env_type: EnvironmentType) -> bool:
     """
     Validate if a profile is suitable for a given environment.
 
@@ -429,7 +423,7 @@ def validate_profile_for_environment(
     return env_type in profile["suitable_environments"]
 
 
-def get_recommended_profiles_for_environment(env_type: EnvironmentType) -> List[str]:
+def get_recommended_profiles_for_environment(env_type: EnvironmentType) -> list[str]:
     """
     Get list of recommended profiles for a given environment.
 
@@ -448,17 +442,17 @@ def get_recommended_profiles_for_environment(env_type: EnvironmentType) -> List[
 
 def create_custom_profile(
     name: str,
-    included_categories: List[str] = None,
-    excluded_categories: List[str] = None,
-    included_tools: List[str] = None,
-    excluded_tools: List[str] = None,
+    included_categories: Optional[list[str]] = None,
+    excluded_categories: Optional[list[str]] = None,
+    included_tools: Optional[list[str]] = None,
+    excluded_tools: Optional[list[str]] = None,
     include_mcp_tools: bool = True,
-    mcp_server_filter: List[str] = None,
-    description: str = None,
+    mcp_server_filter: Optional[list[str]] = None,
+    description: Optional[str] = None,
     security_level: SecurityLevel = SecurityLevel.STANDARD,
-    suitable_environments: List[EnvironmentType] = None,
-    required_permissions: List[str] = None,
-) -> Dict[str, Any]:
+    suitable_environments: Optional[list[EnvironmentType]] = None,
+    required_permissions: Optional[list[str]] = None,
+) -> dict[str, Any]:
     """
     Create a custom tool profile.
 
@@ -498,7 +492,7 @@ def create_custom_profile(
     return profile
 
 
-def register_custom_profile(name: str, profile: Dict[str, Any]) -> None:
+def register_custom_profile(name: str, profile: dict[str, Any]) -> None:
     """
     Register a custom profile globally.
 
@@ -510,7 +504,7 @@ def register_custom_profile(name: str, profile: Dict[str, Any]) -> None:
     logger.info(f"Registered custom profile: {name}")
 
 
-def list_available_profiles() -> List[str]:
+def list_available_profiles() -> list[str]:
     """
     List all available profile names.
 
@@ -520,7 +514,7 @@ def list_available_profiles() -> List[str]:
     return list(SUB_AGENT_PROFILES.keys())
 
 
-def get_profile_info(profile_name: str) -> Dict[str, Any]:
+def get_profile_info(profile_name: str) -> dict[str, Any]:
     """
     Get detailed information about a profile.
 
@@ -538,9 +532,7 @@ def get_profile_info(profile_name: str) -> Dict[str, Any]:
         "name": profile_name,
         "description": profile["description"],
         "security_level": profile["security_level"].value,
-        "suitable_environments": [
-            env.value for env in profile["suitable_environments"]
-        ],
+        "suitable_environments": [env.value for env in profile["suitable_environments"]],
         "required_permissions": profile["required_permissions"],
         "config": profile["config"],
     }

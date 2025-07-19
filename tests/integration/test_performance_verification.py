@@ -7,15 +7,15 @@ comparison, token optimization validation, and resource utilization monitoring.
 """
 
 import asyncio
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 import json
 import logging
 import os
+from pathlib import Path
 import statistics
 import tempfile
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -114,24 +114,18 @@ class PerformanceMonitor:
 
         return PerformanceMetrics(
             execution_time=end_time - self.start_time,
-            memory_usage_mb=statistics.mean(
-                [m["memory"] for m in self.metrics_history]
-            ),
+            memory_usage_mb=statistics.mean([m["memory"] for m in self.metrics_history]),
             cpu_usage_percent=statistics.mean([m["cpu"] for m in self.metrics_history]),
             token_count=sum([m.get("tokens", 0) for m in self.metrics_history]),
             context_assembly_time=statistics.mean(
                 [m.get("context_time", 0) for m in self.metrics_history]
             ),
-            successful_operations=sum(
-                [m.get("success", 0) for m in self.metrics_history]
-            ),
+            successful_operations=sum([m.get("success", 0) for m in self.metrics_history]),
             failed_operations=sum([m.get("failed", 0) for m in self.metrics_history]),
             throughput_ops_per_sec=0.0,  # Calculated in __post_init__
         )
 
-    def record_operation(
-        self, tokens: int = 0, context_time: float = 0.0, success: bool = True
-    ):
+    def record_operation(self, tokens: int = 0, context_time: float = 0.0, success: bool = True):
         """Record a single operation."""
         if self.monitoring:
             self.metrics_history.append(
@@ -184,9 +178,7 @@ class TestPerformanceVerification:
         return create_performance_test_data()
 
     @pytest.mark.asyncio
-    async def test_context_assembly_performance(
-        self, context_manager, performance_monitor
-    ):
+    async def test_context_assembly_performance(self, context_manager, performance_monitor):
         """Test context assembly performance under various loads."""
         # Setup test data
         performance_monitor.start_monitoring()
@@ -228,9 +220,7 @@ class TestPerformanceVerification:
 
         # Performance assertions
         avg_assembly_time = statistics.mean(assembly_times)
-        assert avg_assembly_time < 1.0, (
-            f"Context assembly too slow: {avg_assembly_time:.3f}s"
-        )
+        assert avg_assembly_time < 1.0, f"Context assembly too slow: {avg_assembly_time:.3f}s"
         assert metrics.memory_usage_mb < 800.0, (
             f"Memory usage too high: {metrics.memory_usage_mb:.1f}MB"
         )
@@ -241,24 +231,19 @@ class TestPerformanceVerification:
         )
 
     @pytest.mark.asyncio
-    async def test_parallel_vs_sequential_performance(
-        self, context_manager, performance_monitor
-    ):
+    async def test_parallel_vs_sequential_performance(self, context_manager, performance_monitor):
         """Test parallel vs sequential execution performance."""
 
         # Test data setup
         test_operations = [
-            ("add_code_snippet", f"file_{i}.py", f"code content {i}", 1, 10)
-            for i in range(50)
+            ("add_code_snippet", f"file_{i}.py", f"code content {i}", 1, 10) for i in range(50)
         ]
 
         # Sequential execution
         performance_monitor.start_monitoring()
         sequential_start = time.time()
 
-        for i, (op, file_path, content, start_line, end_line) in enumerate(
-            test_operations
-        ):
+        for i, (_op, file_path, content, start_line, end_line) in enumerate(test_operations):
             context_manager.start_new_turn(f"Sequential operation {i}")
             context_manager.add_code_snippet(file_path, content, start_line, end_line)
             performance_monitor.record_operation(success=True)
@@ -276,13 +261,9 @@ class TestPerformanceVerification:
             batch = test_operations[i : i + batch_size]
 
             # Process batch
-            for j, (op, file_path, content, start_line, end_line) in enumerate(batch):
-                context_manager.start_new_turn(
-                    f"Parallel batch {i // batch_size} operation {j}"
-                )
-                context_manager.add_code_snippet(
-                    file_path, content, start_line, end_line
-                )
+            for j, (_op, file_path, content, start_line, end_line) in enumerate(batch):
+                context_manager.start_new_turn(f"Parallel batch {i // batch_size} operation {j}")
+                context_manager.add_code_snippet(file_path, content, start_line, end_line)
                 performance_monitor.record_operation(success=True)
 
         parallel_time = time.time() - parallel_start
@@ -292,12 +273,10 @@ class TestPerformanceVerification:
         speedup = sequential_time / parallel_time if parallel_time > 0 else 1
 
         # Assertions
-        assert speedup >= 0.8, (
-            f"Parallel execution not efficient enough: {speedup:.2f}x"
+        assert speedup >= 0.8, f"Parallel execution not efficient enough: {speedup:.2f}x"
+        assert parallel_metrics.memory_usage_mb <= sequential_metrics.memory_usage_mb * 1.5, (
+            "Memory usage too high in parallel"
         )
-        assert (
-            parallel_metrics.memory_usage_mb <= sequential_metrics.memory_usage_mb * 1.5
-        ), "Memory usage too high in parallel"
 
         logger.info(
             f"Sequential: {sequential_time:.3f}s, Parallel: {parallel_time:.3f}s, Speedup: {speedup:.2f}x"
@@ -335,7 +314,6 @@ class TestPerformanceVerification:
     )
     def test_smart_prioritization_performance(self):
         """Test smart prioritization performance and memory usage."""
-        import os
 
         import psutil
 
@@ -351,9 +329,7 @@ class TestPerformanceVerification:
         # Add large dataset to test prioritization
         for i in range(1000):
             context_manager.start_new_turn(f"Task {i}: complex task description")
-            context_manager.add_code_snippet(
-                f"file_{i}.py", "complex code " * 100, 1, 50
-            )
+            context_manager.add_code_snippet(f"file_{i}.py", "complex code " * 100, 1, 50)
             context_manager.add_tool_result(f"tool_{i}", {"complex": "result " * 50})
 
         # Measure memory before prioritization
@@ -367,16 +343,12 @@ class TestPerformanceVerification:
         memory_increase = memory_after - memory_before
 
         # Assert - Should be efficient
-        assert memory_increase < 100, (
-            f"Prioritization memory usage too high: {memory_increase}MB"
-        )
+        assert memory_increase < 100, f"Prioritization memory usage too high: {memory_increase}MB"
         assert token_count > 0
         assert "conversation_history" in context_dict
 
     @pytest.mark.asyncio
-    async def test_cross_turn_correlation_performance(
-        self, context_manager, performance_monitor
-    ):
+    async def test_cross_turn_correlation_performance(self, context_manager, performance_monitor):
         """Test cross-turn correlation performance."""
 
         # Setup correlation test
@@ -391,9 +363,7 @@ class TestPerformanceVerification:
                     "turn_number": i,
                     "user_message": f"User message {i} about authentication and security",
                     "agent_message": f"Agent response {i} regarding security implementation",
-                    "tool_calls": [
-                        {"tool": "security_tool", "args": {"check": f"item_{i}"}}
-                    ],
+                    "tool_calls": [{"tool": "security_tool", "args": {"check": f"item_{i}"}}],
                 }
             )
 
@@ -406,8 +376,7 @@ class TestPerformanceVerification:
                 for j in range(5)
             ]
             sample_tools = [
-                {"tool": f"tool_{j}", "summary": f"summary_{j}", "turn": j}
-                for j in range(5)
+                {"tool": f"tool_{j}", "summary": f"summary_{j}", "turn": j} for j in range(5)
             ]
             current_turns = conversation_history[i : i + 5]
 
@@ -418,35 +387,25 @@ class TestPerformanceVerification:
             correlation_time = time.time() - start_time
             correlation_times.append(correlation_time)
 
-            performance_monitor.record_operation(
-                context_time=correlation_time, success=True
-            )
+            performance_monitor.record_operation(context_time=correlation_time, success=True)
 
             # Verify correlation worked
             assert isinstance(enhanced_snippets, list), (
                 "Correlation should return a list for snippets"
             )
-            assert isinstance(enhanced_tools, list), (
-                "Correlation should return a list for tools"
-            )
+            assert isinstance(enhanced_tools, list), "Correlation should return a list for tools"
             assert len(enhanced_snippets) == len(sample_snippets), (
                 "Snippet count should be preserved"
             )
-            assert len(enhanced_tools) == len(sample_tools), (
-                "Tool count should be preserved"
-            )
+            assert len(enhanced_tools) == len(sample_tools), "Tool count should be preserved"
 
-        metrics = performance_monitor.stop_monitoring()
+        performance_monitor.stop_monitoring()
 
         # Performance assertions
         avg_correlation_time = statistics.mean(correlation_times)
-        assert avg_correlation_time < 0.05, (
-            f"Correlation too slow: {avg_correlation_time:.3f}s"
-        )
+        assert avg_correlation_time < 0.05, f"Correlation too slow: {avg_correlation_time:.3f}s"
 
-        logger.info(
-            f"Cross-turn correlation: {avg_correlation_time:.3f}s avg for 100 turns"
-        )
+        logger.info(f"Cross-turn correlation: {avg_correlation_time:.3f}s avg for 100 turns")
 
     @pytest.mark.asyncio
     async def test_load_testing_simulation(
@@ -464,9 +423,7 @@ class TestPerformanceVerification:
             for op in range(operations_per_user):
                 try:
                     # User operation
-                    turn_number = context_manager.start_new_turn(
-                        f"User {user_id} operation {op}"
-                    )
+                    context_manager.start_new_turn(f"User {user_id} operation {op}")
 
                     # Add some context
                     context_manager.add_code_snippet(
@@ -533,9 +490,7 @@ class TestPerformanceVerification:
         metrics = performance_monitor.stop_monitoring()
 
         # Analyze results
-        total_operations = sum(
-            len(result) for result in all_results if isinstance(result, list)
-        )
+        total_operations = sum(len(result) for result in all_results if isinstance(result, list))
         successful_operations = sum(
             sum(1 for op in result if op.get("success", False))
             for result in all_results
@@ -543,13 +498,11 @@ class TestPerformanceVerification:
         )
 
         # Performance assertions
-        success_rate = (
-            successful_operations / total_operations if total_operations > 0 else 0
-        )
+        success_rate = successful_operations / total_operations if total_operations > 0 else 0
         assert success_rate >= 0.95, f"Success rate too low: {success_rate:.2f}"
-        assert (
-            metrics.throughput_ops_per_sec >= load_test_config.target_throughput * 0.8
-        ), f"Throughput too low: {metrics.throughput_ops_per_sec:.1f} ops/sec"
+        assert metrics.throughput_ops_per_sec >= load_test_config.target_throughput * 0.8, (
+            f"Throughput too low: {metrics.throughput_ops_per_sec:.1f} ops/sec"
+        )
         assert metrics.memory_usage_mb <= load_test_config.memory_limit_mb, (
             f"Memory usage too high: {metrics.memory_usage_mb:.1f}MB"
         )
@@ -559,9 +512,7 @@ class TestPerformanceVerification:
         )
 
     @pytest.mark.asyncio
-    async def test_memory_usage_optimization(
-        self, context_manager, performance_monitor
-    ):
+    async def test_memory_usage_optimization(self, context_manager, performance_monitor):
         """Test memory usage optimization."""
 
         performance_monitor.start_monitoring()
@@ -575,9 +526,7 @@ class TestPerformanceVerification:
 
             # Add large code snippets
             large_content = "# Large code file\n" + "def function():\n    pass\n" * 100
-            context_manager.add_code_snippet(
-                f"large_file_{i}.py", large_content, 1, 300
-            )
+            context_manager.add_code_snippet(f"large_file_{i}.py", large_content, 1, 300)
 
             # Add large tool results
             context_manager.add_tool_result(
@@ -593,9 +542,7 @@ class TestPerformanceVerification:
 
                 # Check for memory leaks
                 memory_growth = current_memory - initial_memory
-                assert memory_growth < 1000.0, (
-                    f"Memory leak detected: {memory_growth:.1f}MB growth"
-                )
+                assert memory_growth < 1000.0, f"Memory leak detected: {memory_growth:.1f}MB growth"
 
         # Test context assembly under memory pressure
         context_dict, token_count = context_manager.assemble_context(50000)
@@ -617,9 +564,7 @@ class TestPerformanceVerification:
         )
 
     @pytest.mark.asyncio
-    async def test_token_counting_performance(
-        self, context_manager, performance_monitor
-    ):
+    async def test_token_counting_performance(self, context_manager, performance_monitor):
         """Test token counting performance."""
 
         performance_monitor.start_monitoring()
@@ -630,8 +575,7 @@ class TestPerformanceVerification:
             "Medium length text with some technical terms and code snippets",
             "Very long text " * 1000,
             "Code content:\n" + "def function():\n    return 'value'\n" * 100,
-            "JSON content: "
-            + json.dumps({f"key_{i}": f"value_{i}" for i in range(100)}),
+            "JSON content: " + json.dumps({f"key_{i}": f"value_{i}" for i in range(100)}),
             "Mixed content with code, text, and special characters: !@#$%^&*()",
         ]
 
@@ -648,25 +592,19 @@ class TestPerformanceVerification:
             )
 
             # Verify token counting worked
-            assert token_count > 0, (
-                f"Token counting failed for content: {content[:50]}..."
-            )
+            assert token_count > 0, f"Token counting failed for content: {content[:50]}..."
             assert isinstance(token_count, int), "Token count should be integer"
 
-        metrics = performance_monitor.stop_monitoring()
+        performance_monitor.stop_monitoring()
 
         # Performance assertions
         avg_counting_time = statistics.mean(counting_times)
-        assert avg_counting_time < 0.01, (
-            f"Token counting too slow: {avg_counting_time:.6f}s"
-        )
+        assert avg_counting_time < 0.01, f"Token counting too slow: {avg_counting_time:.6f}s"
 
         logger.info(f"Token counting: {avg_counting_time:.6f}s avg")
 
     @pytest.mark.asyncio
-    async def test_comprehensive_performance_suite(
-        self, context_manager, performance_monitor
-    ):
+    async def test_comprehensive_performance_suite(self, context_manager, performance_monitor):
         """Comprehensive performance test suite."""
 
         performance_monitor.start_monitoring()
@@ -732,9 +670,7 @@ class TestPerformanceVerification:
             f"Throughput too low: {metrics.throughput_ops_per_sec:.1f} ops/sec"
         )
         assert final_tokens > 0, "Final context assembly failed"
-        assert final_assembly_time < 2.0, (
-            f"Final assembly too slow: {final_assembly_time:.3f}s"
-        )
+        assert final_assembly_time < 2.0, f"Final assembly too slow: {final_assembly_time:.3f}s"
 
         # Log comprehensive results
         logger.info("=" * 60)
@@ -794,17 +730,11 @@ class TestStressTests:
         assembly_time = time.time() - start_time
 
         # Stress test assertions
-        assert assembly_time < 10.0, (
-            f"Assembly too slow under stress: {assembly_time:.1f}s"
-        )
+        assert assembly_time < 10.0, f"Assembly too slow under stress: {assembly_time:.1f}s"
         assert token_count > 0, "Context assembly failed under stress"
-        assert isinstance(context_dict, dict), (
-            "Context assembly returned invalid format"
-        )
+        assert isinstance(context_dict, dict), "Context assembly returned invalid format"
 
-        logger.info(
-            f"Extreme stress test: {assembly_time:.1f}s, {token_count:,} tokens"
-        )
+        logger.info(f"Extreme stress test: {assembly_time:.1f}s, {token_count:,} tokens")
 
     @pytest.mark.asyncio
     async def test_rapid_fire_operations_stress(self, stress_context_manager):
@@ -823,9 +753,7 @@ class TestStressTests:
 
             # Occasional context assembly
             if i % 500 == 0:
-                context_dict, token_count = stress_context_manager.assemble_context(
-                    10000
-                )
+                context_dict, token_count = stress_context_manager.assemble_context(10000)
                 assert token_count > 0, f"Context assembly failed at operation {i}"
 
         total_time = time.time() - start_time

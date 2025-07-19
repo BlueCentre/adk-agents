@@ -1,6 +1,7 @@
 """Documentation Agent Implementation."""
 
 from google.adk.agents import LlmAgent
+
 from google.genai.types import GenerateContentConfig
 
 from ... import config as agent_config
@@ -17,9 +18,7 @@ def create_documentation_agent(name_suffix=""):
     Returns:
         LlmAgent: Configured documentation agent instance
     """
-    agent_name = (
-        f"{name_suffix}documentation_agent" if name_suffix else "documentation_agent"
-    )
+    agent_name = f"{name_suffix}documentation_agent" if name_suffix else "documentation_agent"
 
     # Load tools using the profile-based loading with per-sub-agent MCP configuration
     # This uses the new per-sub-agent MCP tool loading system

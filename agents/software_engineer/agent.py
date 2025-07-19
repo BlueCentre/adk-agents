@@ -2,13 +2,12 @@
 
 import logging
 
-import litellm
 from google.adk.agents import Agent
 from google.adk.models.lite_llm import LiteLlm
 from google.adk.tools import load_memory
+import litellm
 
-from . import config as agent_config
-from . import prompt
+from . import config as agent_config, prompt
 from .shared_libraries.callbacks import create_enhanced_telemetry_callbacks
 from .sub_agents.code_quality.agent import code_quality_agent
 from .sub_agents.code_review.agent import code_review_agent

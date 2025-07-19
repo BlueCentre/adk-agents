@@ -6,8 +6,8 @@ implemented in the project, based on Google ADK patterns.
 """
 
 import asyncio
-import time
 from dataclasses import dataclass
+import time
 from typing import Any, Dict, List, Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -49,8 +49,8 @@ class WorkflowExecutionResult:
 
     workflow_name: str
     execution_time: float
-    agents_executed: List[str]
-    session_state_changes: Dict[str, Any]
+    agents_executed: list[str]
+    session_state_changes: dict[str, Any]
     success: bool
     error_message: Optional[str] = None
     iteration_count: int = 0
@@ -89,9 +89,7 @@ class TestSequentialWorkflows:
         }
 
         # Act
-        result = await self._execute_workflow(
-            workflow, "feature_development", mock_session_state
-        )
+        result = await self._execute_workflow(workflow, "feature_development", mock_session_state)
 
         # Assert
         assert result.success
@@ -140,9 +138,7 @@ class TestSequentialWorkflows:
         }
 
         # Act
-        result = await self._execute_workflow(
-            workflow, "code_review", mock_session_state
-        )
+        result = await self._execute_workflow(workflow, "code_review", mock_session_state)
 
         # Assert
         assert result.success
@@ -165,9 +161,7 @@ class TestSequentialWorkflows:
         }
 
         # Act
-        result = await self._execute_workflow(
-            workflow, "refactoring", mock_session_state
-        )
+        result = await self._execute_workflow(workflow, "refactoring", mock_session_state)
 
         # Assert
         assert result.success
@@ -178,7 +172,7 @@ class TestSequentialWorkflows:
         assert result.session_state_changes.get("refactoring_status") == "completed"
 
     async def _execute_workflow(
-        self, workflow, workflow_name: str, session_state: Dict[str, Any]
+        self, workflow, workflow_name: str, session_state: dict[str, Any]
     ) -> WorkflowExecutionResult:
         """Simulate workflow execution."""
         start_time = time.time()
@@ -325,7 +319,7 @@ class TestParallelWorkflows:
         assert result.session_state_changes.get("validation_status") == "completed"
 
     async def _execute_parallel_workflow(
-        self, workflow, workflow_name: str, session_state: Dict[str, Any]
+        self, workflow, workflow_name: str, session_state: dict[str, Any]
     ) -> WorkflowExecutionResult:
         """Simulate parallel workflow execution."""
         start_time = time.time()
@@ -477,7 +471,7 @@ class TestIterativeWorkflows:
         assert result.session_state_changes.get("code_quality_score") >= 8.0
 
     async def _execute_iterative_workflow(
-        self, workflow, workflow_name: str, session_state: Dict[str, Any]
+        self, workflow, workflow_name: str, session_state: dict[str, Any]
     ) -> WorkflowExecutionResult:
         """Simulate iterative workflow execution."""
         start_time = time.time()
@@ -607,9 +601,7 @@ class TestHumanInLoopWorkflows:
         mock_session_state["human_approval"]["approver"] = "team_lead"
 
         # Act
-        result = await self._execute_human_workflow(
-            workflow, "approval", mock_session_state
-        )
+        result = await self._execute_human_workflow(workflow, "approval", mock_session_state)
 
         # Assert
         assert result.success
@@ -695,7 +687,7 @@ class TestHumanInLoopWorkflows:
         assert result.session_state_changes.get("deployment_status") == "completed"
 
     async def _execute_human_workflow(
-        self, workflow, workflow_name: str, session_state: Dict[str, Any]
+        self, workflow, workflow_name: str, session_state: dict[str, Any]
     ) -> WorkflowExecutionResult:
         """Simulate human-in-the-loop workflow execution."""
         start_time = time.time()
@@ -705,9 +697,7 @@ class TestHumanInLoopWorkflows:
             # Simulate human workflow execution
             if workflow_name == "approval":
                 agents_executed = ["approval_preparation_agent", "approval_processor"]
-                session_state["approval_status"] = session_state["human_approval"][
-                    "status"
-                ]
+                session_state["approval_status"] = session_state["human_approval"]["status"]
 
             elif workflow_name == "collaborative_review":
                 agents_executed = [
@@ -717,9 +707,7 @@ class TestHumanInLoopWorkflows:
                     "human_review_coordinator",
                     "feedback_integrator",
                 ]
-                session_state["integrated_feedback"] = session_state.get(
-                    "human_feedback", {}
-                )
+                session_state["integrated_feedback"] = session_state.get("human_feedback", {})
 
             elif workflow_name == "architecture_decision":
                 agents_executed = [
@@ -727,9 +715,7 @@ class TestHumanInLoopWorkflows:
                     "architecture_review_coordinator",
                     "architecture_finalizer",
                 ]
-                session_state["final_architecture"] = session_state.get(
-                    "expert_review", {}
-                )
+                session_state["final_architecture"] = session_state.get("expert_review", {})
 
             elif workflow_name == "deployment_approval":
                 agents_executed = [
@@ -771,13 +757,9 @@ class TestWorkflowChaining:
     async def test_sequential_to_parallel_workflow_chain(self):
         """Test chaining sequential workflow followed by parallel workflow."""
         # Arrange
-        sequential_workflow = (
-            MagicMock()
-        )  # Mock workflow since we're simulating execution
+        sequential_workflow = MagicMock()  # Mock workflow since we're simulating execution
         sequential_workflow.name = "feature_development_workflow"
-        parallel_workflow = (
-            MagicMock()
-        )  # Mock workflow since we're simulating execution
+        parallel_workflow = MagicMock()  # Mock workflow since we're simulating execution
         parallel_workflow.name = "parallel_validation_workflow"
 
         session_state = {
@@ -798,19 +780,14 @@ class TestWorkflowChaining:
 
         # Assert
         assert seq_result.success
-        assert (
-            seq_result.session_state_changes.get("feature_development_status")
-            == "completed"
-        )
+        assert seq_result.session_state_changes.get("feature_development_status") == "completed"
         assert seq_result.session_state_changes.get("validation_status") == "completed"
 
     @pytest.mark.asyncio
     async def test_iterative_to_human_workflow_chain(self):
         """Test chaining iterative workflow followed by human approval."""
         # Arrange
-        iterative_workflow = (
-            MagicMock()
-        )  # Mock workflow since we're simulating execution
+        iterative_workflow = MagicMock()  # Mock workflow since we're simulating execution
         iterative_workflow.name = "iterative_refinement_workflow"
         human_workflow = MagicMock()  # Mock workflow since we're simulating execution
         human_workflow.name = "approval_workflow"
@@ -831,7 +808,7 @@ class TestWorkflowChaining:
         assert result.session_state_changes.get("approval_status") == "approved"
 
     async def _execute_workflow_chain(
-        self, workflows, chain_name: str, session_state: Dict[str, Any]
+        self, workflows, chain_name: str, session_state: dict[str, Any]
     ) -> WorkflowExecutionResult:
         """Simulate chained workflow execution."""
         start_time = time.time()
@@ -855,9 +832,7 @@ class TestWorkflowChaining:
                 session_state["feature_development_status"] = "completed"
 
                 # Second workflow (parallel)
-                all_agents_executed.extend(
-                    ["validation_review_agent", "validation_quality_agent"]
-                )
+                all_agents_executed.extend(["validation_review_agent", "validation_quality_agent"])
                 session_state["validation_status"] = "completed"
 
             elif chain_name == "iterative_to_human":
@@ -873,9 +848,7 @@ class TestWorkflowChaining:
                 session_state["refinement_status"] = "completed"
 
                 # Second workflow (human)
-                all_agents_executed.extend(
-                    ["approval_preparation_agent", "approval_processor"]
-                )
+                all_agents_executed.extend(["approval_preparation_agent", "approval_processor"])
                 session_state["approval_status"] = "approved"
 
             # Simulate processing time for chained workflows

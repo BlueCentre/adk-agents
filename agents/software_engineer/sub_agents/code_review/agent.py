@@ -1,6 +1,7 @@
 """Code review agent implementation."""
 
 from google.adk.agents import Agent
+
 from google.genai.types import GenerateContentConfig
 
 from ... import config as agent_config
@@ -18,9 +19,7 @@ def create_code_review_agent(name_suffix=""):
     Returns:
         Agent: Configured code review agent instance
     """
-    agent_name = (
-        f"{name_suffix}code_review_agent" if name_suffix else "code_review_agent"
-    )
+    agent_name = f"{name_suffix}code_review_agent" if name_suffix else "code_review_agent"
 
     # Create telemetry callbacks for observability
     callbacks = create_telemetry_callbacks(agent_name)

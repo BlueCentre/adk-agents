@@ -76,8 +76,7 @@ class ThemeConfig:
         """Get theme configuration for the specified theme."""
         if theme == UITheme.DARK:
             return cls.DARK_THEME
-        else:
-            return cls.LIGHT_THEME
+        return cls.LIGHT_THEME
 
     @staticmethod
     def get_rich_theme(theme: UITheme) -> Theme:
@@ -103,27 +102,27 @@ class ThemeConfig:
                     "bottom-toolbar.info": "#ADD8E6 on #004488",
                 }
             )
-        else:  # UITheme.LIGHT
-            return Theme(
-                {
-                    "info": "green",
-                    "warning": "yellow",
-                    "error": "bold red",
-                    "success": "green",
-                    "accent": "yellow",
-                    "highlight": "blue",
-                    "user": "cyan italic",
-                    "agent": "red",
-                    "welcome": "bold magenta",
-                    "agent.border_color": "blue",
-                    "agent.style": "black",
-                    "thought.border_color": "magenta",
-                    "thought.style": "dim black",
-                    "bottom-toolbar": "#111111 on #bbbbbb",
-                    "bottom-toolbar.accent": "#CD853F on #bbbbbb",
-                    "bottom-toolbar.info": "#4682B4 on #bbbbbb",
-                }
-            )
+        # UITheme.LIGHT
+        return Theme(
+            {
+                "info": "green",
+                "warning": "yellow",
+                "error": "bold red",
+                "success": "green",
+                "accent": "yellow",
+                "highlight": "blue",
+                "user": "cyan italic",
+                "agent": "red",
+                "welcome": "bold magenta",
+                "agent.border_color": "blue",
+                "agent.style": "black",
+                "thought.border_color": "magenta",
+                "thought.style": "dim black",
+                "bottom-toolbar": "#111111 on #bbbbbb",
+                "bottom-toolbar.accent": "#CD853F on #bbbbbb",
+                "bottom-toolbar.info": "#4682B4 on #bbbbbb",
+            }
+        )
 
 
 class StatusBar:
@@ -133,22 +132,18 @@ class StatusBar:
         self.theme = theme
         self.session_start_time = datetime.now()
 
-    def get_status_segments(
-        self, agent_name: str, session_id: str
-    ) -> list[tuple[str, str]]:
+    def get_status_segments(self, agent_name: str, session_id: str) -> list[tuple[str, str]]:
         """Get status bar segments as (content, style) tuples."""
         now = datetime.now()
         uptime = now - self.session_start_time
-        uptime_str = f"{uptime.seconds // 3600:02d}:{(uptime.seconds % 3600) // 60:02d}:{uptime.seconds % 60:02d}"
+        f"{uptime.seconds // 3600:02d}:{(uptime.seconds % 3600) // 60:02d}:{uptime.seconds % 60:02d}"
 
-        segments = [
+        return [
             (f" 🤖 {agent_name} ", "bottom-toolbar.accent"),
             (f" 🧑 Session: {session_id[:8]}... ", "bottom-toolbar.info"),
             # (f" Uptime: {uptime_str} ", "bottom-toolbar.info"),
             # (f" {now.strftime('%H:%M:%S')} ", "bottom-toolbar.accent"),
         ]
-
-        return segments
 
     def format_toolbar(self, agent_name: str, session_id: str) -> str:
         """Format the bottom toolbar with tmux-style segments."""
@@ -156,7 +151,7 @@ class StatusBar:
 
         # Build simple text with separators
         toolbar_parts = []
-        for i, (content, style) in enumerate(segments):
+        for i, (content, _style) in enumerate(segments):
             if i > 0:
                 toolbar_parts.append(" | ")  # Simple separator
             toolbar_parts.append(content)

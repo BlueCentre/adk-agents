@@ -6,17 +6,18 @@ used across the test suite.
 """
 
 import asyncio
-import json
-import os
-import tempfile
-import time
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 
 # Note: These imports would normally be from devops_agent
 # For testing purposes, we'll define minimal versions here
 from enum import Enum
+import json
+import os
 from pathlib import Path
-from typing import Any, AsyncGenerator, Dict, List, Optional
+import tempfile
+import time
+from typing import Any, Dict, List, Optional
 from unittest.mock import AsyncMock, Mock
 
 
@@ -40,9 +41,9 @@ class TurnState:
     phase: TurnPhase = TurnPhase.INITIALIZING
     user_message: Optional[str] = None
     agent_message: Optional[str] = None
-    tool_calls: List[Dict[str, Any]] = field(default_factory=list)
-    tool_results: List[Dict[str, Any]] = field(default_factory=list)
-    errors: List[str] = field(default_factory=list)
+    tool_calls: list[dict[str, Any]] = field(default_factory=list)
+    tool_results: list[dict[str, Any]] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
     created_at: float = field(default_factory=time.time)
     completed_at: Optional[float] = None
 
@@ -71,8 +72,6 @@ class TurnState:
 
 class StateValidationError(Exception):
     """Raised when state validation fails."""
-
-    pass
 
 
 class StateManager:
@@ -144,7 +143,7 @@ class StateManager:
         finally:
             self._release_lock()
 
-    def add_tool_call(self, tool_name: str, args: Dict[str, Any]) -> None:
+    def add_tool_call(self, tool_name: str, args: dict[str, Any]) -> None:
         """Add a tool call to the current turn."""
         if not self.current_turn:
             raise StateValidationError("No current turn to add tool call to")
@@ -164,9 +163,7 @@ class StateManager:
             "timestamp": time.time(),
         }
         self.current_turn.tool_results.append(tool_result)
-        print(
-            f"Added tool result for {tool_name} to turn {self.current_turn.turn_number}"
-        )
+        print(f"Added tool result for {tool_name} to turn {self.current_turn.turn_number}")
 
     def complete_current_turn(self) -> None:
         """Complete the current turn and add it to history."""
@@ -184,7 +181,7 @@ class StateManager:
         finally:
             self._release_lock()
 
-    def get_state_for_context(self) -> Dict[str, Any]:
+    def get_state_for_context(self) -> dict[str, Any]:
         """Get state in legacy format for compatibility."""
         # Convert conversation history to legacy format
         history = []
@@ -213,18 +210,10 @@ class StateManager:
             "user:conversation_history": history,
             "temp:is_new_conversation": self.is_new_conversation,
             "temp:current_turn": {
-                "user_message": (
-                    self.current_turn.user_message if self.current_turn else None
-                ),
-                "agent_message": (
-                    self.current_turn.agent_message if self.current_turn else None
-                ),
-                "tool_calls": (
-                    self.current_turn.tool_calls if self.current_turn else []
-                ),
-                "tool_results": (
-                    self.current_turn.tool_results if self.current_turn else []
-                ),
+                "user_message": (self.current_turn.user_message if self.current_turn else None),
+                "agent_message": (self.current_turn.agent_message if self.current_turn else None),
+                "tool_calls": (self.current_turn.tool_calls if self.current_turn else []),
+                "tool_results": (self.current_turn.tool_results if self.current_turn else []),
             },
             "temp:tool_calls_current_turn": (
                 self.current_turn.tool_calls if self.current_turn else []
@@ -240,7 +229,7 @@ class StateManager:
 
         return state
 
-    def sync_from_legacy_state(self, legacy_state: Dict[str, Any]) -> None:
+    def sync_from_legacy_state(self, legacy_state: dict[str, Any]) -> None:
         """Sync from legacy state format."""
         # Extract conversation history
         history = legacy_state.get("user:conversation_history", [])
@@ -260,9 +249,7 @@ class StateManager:
 
         # Handle current turn
         current_turn_data = legacy_state.get("temp:current_turn", {})
-        if current_turn_data.get("user_message") or current_turn_data.get(
-            "agent_message"
-        ):
+        if current_turn_data.get("user_message") or current_turn_data.get("agent_message"):
             self.current_turn = TurnState(
                 turn_number=len(self.conversation_history) + 1,
                 user_message=current_turn_data.get("user_message"),
@@ -294,10 +281,10 @@ class MockInvocationContext:
 
     def __init__(
         self,
-        state: Optional[Dict[str, Any]] = None,
+        state: Optional[dict[str, Any]] = None,
         invocation_id: str = "mock_inv_123",
         trace_id: str = "mock_trace_456",
-        session_state: Optional[Dict[str, Any]] = None,
+        session_state: Optional[dict[str, Any]] = None,
     ):
         self.state = state or {}
         self.invocation_id = invocation_id
@@ -309,7 +296,7 @@ class MockInvocationContext:
 class MockCallbackContext:
     """Mock callback context for testing."""
 
-    def __init__(self, state: Optional[Dict[str, Any]] = None):
+    def __init__(self, state: Optional[dict[str, Any]] = None):
         self.state = state or {}
 
 
@@ -318,10 +305,10 @@ class MockLlmRequest:
 
     def __init__(
         self,
-        messages: List[Any] = None,
-        tools: List[Any] = None,
+        messages: Optional[list[Any]] = None,
+        tools: Optional[list[Any]] = None,
         model: str = "test_model",
-        contents: List[Any] = None,
+        contents: Optional[list[Any]] = None,
     ):
         self.messages = messages or []
         self.tools = tools or []
@@ -338,7 +325,7 @@ class MockLlmResponse:
         text: str = "",
         usage_metadata: Any = None,
         content: Any = None,
-        parts: List[Any] = None,
+        parts: Optional[list[Any]] = None,
     ):
         self.text = text
         self.usage_metadata = usage_metadata
@@ -349,7 +336,7 @@ class MockLlmResponse:
 class MockTool:
     """Mock tool for testing."""
 
-    def __init__(self, name: str, args: Dict[str, Any] = None):
+    def __init__(self, name: str, args: Optional[dict[str, Any]] = None):
         self.name = name
         self.args = args or {}
 
@@ -359,10 +346,10 @@ class MockToolContext:
 
     def __init__(
         self,
-        state: Optional[Dict[str, Any]] = None,
+        state: Optional[dict[str, Any]] = None,
         invocation_id: str = "mock_tool_inv_789",
         trace_id: str = "mock_trace_456",
-        tool_input: Optional[Dict[str, Any]] = None,
+        tool_input: Optional[dict[str, Any]] = None,
     ):
         self.state = state or {}
         self.invocation_id = invocation_id
@@ -372,7 +359,7 @@ class MockToolContext:
 
 def create_sample_conversation_history(
     num_turns: int = 3,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Create sample conversation history for testing."""
     history = []
     for i in range(num_turns):
@@ -406,15 +393,13 @@ def create_sample_conversation_history(
     return history
 
 
-def create_sample_code_snippets(num_snippets: int = 5) -> List[Dict[str, Any]]:
+def create_sample_code_snippets(num_snippets: int = 5) -> list[dict[str, Any]]:
     """Create sample code snippets for testing."""
     snippets = []
     for i in range(num_snippets):
         snippet = {
             "file_path": f"src/module_{i}.py",
-            "code": (
-                f'def function_{i}():\n    """Sample function {i}."""\n    return {i}'
-            ),
+            "code": (f'def function_{i}():\n    """Sample function {i}."""\n    return {i}'),
             "start_line": i * 10 + 1,
             "end_line": i * 10 + 3,
             "last_accessed": i + 1,
@@ -424,7 +409,7 @@ def create_sample_code_snippets(num_snippets: int = 5) -> List[Dict[str, Any]]:
     return snippets
 
 
-def create_sample_app_state() -> Dict[str, Any]:
+def create_sample_app_state() -> dict[str, Any]:
     """Create sample app state for testing."""
     return {
         "code_snippets": create_sample_code_snippets(),
@@ -445,7 +430,7 @@ def create_sample_app_state() -> Dict[str, Any]:
 
 def create_sample_legacy_state(
     include_current_turn: bool = True,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Create sample legacy state format for testing."""
     state = {
         "user:conversation_history": create_sample_conversation_history(),
@@ -494,7 +479,7 @@ def create_populated_state_manager() -> StateManager:
 class AsyncIteratorMock:
     """Mock async iterator for testing async generators."""
 
-    def __init__(self, items: List[Any]):
+    def __init__(self, items: list[Any]):
         self.items = items
         self.index = 0
 
@@ -563,7 +548,7 @@ def assert_state_manager_valid(state_manager: StateManager):
         assert_turn_state_valid(state_manager.current_turn)
 
 
-def assert_legacy_state_format(state: Dict[str, Any]):
+def assert_legacy_state_format(state: dict[str, Any]):
     """Assert that a state dictionary follows the legacy format."""
     required_keys = [
         "user:conversation_history",
@@ -605,7 +590,7 @@ async def run_with_timeout(coro, timeout: float = 5.0):
         raise AssertionError(f"Operation timed out after {timeout} seconds")
 
 
-def create_error_scenarios() -> List[tuple]:
+def create_error_scenarios() -> list[tuple]:
     """Create common error scenarios for testing."""
     return [
         # (error_message, error_type, should_retry)
@@ -637,11 +622,9 @@ class MetricsCollector:
 
     def record_error(self, error: str, error_type: str):
         """Record an error."""
-        self.errors.append(
-            {"error": error, "error_type": error_type, "timestamp": time.time()}
-        )
+        self.errors.append({"error": error, "error_type": error_type, "timestamp": time.time()})
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """Get a summary of collected metrics."""
         total_duration = time.time() - self.start_time
         return {
@@ -653,9 +636,7 @@ class MetricsCollector:
                 if self.operations
                 else 0
             ),
-            "error_rate": (
-                len(self.errors) / len(self.operations) if self.operations else 0
-            ),
+            "error_rate": (len(self.errors) / len(self.operations) if self.operations else 0),
         }
 
 
@@ -765,7 +746,7 @@ def create_test_workspace():
     sample_files = {
         "README.md": """# Test Project
 This is a test project for agent integration testing.
-        
+
 ## Authentication System
 The authentication system handles user login and security.
 """,
@@ -778,21 +759,21 @@ SECRET_KEY = "your-secret-key-here"  # Security issue for testing
 
 class AuthManager:
     \"\"\"Handles user authentication and authorization.\"\"\"
-    
+
     def __init__(self):
         self.users = {}
         self.sessions = {}
-    
+
     def authenticate(self, username: str, password: str) -> Optional[str]:
         \"\"\"Authenticate user and return token.\"\"\"
         # Simple password hashing - needs improvement
         password_hash = hashlib.md5(password.encode()).hexdigest()
-        
+
         if username in self.users and self.users[username] == password_hash:
             token = jwt.encode({"user": username}, SECRET_KEY, algorithm="HS256")
             return token
         return None
-    
+
     def validate_token(self, token: str) -> Optional[Dict[str, Any]]:
         \"\"\"Validate JWT token.\"\"\"
         try:
@@ -807,20 +788,20 @@ from .auth import AuthManager
 
 class UserManager:
     \"\"\"Manages user accounts and profiles.\"\"\"
-    
+
     def __init__(self):
         self.auth_manager = AuthManager()
         self.user_profiles = {}
-    
+
     def create_user(self, username: str, password: str, email: str) -> bool:
         \"\"\"Create a new user account.\"\"\"
         if username in self.auth_manager.users:
             return False
-        
+
         # Store user credentials
         password_hash = hashlib.md5(password.encode()).hexdigest()
         self.auth_manager.users[username] = password_hash
-        
+
         # Create user profile
         self.user_profiles[username] = {
             "email": email,
@@ -829,7 +810,7 @@ class UserManager:
             "active": True
         }
         return True
-    
+
     def get_user_profile(self, username: str) -> Optional[Dict[str, Any]]:
         \"\"\"Get user profile information.\"\"\"
         return self.user_profiles.get(username)
@@ -841,24 +822,24 @@ from src.auth import AuthManager
 class TestAuthManager:
     def setup_method(self):
         self.auth_manager = AuthManager()
-    
+
     def test_authenticate_valid_user(self):
         # Setup user
         self.auth_manager.users["testuser"] = "5d41402abc4b2a76b9719d911017c592"  # "hello"
-        
+
         # Test authentication
         token = self.auth_manager.authenticate("testuser", "hello")
         assert token is not None
-    
+
     def test_authenticate_invalid_user(self):
         token = self.auth_manager.authenticate("nonexistent", "password")
         assert token is None
-    
+
     def test_validate_token(self):
         # Setup user and get token
         self.auth_manager.users["testuser"] = "5d41402abc4b2a76b9719d911017c592"
         token = self.auth_manager.authenticate("testuser", "hello")
-        
+
         # Validate token
         payload = self.auth_manager.validate_token(token)
         assert payload is not None
@@ -989,9 +970,7 @@ def create_mock_agent_with_tools():
                     "score": 75,
                 }
             elif tool_name == "suggest_fixes":
-                result = {
-                    "suggestions": ["Use bcrypt for passwords", "Add input validation"]
-                }
+                result = {"suggestions": ["Use bcrypt for passwords", "Add input validation"]}
             else:
                 result = {"status": "success", "output": f"Mock result for {tool_name}"}
 
@@ -1042,9 +1021,7 @@ def create_mock_context_manager_with_sample_data():
     context_manager.update_phase("Implementation")
     context_manager.add_key_decision("Use bcrypt for password hashing")
     context_manager.add_tool_result("test_runner", {"passed": 5, "failed": 1})
-    context_manager.update_agent_response(
-        2, "Implemented bcrypt, one test still failing"
-    )
+    context_manager.update_agent_response(2, "Implemented bcrypt, one test still failing")
 
     return context_manager
 

@@ -64,10 +64,8 @@ adk-agent = "google.adk.cli:main"
 dev = [
   # go/keep-sorted start
   "flit>=3.10.0",
-  "isort>=6.0.0",
-  "pyink>=24.10.0",
-  "pylint>=2.6.0",
   "mypy>=1.15.0",
+  "ruff>=0.8.0",
   # go/keep-sorted end
 ]
 
@@ -232,3 +230,98 @@ directory = "htmlcov"
 [tool.coverage.xml]
 # XML coverage report filename
 output = "coverage.xml"
+
+# Ruff configuration - Google style
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+# Enable Google-style rules
+select = [
+  # pycodestyle
+  "E",  # Error
+  "W",  # Warning
+  # Pyflakes
+  "F",  # pyflakes
+  # pyupgrade
+  "UP", # pyupgrade
+  # flake8-bugbear
+  "B",  # flake8-bugbear
+  # flake8-simplify
+  "SIM", # flake8-simplify
+  # isort
+  "I",  # isort
+  # flake8-comprehensions
+  "C4", # flake8-comprehensions
+  # flake8-implicit-str-concat
+  "ISC", # flake8-implicit-str-concat
+  # flake8-pie
+  "PIE", # flake8-pie
+  # flake8-return
+  "RET", # flake8-return
+  # flake8-unused-arguments
+  "ARG", # flake8-unused-arguments
+  # flake8-use-pathlib
+  "PTH", # flake8-use-pathlib
+  # pandas-vet
+  "PD", # pandas-vet
+  # pygrep-hooks
+  "PGH", # pygrep-hooks
+  # Ruff-specific rules
+  "RUF", # Ruff-specific rules
+]
+
+ignore = [
+  # Allow non-abstract empty methods in abstract base classes
+  "B027",
+  # Allow boolean positional values in function calls, like `dict.get(... True)`
+  "FBT003",
+  # Ignore checks for possible passwords
+  "S105", "S106", "S107",
+  # Ignore complexity
+  "C901", "PLR0911", "PLR0912", "PLR0913", "PLR0915",
+  # Allow print statements (common in CLI tools)
+  "T201",
+  # Allow relative imports
+  "TID252",
+]
+
+unfixable = [
+  # Don't touch unused imports
+  "F401",
+]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.ruff.lint.isort]
+known-first-party = ["wrapper", "agents", "google"]
+known-third-party = ["google.adk"]
+section-order = [
+  "future",
+  "standard-library", 
+  "third-party",
+  "first-party",
+  "local-folder"
+]
+# Use Google style for imports
+force-single-line = false
+force-sort-within-sections = true
+combine-as-imports = true
+split-on-trailing-comma = true
+
+[tool.ruff.lint.per-file-ignores]
+# Tests can use magic values, assertions, and relative imports
+"tests/**/*" = ["PLR2004", "S101", "TID252"]
+# Scripts can use print statements and subprocess calls
+"scripts/**/*" = ["T201", "S603", "S607"]
+# Allow certain patterns in __init__.py files
+"**/__init__.py" = ["F401"]
+
+[tool.ruff.format]
+# Use Google style formatting
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"

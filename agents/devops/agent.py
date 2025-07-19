@@ -4,8 +4,7 @@ import logging
 
 from google import genai
 
-from . import config as agent_config
-from . import prompts as agent_prompts
+from . import config as agent_config, prompts as agent_prompts
 from .devops_agent import MyDevopsAgent
 from .tools.setup import load_all_tools_and_toolsets_async
 
@@ -50,7 +49,7 @@ if OBSERVABILITY_ENABLED:
         "deployment.environment": openlit_config["environment"],
         "agent.type": "devops",
         "agent.capabilities.shell": "true",
-        "agent.capabilities.file": "true", 
+        "agent.capabilities.file": "true",
         "agent.capabilities.rag": "true",
         "agent.capabilities.planning": "true",
         "agent.capabilities.context": "true",
@@ -66,10 +65,11 @@ if OBSERVABILITY_ENABLED:
 
     # Set OTEL_RESOURCE_ATTRIBUTES environment variable
     import os
+
     existing_attrs = agent_config.OTEL_RESOURCE_ATTRIBUTES
-    new_attrs = ','.join([f"{k}={v}" for k, v in resource_attributes.items()])
+    new_attrs = ",".join([f"{k}={v}" for k, v in resource_attributes.items()])
     combined_attrs = f"{existing_attrs},{new_attrs}" if existing_attrs else new_attrs
-    os.environ['OTEL_RESOURCE_ATTRIBUTES'] = combined_attrs
+    os.environ["OTEL_RESOURCE_ATTRIBUTES"] = combined_attrs
 
     # Initialize OpenLIT with enhanced configuration
     openlit.init(**openlit_config)
@@ -115,6 +115,7 @@ async def create_agent():
     )
     return devops_agent_instance, exit_stack
 
+
 # For the custom ADK fork, create the agent instance directly
 # MCP tools will be loaded asynchronously when the agent first runs
 try:
@@ -123,7 +124,7 @@ try:
 
     # Load tools synchronously (MCP tools will be loaded later if in async context)
     tools = load_all_tools_and_toolsets()
-    
+
     # Create agent instance directly for the custom ADK fork
     root_agent = MyDevopsAgent(
         model=agent_config.DEFAULT_AGENT_MODEL,
@@ -135,9 +136,9 @@ try:
         output_key="devops",
         llm_client=llm_client,
     )
-    
+
     logger.info(f"Created agent instance directly for custom ADK fork: {root_agent.name}")
-    
+
 except Exception as e:
     logger.error(f"Failed to create agent instance: {e}")
     # Fallback to a basic agent without tools

@@ -6,10 +6,10 @@ from typing import Any, Dict
 from google.adk.agents import Agent, LlmAgent
 from google.adk.models.lite_llm import LiteLlm
 from google.adk.tools import FunctionTool, ToolContext, load_memory
+
 from google.genai.types import GenerateContentConfig
 
-from . import config as agent_config
-from . import prompt
+from . import config as agent_config, prompt
 from .shared_libraries.callbacks import create_enhanced_telemetry_callbacks
 
 # Import sub-agent prompts and tools to create separate instances
@@ -72,7 +72,7 @@ def workflow_selector_tool(
     parallel_capable: bool = False,
     iterative: bool = False,
     tool_context: ToolContext = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Tool that selects the appropriate workflow pattern based on task characteristics.
 
@@ -155,7 +155,7 @@ def workflow_selector_tool(
 
 def state_manager_tool(
     action: str, key: str = "", value: str = "", tool_context: ToolContext = None
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Tool for managing shared state between agents in workflows.
 
@@ -177,31 +177,29 @@ def state_manager_tool(
             result = tool_context.state.get(key)
             return {"status": "success", "key": key, "value": result}
 
-        elif action == "set":
+        if action == "set":
             tool_context.state[key] = value
             return {"status": "success", "message": f"Set {key} = {value}"}
 
-        elif action == "update":
+        if action == "update":
             # For simplicity, treat update as set for string values
             tool_context.state[key] = value
             return {"status": "success", "message": f"Updated {key}"}
 
-        elif action == "delete":
+        if action == "delete":
             if key in tool_context.state:
                 del tool_context.state[key]
                 return {"status": "success", "message": f"Deleted {key}"}
-            else:
-                return {"status": "warning", "message": f"Key {key} not found"}
+            return {"status": "warning", "message": f"Key {key} not found"}
 
-        elif action == "list_keys":
+        if action == "list_keys":
             keys = list(tool_context.state.keys())
             return {"status": "success", "keys": keys}
 
-        else:
-            return {"status": "error", "message": f"Unknown action: {action}"}
+        return {"status": "error", "message": f"Unknown action: {action}"}
 
     except Exception as e:
-        return {"status": "error", "message": f"State operation failed: {str(e)}"}
+        return {"status": "error", "message": f"State operation failed: {e!s}"}
 
 
 # Create tool instances
@@ -224,9 +222,7 @@ def create_enhanced_software_engineer_agent() -> Agent:
     tools = load_all_tools_and_toolsets()
 
     # Add workflow and state management tools
-    tools.extend(
-        [workflow_selector_function_tool, state_manager_function_tool, load_memory]
-    )
+    tools.extend([workflow_selector_function_tool, state_manager_function_tool, load_memory])
 
     # Create telemetry callbacks for observability
     callbacks = create_enhanced_telemetry_callbacks("enhanced_software_engineer")
@@ -235,7 +231,7 @@ def create_enhanced_software_engineer_agent() -> Agent:
     # This allows dynamic workflow creation without pre-instantiating all workflows
 
     # Create the enhanced agent
-    enhanced_agent = Agent(
+    return Agent(
         model=LiteLlm(model=f"gemini/{agent_config.DEFAULT_AGENT_MODEL}"),
         name="enhanced_software_engineer",
         description="Advanced software engineer with ADK workflow orchestration capabilities",
@@ -256,8 +252,6 @@ def create_enhanced_software_engineer_agent() -> Agent:
         after_tool_callback=callbacks["after_tool"],
         output_key="enhanced_software_engineer",
     )
-
-    return enhanced_agent
 
 
 # Create the enhanced agent instance

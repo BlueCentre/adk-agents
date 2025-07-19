@@ -58,7 +58,7 @@ class CommandHandler:
     def __init__(
         self,
         display_interface: CommandDisplayInterface,
-        theme_handler: Optional[ThemeHandler] = None,
+        theme_handler: ThemeHandler | None = None,
     ):
         self.display_interface = display_interface
         self.theme_handler = theme_handler
@@ -121,20 +121,16 @@ class CommandHandler:
             current_theme = self.theme_handler.get_current_theme()
             theme_name = "dark" if current_theme == UITheme.DARK else "light"
             icon = "🌒" if current_theme == UITheme.DARK else "🌞"
-            self.display_interface.display_message(
-                f"{icon} Switched to {theme_name} theme"
-            )
+            self.display_interface.display_message(f"{icon} Switched to {theme_name} theme")
             return CommandResult.HANDLED
 
-        elif len(parts) == 2 and parts[1] in ["dark", "light"]:
+        if len(parts) == 2 and parts[1] in ["dark", "light"]:
             # "theme dark" or "theme light"
             theme = UITheme.DARK if parts[1] == "dark" else UITheme.LIGHT
             self.theme_handler.set_theme(theme)
             theme_name = parts[1]
             icon = "🌒" if theme == UITheme.DARK else "🌞"
-            self.display_interface.display_message(
-                f"{icon} Switched to {theme_name} theme"
-            )
+            self.display_interface.display_message(f"{icon} Switched to {theme_name} theme")
             return CommandResult.HANDLED
 
         return CommandResult.NOT_HANDLED
@@ -194,7 +190,7 @@ class TUICommandDisplay:
 
     def exit_application(self) -> None:
         self.tui_app.exit()
-    
+
     def toggle_multiline_input(self) -> None:
         """Toggle multiline input mode in TUI."""
         self.tui_app.action_toggle_user_multiline_input()
@@ -251,6 +247,3 @@ class TUIThemeHandler:
     def get_current_theme(self) -> UITheme:
         """Get the current theme."""
         return getattr(self.tui_app, "_current_ui_theme", UITheme.DARK)
-
-
-

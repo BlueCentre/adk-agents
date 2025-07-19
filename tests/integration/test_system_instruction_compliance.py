@@ -53,9 +53,7 @@ class TestSystemInstructionCompliance:
         return create_test_workspace()
 
     @pytest.mark.asyncio
-    async def test_role_based_behavior_consistency(
-        self, mock_llm_client, mock_session_state
-    ):
+    async def test_role_based_behavior_consistency(self, mock_llm_client, mock_session_state):
         """Test agent maintains consistent role-based behavior."""
         # Test software engineer agent role consistency
         instruction = software_engineer_agent.instruction.lower()
@@ -72,18 +70,13 @@ class TestSystemInstructionCompliance:
         assert len(instruction) > 100  # Should be substantial
 
     @pytest.mark.asyncio
-    async def test_constraint_enforcement_structure(
-        self, mock_llm_client, mock_session_state
-    ):
+    async def test_constraint_enforcement_structure(self, mock_llm_client, mock_session_state):
         """Test agent structure supports constraint enforcement."""
         # Test that sub-agents have specialized constraints
 
         # Code quality agent should have quality-focused constraints
         code_quality_instruction = code_quality_agent.instruction.lower()
-        assert (
-            "quality" in code_quality_instruction
-            or "analysis" in code_quality_instruction
-        )
+        assert "quality" in code_quality_instruction or "analysis" in code_quality_instruction
 
         # Testing agent should have testing-focused constraints
         testing_instruction = testing_agent.instruction.lower()
@@ -96,9 +89,7 @@ class TestSystemInstructionCompliance:
             assert len(agent.instruction) > 20  # Should have substantial instructions
 
     @pytest.mark.asyncio
-    async def test_output_format_compliance_capability(
-        self, mock_llm_client, mock_session_state
-    ):
+    async def test_output_format_compliance_capability(self, mock_llm_client, mock_session_state):
         """Test agent structure supports output format compliance."""
         # Test that agents have generation configuration for formatting
         agents_to_test = [software_engineer_agent, code_quality_agent, testing_agent]
@@ -113,9 +104,7 @@ class TestSystemInstructionCompliance:
             assert has_generation_config
 
     @pytest.mark.asyncio
-    async def test_context_aware_instruction_structure(
-        self, mock_llm_client, mock_session_state
-    ):
+    async def test_context_aware_instruction_structure(self, mock_llm_client, mock_session_state):
         """Test agent structure supports context-aware instruction following."""
         # Test software engineer agent's context awareness through sub-agents
         assert hasattr(software_engineer_agent, "sub_agents")
@@ -256,7 +245,7 @@ class TestSystemInstructionCompliance:
     ):
         """Test that the agent structure is ready for instruction compliance validation."""
         # Test that agents have the necessary structure for compliance testing
-        test_agents = [software_engineer_agent] + software_engineer_agent.sub_agents
+        test_agents = [software_engineer_agent, *software_engineer_agent.sub_agents]
 
         for agent in test_agents:
             # Each agent should have identifiable components for compliance testing

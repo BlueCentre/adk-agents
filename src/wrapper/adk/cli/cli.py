@@ -14,12 +14,11 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 import logging
 import time
-from datetime import datetime
 from typing import Optional
 
-import rich_click as click
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.artifacts import BaseArtifactService, InMemoryArtifactService
 from google.adk.auth.credential_service.base_credential_service import (
@@ -31,10 +30,12 @@ from google.adk.auth.credential_service.in_memory_credential_service import (
 from google.adk.sessions.base_session_service import BaseSessionService
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.adk.sessions.session import Session
-from google.genai import types
 from prompt_toolkit.patch_stdout import patch_stdout
 from pydantic import BaseModel
 from rich.console import Console
+import rich_click as click
+
+from google.genai import types
 
 from .utils import envs  # Modified to use our packaged path
 from .utils.agent_loader import AgentLoader  # Modified to use our packaged path
@@ -83,7 +84,7 @@ async def run_input_file(
         session_service=session_service,
         credential_service=credential_service,
     )
-    with open(input_path, "r", encoding="utf-8") as f:
+    with open(input_path, encoding="utf-8") as f:
         input_file = InputFile.model_validate_json(f.read())
     input_file.state["_time"] = datetime.now()
 
@@ -108,7 +109,7 @@ async def run_interactively(
     session: Session,
     session_service: BaseSessionService,
     credential_service: BaseCredentialService,
-    ui_theme: Optional[str] = None,
+    ui_theme: str | None = None,
 ) -> None:
     """
     Run the agent interactively with fallback to basic CLI mode.
@@ -142,9 +143,7 @@ async def run_interactively(
         fallback_mode = False
     except Exception as e:
         # Fallback to basic CLI if enhanced UI fails
-        console.print(
-            f"[warning]⚠️ Enhanced UI initialization failed: {str(e)}[/warning]"
-        )
+        console.print(f"[warning]⚠️ Enhanced UI initialization failed: {e!s}[/warning]")
         console.print("[info]Falling back to basic CLI mode...[/info]")
         # Create a minimal prompt session
         from prompt_toolkit import PromptSession
@@ -177,17 +176,13 @@ async def run_interactively(
     event_processor = AgentEventProcessor(event_display)
 
     # Create command handler for this UI mode
-    command_display = ConsoleCommandDisplay(
-        console, cli=cli, fallback_mode=fallback_mode
-    )
+    command_display = ConsoleCommandDisplay(console, cli=cli, fallback_mode=fallback_mode)
 
     def recreate_prompt_session():
         """Recreate the prompt session with the new theme."""
         nonlocal prompt_session
         if cli:
-            prompt_session = cli.create_enhanced_prompt_session(
-                root_agent.name, session.id
-            )
+            prompt_session = cli.create_enhanced_prompt_session(root_agent.name, session.id)
 
     theme_handler = ConsoleThemeHandler(cli, recreate_prompt_session)
     command_handler = CommandHandler(command_display, theme_handler)
@@ -202,17 +197,13 @@ async def run_interactively(
                     query = await prompt_session.prompt_async("😎 user > ")
         except (EOFError, KeyboardInterrupt):
             # Handle Ctrl+D and Ctrl+C gracefully
-            output_console = (
-                console if fallback_mode else (cli.console if cli else console)
-            )
+            output_console = console if fallback_mode else (cli.console if cli else console)
             output_console.print("\n👋 [warning]Goodbye![/warning]")
             break
         except Exception as e:
             # Handle other prompt-related errors gracefully
-            output_console = (
-                console if fallback_mode else (cli.console if cli else console)
-            )
-            output_console.print(f"\n[red]❌ Prompt error: {str(e)}[/red]")
+            output_console = console if fallback_mode else (cli.console if cli else console)
+            output_console.print(f"\n[red]❌ Prompt error: {e!s}[/red]")
             output_console.print(
                 "[yellow]💡 Try using a simpler terminal or check your environment.[/yellow]"
             )
@@ -220,9 +211,7 @@ async def run_interactively(
             try:
                 query = input("😜 user > ")
             except (EOFError, KeyboardInterrupt):
-                output_console = (
-                    console if fallback_mode else (cli.console if cli else console)
-                )
+                output_console = console if fallback_mode else (cli.console if cli else console)
                 output_console.print("\n👋 [warning]Goodbye![/warning]")
                 break
 
@@ -234,7 +223,7 @@ async def run_interactively(
         command_result = command_handler.process_command(query)
         if command_result == CommandResult.EXIT_REQUESTED:
             break
-        elif command_result == CommandResult.HANDLED:
+        if command_result == CommandResult.HANDLED:
             continue
         # If NOT_HANDLED, continue to agent processing
 
@@ -278,7 +267,7 @@ async def run_interactively_with_tui(
     session: Session,
     session_service: BaseSessionService,
     credential_service: BaseCredentialService,
-    ui_theme: Optional[str] = None,
+    ui_theme: str | None = None,
 ) -> None:
     """Run the agent interactively with interruption support using Textual UI."""
 
@@ -314,7 +303,7 @@ async def run_interactively_with_tui(
             command_result = command_handler.process_command(user_input)
             if command_result == CommandResult.EXIT_REQUESTED:
                 return  # TUI will exit via command_handler
-            elif command_result == CommandResult.HANDLED:
+            if command_result == CommandResult.HANDLED:
                 return  # Command was handled, don't process further
 
             # Display the user input in the UI (only for agent queries)
@@ -345,9 +334,7 @@ async def run_interactively_with_tui(
                 # Use ErrorHandler for general errors
                 error_handler.handle_general_error(e)
         except Exception as e:
-            app_tui.add_output(
-                f"❌ Error: {str(e)}", author="System", rich_format=True, style="error"
-            )
+            app_tui.add_output(f"❌ Error: {e!s}", author="System", rich_format=True, style="error")
 
     async def interrupt_agent():
         """Handle agent interruption."""
@@ -389,9 +376,7 @@ async def run_interactively_with_tui(
 
         # Call original callback if it exists
         if original_before_tool:
-            return await original_before_tool(
-                tool, args, tool_context, callback_context
-            )
+            return await original_before_tool(tool, args, tool_context, callback_context)
         return None
 
     async def enhanced_after_tool(
@@ -406,19 +391,14 @@ async def run_interactively_with_tui(
         is_error = False
         if isinstance(tool_response, dict):
             is_error = (
-                tool_response.get("status") == "error"
-                or tool_response.get("error") is not None
+                tool_response.get("status") == "error" or tool_response.get("error") is not None
             )
 
         # Send tool finish/error event to Textual UI
         if is_error:
-            app_tui.add_tool_event(
-                tool.name, "error", result=tool_response, duration=duration
-            )
+            app_tui.add_tool_event(tool.name, "error", result=tool_response, duration=duration)
         else:
-            app_tui.add_tool_event(
-                tool.name, "finish", result=tool_response, duration=duration
-            )
+            app_tui.add_tool_event(tool.name, "finish", result=tool_response, duration=duration)
 
         # Call original callback if it exists
         if original_after_tool:
@@ -455,11 +435,11 @@ async def run_interactively_with_tui(
 async def run_cli(
     *,
     agent_module_name: str,
-    input_file: Optional[str] = None,
-    saved_session_file: Optional[str] = None,
+    input_file: str | None = None,
+    saved_session_file: str | None = None,
     save_session: bool = False,
-    session_id: Optional[str] = None,
-    ui_theme: Optional[str] = None,
+    session_id: str | None = None,
+    ui_theme: str | None = None,
     tui: bool = False,
 ) -> None:
     """Runs an interactive CLI for a certain agent.
@@ -484,9 +464,7 @@ async def run_cli(
     credential_service = InMemoryCredentialService()
 
     user_id = "test_user"
-    session = await session_service.create_session(
-        app_name=agent_module_name, user_id=user_id
-    )
+    session = await session_service.create_session(app_name=agent_module_name, user_id=user_id)
     # Use AgentLoader instance to load the agent
     agent_loader = AgentLoader()
     root_agent = agent_loader.load_agent(agent_module_name)
@@ -503,7 +481,7 @@ async def run_cli(
             input_path=input_file,
         )
     elif saved_session_file:
-        with open(saved_session_file, "r", encoding="utf-8") as f:
+        with open(saved_session_file, encoding="utf-8") as f:
             loaded_session = Session.model_validate_json(f.read())
 
         if loaded_session:

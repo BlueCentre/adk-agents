@@ -3,9 +3,9 @@
 from datetime import datetime
 from unittest.mock import MagicMock, Mock, patch
 
-import pytest
 from prompt_toolkit import PromptSession
 from prompt_toolkit.styles import Style
+import pytest
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
@@ -419,9 +419,7 @@ class TestCompleterConfiguration:
         completer = session.completer
 
         # Check for infrastructure commands
-        infra_commands = completer.categorized_commands.get(
-            "🚀 Infrastructure & DevOps", []
-        )
+        infra_commands = completer.categorized_commands.get("🚀 Infrastructure & DevOps", [])
         assert any("dockerfile" in cmd.lower() for cmd in infra_commands)
         assert any("kubernetes" in cmd.lower() for cmd in infra_commands)
 
@@ -459,7 +457,7 @@ class TestKeyBindings:
         mock_key_bindings.return_value = mock_bindings
 
         cli = EnhancedCLI()
-        session = cli.create_enhanced_prompt_session("Agent", "session")
+        cli.create_enhanced_prompt_session("Agent", "session")
 
         # KeyBindings should be called
         mock_key_bindings.assert_called()
@@ -621,9 +619,7 @@ class TestIntegrationScenarios:
             cli.print_welcome_message("IntegrationAgent")
 
         # Create session
-        session = cli.create_enhanced_prompt_session(
-            "IntegrationAgent", "integration123"
-        )
+        session = cli.create_enhanced_prompt_session("IntegrationAgent", "integration123")
 
         # Test components
         assert isinstance(session, PromptSession)
@@ -660,12 +656,8 @@ class TestIntegrationScenarios:
             cli.display_agent_thought(cli.console, "Thinking about the problem")
 
         # Should have called each method once
-        mock_display_response.assert_called_once_with(
-            cli.console, "Response message", "Agent"
-        )
-        mock_display_thought.assert_called_once_with(
-            cli.console, "Thinking about the problem"
-        )
+        mock_display_response.assert_called_once_with(cli.console, "Response message", "Agent")
+        mock_display_thought.assert_called_once_with(cli.console, "Thinking about the problem")
 
     def test_error_recovery_integration(self):
         """Test error recovery integration."""

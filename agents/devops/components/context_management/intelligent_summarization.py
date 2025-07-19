@@ -1,10 +1,10 @@
 """Intelligent summarization for context-aware compression techniques."""
 
+from dataclasses import dataclass
+from enum import Enum, auto
 import json
 import logging
 import re
-from dataclasses import dataclass
-from enum import Enum, auto
 from typing import Any, Dict, List, Optional, Union
 
 logger = logging.getLogger(__name__)
@@ -28,12 +28,12 @@ class SummarizationContext:
     """Context information for intelligent summarization."""
 
     current_task: str = ""
-    relevant_keywords: List[str] = None
+    relevant_keywords: list[str] = None
     error_context: bool = False
     code_context: bool = False
     urgency_level: str = "normal"  # low, normal, high, critical
     target_length: int = 500
-    preserve_details: List[str] = None
+    preserve_details: list[str] = None
 
     def __post_init__(self):
         if self.relevant_keywords is None:
@@ -211,9 +211,7 @@ class IntelligentSummarizer:
         functions = self._extract_functions(code_stripped)
         classes = self._extract_classes(code_stripped)
         imports = self._extract_imports(code_stripped)
-        key_variables = self._extract_key_variables(
-            code_stripped, context.relevant_keywords
-        )
+        self._extract_key_variables(code_stripped, context.relevant_keywords)
 
         # Build summary components
         summary_parts = []
@@ -266,10 +264,7 @@ class IntelligentSummarizer:
             line_stripped = line.strip()
             if line_stripped:
                 # Check for important keywords (case insensitive)
-                if any(
-                    keyword.lower() in line_stripped.lower()
-                    for keyword in important_keywords
-                ):
+                if any(keyword.lower() in line_stripped.lower() for keyword in important_keywords):
                     important_lines.append(line_stripped)
 
         # Include important lines in summary
@@ -333,12 +328,11 @@ class IntelligentSummarizer:
         if content_type == ContentType.ERROR_MESSAGE:
             # Special handling for error messages - preserve error type and key information
             return self._summarize_error_message(content_stripped, context)
-        elif content_type == ContentType.TOOL_OUTPUT:
+        if content_type == ContentType.TOOL_OUTPUT:
             # Extract structured information from tool outputs
             return self._summarize_structured_tool_output(content_stripped, context)
-        else:
-            # Generic content summarization
-            return self._summarize_generic(content_stripped, context)
+        # Generic content summarization
+        return self._summarize_generic(content_stripped, context)
 
     def _detect_content_type(self, content: str) -> ContentType:
         """Detect the type of content for appropriate summarization."""
@@ -348,9 +342,7 @@ class IntelligentSummarizer:
         # Check each content type pattern and count matches
         pattern_scores = {}
         for content_type, patterns in self.content_patterns.items():
-            matches = sum(
-                1 for pattern in patterns if re.search(pattern, content, re.IGNORECASE)
-            )
+            matches = sum(1 for pattern in patterns if re.search(pattern, content, re.IGNORECASE))
             if matches > 0:
                 pattern_scores[content_type] = matches
 
@@ -368,9 +360,7 @@ class IntelligentSummarizer:
                 "result:",
                 "status:",
             ]
-            tool_score = sum(
-                1 for indicator in tool_indicators if indicator in content_lower
-            )
+            tool_score = sum(1 for indicator in tool_indicators if indicator in content_lower)
 
             if tool_score >= 2:  # Strong evidence of tool output
                 return ContentType.TOOL_OUTPUT
@@ -382,26 +372,19 @@ class IntelligentSummarizer:
                 return best_match[0]
 
         # Default classification based on simple heuristics
-        if any(
-            keyword in content_lower
-            for keyword in ["def ", "class ", "function", "import"]
-        ):
+        if any(keyword in content_lower for keyword in ["def ", "class ", "function", "import"]):
             return ContentType.CODE
-        elif any(
-            keyword in content_lower
-            for keyword in ["error", "exception", "failed", "traceback"]
+        if any(
+            keyword in content_lower for keyword in ["error", "exception", "failed", "traceback"]
         ):
             return ContentType.ERROR_MESSAGE
-        elif (
+        if (
             content_lower.count(":") > content_lower.count(" ") / 10
         ):  # High ratio of colons suggests config
             return ContentType.CONFIGURATION
-        elif re.search(
-            r"\d{2}:\d{2}:\d{2}", content
-        ):  # Timestamp pattern suggests logs
+        if re.search(r"\d{2}:\d{2}:\d{2}", content):  # Timestamp pattern suggests logs
             return ContentType.LOG_OUTPUT
-        else:
-            return ContentType.GENERIC
+        return ContentType.GENERIC
 
     def _summarize_by_type(
         self, content: str, content_type: ContentType, context: SummarizationContext
@@ -410,16 +393,15 @@ class IntelligentSummarizer:
 
         if content_type == ContentType.CODE:
             return self._summarize_code(content, context)
-        elif content_type == ContentType.ERROR_MESSAGE:
+        if content_type == ContentType.ERROR_MESSAGE:
             return self._summarize_error(content, context)
-        elif content_type == ContentType.LOG_OUTPUT:
+        if content_type == ContentType.LOG_OUTPUT:
             return self._summarize_logs(content, context)
-        elif content_type == ContentType.CONFIGURATION:
+        if content_type == ContentType.CONFIGURATION:
             return self._summarize_config(content, context)
-        elif content_type == ContentType.TOOL_OUTPUT:
+        if content_type == ContentType.TOOL_OUTPUT:
             return self._summarize_generic_output(content, context)
-        else:
-            return self._summarize_generic(content, context)
+        return self._summarize_generic(content, context)
 
     def _summarize_code(self, code: str, context: SummarizationContext) -> str:
         """Summarize code content preserving key structural elements."""
@@ -440,14 +422,13 @@ class IntelligentSummarizer:
 
         for i, line in enumerate(lines):
             # Preserve important structural lines
-            if any(re.match(pattern, line) for pattern in preserve_patterns):
-                important_lines.append(f"{i + 1:4d}: {line}")
-            # Preserve lines with relevant keywords
-            elif any(keyword in line.lower() for keyword in context.relevant_keywords):
-                important_lines.append(f"{i + 1:4d}: {line}")
-            # Preserve error-related lines if in error context
-            elif context.error_context and any(
-                keyword in line.lower() for keyword in ["error", "exception", "fail"]
+            if (
+                any(re.match(pattern, line) for pattern in preserve_patterns)
+                or any(keyword in line.lower() for keyword in context.relevant_keywords)
+                or (
+                    context.error_context
+                    and any(keyword in line.lower() for keyword in ["error", "exception", "fail"])
+                )
             ):
                 important_lines.append(f"{i + 1:4d}: {line}")
 
@@ -463,18 +444,14 @@ class IntelligentSummarizer:
                         if line_marker not in important_lines:
                             important_lines.append(line_marker)
 
-        summary = "\n".join(
-            important_lines[: context.target_length // 30]
-        )  # Rough line limit
+        summary = "\n".join(important_lines[: context.target_length // 30])  # Rough line limit
 
         if len(summary) > context.target_length:
             summary = summary[: context.target_length - 50] + "\n... (truncated)"
 
         return summary
 
-    def _summarize_error(
-        self, error_content: str, context: SummarizationContext
-    ) -> str:
+    def _summarize_error(self, error_content: str, context: SummarizationContext) -> str:
         """Summarize error messages preserving critical information."""
 
         lines = error_content.split("\n")
@@ -491,9 +468,7 @@ class IntelligentSummarizer:
                     error_type = line.strip()
             elif "traceback" in line_lower or "stack trace" in line_lower:
                 traceback_lines.append(line.strip())
-            elif any(
-                keyword in line_lower for keyword in ["failed", "fatal", "critical"]
-            ):
+            elif any(keyword in line_lower for keyword in ["failed", "fatal", "critical"]):
                 if not error_message:
                     error_message = line.strip()
 
@@ -541,8 +516,7 @@ class IntelligentSummarizer:
         for line in lines:
             line_lower = line.lower()
             if any(
-                keyword in line_lower
-                for keyword in ["error", "exception", "fatal", "critical"]
+                keyword in line_lower for keyword in ["error", "exception", "fatal", "critical"]
             ):
                 error_lines.append(line.strip())
             elif any(keyword in line_lower for keyword in ["warn", "warning"]):
@@ -578,9 +552,7 @@ class IntelligentSummarizer:
 
         return summary
 
-    def _summarize_config(
-        self, config_content: str, context: SummarizationContext
-    ) -> str:
+    def _summarize_config(self, config_content: str, context: SummarizationContext) -> str:
         """Summarize configuration files preserving key settings."""
 
         # Try to parse as JSON first
@@ -600,13 +572,12 @@ class IntelligentSummarizer:
                 continue
 
             # Preserve lines with important keywords
-            if any(
-                keyword in line.lower() for keyword in self.high_importance_keywords
+            if (
+                any(keyword in line.lower() for keyword in self.high_importance_keywords)
+                or any(keyword in line.lower() for keyword in context.relevant_keywords)
+                or "=" in line
+                or ":" in line
             ):
-                important_lines.append(line_stripped)
-            elif any(keyword in line.lower() for keyword in context.relevant_keywords):
-                important_lines.append(line_stripped)
-            elif "=" in line or ":" in line:  # Configuration assignments
                 important_lines.append(line_stripped)
 
         summary = "\n".join(important_lines[: context.target_length // 50])
@@ -617,7 +588,7 @@ class IntelligentSummarizer:
         return summary
 
     def _summarize_json_config(
-        self, config_data: Dict[str, Any], context: SummarizationContext
+        self, config_data: dict[str, Any], context: SummarizationContext
     ) -> str:
         """Summarize JSON configuration data."""
 
@@ -630,13 +601,9 @@ class IntelligentSummarizer:
 
                     # Check if key or value contains important keywords
                     if any(
-                        keyword in key.lower()
-                        for keyword in self.high_importance_keywords
-                    ):
-                        important_keys.append(f"{full_key}: {value}")
-                    elif any(
-                        keyword in str(value).lower()
-                        for keyword in context.relevant_keywords
+                        keyword in key.lower() for keyword in self.high_importance_keywords
+                    ) or any(
+                        keyword in str(value).lower() for keyword in context.relevant_keywords
                     ):
                         important_keys.append(f"{full_key}: {value}")
                     elif isinstance(value, dict):
@@ -701,9 +668,7 @@ class IntelligentSummarizer:
 
         # For very short target lengths, try to extract and combine key terms
         if context.target_length < 100:
-            return self._create_keyword_summary(
-                content, context, high_importance_keywords
-            )
+            return self._create_keyword_summary(content, context, high_importance_keywords)
 
         # Split into sentences for better preservation
         sentences = [s.strip() for s in content.split(".") if s.strip()]
@@ -768,15 +733,11 @@ class IntelligentSummarizer:
 
         return " ".join(summary_parts)
 
-    def _summarize_file_content(
-        self, content: str, context: SummarizationContext
-    ) -> str:
+    def _summarize_file_content(self, content: str, context: SummarizationContext) -> str:
         """Summarize file content read by read_file tool."""
         return self.summarize_content(content, context)
 
-    def _summarize_shell_output(
-        self, output: str, context: SummarizationContext
-    ) -> str:
+    def _summarize_shell_output(self, output: str, context: SummarizationContext) -> str:
         """Summarize shell command output."""
 
         lines = output.split("\n")
@@ -784,9 +745,7 @@ class IntelligentSummarizer:
         # Prioritize error lines and relevant output
         important_lines = []
         for line in lines:
-            if any(
-                keyword in line.lower() for keyword in ["error", "failed", "exception"]
-            ):
+            if any(keyword in line.lower() for keyword in ["error", "failed", "exception"]):
                 important_lines.append(f"❌ {line.strip()}")
             elif any(keyword in line.lower() for keyword in context.relevant_keywords):
                 important_lines.append(f"🔍 {line.strip()}")
@@ -800,9 +759,7 @@ class IntelligentSummarizer:
 
         return summary
 
-    def _summarize_search_results(
-        self, results: str, context: SummarizationContext
-    ) -> str:
+    def _summarize_search_results(self, results: str, context: SummarizationContext) -> str:
         """Summarize search results from codebase_search or grep_search."""
 
         lines = results.split("\n")
@@ -840,9 +797,7 @@ class IntelligentSummarizer:
 
         return summary
 
-    def _summarize_edit_results(
-        self, output: str, context: SummarizationContext
-    ) -> str:
+    def _summarize_edit_results(self, output: str, context: SummarizationContext) -> str:
         """Summarize file edit results."""
 
         # Extract key information from edit results
@@ -856,10 +811,7 @@ class IntelligentSummarizer:
         # Include relevant details
         lines = output.split("\n")
         for line in lines:
-            if any(
-                keyword in line.lower()
-                for keyword in ["file", "line", "change", "modify"]
-            ):
+            if any(keyword in line.lower() for keyword in ["file", "line", "change", "modify"]):
                 summary_parts.append(line.strip())
 
         summary = "\n".join(summary_parts[:10])
@@ -869,13 +821,11 @@ class IntelligentSummarizer:
 
         return summary
 
-    def _summarize_generic_output(
-        self, output: str, context: SummarizationContext
-    ) -> str:
+    def _summarize_generic_output(self, output: str, context: SummarizationContext) -> str:
         """Summarize generic tool output."""
         return self._summarize_generic(output, context)
 
-    def _extract_functions(self, code: str) -> List[str]:
+    def _extract_functions(self, code: str) -> list[str]:
         """Extract function definitions from code."""
         functions = []
 
@@ -891,7 +841,7 @@ class IntelligentSummarizer:
 
         return functions
 
-    def _extract_classes(self, code: str) -> List[str]:
+    def _extract_classes(self, code: str) -> list[str]:
         """Extract class definitions from code."""
         classes = []
 
@@ -905,20 +855,16 @@ class IntelligentSummarizer:
 
         return classes
 
-    def _extract_imports(self, code: str) -> List[str]:
+    def _extract_imports(self, code: str) -> list[str]:
         """Extract import statements from code."""
         imports = []
 
-        for match in re.finditer(
-            r"^(import\s+.+|from\s+.+\s+import\s+.+)$", code, re.MULTILINE
-        ):
+        for match in re.finditer(r"^(import\s+.+|from\s+.+\s+import\s+.+)$", code, re.MULTILINE):
             imports.append(match.group(1))
 
         return imports
 
-    def _extract_key_variables(
-        self, code: str, relevant_keywords: List[str]
-    ) -> List[str]:
+    def _extract_key_variables(self, code: str, relevant_keywords: list[str]) -> list[str]:
         """Extract key variable assignments."""
         variables = []
 
@@ -929,9 +875,7 @@ class IntelligentSummarizer:
                 keyword in var_name.lower() or keyword in value.lower()
                 for keyword in relevant_keywords
             ):
-                variables.append(
-                    f"{var_name} = {value[:50]}{'...' if len(value) > 50 else ''}"
-                )
+                variables.append(f"{var_name} = {value[:50]}{'...' if len(value) > 50 else ''}")
 
         return variables
 
@@ -947,13 +891,9 @@ class IntelligentSummarizer:
 
         # Clean up formatting
         summary = re.sub(r"\n\s*\n\s*\n", "\n\n", summary)  # Remove excessive newlines
-        summary = summary.strip()
+        return summary.strip()
 
-        return summary
-
-    def _summarize_error_message(
-        self, content: str, context: SummarizationContext
-    ) -> str:
+    def _summarize_error_message(self, content: str, context: SummarizationContext) -> str:
         """Specialized summarization for error messages."""
 
         lines = content.split("\n")
@@ -969,9 +909,7 @@ class IntelligentSummarizer:
         for i, line in enumerate(lines):
             line = line.strip()
             if line.startswith("File ") and (
-                "src/" in line
-                or "app/" in line
-                or context.current_task.lower() in line.lower()
+                "src/" in line or "app/" in line or context.current_task.lower() in line.lower()
             ):
                 important_lines.insert(-1 if important_lines else 0, line)
                 # Try to get the next line too (the actual code that caused the error)
@@ -982,9 +920,7 @@ class IntelligentSummarizer:
                         and not next_line.startswith("File")
                         and not next_line.startswith("Traceback")
                     ):
-                        important_lines.insert(
-                            -1 if len(important_lines) > 1 else 0, next_line
-                        )
+                        important_lines.insert(-1 if len(important_lines) > 1 else 0, next_line)
                 break
 
         # If no user code found, get the first traceback line and its code
@@ -1008,26 +944,27 @@ class IntelligentSummarizer:
         if context.current_task and context.relevant_keywords:
             for line in lines:
                 line_stripped = line.strip()
-                if any(
-                    keyword.upper() in line_stripped.upper()
-                    for keyword in context.relevant_keywords
+                if (
+                    any(
+                        keyword.upper() in line_stripped.upper()
+                        for keyword in context.relevant_keywords
+                    )
+                    and line_stripped not in important_lines
                 ):
-                    if line_stripped not in important_lines:
-                        # Insert before the error line
-                        important_lines.insert(
-                            -1 if important_lines else 0, line_stripped
-                        )
+                    # Insert before the error line
+                    important_lines.insert(-1 if important_lines else 0, line_stripped)
 
         # Look for lines with common important terms (SECRET_KEY, API_KEY, etc.)
         for line in lines:
             line_stripped = line.strip()
-            if any(
-                term in line_stripped
-                for term in ["SECRET_KEY", "API_KEY", "TOKEN", "PASSWORD"]
+            if (
+                any(
+                    term in line_stripped for term in ["SECRET_KEY", "API_KEY", "TOKEN", "PASSWORD"]
+                )
+                and line_stripped not in important_lines
             ):
-                if line_stripped not in important_lines:
-                    # Insert before the error line
-                    important_lines.insert(-1 if important_lines else 0, line_stripped)
+                # Insert before the error line
+                important_lines.insert(-1 if important_lines else 0, line_stripped)
 
         # Construct summary
         if important_lines:
@@ -1044,23 +981,19 @@ class IntelligentSummarizer:
                 code_line = None
                 for line in important_lines[:-1]:
                     if not line.startswith("File ") and any(
-                        term in line
-                        for term in ["SECRET_KEY", "API_KEY", "TOKEN", "jwt", "auth"]
+                        term in line for term in ["SECRET_KEY", "API_KEY", "TOKEN", "jwt", "auth"]
                     ):
                         code_line = line
                         break
 
                 if code_line:
                     return f"{code_line}\n{error_line}"
-                else:
-                    return error_line
+                return error_line
 
         # Fallback to generic summarization
         return self._summarize_generic(content, context)
 
-    def _summarize_structured_tool_output(
-        self, content: str, context: SummarizationContext
-    ) -> str:
+    def _summarize_structured_tool_output(self, content: str, context: SummarizationContext) -> str:
         """Summarize structured tool output (like command output, search results, etc.)."""
 
         # This method is a placeholder for more sophisticated structured output handling.
@@ -1069,7 +1002,7 @@ class IntelligentSummarizer:
         return self._summarize_generic(content, context)
 
     def _create_keyword_summary(
-        self, content: str, context: SummarizationContext, keywords: List[str]
+        self, content: str, context: SummarizationContext, keywords: list[str]
     ) -> str:
         """Create a keyword-focused summary for very short target lengths."""
 
@@ -1157,27 +1090,26 @@ class IntelligentSummarizer:
                 keyword_phrase = ", ".join(unique_keywords)
                 if len(keyword_phrase) <= context.target_length:
                     return keyword_phrase
-                else:
-                    # Fit as many high-priority keywords as possible
-                    selected_keywords = []
-                    current_len = 0
+                # Fit as many high-priority keywords as possible
+                selected_keywords = []
+                current_len = 0
 
-                    for kw in unique_keywords:
-                        if current_len == 0:
-                            # First keyword
-                            if len(kw) <= context.target_length:
-                                selected_keywords.append(kw)
-                                current_len = len(kw)
+                for kw in unique_keywords:
+                    if current_len == 0:
+                        # First keyword
+                        if len(kw) <= context.target_length:
+                            selected_keywords.append(kw)
+                            current_len = len(kw)
+                    else:
+                        # Additional keywords need ", " separator
+                        if current_len + 2 + len(kw) <= context.target_length:
+                            selected_keywords.append(kw)
+                            current_len += 2 + len(kw)
                         else:
-                            # Additional keywords need ", " separator
-                            if current_len + 2 + len(kw) <= context.target_length:
-                                selected_keywords.append(kw)
-                                current_len += 2 + len(kw)
-                            else:
-                                break
+                            break
 
-                    if selected_keywords:
-                        return ", ".join(selected_keywords)
+                if selected_keywords:
+                    return ", ".join(selected_keywords)
             else:
                 # For longer summaries, use descriptive phrase
                 summary_start = ""
@@ -1186,10 +1118,7 @@ class IntelligentSummarizer:
                     for kw in unique_keywords
                 ):
                     summary_start = "Critical security issue: "
-                elif any(
-                    kw.lower() in ["error", "failure", "issue"]
-                    for kw in unique_keywords
-                ):
+                elif any(kw.lower() in ["error", "failure", "issue"] for kw in unique_keywords):
                     summary_start = "Issue: "
 
                 # Add the most important keywords
@@ -1198,18 +1127,17 @@ class IntelligentSummarizer:
 
                 if len(keyword_phrase) <= remaining_length:
                     return summary_start + keyword_phrase
-                else:
-                    # Truncate keywords to fit, prioritizing important ones
-                    truncated_keywords = []
-                    current_len = 0
+                # Truncate keywords to fit, prioritizing important ones
+                truncated_keywords = []
+                current_len = 0
 
-                    for kw in unique_keywords:
-                        if current_len + len(kw) + 2 <= remaining_length:
-                            truncated_keywords.append(kw)
-                            current_len += len(kw) + 2
+                for kw in unique_keywords:
+                    if current_len + len(kw) + 2 <= remaining_length:
+                        truncated_keywords.append(kw)
+                        current_len += len(kw) + 2
 
-                    if truncated_keywords:
-                        return summary_start + ", ".join(truncated_keywords)
+                if truncated_keywords:
+                    return summary_start + ", ".join(truncated_keywords)
 
         # Fallback: just truncate the original content
         return content[: context.target_length - 3] + "..."

@@ -54,9 +54,7 @@ class TelemetryProvider(Protocol):
         """Track an LLM request."""
         ...
 
-    def track_tool_execution(
-        self, tool_name: str, execution_time: float, success: bool
-    ) -> None:
+    def track_tool_execution(self, tool_name: str, execution_time: float, success: bool) -> None:
         """Track a tool execution."""
         ...
 
@@ -64,9 +62,7 @@ class TelemetryProvider(Protocol):
         """Track agent session start."""
         ...
 
-    def track_agent_session_end(
-        self, agent_name: str, session_id: str, duration: float
-    ) -> None:
+    def track_agent_session_end(self, agent_name: str, session_id: str, duration: float) -> None:
         """Track agent session end."""
         ...
 
@@ -79,17 +75,13 @@ class NoOpTelemetryProvider:
     ) -> None:
         pass
 
-    def track_tool_execution(
-        self, tool_name: str, execution_time: float, success: bool
-    ) -> None:
+    def track_tool_execution(self, tool_name: str, execution_time: float, success: bool) -> None:
         pass
 
     def track_agent_session_start(self, agent_name: str, session_id: str) -> None:
         pass
 
-    def track_agent_session_end(
-        self, agent_name: str, session_id: str, duration: float
-    ) -> None:
+    def track_agent_session_end(self, agent_name: str, session_id: str, duration: float) -> None:
         pass
 
 
@@ -135,9 +127,7 @@ class DevOpsTelemetryProvider:
             except Exception as e:
                 logger.warning(f"Failed to track tool usage: {e}")
 
-    def track_agent_session(
-        self, agent_name: str, session_id: str, event: str, **kwargs
-    ) -> None:
+    def track_agent_session(self, agent_name: str, session_id: str, event: str, **kwargs) -> None:
         """Track agent lifecycle events (start/end)."""
         if self.available:
             try:
@@ -175,16 +165,14 @@ def _get_telemetry_provider() -> TelemetryProvider:
 
 def _load_project_context(
     callback_context: CallbackContext = None,
-) -> Optional[Dict[str, Any]]:
+) -> Optional[dict[str, Any]]:
     """Load project context information for the agent session."""
     try:
         # Try multiple strategies to determine the working directory
         current_dir = _determine_working_directory(callback_context)
 
         if not current_dir or not os.path.exists(current_dir):
-            logger.warning(
-                f"Could not determine valid working directory: {current_dir}"
-            )
+            logger.warning(f"Could not determine valid working directory: {current_dir}")
             return None
 
         # Safely list directory contents with count limit check
@@ -211,9 +199,7 @@ def _load_project_context(
         # Get basic project statistics
         total_files = len(project_files)
         python_files = len([f for f in project_files if f.endswith(".py")])
-        js_files = len(
-            [f for f in project_files if f.endswith(".js") or f.endswith(".ts")]
-        )
+        js_files = len([f for f in project_files if f.endswith((".js", ".ts"))])
 
         project_context = {
             "working_directory": current_dir,
@@ -251,10 +237,7 @@ def _determine_working_directory(
     """Determine working directory using multiple strategies."""
     # Strategy 1: Try to get from callback context if available
     if callback_context:
-        if (
-            hasattr(callback_context, "working_directory")
-            and callback_context.working_directory
-        ):
+        if hasattr(callback_context, "working_directory") and callback_context.working_directory:
             return callback_context.working_directory
         if hasattr(callback_context, "user_data") and callback_context.user_data:
             if "working_directory" in callback_context.user_data:
@@ -277,7 +260,7 @@ def _determine_working_directory(
         return None
 
 
-def _safe_list_directory(directory: str) -> Optional[List[str]]:
+def _safe_list_directory(directory: str) -> Optional[list[str]]:
     """Safely list directory contents with proper error handling."""
     try:
         if not os.path.exists(directory):
@@ -293,7 +276,7 @@ def _safe_list_directory(directory: str) -> Optional[List[str]]:
         return None
 
 
-def _detect_project_type(project_files: List[str], current_dir: str) -> str:
+def _detect_project_type(project_files: list[str], current_dir: str) -> str:
     """Detect project type using multiple indicators."""
     # Check for specific configuration files in order of precedence
     type_indicators = [
@@ -344,9 +327,7 @@ def create_telemetry_callbacks(agent_name: str, enhanced: bool = False):
         Dictionary containing callback functions
     """
     # Get appropriate telemetry provider
-    telemetry_provider = (
-        _get_telemetry_provider() if enhanced else NoOpTelemetryProvider()
-    )
+    telemetry_provider = _get_telemetry_provider() if enhanced else NoOpTelemetryProvider()
 
     @_callback_error_handler(agent_name, "before_agent_callback")
     def before_agent_callback(callback_context: CallbackContext = None):
@@ -358,9 +339,7 @@ def create_telemetry_callbacks(agent_name: str, enhanced: bool = False):
         )
 
         prefix = "Enhanced" if enhanced else "Basic"
-        logger.info(
-            f"[{agent_name}] {prefix} agent session started - Session ID: {session_id}"
-        )
+        logger.info(f"[{agent_name}] {prefix} agent session started - Session ID: {session_id}")
 
         # Track agent session start time
         start_time = time.time()
@@ -371,12 +350,8 @@ def create_telemetry_callbacks(agent_name: str, enhanced: bool = False):
         project_context = _load_project_context(callback_context)
         if project_context:
             logger.info(f"[{agent_name}] Project context loaded:")
-            logger.info(
-                f"  - Working directory: {project_context.get('working_dir', 'unknown')}"
-            )
-            logger.info(
-                f"  - Project type: {project_context.get('project_type', 'unknown')}"
-            )
+            logger.info(f"  - Working directory: {project_context.get('working_dir', 'unknown')}")
+            logger.info(f"  - Project type: {project_context.get('project_type', 'unknown')}")
             logger.info(f"  - File count: {project_context.get('total_files', 0)}")
 
         # Initialize session metrics
@@ -407,39 +382,25 @@ def create_telemetry_callbacks(agent_name: str, enhanced: bool = False):
     def after_agent_callback(callback_context: CallbackContext = None):
         """Callback executed after agent completes processing."""
         session_id = (
-            getattr(callback_context, "session_id", "unknown")
-            if callback_context
-            else "unknown"
+            getattr(callback_context, "session_id", "unknown") if callback_context else "unknown"
         )
 
         prefix = "Enhanced" if enhanced else "Basic"
-        logger.info(
-            f"[{agent_name}] {prefix} agent session completed - Session ID: {session_id}"
-        )
+        logger.info(f"[{agent_name}] {prefix} agent session completed - Session ID: {session_id}")
 
         # Calculate session duration and generate summary
         if callback_context and hasattr(callback_context, "_agent_session_start_time"):
             session_duration = time.time() - callback_context._agent_session_start_time
-            logger.info(
-                f"[{agent_name}] Session duration: {session_duration:.2f} seconds"
-            )
+            logger.info(f"[{agent_name}] Session duration: {session_duration:.2f} seconds")
 
             # Generate session summary
             if hasattr(callback_context, "_agent_metrics"):
                 metrics = callback_context._agent_metrics
                 logger.info(f"[{agent_name}] Session summary:")
-                logger.info(
-                    f"  - Total model calls: {metrics.get('total_model_calls', 0)}"
-                )
-                logger.info(
-                    f"  - Total tool calls: {metrics.get('total_tool_calls', 0)}"
-                )
-                logger.info(
-                    f"  - Total input tokens: {metrics.get('total_input_tokens', 0)}"
-                )
-                logger.info(
-                    f"  - Total output tokens: {metrics.get('total_output_tokens', 0)}"
-                )
+                logger.info(f"  - Total model calls: {metrics.get('total_model_calls', 0)}")
+                logger.info(f"  - Total tool calls: {metrics.get('total_tool_calls', 0)}")
+                logger.info(f"  - Total input tokens: {metrics.get('total_input_tokens', 0)}")
+                logger.info(f"  - Total output tokens: {metrics.get('total_output_tokens', 0)}")
                 logger.info(
                     f"  - Total response time: {metrics.get('total_response_time', 0.0):.2f}s"
                 )
@@ -457,14 +418,10 @@ def create_telemetry_callbacks(agent_name: str, enhanced: bool = False):
             )
 
     @_callback_error_handler(agent_name, "before_model_callback")
-    def before_model_callback(
-        callback_context: CallbackContext, llm_request: LlmRequest
-    ):
+    def before_model_callback(callback_context: CallbackContext, llm_request: LlmRequest):
         """Callback executed before LLM model request."""
         invocation_id = (
-            getattr(callback_context, "invocation_id", "unknown")
-            if callback_context
-            else "unknown"
+            getattr(callback_context, "invocation_id", "unknown") if callback_context else "unknown"
         )
         logger.debug(f"[{agent_name}] Before model request - ID: {invocation_id}")
 
@@ -478,9 +435,7 @@ def create_telemetry_callbacks(agent_name: str, enhanced: bool = False):
 
         # Track with telemetry provider if enhanced mode and available
         if enhanced and telemetry_provider and telemetry_provider.available:
-            model_name = (
-                getattr(llm_request, "model", "unknown") if llm_request else "unknown"
-            )
+            model_name = getattr(llm_request, "model", "unknown") if llm_request else "unknown"
             telemetry_provider.track_model_request(
                 agent_name=agent_name,
                 model=model_name,
@@ -489,14 +444,10 @@ def create_telemetry_callbacks(agent_name: str, enhanced: bool = False):
             )
 
     @_callback_error_handler(agent_name, "after_model_callback")
-    def after_model_callback(
-        callback_context: CallbackContext, llm_response: LlmResponse
-    ):
+    def after_model_callback(callback_context: CallbackContext, llm_response: LlmResponse):
         """Callback executed after LLM model response."""
         invocation_id = (
-            getattr(callback_context, "invocation_id", "unknown")
-            if callback_context
-            else "unknown"
+            getattr(callback_context, "invocation_id", "unknown") if callback_context else "unknown"
         )
         logger.debug(f"[{agent_name}] After model response - ID: {invocation_id}")
 
@@ -527,9 +478,7 @@ def create_telemetry_callbacks(agent_name: str, enhanced: bool = False):
                     output_tokens = getattr(usage, "output_tokens", 0)
 
             telemetry_provider.track_llm_request(
-                model=getattr(llm_response, "model", "unknown")
-                if llm_response
-                else "unknown",
+                model=getattr(llm_response, "model", "unknown") if llm_response else "unknown",
                 tokens_used=input_tokens + output_tokens,
                 response_time=response_time,
                 prompt_tokens=input_tokens,
@@ -545,9 +494,7 @@ def create_telemetry_callbacks(agent_name: str, enhanced: bool = False):
         """Callback executed before tool execution."""
         tool_name = getattr(tool, "name", "unknown") if tool else "unknown"
         invocation_id = (
-            getattr(callback_context, "invocation_id", "unknown")
-            if callback_context
-            else "unknown"
+            getattr(callback_context, "invocation_id", "unknown") if callback_context else "unknown"
         )
         logger.debug(
             f"[{agent_name}] Before tool execution - Tool: {tool_name}, ID: {invocation_id}"
@@ -576,15 +523,13 @@ def create_telemetry_callbacks(agent_name: str, enhanced: bool = False):
         tool: BaseTool,
         tool_response: Any,
         callback_context: CallbackContext = None,
-        args: dict = None,
+        args: Optional[dict] = None,
         tool_context: ToolContext = None,
     ):
         """Callback executed after tool execution."""
         tool_name = getattr(tool, "name", "unknown") if tool else "unknown"
         invocation_id = (
-            getattr(callback_context, "invocation_id", "unknown")
-            if callback_context
-            else "unknown"
+            getattr(callback_context, "invocation_id", "unknown") if callback_context else "unknown"
         )
         logger.debug(
             f"[{agent_name}] After tool execution - Tool: {tool_name}, ID: {invocation_id}"

@@ -1,9 +1,9 @@
 """Cross-turn correlation for linking related code and tool results across conversation turns."""
 
-import logging
-import re
 from collections import defaultdict
 from dataclasses import dataclass
+import logging
+import re
 from typing import Any, Dict, List, Set, Tuple
 
 logger = logging.getLogger(__name__)
@@ -65,23 +65,17 @@ class CrossTurnCorrelator:
 
     def correlate_context_items(
         self,
-        code_snippets: List[Dict[str, Any]],
-        tool_results: List[Dict[str, Any]],
-        conversation_turns: List[Dict[str, Any]],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+        code_snippets: list[dict[str, Any]],
+        tool_results: list[dict[str, Any]],
+        conversation_turns: list[dict[str, Any]],
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         """Add correlation scores to context items and reorganize based on relationships."""
 
-        logger.info(
-            "CROSS-TURN CORRELATION: Analyzing relationships between context items..."
-        )
+        logger.info("CROSS-TURN CORRELATION: Analyzing relationships between context items...")
 
         # Build correlation graphs
-        snippet_correlations = self._build_snippet_correlations(
-            code_snippets, conversation_turns
-        )
-        tool_correlations = self._build_tool_correlations(
-            tool_results, conversation_turns
-        )
+        snippet_correlations = self._build_snippet_correlations(code_snippets, conversation_turns)
+        tool_correlations = self._build_tool_correlations(tool_results, conversation_turns)
         cross_correlations = self._build_cross_correlations(
             code_snippets, tool_results, conversation_turns
         )
@@ -90,9 +84,7 @@ class CrossTurnCorrelator:
         enhanced_snippets = self._enhance_with_correlations(
             code_snippets, snippet_correlations, "snippet"
         )
-        enhanced_tools = self._enhance_with_correlations(
-            tool_results, tool_correlations, "tool"
-        )
+        enhanced_tools = self._enhance_with_correlations(tool_results, tool_correlations, "tool")
 
         # Add cross-correlations between snippets and tools
         enhanced_snippets, enhanced_tools = self._add_cross_correlations(
@@ -105,8 +97,8 @@ class CrossTurnCorrelator:
         return enhanced_snippets, enhanced_tools
 
     def _build_snippet_correlations(
-        self, snippets: List[Dict[str, Any]], conversation_turns: List[Dict[str, Any]]
-    ) -> Dict[int, Dict[int, CorrelationScore]]:
+        self, snippets: list[dict[str, Any]], conversation_turns: list[dict[str, Any]]
+    ) -> dict[int, dict[int, CorrelationScore]]:
         """Build correlation scores between code snippets."""
 
         correlations = {}
@@ -151,9 +143,9 @@ class CrossTurnCorrelator:
 
     def _build_tool_correlations(
         self,
-        tool_results: List[Dict[str, Any]],
-        conversation_turns: List[Dict[str, Any]],
-    ) -> Dict[int, Dict[int, CorrelationScore]]:
+        tool_results: list[dict[str, Any]],
+        conversation_turns: list[dict[str, Any]],
+    ) -> dict[int, dict[int, CorrelationScore]]:
         """Build correlation scores between tool results."""
 
         correlations = {}
@@ -185,9 +177,7 @@ class CrossTurnCorrelator:
                 )
 
                 # Error continuation
-                score.error_continuation = self._calculate_error_continuation(
-                    tool1, tool2
-                )
+                score.error_continuation = self._calculate_error_continuation(tool1, tool2)
 
                 # Calculate final weighted score
                 score.final_score = (
@@ -206,10 +196,10 @@ class CrossTurnCorrelator:
 
     def _build_cross_correlations(
         self,
-        code_snippets: List[Dict[str, Any]],
-        tool_results: List[Dict[str, Any]],
-        conversation_turns: List[Dict[str, Any]],
-    ) -> Dict[str, List[Tuple[int, int, CorrelationScore]]]:
+        code_snippets: list[dict[str, Any]],
+        tool_results: list[dict[str, Any]],
+        conversation_turns: list[dict[str, Any]],
+    ) -> dict[str, list[tuple[int, int, CorrelationScore]]]:
         """Build correlations between code snippets and tool results."""
 
         cross_correlations = {"snippet_to_tool": [], "tool_to_snippet": []}
@@ -275,7 +265,7 @@ class CrossTurnCorrelator:
         ext1 = "." + file1.split(".")[-1] if "." in file1 else ""
         ext2 = "." + file2.split(".")[-1] if "." in file2 else ""
 
-        for group_name, extensions in self.file_groups.items():
+        for _group_name, extensions in self.file_groups.items():
             if ext1 in extensions and ext2 in extensions:
                 return 0.5
 
@@ -339,14 +329,13 @@ class CrossTurnCorrelator:
 
         if distance == 0:
             return 1.0
-        elif distance <= 2:
+        if distance <= 2:
             return 0.8
-        elif distance <= 5:
+        if distance <= 5:
             return 0.6
-        elif distance <= 10:
+        if distance <= 10:
             return 0.3
-        else:
-            return 0.1
+        return 0.1
 
     def _calculate_tool_sequence_similarity(
         self, tool1: str, tool2: str, turn1: int, turn2: int
@@ -360,14 +349,8 @@ class CrossTurnCorrelator:
         for sequence in self.tool_sequences:
             if len(sequence) >= 2:
                 for i in range(len(sequence) - 1):
-                    if (
-                        sequence[i] in tool1
-                        and sequence[i + 1] in tool2
-                        and turn2 > turn1
-                    ) or (
-                        sequence[i] in tool2
-                        and sequence[i + 1] in tool1
-                        and turn1 > turn2
+                    if (sequence[i] in tool1 and sequence[i + 1] in tool2 and turn2 > turn1) or (
+                        sequence[i] in tool2 and sequence[i + 1] in tool1 and turn1 > turn2
                     ):
                         return 0.8
 
@@ -386,9 +369,7 @@ class CrossTurnCorrelator:
 
         return 0.0
 
-    def _calculate_error_continuation(
-        self, tool1: Dict[str, Any], tool2: Dict[str, Any]
-    ) -> float:
+    def _calculate_error_continuation(self, tool1: dict[str, Any], tool2: dict[str, Any]) -> float:
         """Calculate error continuation score."""
 
         is_error1 = tool1.get("is_error", False)
@@ -413,7 +394,7 @@ class CrossTurnCorrelator:
             return 0.0
 
         content_lower = content.lower()
-        file_path_lower = file_path.lower()
+        file_path.lower()
 
         # Check if filename is mentioned
         filename = file_path.split("/")[-1]
@@ -434,10 +415,10 @@ class CrossTurnCorrelator:
 
     def _enhance_with_correlations(
         self,
-        items: List[Dict[str, Any]],
-        correlations: Dict[int, Dict[int, CorrelationScore]],
+        items: list[dict[str, Any]],
+        correlations: dict[int, dict[int, CorrelationScore]],
         item_type: str,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Add correlation information to items."""
 
         enhanced_items = []
@@ -454,17 +435,13 @@ class CrossTurnCorrelator:
                     default=0.0,
                 ),
                 "related_indices": list(item_correlations.keys()),
-                "scores": {
-                    j: score.final_score for j, score in item_correlations.items()
-                },
+                "scores": {j: score.final_score for j, score in item_correlations.items()},
             }
 
             # Add the expected _correlation_score field for tests
             # Use the highest scoring correlation or create a default one
             if item_correlations:
-                best_correlation = max(
-                    item_correlations.values(), key=lambda x: x.final_score
-                )
+                best_correlation = max(item_correlations.values(), key=lambda x: x.final_score)
                 enhanced_item["_correlation_score"] = best_correlation
             else:
                 # Create a default CorrelationScore for items with no correlations
@@ -476,10 +453,10 @@ class CrossTurnCorrelator:
 
     def _add_cross_correlations(
         self,
-        snippets: List[Dict[str, Any]],
-        tools: List[Dict[str, Any]],
-        cross_correlations: Dict[str, List[Tuple[int, int, CorrelationScore]]],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+        snippets: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        cross_correlations: dict[str, list[tuple[int, int, CorrelationScore]]],
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         """Add cross-correlations between snippets and tools."""
 
         # Add tool correlations to snippets
@@ -513,7 +490,7 @@ class CrossTurnCorrelator:
         return snippets, tools
 
     def _log_correlation_analysis(
-        self, snippets: List[Dict[str, Any]], tools: List[Dict[str, Any]]
+        self, snippets: list[dict[str, Any]], tools: list[dict[str, Any]]
     ) -> None:
         """Log correlation analysis results."""
 
@@ -531,7 +508,7 @@ class CrossTurnCorrelator:
             len(t.get("_cross_correlations", {}).get("snippets", [])) for t in tools
         )
 
-        logger.info(f"  📊 CORRELATION ANALYSIS COMPLETE:")
+        logger.info("  📊 CORRELATION ANALYSIS COMPLETE:")
         logger.info(f"    Snippet-to-Snippet correlations: {snippet_correlations}")
         logger.info(f"    Tool-to-Tool correlations: {tool_correlations}")
         logger.info(f"    Cross-correlations (Snippet→Tool): {cross_snippet_tools}")

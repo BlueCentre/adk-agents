@@ -20,11 +20,18 @@ def get_os_info() -> OSInfoOutput:
     """Gets basic operating system information."""
     logger.info("Getting operating system information.")
     try:
-        return OSInfoOutput(system=platform.system(), release=platform.release(), version=platform.version(), machine=platform.machine())
+        return OSInfoOutput(
+            system=platform.system(),
+            release=platform.release(),
+            version=platform.version(),
+            machine=platform.machine(),
+        )
     except Exception as e:
         logger.exception(f"Failed to get OS info: {e}")
         # Return placeholder values on error
-        return OSInfoOutput(system="Unknown", release="Unknown", version="Unknown", machine="Unknown")
+        return OSInfoOutput(
+            system="Unknown", release="Unknown", version="Unknown", machine="Unknown"
+        )
 
 
 # Wrap get_os_info with FunctionTool

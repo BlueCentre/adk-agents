@@ -1,6 +1,7 @@
 """DevOps Agent Implementation."""
 
 from google.adk.agents import LlmAgent
+
 from google.genai.types import GenerateContentConfig
 
 from ... import config as agent_config
@@ -24,9 +25,7 @@ def create_devops_agent(name_suffix=""):
     custom_devops_config = {
         "included_categories": ["filesystem", "shell_command", "system_info"],
         "included_tools": ["codebase_search_tool"],
-        "excluded_tools": [
-            "analyze_code_tool"
-        ],  # DevOps agent doesn't need code analysis
+        "excluded_tools": ["analyze_code_tool"],  # DevOps agent doesn't need code analysis
         "include_mcp_tools": True,
         "mcp_server_filter": [
             "filesystem",
@@ -35,9 +34,7 @@ def create_devops_agent(name_suffix=""):
         ],  # Only specific MCP tools
     }
 
-    tools = load_tools_for_sub_agent(
-        "devops", custom_devops_config, sub_agent_name=agent_name
-    )
+    tools = load_tools_for_sub_agent("devops", custom_devops_config, sub_agent_name=agent_name)
 
     return LlmAgent(
         model=agent_config.DEFAULT_SUB_AGENT_MODEL,

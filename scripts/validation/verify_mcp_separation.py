@@ -14,7 +14,7 @@ Usage:
 
 import os
 import sys
-from typing import Dict, List, Set
+from typing import Dict, List, Optional, Set
 
 # Add the project root to the Python path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -34,7 +34,7 @@ except ImportError as e:
     sys.exit(1)
 
 
-def extract_mcp_servers_from_tools(tools: List) -> List[str]:
+def extract_mcp_servers_from_tools(tools: list) -> list[str]:
     """Extract MCP server names from a list of tools."""
     mcp_servers = []
     for tool in tools:
@@ -55,7 +55,7 @@ def extract_mcp_servers_from_tools(tools: List) -> List[str]:
     return mcp_servers
 
 
-def get_core_tool_names(tools: List) -> Set[str]:
+def get_core_tool_names(tools: list) -> set[str]:
     """Extract core tool names from a list of tools."""
     core_tools = set()
     for tool in tools:
@@ -93,7 +93,7 @@ def verify_root_agent_tools():
         return None, None, None
 
 
-def verify_sub_agent_tools(sub_agent_name: str, profile: str = None):
+def verify_sub_agent_tools(sub_agent_name: str, profile: Optional[str] = None):
     """Verify sub-agent tool configuration."""
     print(f"\n🔍 Verifying {sub_agent_name} Tools...")
 
@@ -104,9 +104,7 @@ def verify_sub_agent_tools(sub_agent_name: str, profile: str = None):
 
         print(f"📋 Configuration for {sub_agent_name}:")
         print(f"   - Global servers available: {available_servers.get('global', [])}")
-        print(
-            f"   - Sub-agent specific servers: {available_servers.get('sub_agent', [])}"
-        )
+        print(f"   - Sub-agent specific servers: {available_servers.get('sub_agent', [])}")
         print(f"   - Global servers included: {config.get('globalServers', [])}")
         print(f"   - Excluded servers: {config.get('excludedServers', [])}")
 
@@ -135,7 +133,7 @@ def verify_sub_agent_tools(sub_agent_name: str, profile: str = None):
         return None, None, None, None
 
 
-def analyze_separation(root_mcp_servers: List[str], sub_agent_data: Dict):
+def analyze_separation(root_mcp_servers: list[str], sub_agent_data: dict):
     """Analyze the separation between root agent and sub-agents."""
     print("\n📊 Analyzing MCP Tool Separation...")
 
@@ -154,7 +152,7 @@ def analyze_separation(root_mcp_servers: List[str], sub_agent_data: Dict):
         if exclusive_to_sub_agent:
             print(f"   ✅ Exclusive tools: {list(exclusive_to_sub_agent)}")
         else:
-            print(f"   ℹ️  No exclusive tools found")
+            print("   ℹ️  No exclusive tools found")
 
         if shared_with_root:
             print(f"   🔄 Shared with root: {list(shared_with_root)}")
@@ -168,9 +166,7 @@ def analyze_separation(root_mcp_servers: List[str], sub_agent_data: Dict):
 
         # Check if global servers are properly included
         global_servers_included = set(config.get("globalServers", []))
-        if global_servers_included and not (
-            global_servers_included & sub_agent_servers
-        ):
+        if global_servers_included and not (global_servers_included & sub_agent_servers):
             print(
                 f"   ⚠️  WARNING: Global servers not found in sub-agent tools: {list(global_servers_included)}"
             )
@@ -199,9 +195,7 @@ def main():
     sub_agent_data = {}
 
     for sub_agent_name, profile in sub_agents_to_check:
-        tools, core_tools, mcp_servers, config = verify_sub_agent_tools(
-            sub_agent_name, profile
-        )
+        tools, core_tools, mcp_servers, config = verify_sub_agent_tools(sub_agent_name, profile)
         if tools is not None:
             sub_agent_data[sub_agent_name] = {
                 "tools": tools,

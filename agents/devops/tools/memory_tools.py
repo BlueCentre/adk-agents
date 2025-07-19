@@ -49,7 +49,9 @@ def add_memory_fact_tool(tool_context: ToolContext, entity_name: str, fact_conte
         return "Error: Session ID is not available."
 
     # Check if add_observations method exists (duck typing)
-    if not hasattr(memory_service, "add_observations") or not callable(memory_service.add_observations):
+    if not hasattr(memory_service, "add_observations") or not callable(
+        memory_service.add_observations
+    ):
         logger.error("Memory service does not support 'add_observations'.")
         return "Error: Memory service does not support adding observations."
 
@@ -66,7 +68,7 @@ def add_memory_fact_tool(tool_context: ToolContext, entity_name: str, fact_conte
         return f"Error: Failed to add fact to memory - {e}"
 
 
-def search_memory_facts_tool(tool_context: ToolContext, query: str) -> List[Dict[str, Any]]:
+def search_memory_facts_tool(tool_context: ToolContext, query: str) -> list[dict[str, Any]]:
     """Searches discrete facts in the memory service for the current session."""
     # Access services via _invocation_context
     invocation_context = getattr(tool_context, "_invocation_context", None)
@@ -98,10 +100,9 @@ def search_memory_facts_tool(tool_context: ToolContext, query: str) -> List[Dict
 
     try:
         logger.info(f"Searching memory facts for session {session_id} with query: '{query}'")
-        results = memory_service.search_nodes(session_id=session_id, query=query)
+        return memory_service.search_nodes(session_id=session_id, query=query)
         # Return the list of dictionaries directly
         # The agent's prompt will need to guide it on interpreting this list
-        return results
 
     except Exception as e:
         logger.exception(f"Error calling memory_service.search_nodes: {e}")

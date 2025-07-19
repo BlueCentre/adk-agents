@@ -45,12 +45,12 @@ class TestRealAgentLoading:
                 assert hasattr(agent, "name")
                 print(f"✅ Successfully loaded {module_name}: {agent.name}")
             except Exception as e:
-                pytest.fail(f"Failed to load {module_name}: {str(e)}")
+                pytest.fail(f"Failed to load {module_name}: {e!s}")
 
     def test_enhanced_agent_loading_success(self):
         """Test enhanced agent loading now works after fixing parent conflicts."""
         agent_loader = AgentLoader()
-        
+
         # This agent should now load successfully after fixing parent conflicts
         try:
             agent = agent_loader.load_agent("agents.swe.enhanced_agent")
@@ -59,7 +59,7 @@ class TestRealAgentLoading:
             assert agent.name == "enhanced_software_engineer"
             print(f"✅ Successfully loaded agents.swe.enhanced_agent: {agent.name}")
         except Exception as e:
-            pytest.fail(f"Enhanced agent should load successfully but failed: {str(e)}")
+            pytest.fail(f"Enhanced agent should load successfully but failed: {e!s}")
 
     @pytest.mark.parametrize(
         "agent_module",
@@ -119,13 +119,13 @@ class TestRealAgentLoading:
 
         # Test the exact scenario that was previously failing
         target_agent = "agents.swe.enhanced_agent"
-        
+
         # Load environment variables for the agent (like the real CLI does)
         envs.load_dotenv_for_agent(target_agent)
-        
+
         # Create an agent loader and load the agent (like the real CLI does)
         agent_loader = AgentLoader()
-        
+
         # This should now work successfully after fixing parent conflicts
         try:
             agent = agent_loader.load_agent(target_agent)
@@ -134,7 +134,7 @@ class TestRealAgentLoading:
             assert agent.name == "enhanced_software_engineer"
             print(f"✅ Previously failing CLI scenario now works: {target_agent}")
         except Exception as e:
-            pytest.fail(f"Previously failing agent should now work but failed: {str(e)}")
+            pytest.fail(f"Previously failing agent should now work but failed: {e!s}")
 
     def test_working_cli_command_scenarios(self):
         """Test CLI command scenarios that should work correctly."""
@@ -162,7 +162,6 @@ class TestRealAgentLoading:
     def test_real_world_cli_execution_path(self):
         """Test the real-world execution path that mirrors the actual CLI command."""
         import asyncio
-        from unittest.mock import patch
 
         from src.wrapper.adk.cli.cli import run_cli
 
@@ -187,27 +186,23 @@ class TestRealAgentLoading:
                         tui=False,
                     )
                 )
-                print(
-                    f"✅ Real-world CLI execution path test passed for {agent_module}"
-                )
+                print(f"✅ Real-world CLI execution path test passed for {agent_module}")
             except Exception as e:
-                pytest.fail(
-                    f"Real-world CLI execution failed for {agent_module}: {str(e)}"
-                )
+                pytest.fail(f"Real-world CLI execution failed for {agent_module}: {e!s}")
 
     def test_problematic_agents_fail_gracefully(self):
         """Test that problematic agents fail with clear error messages."""
         agent_loader = AgentLoader()
-        
+
         # Test a non-existent agent that should fail
         with pytest.raises(ValueError) as exc_info:
             agent_loader.load_agent("agents.nonexistent.fake_agent")
-        
+
         error_message = str(exc_info.value)
-        
+
         # Verify the error message is informative
         assert "agents.nonexistent.fake_agent" in error_message
-        
+
         print("✅ Problematic agent failed gracefully with clear error message")
 
     def test_agent_import_error_handling(self):

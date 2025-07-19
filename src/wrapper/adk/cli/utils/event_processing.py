@@ -42,9 +42,7 @@ class AgentEventProcessor:
         if not event.content or not event.content.parts:
             # Check for usage metadata even if no content parts
             if hasattr(event, "usage_metadata") and event.usage_metadata:
-                self.display_interface.display_usage_metadata(
-                    event.usage_metadata, model_name
-                )
+                self.display_interface.display_usage_metadata(event.usage_metadata, model_name)
             return
 
         regular_parts = []
@@ -77,9 +75,7 @@ class AgentEventProcessor:
 
         # Display usage metadata if available
         if hasattr(event, "usage_metadata") and event.usage_metadata:
-            self.display_interface.display_usage_metadata(
-                event.usage_metadata, model_name
-            )
+            self.display_interface.display_usage_metadata(event.usage_metadata, model_name)
 
 
 class ConsoleEventDisplay:

@@ -1,11 +1,11 @@
 """Dynamic tool and capability discovery for adaptive DevOps environments."""
 
+from dataclasses import dataclass
 import logging
 import os
+from pathlib import Path
 import shutil
 import subprocess
-from dataclasses import dataclass
-from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
@@ -20,19 +20,19 @@ class ToolCapability:
     available: bool
     path: str
     description: str
-    common_commands: List[str]
+    common_commands: list[str]
 
 
 @dataclass
 class EnvironmentCapabilities:
     """Represents the discovered environment capabilities."""
 
-    tools: Dict[str, ToolCapability]
+    tools: dict[str, ToolCapability]
     shell: str
     os_type: str
     working_directory: str
     python_version: str
-    package_managers: List[str]
+    package_managers: list[str]
 
 
 class DynamicToolDiscovery:
@@ -190,7 +190,7 @@ class DynamicToolDiscovery:
 
         return self.capabilities_cache
 
-    def _discover_tool(self, tool_name: str, tool_def: Dict) -> ToolCapability:
+    def _discover_tool(self, tool_name: str, tool_def: dict) -> ToolCapability:
         """Discover a specific tool capability."""
         try:
             # Check if tool is in PATH
@@ -258,7 +258,7 @@ class DynamicToolDiscovery:
                 return line.strip()
         return "Unknown"
 
-    def get_available_commands_for_tool(self, tool_name: str) -> List[str]:
+    def get_available_commands_for_tool(self, tool_name: str) -> list[str]:
         """Get available commands for a specific tool."""
         capabilities = self.discover_environment_capabilities()
         tool = capabilities.tools.get(tool_name)
@@ -267,7 +267,7 @@ class DynamicToolDiscovery:
             return tool.common_commands
         return []
 
-    def suggest_tools_for_task(self, task_description: str) -> List[str]:
+    def suggest_tools_for_task(self, task_description: str) -> list[str]:
         """Suggest available tools based on task description."""
         capabilities = self.discover_environment_capabilities()
         task_lower = task_description.lower()

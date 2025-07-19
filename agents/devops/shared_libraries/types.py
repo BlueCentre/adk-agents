@@ -4,8 +4,9 @@ from datetime import datetime
 from enum import Enum
 from typing import List, Optional
 
-from google.genai.types import GenerateContentConfig
 from pydantic import BaseModel, Field
+
+from google.genai.types import GenerateContentConfig
 
 # Configure JSON response format
 json_response_config = GenerateContentConfig(
@@ -32,26 +33,30 @@ class CodeIssue(BaseModel):
 class CodeReviewResponse(BaseModel):
     """Response model for code review analysis."""
 
-    issues: List[CodeIssue] = Field(description="List of identified code issues")
+    issues: list[CodeIssue] = Field(description="List of identified code issues")
     summary: str = Field(description="Overall summary of the code review")
-    suggestions: List[str] = Field(description="General suggestions for improvement")
+    suggestions: list[str] = Field(description="General suggestions for improvement")
 
 
 class DesignPattern(BaseModel):
     """Represents a design pattern recommendation."""
 
     pattern_name: str = Field(description="Name of the design pattern")
-    category: str = Field(description="Category of the pattern (creational, structural, behavioral)")
+    category: str = Field(
+        description="Category of the pattern (creational, structural, behavioral)"
+    )
     problem_solved: str = Field(description="What problem this pattern solves")
-    benefits: List[str] = Field(description="Benefits of using this pattern")
-    tradeoffs: List[str] = Field(description="Potential drawbacks or tradeoffs")
+    benefits: list[str] = Field(description="Benefits of using this pattern")
+    tradeoffs: list[str] = Field(description="Potential drawbacks or tradeoffs")
     example_code: str = Field(description="Example implementation code")
 
 
 class DesignPatternResponse(BaseModel):
     """Response model for design pattern recommendations."""
 
-    recommended_patterns: List[DesignPattern] = Field(description="List of recommended design patterns")
+    recommended_patterns: list[DesignPattern] = Field(
+        description="List of recommended design patterns"
+    )
     explanation: str = Field(description="Explanation of why these patterns are recommended")
 
 
@@ -61,7 +66,7 @@ class TestCase(BaseModel):
     name: str = Field(description="Name of the test case")
     description: str = Field(description="Description of what the test verifies")
     test_type: str = Field(description="Type of test (unit, integration, system)")
-    prerequisites: List[str] = Field(description="Prerequisites for running the test")
+    prerequisites: list[str] = Field(description="Prerequisites for running the test")
     test_code: str = Field(description="The test code implementation")
     expected_outcome: str = Field(description="Expected outcome of the test")
 
@@ -69,7 +74,7 @@ class TestCase(BaseModel):
 class TestingResponse(BaseModel):
     """Response model for test generation."""
 
-    test_cases: List[TestCase] = Field(description="List of generated test cases")
+    test_cases: list[TestCase] = Field(description="List of generated test cases")
     testing_strategy: str = Field(description="Overall testing strategy")
     test_coverage: Optional[str] = Field(description="Expected test coverage")
 
@@ -88,7 +93,7 @@ class DebuggingResponse(BaseModel):
 
     problem_analysis: str = Field(description="Analysis of the problem")
     root_cause: Optional[str] = Field(description="Identified root cause")
-    debugging_steps: List[DebuggingStep] = Field(description="Steps to debug the issue")
+    debugging_steps: list[DebuggingStep] = Field(description="Steps to debug the issue")
     solution: Optional[str] = Field(description="Proposed solution")
 
 
@@ -98,14 +103,16 @@ class DocumentationItem(BaseModel):
     title: str = Field(description="Title of the documentation item")
     content: str = Field(description="Content of the documentation")
     doc_type: str = Field(description="Type of documentation (README, API doc, inline comment)")
-    format: str = Field(description="Format of the documentation (Markdown, reStructuredText, etc.)")
+    format: str = Field(
+        description="Format of the documentation (Markdown, reStructuredText, etc.)"
+    )
 
 
 class DocumentationResponse(BaseModel):
     """Response model for documentation generation."""
 
-    documentation_items: List[DocumentationItem] = Field(description="List of documentation items")
-    suggestions: Optional[List[str]] = Field(description="Suggestions for improving documentation")
+    documentation_items: list[DocumentationItem] = Field(description="List of documentation items")
+    suggestions: Optional[list[str]] = Field(description="Suggestions for improving documentation")
 
 
 class DevOpsComponent(BaseModel):
@@ -114,53 +121,83 @@ class DevOpsComponent(BaseModel):
     component_name: str = Field(description="Name of the DevOps component")
     purpose: str = Field(description="Purpose of this component")
     implementation: str = Field(description="Implementation details or configuration")
-    alternatives: Optional[List[str]] = Field(description="Alternative options")
+    alternatives: Optional[list[str]] = Field(description="Alternative options")
 
 
 class DevOpsResponse(BaseModel):
     """Response model for DevOps recommendations."""
 
-    components: List[DevOpsComponent] = Field(description="List of DevOps components")
+    components: list[DevOpsComponent] = Field(description="List of DevOps components")
     implementation_plan: str = Field(description="Overall implementation plan")
-    resources: Optional[List[str]] = Field(description="Helpful resources or documentation")
+    resources: Optional[list[str]] = Field(description="Helpful resources or documentation")
 
 
 # Task Management Types
 class TaskStatus(str, Enum):
     """Status of a task."""
+
     TODO = "TODO"
     IN_PROGRESS = "IN_PROGRESS"
     DONE = "DONE"
     BLOCKED = "BLOCKED"
     IN_REVIEW = "IN_REVIEW"
 
+
 class TaskPriority(str, Enum):
     """Priority of a task."""
+
     HIGH = "HIGH"
     MEDIUM = "MEDIUM"
     LOW = "LOW"
 
+
 class Task(BaseModel):
     """Represents a manageable task."""
+
     task_id: str = Field(description="Unique identifier for the task (e.g., UUID)")
     description: str = Field(description="Detailed description of the task")
     status: TaskStatus = Field(default=TaskStatus.TODO, description="Current status of the task")
     priority: TaskPriority = Field(default=TaskPriority.MEDIUM, description="Priority of the task")
-    dependencies: Optional[List[str]] = Field(default_factory=list, description="List of task_ids this task depends on")
-    assigned_agent: Optional[str] = Field(default=None, description="Name of the sub-agent this task is delegated to")
-    sub_tasks: Optional[List[str]] = Field(default_factory=list, description="List of task_ids for sub-tasks")
-    parent_task: Optional[str] = Field(default=None, description="task_id of the parent task, if any")
-    details: Optional[dict] = Field(default_factory=dict, description="Additional details, e.g., links to design docs, PRs")
-    created_at: datetime = Field(default_factory=datetime.utcnow, description="Timestamp of task creation")
-    updated_at: datetime = Field(default_factory=datetime.utcnow, description="Timestamp of last task update")
+    dependencies: Optional[list[str]] = Field(
+        default_factory=list, description="List of task_ids this task depends on"
+    )
+    assigned_agent: Optional[str] = Field(
+        default=None, description="Name of the sub-agent this task is delegated to"
+    )
+    sub_tasks: Optional[list[str]] = Field(
+        default_factory=list, description="List of task_ids for sub-tasks"
+    )
+    parent_task: Optional[str] = Field(
+        default=None, description="task_id of the parent task, if any"
+    )
+    details: Optional[dict] = Field(
+        default_factory=dict, description="Additional details, e.g., links to design docs, PRs"
+    )
+    created_at: datetime = Field(
+        default_factory=datetime.utcnow, description="Timestamp of task creation"
+    )
+    updated_at: datetime = Field(
+        default_factory=datetime.utcnow, description="Timestamp of last task update"
+    )
+
 
 class TaskListResponse(BaseModel):
     """Response model for listing tasks."""
-    tasks: List[Task] = Field(description="List of tasks")
+
+    tasks: list[Task] = Field(description="List of tasks")
+
 
 class TaskUpdateRequest(BaseModel):
     """Request model for updating a task, typically from another agent."""
+
     task_id: str = Field(description="ID of the task to update")
-    status: str = Field(description="New status of the task (should be a string from TaskStatus enum, e.g., \"DONE\")")
-    message: Optional[str] = Field(default=None, description="Optional message regarding the update")
-    output: Optional[dict] = Field(default=None, description="Optional output from the task, e.g., link to PR, path to generated tests")
+    status: str = Field(
+        description='New status of the task (should be a string from TaskStatus enum, e.g., "DONE")'
+    )
+    message: Optional[str] = Field(
+        default=None, description="Optional message regarding the update"
+    )
+    output: Optional[dict] = Field(
+        default=None,
+        description="Optional output from the task, e.g., link to PR, path to generated tests",
+    )

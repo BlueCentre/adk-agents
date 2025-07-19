@@ -54,7 +54,9 @@ async def demonstrate_enhanced_agent():
     print("\n4. Quality Improvement (Iterative Workflow)")
     print("-" * 42)
 
-    quality_task = "Improve code quality in our payment processing module until it meets enterprise standards"
+    quality_task = (
+        "Improve code quality in our payment processing module until it meets enterprise standards"
+    )
     result = await enhanced_root_agent.run(quality_task)
     print(f"Result: {result}")
 
@@ -70,9 +72,7 @@ async def demonstrate_direct_workflows():
     print("-" * 25)
 
     parallel_workflow = create_parallel_analysis_workflow()
-    result = await parallel_workflow.run(
-        "Analyze codebase for security and performance issues"
-    )
+    result = await parallel_workflow.run("Analyze codebase for security and performance issues")
     print(f"Result: {result}")
 
     # Example 2: Sequential feature development

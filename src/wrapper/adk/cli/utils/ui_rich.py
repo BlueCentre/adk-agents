@@ -13,7 +13,7 @@ from .ui_common import ThemeConfig, UITheme
 class RichRenderer:
     """Handles rendering of Rich components and markdown."""
 
-    def __init__(self, theme: Optional[UITheme] = None):
+    def __init__(self, theme: UITheme | None = None):
         self.theme = theme or UITheme.DARK
         self.rich_theme = ThemeConfig.get_rich_theme(self.theme)
         self.console = Console(theme=self.rich_theme, force_interactive=True)
@@ -78,9 +78,7 @@ class RichRenderer:
         return message
 
     def format_agent_response(self, text: str, author: str = "Agent") -> Panel:
-        markdown = Markdown(
-            text, style=self.rich_theme.styles.get("agent.style", "gray")
-        )
+        markdown = Markdown(text, style=self.rich_theme.styles.get("agent.style", "gray"))
         return Panel(
             markdown,
             title=f"[bold {self.rich_theme.styles.get('agent.border_color', 'green')}]🤖 {author} Response[/bold {self.rich_theme.styles.get('agent.border_color', 'green')}]",
@@ -91,9 +89,7 @@ class RichRenderer:
         )
 
     def format_agent_thought(self, text: str) -> Panel:
-        markdown = Markdown(
-            text, style=self.rich_theme.styles.get("thought.style", "gray")
-        )
+        markdown = Markdown(text, style=self.rich_theme.styles.get("thought.style", "gray"))
         return Panel(
             markdown,
             title=f"[bold {self.rich_theme.styles.get('thought.border_color', 'magenta')}]🧠 Agent Thought[/bold {self.rich_theme.styles.get('thought.border_color', 'magenta')}]",
@@ -113,10 +109,8 @@ class RichRenderer:
             padding=(0, 0),
         )
 
-    def format_running_tool(self, tool_name: str, args: Optional[dict]) -> Panel:
-        arg_str = (
-            f"({', '.join(f'{k}={v}' for k, v in args.items())})" if args else "()"
-        )
+    def format_running_tool(self, tool_name: str, args: dict | None) -> Panel:
+        arg_str = f"({', '.join(f'{k}={v}' for k, v in args.items())})" if args else "()"
         content = Text.from_markup(f"[dim]Tool: {tool_name}{arg_str}[/dim]")
         return Panel(
             content,
@@ -127,18 +121,12 @@ class RichRenderer:
             padding=(0, 0),
         )
 
-    def format_tool_finished(
-        self, tool_name: str, result: Any, duration: Optional[float]
-    ) -> Panel:
+    def format_tool_finished(self, tool_name: str, result: Any, duration: float | None) -> Panel:
         duration_str = f" in {duration:.2f}s" if duration is not None else ""
         result_str = (
-            f"Result: {str(result)[:100]}..."
-            if len(str(result)) > 100
-            else f"Result: {result}"
+            f"Result: {str(result)[:100]}..." if len(str(result)) > 100 else f"Result: {result}"
         )
-        content = Text.from_markup(
-            f"[dim]Tool: {tool_name}{duration_str}\n{result_str}[/dim]"
-        )
+        content = Text.from_markup(f"[dim]Tool: {tool_name}{duration_str}\n{result_str}[/dim]")
         return Panel(
             content,
             title="[green]✅ Tool Finished[/green]",
@@ -149,9 +137,7 @@ class RichRenderer:
         )
 
     def format_tool_error(self, tool_name: str, error_message: str) -> Panel:
-        content = Text.from_markup(
-            f"[dim]Tool: {tool_name}\nError: {error_message}[/dim]"
-        )
+        content = Text.from_markup(f"[dim]Tool: {tool_name}\nError: {error_message}[/dim]")
         return Panel(
             content,
             title="[red]❌ Tool Error[/red]",
@@ -185,9 +171,7 @@ class RichRenderer:
             expand=True,
             # padding=(0, 1),
         )
-        parent_console.print(
-            panel, crop=False, no_wrap=False, overflow="fold", soft_wrap=True
-        )
+        parent_console.print(panel, crop=False, no_wrap=False, overflow="fold", soft_wrap=True)
         # self.console.print(panel)
 
     def display_agent_thought(self, parent_console: Console, thought_summary: str):
@@ -210,7 +194,5 @@ class RichRenderer:
             expand=True,
             # padding=(0, 1),
         )
-        parent_console.print(
-            panel, crop=False, no_wrap=False, overflow="fold", soft_wrap=True
-        )
+        parent_console.print(panel, crop=False, no_wrap=False, overflow="fold", soft_wrap=True)
         # self.console.print(panel)

@@ -1,15 +1,15 @@
 """DevOps Agent Implementation - Class Definition."""
 
+from collections.abc import AsyncGenerator
+from dataclasses import dataclass, field
+from enum import Enum
 import json
 import logging
 import os
 import time
 import traceback
-from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, AsyncGenerator, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from google import genai
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.agents.llm_agent import LlmAgent
@@ -18,11 +18,13 @@ from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
 from google.adk.tools.base_tool import BaseTool
 from google.adk.tools.tool_context import ToolContext
-from google.genai import types as genai_types
 from pydantic import PrivateAttr
 from rich.console import Console
 from rich.status import Status
 from typing_extensions import override
+
+from google import genai
+from google.genai import types as genai_types
 
 from . import config as agent_config
 from .components.context_management import (
@@ -79,8 +81,6 @@ except ImportError:
 class StateValidationError(Exception):
     """Raised when state validation fails."""
 
-    pass
-
 
 class TurnPhase(Enum):
     """Represents the current phase of a conversation turn."""
@@ -102,10 +102,10 @@ class TurnState:
     phase: TurnPhase = TurnPhase.INITIALIZING
     user_message: Optional[str] = None
     agent_message: Optional[str] = None
-    tool_calls: List[Dict[str, Any]] = field(default_factory=list)
-    tool_results: List[Dict[str, Any]] = field(default_factory=list)
-    system_messages: List[str] = field(default_factory=list)
-    errors: List[str] = field(default_factory=list)
+    tool_calls: list[dict[str, Any]] = field(default_factory=list)
+    tool_results: list[dict[str, Any]] = field(default_factory=list)
+    system_messages: list[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
     created_at: float = field(default_factory=time.time)
     completed_at: Optional[float] = None
 
@@ -136,10 +136,10 @@ class StateManager:
     """Manages conversation state with robust error handling and validation."""
 
     def __init__(self):
-        self.conversation_history: List[TurnState] = []
+        self.conversation_history: list[TurnState] = []
         self.current_turn: Optional[TurnState] = None
         self.is_new_conversation: bool = True
-        self.app_state: Dict[str, Any] = {
+        self.app_state: dict[str, Any] = {
             "code_snippets": [],
             "core_goal": "",
             "current_phase": "",
@@ -196,22 +196,18 @@ class StateManager:
                 if hasattr(self.current_turn, key):
                     setattr(self.current_turn, key, value)
                 else:
-                    logger.warning(
-                        f"Attempted to set unknown attribute '{key}' on turn state"
-                    )
+                    logger.warning(f"Attempted to set unknown attribute '{key}' on turn state")
         finally:
             self._release_lock()
 
-    def add_tool_call(self, tool_name: str, args: Dict[str, Any]) -> None:
+    def add_tool_call(self, tool_name: str, args: dict[str, Any]) -> None:
         """Add a tool call to the current turn."""
         if not self.current_turn:
             raise StateValidationError("No current turn to add tool call to")
 
         tool_call = {"tool_name": tool_name, "args": args, "timestamp": time.time()}
         self.current_turn.tool_calls.append(tool_call)
-        logger.debug(
-            f"Added tool call {tool_name} to turn {self.current_turn.turn_number}"
-        )
+        logger.debug(f"Added tool call {tool_name} to turn {self.current_turn.turn_number}")
 
     def add_tool_result(self, tool_name: str, result: Any) -> None:
         """Add a tool result to the current turn."""
@@ -224,9 +220,7 @@ class StateManager:
             "timestamp": time.time(),
         }
         self.current_turn.tool_results.append(tool_result)
-        logger.debug(
-            f"Added tool result for {tool_name} to turn {self.current_turn.turn_number}"
-        )
+        logger.debug(f"Added tool result for {tool_name} to turn {self.current_turn.turn_number}")
 
     def complete_current_turn(self) -> None:
         """Complete the current turn and add it to history."""
@@ -244,7 +238,7 @@ class StateManager:
         finally:
             self._release_lock()
 
-    def get_state_for_context(self) -> Dict[str, Any]:
+    def get_state_for_context(self) -> dict[str, Any]:
         """Get state in format expected by legacy context management."""
         # Convert to legacy format for compatibility
         legacy_history = []
@@ -275,9 +269,7 @@ class StateManager:
         return {
             "user:conversation_history": legacy_history,
             "temp:is_new_conversation": self.is_new_conversation,
-            "temp:current_turn": self.current_turn.__dict__
-            if self.current_turn
-            else {},
+            "temp:current_turn": self.current_turn.__dict__ if self.current_turn else {},
             "temp:tool_calls_current_turn": self.current_turn.tool_calls
             if self.current_turn
             else [],
@@ -287,7 +279,7 @@ class StateManager:
             **{f"app:{k}": v for k, v in self.app_state.items()},
         }
 
-    def sync_from_legacy_state(self, state: Dict[str, Any]) -> None:
+    def sync_from_legacy_state(self, state: dict[str, Any]) -> None:
         """Sync state from legacy callback_context.state format."""
         try:
             # Extract conversation history
@@ -308,9 +300,7 @@ class StateManager:
                     system_messages=turn_data.get("system_messages", []),
                     phase=TurnPhase.COMPLETED,
                 )
-                turn.completed_at = (
-                    time.time()
-                )  # Mark as completed since it's in history
+                turn.completed_at = time.time()  # Mark as completed since it's in history
                 self.conversation_history.append(turn)
 
             # Handle current turn data
@@ -327,7 +317,7 @@ class StateManager:
                 )
 
             # Sync app state
-            for key in self.app_state.keys():
+            for key in self.app_state:
                 app_key = f"app:{key}"
                 if app_key in state:
                     self.app_state[key] = state[app_key]
@@ -352,9 +342,7 @@ class MyDevopsAgent(LlmAgent):
 
     _console: Console = PrivateAttr(default_factory=lambda: Console(stderr=True))
     _status_indicator: Optional[Status] = PrivateAttr(default=None)
-    _actual_llm_token_limit: int = PrivateAttr(
-        default=agent_config.DEFAULT_TOKEN_LIMIT_FALLBACK
-    )
+    _actual_llm_token_limit: int = PrivateAttr(default=agent_config.DEFAULT_TOKEN_LIMIT_FALLBACK)
     _state_manager: StateManager = PrivateAttr(default_factory=StateManager)
     _planning_manager: Optional[PlanningManager] = PrivateAttr(default=None)
     _context_manager: Optional[ContextManager] = PrivateAttr(default=None)
@@ -366,9 +354,7 @@ class MyDevopsAgent(LlmAgent):
         super().__init__(**data)
         if "llm_client" in data:
             self.llm_client = data.pop("llm_client")
-            logger.info(
-                f"Using provided llm_client in __init__: {type(self.llm_client).__name__}"
-            )
+            logger.info(f"Using provided llm_client in __init__: {type(self.llm_client).__name__}")
         self.before_model_callback = self.handle_before_model
         self.after_model_callback = self.handle_after_model
         self.before_tool_callback = self.handle_before_tool
@@ -398,9 +384,7 @@ class MyDevopsAgent(LlmAgent):
         # logger.debug("--- End Debugging ---  ")
 
         if hasattr(__context, "llm_client") and __context.llm_client:
-            logger.info(
-                f"Found llm_client in __context: {type(__context.llm_client).__name__}"
-            )
+            logger.info(f"Found llm_client in __context: {type(__context.llm_client).__name__}")
             self.llm_client = __context.llm_client
 
         if not hasattr(self, "llm_client") or self.llm_client is None:
@@ -444,17 +428,13 @@ class MyDevopsAgent(LlmAgent):
 
         # Use fallback values directly to avoid API issues
         if model_to_check == agent_config.GEMINI_FLASH_MODEL_NAME:
-            self._actual_llm_token_limit = (
-                agent_config.GEMINI_FLASH_TOKEN_LIMIT_FALLBACK
-            )
+            self._actual_llm_token_limit = agent_config.GEMINI_FLASH_TOKEN_LIMIT_FALLBACK
         elif model_to_check == agent_config.GEMINI_PRO_MODEL_NAME:
             self._actual_llm_token_limit = agent_config.GEMINI_PRO_TOKEN_LIMIT_FALLBACK
         else:
             self._actual_llm_token_limit = agent_config.DEFAULT_TOKEN_LIMIT_FALLBACK
 
-        logger.info(
-            f"Using token limit for {model_to_check}: {self._actual_llm_token_limit}"
-        )
+        logger.info(f"Using token limit for {model_to_check}: {self._actual_llm_token_limit}")
 
     def _validate_thinking_configuration(self):
         """Validate thinking configuration and provide helpful warnings."""
@@ -462,15 +442,9 @@ class MyDevopsAgent(LlmAgent):
 
         if agent_config.GEMINI_THINKING_ENABLE:
             if agent_config.is_thinking_supported(model_name):
-                logger.info(
-                    f"✅ Gemini thinking enabled for supported model: {model_name}"
-                )
-                logger.info(
-                    f"   Include thoughts: {agent_config.GEMINI_THINKING_INCLUDE_THOUGHTS}"
-                )
-                logger.info(
-                    f"   Thinking budget: {agent_config.GEMINI_THINKING_BUDGET:,} tokens"
-                )
+                logger.info(f"✅ Gemini thinking enabled for supported model: {model_name}")
+                logger.info(f"   Include thoughts: {agent_config.GEMINI_THINKING_INCLUDE_THOUGHTS}")
+                logger.info(f"   Thinking budget: {agent_config.GEMINI_THINKING_BUDGET:,} tokens")
             else:
                 logger.warning(
                     f"⚠️  Gemini thinking enabled but model '{model_name}' does not support thinking!"
@@ -478,24 +452,16 @@ class MyDevopsAgent(LlmAgent):
                 logger.warning(
                     f"   Supported models: {', '.join(agent_config.THINKING_SUPPORTED_MODELS)}"
                 )
-                logger.warning(
-                    f"   Thinking configuration will be ignored for this model."
-                )
-                logger.warning(
-                    f"   Consider setting AGENT_MODEL to a supported 2.5 series model:"
-                )
+                logger.warning("   Thinking configuration will be ignored for this model.")
+                logger.warning("   Consider setting AGENT_MODEL to a supported 2.5 series model:")
                 for supported_model in agent_config.THINKING_SUPPORTED_MODELS:
                     logger.warning(f"     export AGENT_MODEL={supported_model}")
         else:
             if agent_config.is_thinking_supported(model_name):
-                logger.info(
-                    f"ℹ️  Model '{model_name}' supports thinking, but it's disabled."
-                )
-                logger.info(f"   To enable: export GEMINI_THINKING_ENABLE=true")
+                logger.info(f"ℹ️  Model '{model_name}' supports thinking, but it's disabled.")
+                logger.info("   To enable: export GEMINI_THINKING_ENABLE=true")
             else:
-                logger.debug(
-                    f"Thinking not enabled and model '{model_name}' doesn't support it."
-                )
+                logger.debug(f"Thinking not enabled and model '{model_name}' doesn't support it.")
 
     async def _ensure_mcp_tools_loaded(self):
         """Ensure MCP tools are loaded asynchronously if not already loaded.
@@ -526,15 +492,11 @@ class MyDevopsAgent(LlmAgent):
                 else:
                     self.tools = mcp_tools
 
-                logger.info(
-                    f"Successfully loaded {len(mcp_tools)} MCP tools asynchronously."
-                )
+                logger.info(f"Successfully loaded {len(mcp_tools)} MCP tools asynchronously.")
 
                 # Log which pattern was used
                 if exit_stack is not None:
-                    logger.info(
-                        "MCP tools loaded using async pattern with exit stack management."
-                    )
+                    logger.info("MCP tools loaded using async pattern with exit stack management.")
                 else:
                     logger.info("MCP tools loaded using simple pattern.")
 
@@ -608,9 +570,7 @@ class MyDevopsAgent(LlmAgent):
                                 + "\n"
                                 + user_message_content
                             )
-                            self._state_manager.update_current_turn(
-                                user_message=combined_message
-                            )
+                            self._state_manager.update_current_turn(user_message=combined_message)
                         else:
                             # Set the user message
                             self._state_manager.update_current_turn(
@@ -618,9 +578,7 @@ class MyDevopsAgent(LlmAgent):
                             )
 
                 # Update callback context state with managed state
-                callback_context.state.update(
-                    self._state_manager.get_state_for_context()
-                )
+                callback_context.state.update(self._state_manager.get_state_for_context())
 
                 logger.debug(
                     f"State management: Turn {self._state_manager.current_turn.turn_number if self._state_manager.current_turn else 'None'}, "
@@ -636,9 +594,7 @@ class MyDevopsAgent(LlmAgent):
                     if not self._state_manager.current_turn:
                         self._state_manager.start_new_turn(user_message_content)
                     else:
-                        self._state_manager.update_current_turn(
-                            user_message=user_message_content
-                        )
+                        self._state_manager.update_current_turn(user_message=user_message_content)
 
         except StateValidationError as e:
             logger.error(f"State validation error in handle_before_model: {e}")
@@ -658,9 +614,7 @@ class MyDevopsAgent(LlmAgent):
                 llm_request.config.thinking_config = thinking_config
                 logger.info("Applied thinking configuration to LLM request")
             else:
-                logger.warning(
-                    "LLM request config does not support thinking_config attribute"
-                )
+                logger.warning("LLM request config does not support thinking_config attribute")
         elif thinking_config:
             logger.warning(
                 "LLM request does not have config attribute to apply thinking configuration"
@@ -678,18 +632,14 @@ class MyDevopsAgent(LlmAgent):
             return planning_response
 
         if approved_plan_text:
-            logger.info(
-                "MyDevopsAgent: Plan approved. Adding to context.state as system message."
-            )
+            logger.info("MyDevopsAgent: Plan approved. Adding to context.state as system message.")
             current_turn = callback_context.state.get("temp:current_turn", {})
             if current_turn is None:
                 current_turn = {}
             system_message = f"SYSTEM: The user has approved the following plan. Proceed with implementation:\n{approved_plan_text}"
             current_turn["system_message_plan"] = system_message
             callback_context.state["temp:current_turn"] = current_turn
-            conversation_history = callback_context.state.get(
-                "user:conversation_history", []
-            )
+            conversation_history = callback_context.state.get("user:conversation_history", [])
             conversation_history.append({"system_message": system_message})
             callback_context.state["user:conversation_history"] = conversation_history
 
@@ -702,9 +652,7 @@ APPROVED PLAN:
 Begin execution now, starting with the first step."""
 
             # Update the LLM request with the execution instruction
-            if hasattr(llm_request, "contents") and isinstance(
-                llm_request.contents, list
-            ):
+            if hasattr(llm_request, "contents") and isinstance(llm_request.contents, list):
                 # Find and replace ALL user messages with the execution instruction
                 from google.genai import types as genai_types
 
@@ -730,21 +678,15 @@ Begin execution now, starting with the first step."""
 
                 llm_request.contents = new_contents
 
-            self._start_status(
-                "[bold yellow](Agent is implementing the plan...)[/bold yellow]"
-            )
+            self._start_status("[bold yellow](Agent is implementing the plan...)[/bold yellow]")
 
-        is_currently_a_plan_generation_turn = (
-            self._planning_manager.is_plan_generation_turn
-        )
+        is_currently_a_plan_generation_turn = self._planning_manager.is_plan_generation_turn
 
         if not is_currently_a_plan_generation_turn:
             # Add enhanced status indicator showing thinking mode
             thinking_config = self._create_thinking_config()
             if thinking_config:
-                self._start_status(
-                    "[bold cyan]🧠 (Agent is thinking deeply...)[/bold cyan]"
-                )
+                self._start_status("[bold cyan]🧠 (Agent is thinking deeply...)[/bold cyan]")
                 logger.info(
                     "🧠 Enhanced thinking mode enabled - using advanced reasoning capabilities"
                 )
@@ -765,10 +707,7 @@ Begin execution now, starting with the first step."""
                 logger.info(f"User message tokens: {user_tokens:,}")
 
             # Count system instruction tokens
-            if (
-                hasattr(llm_request, "system_instruction")
-                and llm_request.system_instruction
-            ):
+            if hasattr(llm_request, "system_instruction") and llm_request.system_instruction:
                 system_tokens = self._count_tokens(str(llm_request.system_instruction))
                 base_prompt_tokens += system_tokens
                 logger.info(f"System instruction tokens: {system_tokens:,}")
@@ -807,10 +746,8 @@ Begin execution now, starting with the first step."""
             self._apply_smart_conversation_filtering(llm_request, user_message_content)
 
             # Recalculate base tokens after smart filtering
-            if hasattr(llm_request, "contents") and isinstance(
-                llm_request.contents, list
-            ):
-                logger.info(f"🔧 RECALCULATING tokens after smart filtering...")
+            if hasattr(llm_request, "contents") and isinstance(llm_request.contents, list):
+                logger.info("🔧 RECALCULATING tokens after smart filtering...")
 
                 # Reset and recalculate from filtered contents
                 filtered_content_tokens = 0
@@ -845,13 +782,8 @@ Begin execution now, starting with the first step."""
                         base_prompt_tokens += user_tokens
                         logger.info(f"  Added user message tokens: {user_tokens:,}")
 
-                if (
-                    hasattr(llm_request, "system_instruction")
-                    and llm_request.system_instruction
-                ):
-                    system_tokens = self._count_tokens(
-                        str(llm_request.system_instruction)
-                    )
+                if hasattr(llm_request, "system_instruction") and llm_request.system_instruction:
+                    system_tokens = self._count_tokens(str(llm_request.system_instruction))
                     base_prompt_tokens += system_tokens
                     logger.info(f"  Added system instruction tokens: {system_tokens:,}")
 
@@ -860,7 +792,7 @@ Begin execution now, starting with the first step."""
                     base_prompt_tokens += tools_tokens
                     logger.info(f"  Added tools tokens: {tools_tokens:,}")
 
-                logger.info(f"🔧 SMART FILTERING TOKEN IMPACT:")
+                logger.info("🔧 SMART FILTERING TOKEN IMPACT:")
                 logger.info(f"  Filtered content tokens: {filtered_content_tokens:,}")
                 logger.info(f"  Total base prompt tokens: {base_prompt_tokens:,}")
 
@@ -868,7 +800,7 @@ Begin execution now, starting with the first step."""
             safety_margin = 2000
             base_prompt_tokens += safety_margin
 
-            logger.info(f"ACCURATE BASE PROMPT CALCULATION:")
+            logger.info("ACCURATE BASE PROMPT CALCULATION:")
             logger.info(f"  Total Base Prompt Tokens: {base_prompt_tokens:,}")
             logger.info(f"  Safety Margin: {safety_margin:,}")
             logger.info(
@@ -906,16 +838,12 @@ Begin execution now, starting with the first step."""
 
                     # CRITICAL FIX PART 3: Inject context into the filtered contents, not messages
                     # We need to inject our optimized context into the filtered contents that we created
-                    if hasattr(llm_request, "contents") and isinstance(
-                        llm_request.contents, list
-                    ):
+                    if hasattr(llm_request, "contents") and isinstance(llm_request.contents, list):
                         try:
                             from google.genai import types as genai_types
 
                             # Create our context injection
-                            system_message_part = genai_types.Part(
-                                text=system_context_message
-                            )
+                            system_message_part = genai_types.Part(text=system_context_message)
                             system_content = genai_types.Content(
                                 role="user", parts=[system_message_part]
                             )
@@ -952,17 +880,13 @@ Begin execution now, starting with the first step."""
                     # if hasattr(llm_request, 'messages') and isinstance(llm_request.messages, list):
                     #     llm_request.messages.insert(0, system_content)
 
-                    total_context_block_tokens = self._count_tokens(
-                        system_context_message
-                    )
+                    total_context_block_tokens = self._count_tokens(system_context_message)
                     logger.info(
                         f"Total tokens for prompt (base + context_block): {base_prompt_tokens + total_context_block_tokens}"
                     )
 
                     # Final validation: ensure we don't exceed token limit
-                    final_prompt_tokens = (
-                        base_prompt_tokens + total_context_block_tokens
-                    )
+                    final_prompt_tokens = base_prompt_tokens + total_context_block_tokens
                     if final_prompt_tokens > self._context_manager.max_token_limit:
                         logger.error(
                             f"CRITICAL: Final prompt ({final_prompt_tokens:,} tokens) exceeds token limit ({self._context_manager.max_token_limit:,})!"
@@ -970,9 +894,7 @@ Begin execution now, starting with the first step."""
                         logger.error(
                             "This should not happen if context manager is working correctly."
                         )
-                        logger.error(
-                            "The request will likely fail with a token limit error."
-                        )
+                        logger.error("The request will likely fail with a token limit error.")
                     else:
                         utilization_pct = (
                             final_prompt_tokens / self._context_manager.max_token_limit
@@ -991,9 +913,7 @@ Begin execution now, starting with the first step."""
                     exc_info=True,
                 )
         else:
-            logger.info(
-                "Plan generation turn: Skipping general context assembly and injection."
-            )
+            logger.info("Plan generation turn: Skipping general context assembly and injection.")
 
         return None
 
@@ -1029,7 +949,6 @@ Begin execution now, starting with the first step."""
             )
 
             # LLM usage tracking is handled by the telemetry decorator
-            pass
 
         self._stop_status()
 
@@ -1083,27 +1002,19 @@ Begin execution now, starting with the first step."""
                     if self._state_manager.current_turn.agent_message:
                         # Append to existing agent message
                         combined_message = (
-                            self._state_manager.current_turn.agent_message
-                            + "\n"
-                            + extracted_text
+                            self._state_manager.current_turn.agent_message + "\n" + extracted_text
                         )
-                        self._state_manager.update_current_turn(
-                            agent_message=combined_message
-                        )
+                        self._state_manager.update_current_turn(agent_message=combined_message)
                     else:
                         # Set the agent message
-                        self._state_manager.update_current_turn(
-                            agent_message=extracted_text
-                        )
+                        self._state_manager.update_current_turn(agent_message=extracted_text)
 
                     logger.debug(
                         f"Updated agent response in turn {self._state_manager.current_turn.turn_number}: {extracted_text[:100]}"
                     )
 
             if processed_response["function_calls"]:
-                logger.info(
-                    f"Handle function calls here: {processed_response['function_calls']}"
-                )
+                logger.info(f"Handle function calls here: {processed_response['function_calls']}")
                 if self._state_manager.current_turn:
                     # Add function calls to current turn (they are already serialized from _process_llm_response)
                     for func_call in processed_response["function_calls"]:
@@ -1120,18 +1031,14 @@ Begin execution now, starting with the first step."""
                 and hasattr(callback_context, "state")
                 and callback_context.state is not None
             ):
-                callback_context.state.update(
-                    self._state_manager.get_state_for_context()
-                )
+                callback_context.state.update(self._state_manager.get_state_for_context())
                 logger.debug("Updated callback context state with managed state")
 
         except StateValidationError as e:
             logger.error(f"State validation error in handle_after_model: {e}")
             # Continue with degraded functionality
         except Exception as e:
-            logger.error(
-                f"Unexpected error in response state management: {e}", exc_info=True
-            )
+            logger.error(f"Unexpected error in response state management: {e}", exc_info=True)
             # Continue with degraded functionality
 
         # Complete the current turn if we have one
@@ -1149,10 +1056,7 @@ Begin execution now, starting with the first step."""
         # If thought summaries were displayed separately and there are NO function calls,
         # create a filtered response to avoid duplication. Don't filter if there are function calls
         # to preserve the function call/response cycle.
-        if (
-            processed_response["thought_summaries"]
-            and not processed_response["function_calls"]
-        ):
+        if processed_response["thought_summaries"] and not processed_response["function_calls"]:
             logger.info(
                 "Creating filtered response to avoid thought summary duplication (no function calls present)"
             )
@@ -1183,25 +1087,17 @@ Begin execution now, starting with the first step."""
                         and hasattr(tool_context, "state")
                         and tool_context.state is not None
                     ):
-                        tool_context.state.update(
-                            self._state_manager.get_state_for_context()
-                        )
-                        logger.debug(
-                            f"Updated tool context state with tool call: {tool.name}"
-                        )
+                        tool_context.state.update(self._state_manager.get_state_for_context())
+                        logger.debug(f"Updated tool context state with tool call: {tool.name}")
 
                 except StateValidationError as e:
                     logger.error(f"State validation error in handle_before_tool: {e}")
                     # Continue with tool execution even if state management fails
                 except Exception as e:
-                    logger.error(
-                        f"Error in tool call state management: {e}", exc_info=True
-                    )
+                    logger.error(f"Error in tool call state management: {e}", exc_info=True)
                     # Continue with tool execution
 
-                logger.info(
-                    f"Agent {self.name}: Executing tool {tool.name} with args: {args}"
-                )
+                logger.info(f"Agent {self.name}: Executing tool {tool.name} with args: {args}")
                 ui_utils.display_tool_execution_start(self._console, tool.name, args)
                 return None
             except Exception as e:
@@ -1225,9 +1121,7 @@ Begin execution now, starting with the first step."""
         custom_processor_used = False
 
         # Enhanced error handling for shell commands
-        if tool.name == "execute_vetted_shell_command" and isinstance(
-            tool_response, dict
-        ):
+        if tool.name == "execute_vetted_shell_command" and isinstance(tool_response, dict):
             if tool_response.get("status") == "error":
                 error_message = tool_response.get("message", "")
 
@@ -1236,9 +1130,7 @@ Begin execution now, starting with the first step."""
                     pattern in error_message.lower()
                     for pattern in ["quotation", "parsing", "shlex"]
                 ):
-                    logger.warning(
-                        f"Shell command failed with parsing error: {error_message}"
-                    )
+                    logger.warning(f"Shell command failed with parsing error: {error_message}")
 
                     # Add helpful guidance to the tool response
                     enhanced_message = (
@@ -1252,9 +1144,7 @@ Begin execution now, starting with the first step."""
                     tool_response["retry_suggested"] = True
 
                 elif "command not found" in error_message.lower():
-                    logger.warning(
-                        f"Shell command failed - command not found: {error_message}"
-                    )
+                    logger.warning(f"Shell command failed - command not found: {error_message}")
                     enhanced_message = (
                         f"{error_message}\n\n"
                         f"💡 Command not found. Consider:\n"
@@ -1292,9 +1182,10 @@ Begin execution now, starting with the first step."""
                                 self.args = args
                                 # Copy other attributes from original tool
                                 for attr_name in dir(original_tool):
-                                    if not attr_name.startswith(
-                                        "_"
-                                    ) and attr_name not in ["name", "args"]:
+                                    if not attr_name.startswith("_") and attr_name not in [
+                                        "name",
+                                        "args",
+                                    ]:
                                         try:
                                             setattr(
                                                 self,
@@ -1305,13 +1196,9 @@ Begin execution now, starting with the first step."""
                                             pass  # Skip attributes that can't be copied
 
                         mock_tool = MockTool(tool, args)
-                        TOOL_PROCESSORS[tool.name](
-                            tool_context.state, mock_tool, tool_response
-                        )
+                        TOOL_PROCESSORS[tool.name](tool_context.state, mock_tool, tool_response)
                     else:
-                        TOOL_PROCESSORS[tool.name](
-                            tool_context.state, tool, tool_response
-                        )
+                        TOOL_PROCESSORS[tool.name](tool_context.state, tool, tool_response)
                 else:
                     logger.warning(
                         f"tool_context or tool_context.state is not available for custom processor {tool.name}. State not passed."
@@ -1321,9 +1208,7 @@ Begin execution now, starting with the first step."""
                     )  # Pass None for state if not available
                 custom_processor_used = True
             except Exception as e:
-                logger.error(
-                    f"Error in custom processor for {tool.name}: {e}", exc_info=True
-                )
+                logger.error(f"Error in custom processor for {tool.name}: {e}", exc_info=True)
 
         if not custom_processor_used:
             # Use robust state management for tool results
@@ -1336,20 +1221,14 @@ Begin execution now, starting with the first step."""
                     and hasattr(tool_context, "state")
                     and tool_context.state is not None
                 ):
-                    tool_context.state.update(
-                        self._state_manager.get_state_for_context()
-                    )
-                    logger.debug(
-                        f"Updated tool context state with tool result: {tool.name}"
-                    )
+                    tool_context.state.update(self._state_manager.get_state_for_context())
+                    logger.debug(f"Updated tool context state with tool result: {tool.name}")
 
             except StateValidationError as e:
                 logger.error(f"State validation error in handle_after_tool: {e}")
                 # Continue with tool processing even if state management fails
             except Exception as e:
-                logger.error(
-                    f"Error in tool result state management: {e}", exc_info=True
-                )
+                logger.error(f"Error in tool result state management: {e}", exc_info=True)
                 # Continue with tool processing
 
         duration = time.time() - start_time
@@ -1368,13 +1247,9 @@ Begin execution now, starting with the first step."""
                         self._console, tool.name, tool_response, duration
                     )
                 else:
-                    ui_utils.display_tool_error(
-                        self._console, tool.name, tool_response, duration
-                    )
+                    ui_utils.display_tool_error(self._console, tool.name, tool_response, duration)
             elif isinstance(tool_response, dict):
-                ui_utils.display_tool_finished(
-                    self._console, tool.name, tool_response, duration
-                )
+                ui_utils.display_tool_finished(self._console, tool.name, tool_response, duration)
                 logger.info(f"Tool {tool.name} executed successfully.")
 
         return None
@@ -1386,8 +1261,8 @@ Begin execution now, starting with the first step."""
             extracted_text = getattr(llm_response, "text", None)
             if extracted_text:
                 return llm_response.text
-            if hasattr(llm_response, "content") and getattr(llm_response, "content"):
-                content_obj = getattr(llm_response, "content")
+            if hasattr(llm_response, "content") and llm_response.content:
+                content_obj = llm_response.content
                 if isinstance(content_obj, genai_types.Content) and content_obj.parts:
                     parts_texts = [
                         part.text
@@ -1396,8 +1271,8 @@ Begin execution now, starting with the first step."""
                     ]
                     if parts_texts:
                         return "".join(parts_texts)
-            elif hasattr(llm_response, "parts") and getattr(llm_response, "parts"):
-                parts = getattr(llm_response, "parts")
+            elif hasattr(llm_response, "parts") and llm_response.parts:
+                parts = llm_response.parts
                 if isinstance(parts, list):
                     parts_texts = [
                         part.text
@@ -1414,9 +1289,9 @@ Begin execution now, starting with the first step."""
             )
         return None
 
-    def _process_llm_response(self, llm_response: LlmResponse) -> Dict[str, Any]:
+    def _process_llm_response(self, llm_response: LlmResponse) -> dict[str, Any]:
         """Processes the LLM response to extract text, function calls, and thought summaries."""
-        extracted_data: Dict[str, Any] = {
+        extracted_data: dict[str, Any] = {
             "text_parts": [],
             "function_calls": [],
             "thought_summaries": [],
@@ -1426,12 +1301,10 @@ Begin execution now, starting with the first step."""
             f"Processing LLM response - has content: {hasattr(llm_response, 'content')}, has parts: {hasattr(llm_response, 'parts')}"
         )
 
-        if hasattr(llm_response, "content") and getattr(llm_response, "content"):
-            content_obj = getattr(llm_response, "content")
+        if hasattr(llm_response, "content") and llm_response.content:
+            content_obj = llm_response.content
             if isinstance(content_obj, genai_types.Content) and content_obj.parts:
-                logger.debug(
-                    f"Processing {len(content_obj.parts)} parts from content object"
-                )
+                logger.debug(f"Processing {len(content_obj.parts)} parts from content object")
                 for i, part in enumerate(content_obj.parts):
                     if hasattr(part, "text") and part.text is not None:
                         # Check if this is a thought summary
@@ -1445,25 +1318,18 @@ Begin execution now, starting with the first step."""
                             logger.debug(
                                 f"Part {i}: Extracted as regular text (length: {len(part.text)})"
                             )
-                    elif (
-                        hasattr(part, "function_call")
-                        and part.function_call is not None
-                    ):
+                    elif hasattr(part, "function_call") and part.function_call is not None:
                         # Convert function_call to serializable dictionary
-                        func_call_dict = self._serialize_function_call(
-                            part.function_call
-                        )
+                        func_call_dict = self._serialize_function_call(part.function_call)
                         extracted_data["function_calls"].append(func_call_dict)
                         logger.debug(
                             f"Part {i}: Extracted as function call: {func_call_dict.get('name', 'unknown')}"
                         )
 
-        elif hasattr(llm_response, "parts") and getattr(llm_response, "parts"):
-            parts = getattr(llm_response, "parts")
+        elif hasattr(llm_response, "parts") and llm_response.parts:
+            parts = llm_response.parts
             if isinstance(parts, list):
-                logger.debug(
-                    f"Processing {len(parts)} parts from direct parts attribute"
-                )
+                logger.debug(f"Processing {len(parts)} parts from direct parts attribute")
                 for i, part in enumerate(parts):
                     if hasattr(part, "text") and part.text is not None:
                         # Check if this is a thought summary
@@ -1477,14 +1343,9 @@ Begin execution now, starting with the first step."""
                             logger.debug(
                                 f"Part {i}: Extracted as regular text (length: {len(part.text)})"
                             )
-                    elif (
-                        hasattr(part, "function_call")
-                        and part.function_call is not None
-                    ):
+                    elif hasattr(part, "function_call") and part.function_call is not None:
                         # Convert function_call to serializable dictionary
-                        func_call_dict = self._serialize_function_call(
-                            part.function_call
-                        )
+                        func_call_dict = self._serialize_function_call(part.function_call)
                         extracted_data["function_calls"].append(func_call_dict)
                         logger.debug(
                             f"Part {i}: Extracted as function call: {func_call_dict.get('name', 'unknown')}"
@@ -1510,9 +1371,7 @@ Begin execution now, starting with the first step."""
             if self._is_thought_content(text_part):
                 extracted_data["thought_summaries"].append(text_part)
                 text_parts_to_remove.append(i)
-                logger.debug(
-                    f"Moved text part {i} to thought summaries based on content pattern"
-                )
+                logger.debug(f"Moved text part {i} to thought summaries based on content pattern")
 
         # Remove text parts that were moved to thought summaries (in reverse order to maintain indices)
         for i in reversed(text_parts_to_remove):
@@ -1611,7 +1470,7 @@ Begin execution now, starting with the first step."""
         return False
 
     def _create_filtered_response(
-        self, original_response: LlmResponse, processed_response: Dict[str, Any]
+        self, original_response: LlmResponse, processed_response: dict[str, Any]
     ) -> LlmResponse:
         """Creates a filtered response that excludes thought summaries to avoid duplication."""
         try:
@@ -1628,11 +1487,11 @@ Begin execution now, starting with the first step."""
             for thought_summary in processed_response["thought_summaries"]:
                 if thought_summary.strip():  # Only add non-empty thought content
                     thought_part = genai_types.Part(text=thought_summary)
-                    setattr(thought_part, "thought", True)
+                    thought_part.thought = True
                     filtered_parts.append(thought_part)
 
             # Add function calls
-            for func_call in processed_response["function_calls"]:
+            for _func_call in processed_response["function_calls"]:
                 # Convert back from serialized dict to function call object if needed
                 # For now, we'll preserve function calls as they are important
                 if (
@@ -1655,19 +1514,16 @@ Begin execution now, starting with the first step."""
                     f"Created filtered response with {len(filtered_parts)} parts (thought summaries excluded)"
                 )
                 return filtered_response
-            else:
-                # If no filtered parts, return None to suppress the response entirely
-                logger.info(
-                    "No non-thought content found, suppressing response to avoid empty display"
-                )
-                return None
+            # If no filtered parts, return None to suppress the response entirely
+            logger.info("No non-thought content found, suppressing response to avoid empty display")
+            return None
 
         except Exception as e:
             logger.error(f"Error creating filtered response: {e}", exc_info=True)
             # Fallback to original response if filtering fails
             return original_response
 
-    def _serialize_function_call(self, function_call) -> Dict[str, Any]:
+    def _serialize_function_call(self, function_call) -> dict[str, Any]:
         """Convert a function_call object to a JSON-serializable dictionary."""
         try:
             # Try to extract common attributes from function_call objects
@@ -1723,15 +1579,13 @@ Begin execution now, starting with the first step."""
 
     # 5. Context and State Management Helpers
 
-    def _assemble_context_from_state(self, state: Dict[str, Any]) -> Dict[str, Any]:
+    def _assemble_context_from_state(self, state: dict[str, Any]) -> dict[str, Any]:
         """Assembles context dictionary from state for LLM injection, respecting token limits.
 
         Synchronizes state with ContextManager and delegates assembly.
         """
         if not self._context_manager:
-            logger.warning(
-                "ContextManager not initialized. Cannot assemble context from state."
-            )
+            logger.warning("ContextManager not initialized. Cannot assemble context from state.")
             return {}
 
         logger.info("CONTEXT ASSEMBLY: Starting enhanced context synchronization...")
@@ -1758,45 +1612,33 @@ Begin execution now, starting with the first step."""
                 turn_number=i + 1,  # Assign turn number based on list index
                 user_message=turn_data.get("user_message"),
                 agent_message=turn_data.get("agent_message"),
-                tool_calls=turn_data.get(
-                    "tool_calls", []
-                ),  # Assume tool_calls is a list of dicts
+                tool_calls=turn_data.get("tool_calls", []),  # Assume tool_calls is a list of dicts
                 # Token counts will be calculated by ContextManager
             )
             # Manually count tokens for the synchronized turn data to set initial token counts
             # This is needed because ContextManager's add methods calculate tokens upon addition.
             # If we just copy, the token counts might be zero.
             turn.user_message_tokens = (
-                self._context_manager._count_tokens(turn.user_message)
-                if turn.user_message
-                else 0
+                self._context_manager._count_tokens(turn.user_message) if turn.user_message else 0
             )
             turn.agent_message_tokens = (
-                self._context_manager._count_tokens(turn.agent_message)
-                if turn.agent_message
-                else 0
+                self._context_manager._count_tokens(turn.agent_message) if turn.agent_message else 0
             )
 
             # Safe JSON serialization for tool_calls
             if turn.tool_calls:
                 try:
                     tool_calls_json = json.dumps(turn.tool_calls)
-                    turn.tool_calls_tokens = self._context_manager._count_tokens(
-                        tool_calls_json
-                    )
+                    turn.tool_calls_tokens = self._context_manager._count_tokens(tool_calls_json)
                 except (TypeError, ValueError) as e:
-                    logger.warning(
-                        f"Failed to JSON serialize tool_calls for token counting: {e}"
-                    )
+                    logger.warning(f"Failed to JSON serialize tool_calls for token counting: {e}")
                     try:
                         tool_calls_json = json.dumps(turn.tool_calls, default=str)
                         turn.tool_calls_tokens = self._context_manager._count_tokens(
                             tool_calls_json
                         )
                     except Exception as e2:
-                        logger.error(
-                            f"Failed to serialize tool_calls even with default=str: {e2}"
-                        )
+                        logger.error(f"Failed to serialize tool_calls even with default=str: {e2}")
                         turn.tool_calls_tokens = self._context_manager._count_tokens(
                             str(turn.tool_calls)
                         )
@@ -1825,9 +1667,7 @@ Begin execution now, starting with the first step."""
                     "last_accessed", self._context_manager.current_turn_number
                 ),  # Default to current turn
                 relevance_score=snippet_data.get("relevance_score", 1.0),
-                token_count=self._context_manager._count_tokens(
-                    snippet_data.get("code", "")
-                ),
+                token_count=self._context_manager._count_tokens(snippet_data.get("code", "")),
             )
             self._context_manager.code_snippets.append(snippet)
             total_snippet_chars += len(snippet_data.get("code", ""))
@@ -1870,13 +1710,11 @@ Begin execution now, starting with the first step."""
         )
 
         # Calculate initial token counts for ContextState elements
-        self._context_manager.state.core_goal_tokens = (
-            self._context_manager._count_tokens(self._context_manager.state.core_goal)
+        self._context_manager.state.core_goal_tokens = self._context_manager._count_tokens(
+            self._context_manager.state.core_goal
         )
-        self._context_manager.state.current_phase_tokens = (
-            self._context_manager._count_tokens(
-                self._context_manager.state.current_phase
-            )
+        self._context_manager.state.current_phase_tokens = self._context_manager._count_tokens(
+            self._context_manager.state.current_phase
         )
 
         logger.info(
@@ -1889,12 +1727,8 @@ Begin execution now, starting with the first step."""
             base_prompt_tokens = self._temp_base_prompt_tokens
             logger.info(f"Using accurate base prompt tokens: {base_prompt_tokens:,}")
         else:
-            base_prompt_tokens = (
-                1000  # Conservative estimate for system instructions and tools
-            )
-            logger.warning(
-                f"Using conservative base prompt token estimate: {base_prompt_tokens:,}"
-            )
+            base_prompt_tokens = 1000  # Conservative estimate for system instructions and tools
+            logger.warning(f"Using conservative base prompt token estimate: {base_prompt_tokens:,}")
 
         context_dict, total_context_tokens = self._context_manager.assemble_context(
             base_prompt_tokens
@@ -1902,16 +1736,13 @@ Begin execution now, starting with the first step."""
 
         # Enhanced utilization logging
         available_capacity = (
-            self._context_manager.max_token_limit
-            - total_context_tokens
-            - base_prompt_tokens
+            self._context_manager.max_token_limit - total_context_tokens - base_prompt_tokens
         )
         utilization_pct = (
-            (total_context_tokens + base_prompt_tokens)
-            / self._context_manager.max_token_limit
+            (total_context_tokens + base_prompt_tokens) / self._context_manager.max_token_limit
         ) * 100
 
-        logger.info(f"CONTEXT ASSEMBLY COMPLETE:")
+        logger.info("CONTEXT ASSEMBLY COMPLETE:")
         logger.info(f"  📊 Total Context Tokens: {total_context_tokens:,}")
         logger.info(f"  📊 Base Prompt Tokens: {base_prompt_tokens:,}")
         logger.info(
@@ -1933,48 +1764,34 @@ Begin execution now, starting with the first step."""
     def _count_tokens(self, text: str) -> int:
         """Counts tokens for a given text using the ContextManager's strategy."""
         if self._context_manager:
-            return self._context_manager._count_tokens(
-                text
-            )  # Delegate to ContextManager
-        else:
-            logger.warning(
-                "ContextManager not initialized. Using fallback token counting."
-            )
-            return len(text) // 4  # Original fallback
+            return self._context_manager._count_tokens(text)  # Delegate to ContextManager
+        logger.warning("ContextManager not initialized. Using fallback token counting.")
+        return len(text) // 4  # Original fallback
 
-    def _count_context_tokens(self, context_dict: Dict[str, Any]) -> int:
+    def _count_context_tokens(self, context_dict: dict[str, Any]) -> int:
         """Counts tokens for the assembled context dictionary using the ContextManager's strategy."""
         # Convert context_dict to a string representation for counting
         try:
             context_string = json.dumps(context_dict)
         except (TypeError, ValueError) as e:
-            logger.warning(
-                f"Failed to JSON serialize context_dict for token counting: {e}"
-            )
+            logger.warning(f"Failed to JSON serialize context_dict for token counting: {e}")
             # Fallback: try to serialize with a custom encoder that handles non-serializable objects
             try:
                 context_string = json.dumps(context_dict, default=str)
             except Exception as e2:
-                logger.error(
-                    f"Failed to serialize context_dict even with default=str: {e2}"
-                )
+                logger.error(f"Failed to serialize context_dict even with default=str: {e2}")
                 # Ultimate fallback: convert the whole dict to string
                 context_string = str(context_dict)
 
         if self._context_manager:
-            return self._context_manager._count_tokens(
-                context_string
-            )  # Delegate to ContextManager
-        else:
-            logger.warning(
-                "ContextManager not initialized. Using fallback context token counting."
-            )
-            return len(context_string) // 4  # Original fallback
+            return self._context_manager._count_tokens(context_string)  # Delegate to ContextManager
+        logger.warning("ContextManager not initialized. Using fallback context token counting.")
+        return len(context_string) // 4  # Original fallback
 
     def _log_final_prompt_analysis(
         self,
         llm_request: LlmRequest,
-        context_dict: Dict[str, Any],
+        context_dict: dict[str, Any],
         system_context_message: str,
     ):
         """Log comprehensive final prompt analysis for optimization as per OPTIMIZATIONS.md section 4."""
@@ -2010,27 +1827,21 @@ Begin execution now, starting with the first step."""
                         total_prompt_tokens += message_tokens
 
                         # Identify component type
-                        component_name = (
-                            f"message_{i + 1}_{getattr(message, 'role', 'unknown')}"
-                        )
+                        component_name = f"message_{i + 1}_{getattr(message, 'role', 'unknown')}"
                         if message_text.startswith("SYSTEM CONTEXT (JSON):"):
                             component_name = "system_context_block"
-                            logger.info(f"Content Type: System Context Block")
+                            logger.info("Content Type: System Context Block")
                             logger.info(f"Tokens: {message_tokens:,}")
 
                             # Log context block details
                             logger.info("CONTEXT BLOCK COMPONENTS:")
                             for key, value in context_dict.items():
                                 component_json = json.dumps({key: value}, indent=2)
-                                component_token_count = self._count_tokens(
-                                    component_json
-                                )
-                                logger.info(
-                                    f"  {key}: {component_token_count:,} tokens"
-                                )
+                                component_token_count = self._count_tokens(component_json)
+                                logger.info(f"  {key}: {component_token_count:,} tokens")
 
                         else:
-                            logger.info(f"Content Type: Text Message")
+                            logger.info("Content Type: Text Message")
                             logger.info(f"Tokens: {message_tokens:,}")
                             logger.info(f"Character Count: {len(message_text):,}")
                             logger.info(f"Content Preview: {message_text[:200]}...")
@@ -2054,11 +1865,11 @@ Begin execution now, starting with the first step."""
                     message_text = message.text
                     message_tokens = self._count_tokens(message_text)
                     total_prompt_tokens += message_tokens
-                    component_tokens[
-                        f"message_{i + 1}_{getattr(message, 'role', 'unknown')}"
-                    ] = message_tokens
+                    component_tokens[f"message_{i + 1}_{getattr(message, 'role', 'unknown')}"] = (
+                        message_tokens
+                    )
 
-                    logger.info(f"Content Type: Direct Text")
+                    logger.info("Content Type: Direct Text")
                     logger.info(f"Tokens: {message_tokens:,}")
                     logger.info(f"Character Count: {len(message_text):,}")
                     logger.info(f"Content Preview: {message_text[:200]}...")
@@ -2070,7 +1881,7 @@ Begin execution now, starting with the first step."""
             total_prompt_tokens += tools_tokens
             component_tokens["tools_definition"] = tools_tokens
 
-            logger.info(f"\n--- TOOLS DEFINITION ---")
+            logger.info("\n--- TOOLS DEFINITION ---")
             logger.info(f"Tool Count: {len(llm_request.tools)}")
             logger.info(f"Tokens: {tools_tokens:,}")
             logger.info(f"Character Count: {len(tools_text):,}")
@@ -2083,16 +1894,13 @@ Begin execution now, starting with the first step."""
                 logger.info(f"  Tool {i + 1} ({tool_name}): {tool_tokens:,} tokens")
 
         # Log system instructions if available
-        if (
-            hasattr(llm_request, "system_instruction")
-            and llm_request.system_instruction
-        ):
+        if hasattr(llm_request, "system_instruction") and llm_request.system_instruction:
             system_text = str(llm_request.system_instruction)
             system_tokens = self._count_tokens(system_text)
             total_prompt_tokens += system_tokens
             component_tokens["system_instruction"] = system_tokens
 
-            logger.info(f"\n--- SYSTEM INSTRUCTION ---")
+            logger.info("\n--- SYSTEM INSTRUCTION ---")
             logger.info(f"Tokens: {system_tokens:,}")
             logger.info(f"Character Count: {len(system_text):,}")
             logger.info(f"Content Preview: {system_text[:200]}...")
@@ -2113,13 +1921,9 @@ Begin execution now, starting with the first step."""
         logger.info("TOKEN BREAKDOWN BY COMPONENT:")
 
         # Sort components by token count for analysis
-        sorted_components = sorted(
-            component_tokens.items(), key=lambda x: x[1], reverse=True
-        )
+        sorted_components = sorted(component_tokens.items(), key=lambda x: x[1], reverse=True)
         for component, tokens in sorted_components:
-            percentage = (
-                (tokens / total_prompt_tokens * 100) if total_prompt_tokens > 0 else 0
-            )
+            percentage = (tokens / total_prompt_tokens * 100) if total_prompt_tokens > 0 else 0
             logger.info(f"  {component}: {tokens:,} tokens ({percentage:.1f}%)")
 
         logger.info("=" * 80)
@@ -2127,19 +1931,14 @@ Begin execution now, starting with the first step."""
         # Log the raw final prompt for exact inspection (if enabled via config)
         if agent_config.LOG_FULL_PROMPTS:
             logger.info("\n" + "=" * 80)
-            logger.info(
-                "RAW FINAL PROMPT STRING (Set LOG_FULL_PROMPTS=false to disable)"
-            )
+            logger.info("RAW FINAL PROMPT STRING (Set LOG_FULL_PROMPTS=false to disable)")
             logger.info("=" * 80)
 
             try:
                 # Reconstruct the full prompt string that would be sent to the LLM
                 full_prompt_parts = []
 
-                if (
-                    hasattr(llm_request, "system_instruction")
-                    and llm_request.system_instruction
-                ):
+                if hasattr(llm_request, "system_instruction") and llm_request.system_instruction:
                     full_prompt_parts.append(
                         f"SYSTEM INSTRUCTION:\n{llm_request.system_instruction}\n"
                     )
@@ -2153,20 +1952,13 @@ Begin execution now, starting with the first step."""
                             for part in message.parts:
                                 if hasattr(part, "text") and part.text:
                                     full_prompt_parts.append(part.text)
-                                elif (
-                                    hasattr(part, "function_call")
-                                    and part.function_call
-                                ):
-                                    full_prompt_parts.append(
-                                        f"FUNCTION_CALL: {part.function_call}"
-                                    )
+                                elif hasattr(part, "function_call") and part.function_call:
+                                    full_prompt_parts.append(f"FUNCTION_CALL: {part.function_call}")
                         elif hasattr(message, "text"):
                             full_prompt_parts.append(message.text)
 
                 if hasattr(llm_request, "tools") and llm_request.tools:
-                    full_prompt_parts.append(
-                        f"\n\nTOOLS AVAILABLE:\n{llm_request.tools}"
-                    )
+                    full_prompt_parts.append(f"\n\nTOOLS AVAILABLE:\n{llm_request.tools}")
 
                 full_prompt = "\n".join(full_prompt_parts)
                 logger.info(full_prompt)
@@ -2177,7 +1969,7 @@ Begin execution now, starting with the first step."""
         else:
             logger.info("ℹ️  Set LOG_FULL_PROMPTS=true to enable raw prompt logging")
 
-    def _analyze_conversation_structure(self, contents: List) -> Dict[str, Any]:
+    def _analyze_conversation_structure(self, contents: list) -> dict[str, Any]:
         """
         Analyze the conversation structure to identify tool execution flows and conversation boundaries.
 
@@ -2222,9 +2014,7 @@ Begin execution now, starting with the first step."""
                         i += len(tool_chain["chain"])  # Skip processed items
                     else:
                         # This is historical conversation
-                        conversation_segment = self._extract_conversation_segment(
-                            contents, i
-                        )
+                        conversation_segment = self._extract_conversation_segment(contents, i)
                         analysis["completed_conversations"].append(conversation_segment)
                         i += len(conversation_segment) - 1  # Skip processed items
 
@@ -2238,9 +2028,7 @@ Begin execution now, starting with the first step."""
 
         return analysis
 
-    def _extract_tool_chain_from_position(
-        self, contents: List, start_pos: int
-    ) -> Dict[str, Any]:
+    def _extract_tool_chain_from_position(self, contents: list, start_pos: int) -> dict[str, Any]:
         """
         Extract a complete tool execution chain starting from a user message.
 
@@ -2261,11 +2049,9 @@ Begin execution now, starting with the first step."""
             chain.append(assistant_msg)
 
             # Check if this assistant message contains function calls (indicates active tool usage)
-            has_function_calls = False
             if hasattr(assistant_msg, "parts") and assistant_msg.parts:
                 for part in assistant_msg.parts:
                     if hasattr(part, "function_call") and part.function_call:
-                        has_function_calls = True
                         is_current_or_active = True
                         break
 
@@ -2296,7 +2082,7 @@ Begin execution now, starting with the first step."""
             "has_tool_calls": any(self._message_has_tool_calls(msg) for msg in chain),
         }
 
-    def _extract_conversation_segment(self, contents: List, start_pos: int) -> List:
+    def _extract_conversation_segment(self, contents: list, start_pos: int) -> list:
         """Extract a complete conversation segment (user + assistant response(s))."""
         segment = []
         i = start_pos
@@ -2319,27 +2105,21 @@ Begin execution now, starting with the first step."""
         """
         Apply sophisticated conversation history filtering that preserves tool flows.
         """
-        if not hasattr(llm_request, "contents") or not isinstance(
-            llm_request.contents, list
-        ):
+        if not hasattr(llm_request, "contents") or not isinstance(llm_request.contents, list):
             logger.info("🔧 No contents to filter")
             return
 
         original_count = len(llm_request.contents)
-        logger.info(
-            f"🔧 SMART FILTERING: Analyzing {original_count} conversation contents..."
-        )
+        logger.info(f"🔧 SMART FILTERING: Analyzing {original_count} conversation contents...")
 
         # Analyze conversation structure
         analysis = self._analyze_conversation_structure(llm_request.contents)
 
-        logger.info(f"🔧 ANALYSIS RESULTS:")
+        logger.info("🔧 ANALYSIS RESULTS:")
         logger.info(f"  📋 System messages: {len(analysis['system_messages'])}")
         logger.info(f"  🧩 Context injections: {len(analysis['context_injections'])}")
         logger.info(f"  🔧 Current tool chains: {len(analysis['current_tool_chains'])}")
-        logger.info(
-            f"  📚 Completed conversations: {len(analysis['completed_conversations'])}"
-        )
+        logger.info(f"  📚 Completed conversations: {len(analysis['completed_conversations'])}")
         logger.info(
             f"  👤 Current user message: {'Yes' if analysis['current_user_message'] else 'No'}"
         )
@@ -2353,9 +2133,7 @@ Begin execution now, starting with the first step."""
 
         # 2. Keep context injections
         filtered_contents.extend(analysis["context_injections"])
-        logger.info(
-            f"🔧 PRESERVED: {len(analysis['context_injections'])} context injections"
-        )
+        logger.info(f"🔧 PRESERVED: {len(analysis['context_injections'])} context injections")
 
         # 3. Keep current tool chains (active tool execution flows)
         active_chain_count = 0
@@ -2366,9 +2144,7 @@ Begin execution now, starting with the first step."""
             else:
                 filtered_contents.append(chain)
                 active_chain_count += 1
-        logger.info(
-            f"🔧 PRESERVED: {active_chain_count} messages from active tool chains"
-        )
+        logger.info(f"🔧 PRESERVED: {active_chain_count} messages from active tool chains")
 
         # 4. Keep current user message if not already included
         if (
@@ -2376,7 +2152,7 @@ Begin execution now, starting with the first step."""
             and analysis["current_user_message"] not in filtered_contents
         ):
             filtered_contents.append(analysis["current_user_message"])
-            logger.info(f"🔧 PRESERVED: Current user message")
+            logger.info("🔧 PRESERVED: Current user message")
 
         # 5. Selectively keep recent completed conversations based on token budget
         conversation_limit = 2  # Keep last 2 completed conversation segments
@@ -2384,14 +2160,10 @@ Begin execution now, starting with the first step."""
         total_conversation_messages = 0
 
         # Keep most recent completed conversations
-        for conversation in reversed(
-            analysis["completed_conversations"][-conversation_limit:]
-        ):
+        for conversation in reversed(analysis["completed_conversations"][-conversation_limit:]):
             if isinstance(conversation, list):
                 # Check if this conversation has tool calls (higher priority)
-                has_tools = any(
-                    self._message_has_tool_calls(msg) for msg in conversation
-                )
+                has_tools = any(self._message_has_tool_calls(msg) for msg in conversation)
                 if (
                     has_tools or kept_conversations < 1
                 ):  # Always keep at least 1, prioritize tool conversations
@@ -2409,27 +2181,21 @@ Begin execution now, starting with the first step."""
                 # Single message conversation
                 filtered_contents.append(conversation)
                 total_conversation_messages += 1
-                logger.info(f"🔧 PRESERVED: Single conversation message")
+                logger.info("🔧 PRESERVED: Single conversation message")
 
         # Apply the filtered contents
         llm_request.contents = filtered_contents
         new_count = len(filtered_contents)
 
         # Log filtering results
-        logger.info(f"🔧 SMART FILTERING COMPLETE:")
+        logger.info("🔧 SMART FILTERING COMPLETE:")
         logger.info(f"  📊 Original contents: {original_count}")
         logger.info(f"  📊 Filtered contents: {new_count}")
         reduction_count = original_count - new_count
-        reduction_pct = (
-            (reduction_count / original_count * 100) if original_count > 0 else 0.0
-        )
-        logger.info(
-            f"  📊 Reduction: {reduction_count} messages ({reduction_pct:.1f}%)"
-        )
-        logger.info(f"  ✅ Tool flows preserved: Active chains maintained")
-        logger.info(
-            f"  ✅ Recent context preserved: {kept_conversations} conversation segments"
-        )
+        reduction_pct = (reduction_count / original_count * 100) if original_count > 0 else 0.0
+        logger.info(f"  📊 Reduction: {reduction_count} messages ({reduction_pct:.1f}%)")
+        logger.info("  ✅ Tool flows preserved: Active chains maintained")
+        logger.info(f"  ✅ Recent context preserved: {kept_conversations} conversation segments")
 
         return
 
@@ -2490,8 +2256,7 @@ Begin execution now, starting with the first step."""
 
         # Specific Google API errors that are retryable
         if any(
-            pattern in error_message
-            for pattern in ["DEADLINE_EXCEEDED", "UNAVAILABLE", "ABORTED"]
+            pattern in error_message for pattern in ["DEADLINE_EXCEEDED", "UNAVAILABLE", "ABORTED"]
         ):
             return True
 
@@ -2519,9 +2284,7 @@ Begin execution now, starting with the first step."""
         )
         return False
 
-    async def _optimize_input_for_retry(
-        self, ctx: InvocationContext, retry_attempt: int
-    ) -> bool:
+    async def _optimize_input_for_retry(self, ctx: InvocationContext, retry_attempt: int) -> bool:
         """
         Optimize input for retry by reducing context size and complexity.
 
@@ -2533,9 +2296,7 @@ Begin execution now, starting with the first step."""
             True if optimization was successful, False otherwise
         """
         try:
-            logger.info(
-                f"Agent {self.name}: Optimizing input for retry attempt {retry_attempt}"
-            )
+            logger.info(f"Agent {self.name}: Optimizing input for retry attempt {retry_attempt}")
 
             # Use state manager for optimization
             if not self._state_manager:
@@ -2562,17 +2323,15 @@ Begin execution now, starting with the first step."""
                     self._state_manager.conversation_history = (
                         self._state_manager.conversation_history[-2:]
                     )
-                    logger.info(
-                        f"Reduced conversation history from {original_count} to 2 turns"
-                    )
+                    logger.info(f"Reduced conversation history from {original_count} to 2 turns")
                     optimization_applied = True
 
                 # Reduce code snippets
                 if len(self._state_manager.app_state["code_snippets"]) > 3:
                     original_count = len(self._state_manager.app_state["code_snippets"])
-                    self._state_manager.app_state["code_snippets"] = (
-                        self._state_manager.app_state["code_snippets"][:3]
-                    )
+                    self._state_manager.app_state["code_snippets"] = self._state_manager.app_state[
+                        "code_snippets"
+                    ][:3]
                     logger.info(f"Reduced code snippets from {original_count} to 3")
                     optimization_applied = True
 
@@ -2586,9 +2345,7 @@ Begin execution now, starting with the first step."""
                     self._state_manager.conversation_history = (
                         self._state_manager.conversation_history[-1:]
                     )
-                    logger.info(
-                        f"Reduced conversation history from {original_count} to 1 turn"
-                    )
+                    logger.info(f"Reduced conversation history from {original_count} to 1 turn")
                     optimization_applied = True
 
                 # Remove all code snippets
@@ -2640,9 +2397,7 @@ Begin execution now, starting with the first step."""
 
                 if retry_attempt == 1:
                     self._context_manager.target_recent_turns = min(2, original_turns)
-                    self._context_manager.target_code_snippets = min(
-                        3, original_snippets
-                    )
+                    self._context_manager.target_code_snippets = min(3, original_snippets)
                     self._context_manager.target_tool_results = min(3, original_results)
                 elif retry_attempt == 2:
                     self._context_manager.target_recent_turns = 1
@@ -2679,9 +2434,7 @@ Begin execution now, starting with the first step."""
     # 7. Main Execution Logic
 
     @override
-    async def _run_async_impl(
-        self, ctx: InvocationContext
-    ) -> AsyncGenerator[Event, None]:
+    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
         """
         Robust implementation of the agent loop with proper error handling,
         circuit breakers, and retry mechanisms.
@@ -2827,17 +2580,17 @@ Begin execution now, starting with the first step."""
                     f"Agent {self.name}: API error after all retry attempts: {error_type}: {error_message}"
                 )
                 user_facing_error = (
-                    f"I encountered API rate limits or server issues. "
-                    f"I tried optimizing the request and retrying, but the issue persists. "
-                    f"Please try again in a few moments or with a simpler request."
+                    "I encountered API rate limits or server issues. "
+                    "I tried optimizing the request and retrying, but the issue persists. "
+                    "Please try again in a few moments or with a simpler request."
                 )
             elif "JSONDecodeError" in error_type or "JSON" in error_message:
                 logger.error(
                     f"Agent {self.name}: JSON parsing error after all retry attempts: {error_type}: {error_message}"
                 )
                 user_facing_error = (
-                    f"I encountered a communication issue with the AI service. "
-                    f"This appears to be a temporary issue. Please try your request again."
+                    "I encountered a communication issue with the AI service. "
+                    "This appears to be a temporary issue. Please try your request again."
                 )
             elif "TypeError" in error_type and (
                 "format" in error_message or "__format__" in error_message
@@ -2891,9 +2644,7 @@ Begin execution now, starting with the first step."""
 
             yield Event(
                 author=self.name,
-                content=genai_types.Content(
-                    parts=[genai_types.Part(text=user_facing_error)]
-                ),
+                content=genai_types.Content(parts=[genai_types.Part(text=user_facing_error)]),
                 actions=EventActions(),
             )
             # Gracefully end the invocation
@@ -2907,9 +2658,7 @@ Begin execution now, starting with the first step."""
             return None
 
         logger.info(f"Creating thinking configuration for model {model_name}")
-        logger.info(
-            f"  Include thoughts: {agent_config.GEMINI_THINKING_INCLUDE_THOUGHTS}"
-        )
+        logger.info(f"  Include thoughts: {agent_config.GEMINI_THINKING_INCLUDE_THOUGHTS}")
         logger.info(f"  Thinking budget: {agent_config.GEMINI_THINKING_BUDGET}")
 
         return genai_types.ThinkingConfig(

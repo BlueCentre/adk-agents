@@ -1,16 +1,17 @@
 """Context management for agent loop to optimize token usage while preserving quality."""
 
+from dataclasses import dataclass, field
+from enum import Enum, auto
 import json
 import logging
 import os
 import time
-from dataclasses import dataclass, field
-from enum import Enum, auto
 from typing import Any, Callable, Dict, List, Optional, Tuple
+
+from rich.console import Console
 
 from google import genai
 from google.genai.types import Content, CountTokensResponse, Part  # For native token counting
-from rich.console import Console
 
 from .cross_turn_correlation import CrossTurnCorrelator
 from .dynamic_context_expansion import DiscoveredContent, DynamicContextExpander, ExpansionContext
@@ -70,7 +71,7 @@ class ConversationTurn:
     turn_number: int
     user_message: Optional[str] = None
     agent_message: Optional[str] = None
-    tool_calls: List[Dict[str, Any]] = field(default_factory=list)
+    tool_calls: list[dict[str, Any]] = field(default_factory=list)
     user_message_tokens: int = 0
     agent_message_tokens: int = 0
     tool_calls_tokens: int = 0
@@ -80,11 +81,7 @@ class ConversationTurn:
     @property
     def total_tokens(self) -> int:
         """Calculate total tokens for this turn."""
-        return (
-            self.user_message_tokens
-            + self.agent_message_tokens
-            + self.tool_calls_tokens
-        )
+        return self.user_message_tokens + self.agent_message_tokens + self.tool_calls_tokens
 
     @property
     def has_tool_activity(self) -> bool:
@@ -96,8 +93,8 @@ class ConversationTurn:
 class ContextState:
     core_goal: str = ""
     current_phase: str = ""
-    key_decisions: List[str] = field(default_factory=list)
-    last_modified_files: List[str] = field(default_factory=list)
+    key_decisions: list[str] = field(default_factory=list)
+    last_modified_files: list[str] = field(default_factory=list)
     core_goal_tokens: int = 0
     current_phase_tokens: int = 0
     decisions_tokens: int = 0
@@ -144,9 +141,7 @@ class ContextManager:
                 # Create genai client with API key directly
                 if agent_config.GOOGLE_API_KEY:
                     llm_client = genai.Client(api_key=agent_config.GOOGLE_API_KEY)
-                    logger.info(
-                        "Created genai client with API key from config in ContextManager"
-                    )
+                    logger.info("Created genai client with API key from config in ContextManager")
                 else:
                     llm_client = genai.Client()
                     logger.info(
@@ -154,24 +149,22 @@ class ContextManager:
                     )
                 logger.info("Created default genai client in ContextManager")
             except Exception as e:
-                logger.warning(
-                    f"Could not create default genai client in ContextManager: {e}"
-                )
+                logger.warning(f"Could not create default genai client in ContextManager: {e}")
                 # Continue with llm_client=None - we'll use fallback token counting strategies
 
         self.llm_client = llm_client
         self._token_counting_fn = self._initialize_token_counting_strategy()
         self.state = ContextState()
-        self.conversation_turns: List[ConversationTurn] = []
-        self.code_snippets: List[CodeSnippet] = []
-        self.tool_results: List[ToolResult] = []
+        self.conversation_turns: list[ConversationTurn] = []
+        self.code_snippets: list[CodeSnippet] = []
+        self.tool_results: list[ToolResult] = []
         self.current_turn_number = 0
         self.console = Console(stderr=True)
-        self.system_messages: List[Tuple[str, int]] = []
+        self.system_messages: list[tuple[str, int]] = []
 
         # Initialize proactive context gatherer and smart prioritizer
         self.proactive_gatherer = ProactiveContextGatherer()
-        self._proactive_context_cache: Optional[Dict[str, Any]] = None
+        self._proactive_context_cache: Optional[dict[str, Any]] = None
         self._proactive_context_tokens: int = 0
 
         # Initialize smart prioritizer and cross-turn correlator for Phase 2 enhancements
@@ -187,7 +180,7 @@ class ContextManager:
 
         # Performance tracking
         self._last_context_tokens = 0
-        self._token_growth_history: List[Tuple[int, int]] = []  # (turn, tokens)
+        self._token_growth_history: list[tuple[int, int]] = []  # (turn, tokens)
 
         # Log detailed configuration information for optimization analysis
         self._log_configuration()
@@ -227,10 +220,8 @@ class ContextManager:
                         # For simple text, wrap in Content/Part structure
                         content_for_counting = Content(parts=[Part(text=text)])
                         # Call count_tokens via client.models
-                        response: CountTokensResponse = (
-                            self.llm_client.models.count_tokens(
-                                model=self.model_name, contents=content_for_counting
-                            )
+                        response: CountTokensResponse = self.llm_client.models.count_tokens(
+                            model=self.model_name, contents=content_for_counting
                         )
                         return response.total_tokens
                     except Exception as e_native_call:
@@ -238,10 +229,8 @@ class ContextManager:
                             f"Native Google count_tokens call (via Content object) failed for model {self.model_name}: {e_native_call}. Attempting string directly."
                         )
                         try:  # Try with string directly as contents
-                            response: CountTokensResponse = (
-                                self.llm_client.models.count_tokens(
-                                    model=self.model_name, contents=text
-                                )
+                            response: CountTokensResponse = self.llm_client.models.count_tokens(
+                                model=self.model_name, contents=text
                             )
                             return response.total_tokens
                         except Exception as e_native_str_call:
@@ -254,9 +243,7 @@ class ContextManager:
                                     tokenizer = tiktoken.get_encoding("cl100k_base")
                                     return len(tokenizer.encode(text))
                                 except Exception as te:
-                                    logger.error(
-                                        f"Fallback to cl100k_base also failed: {te}"
-                                    )
+                                    logger.error(f"Fallback to cl100k_base also failed: {te}")
                             return len(text) // 4  # Ultimate fallback
 
                 # Perform a quick test call
@@ -271,10 +258,9 @@ class ContextManager:
                         f"Using native Google GenAI token counter for model {self.model_name} (via google.genai client)."
                     )
                     return native_google_counter
-                else:
-                    logger.warning(
-                        f"Native Google count_tokens for {self.model_name} did not return expected response ({type(test_response)}). Falling back."
-                    )
+                logger.warning(
+                    f"Native Google count_tokens for {self.model_name} did not return expected response ({type(test_response)}). Falling back."
+                )
             except Exception as e_init:
                 logger.warning(
                     f"Could not initialize or test native Google count_tokens for model {self.model_name}: {e_init}. Falling back."
@@ -289,18 +275,14 @@ class ContextManager:
             elif not hasattr(self.llm_client, "models") or not hasattr(
                 self.llm_client.models, "count_tokens"
             ):
-                logger.warning(
-                    "llm_client does not have the required methods for token counting"
-                )
+                logger.warning("llm_client does not have the required methods for token counting")
 
         # Strategy 2: Tiktoken
         if TIKTOKEN_AVAILABLE:
             tokenizer = None
             try:
                 tokenizer = tiktoken.encoding_for_model(self.model_name)
-                logger.info(
-                    f"Using tiktoken with model-specific encoding for {self.model_name}."
-                )
+                logger.info(f"Using tiktoken with model-specific encoding for {self.model_name}.")
             except KeyError:  # Model not found in tiktoken
                 try:
                     tokenizer = tiktoken.get_encoding("cl100k_base")
@@ -363,9 +345,7 @@ class ContextManager:
                 return
         logger.warning(f"Turn {turn_number} not found when updating agent response")
 
-    def add_tool_call(
-        self, turn_number: int, tool_name: str, args: Dict[str, Any]
-    ) -> None:
+    def add_tool_call(self, turn_number: int, tool_name: str, args: dict[str, Any]) -> None:
         for turn in self.conversation_turns:
             if turn.turn_number == turn_number:
                 call_data = {"tool_name": tool_name, "args": args}
@@ -377,26 +357,18 @@ class ContextManager:
     def update_goal(self, goal: str) -> None:
         self.state.core_goal = goal
         self.state.core_goal_tokens = self._count_tokens(goal)
-        logger.info(
-            f"Updated core goal (tokens: {self.state.core_goal_tokens}): {goal}"
-        )
+        logger.info(f"Updated core goal (tokens: {self.state.core_goal_tokens}): {goal}")
 
     def update_phase(self, phase: str) -> None:
         self.state.current_phase = phase
         self.state.current_phase_tokens = self._count_tokens(phase)
-        logger.info(
-            f"Updated current phase (tokens: {self.state.current_phase_tokens}): {phase}"
-        )
+        logger.info(f"Updated current phase (tokens: {self.state.current_phase_tokens}): {phase}")
 
     def add_key_decision(self, decision: str) -> None:
         self.state.key_decisions.append(decision)
-        logger.info(
-            f"Added key decision: {decision}"
-        )  # Tokens for list calculated on assembly
+        logger.info(f"Added key decision: {decision}")  # Tokens for list calculated on assembly
 
-    def add_code_snippet(
-        self, file_path: str, code: str, start_line: int, end_line: int
-    ) -> None:
+    def add_code_snippet(self, file_path: str, code: str, start_line: int, end_line: int) -> None:
         # Check for existing snippet at same location
         for i, snippet in enumerate(self.code_snippets):
             if (
@@ -406,9 +378,7 @@ class ContextManager:
             ):
                 self.code_snippets[i].last_accessed = self.current_turn_number
                 self.code_snippets[i].relevance_score += 0.2
-                logger.info(
-                    f"Updated existing code snippet: {file_path}:{start_line}-{end_line}"
-                )
+                logger.info(f"Updated existing code snippet: {file_path}:{start_line}-{end_line}")
                 return
 
         new_snippet = CodeSnippet(
@@ -422,9 +392,7 @@ class ContextManager:
         if len(self.code_snippets) >= self.max_stored_code_snippets:
             self.code_snippets.sort(key=lambda s: (s.relevance_score, s.last_accessed))
             removed = self.code_snippets.pop(0)
-            logger.debug(
-                f"Removed code snippet due to store limit: {removed.file_path}"
-            )
+            logger.debug(f"Removed code snippet due to store limit: {removed.file_path}")
         self.code_snippets.append(new_snippet)
         logger.info(
             f"Added code snippet from {file_path} ({start_line}-{end_line}), tokens: {new_snippet.token_count}"
@@ -452,9 +420,7 @@ class ContextManager:
             f"Added full file content for {file_path}: {len(lines)} lines, {len(content)} chars"
         )
 
-    def add_tool_result(
-        self, tool_name: str, result: Any, summary: Optional[str] = None
-    ) -> None:
+    def add_tool_result(self, tool_name: str, result: Any, summary: Optional[str] = None) -> None:
         if summary is None:
             summary = self._generate_tool_result_summary(tool_name, result)
 
@@ -476,9 +442,7 @@ class ContextManager:
             removed = self.tool_results.pop(0)
             logger.debug(f"Removed tool result due to store limit: {removed.tool_name}")
         self.tool_results.append(new_result)
-        logger.info(
-            f"Added tool result for {tool_name}, summary tokens: {summary_tokens}"
-        )
+        logger.info(f"Added tool result for {tool_name}, summary tokens: {summary_tokens}")
 
     def _generate_tool_result_summary(self, tool_name: str, result: Any) -> str:
         """Generate a summary of tool result with transformation logging."""
@@ -504,37 +468,28 @@ class ContextManager:
             ):
                 content = result["content"]
                 if isinstance(content, str):
-                    if any(
-                        kw in content
-                        for kw in ["def ", "class ", "import ", "function("]
-                    ):
+                    if any(kw in content for kw in ["def ", "class ", "import ", "function("]):
                         summary = f"Read code file. Length: {len(content)} chars. Content (truncated): {content[:500]}...{content[-500:] if len(content) > 1000 else ''}"
                     else:
                         summary = f"Read file. Length: {len(content)} chars. Content (truncated): {content[:500]}...{content[-500:] if len(content) > 1000 else ''}"
 
                     # Log transformation details for file content
-                    logger.info(f"Transformation Type: File content summary")
-                    logger.info(
-                        f"Original File Content Size: {len(content):,} characters"
-                    )
+                    logger.info("Transformation Type: File content summary")
+                    logger.info(f"Original File Content Size: {len(content):,} characters")
                     logger.info(
                         f"Content Type: {'Code file' if any(kw in content for kw in ['def ', 'class ', 'import ', 'function(']) else 'Text file'}"
                     )
                 else:
                     summary = f"Read file, content type: {type(content).__name__}."
             elif isinstance(result, dict) and result.get("status") == "error":
-                summary = (
-                    f"Error reading file: {result.get('message', 'Unknown error')}"
-                )
+                summary = f"Error reading file: {result.get('message', 'Unknown error')}"
             else:
                 summary = f"Tool {tool_name} produced an unexpected result structure."
         elif tool_name == "execute_vetted_shell_command":
             if isinstance(result, dict):
-                parts = [
-                    f"Shell command '{result.get('command_executed', 'unknown_command')}'"
-                ]
+                parts = [f"Shell command '{result.get('command_executed', 'unknown_command')}'"]
                 if result.get("return_code") == 0:
-                    parts.append(f"succeeded (rc=0).")
+                    parts.append("succeeded (rc=0).")
                 else:
                     parts.append(f"failed (rc={result.get('return_code', 'N/A')}).")
 
@@ -586,12 +541,8 @@ class ContextManager:
                     logger.info(
                         f"Search Result Transformation: Condensed {len(result['matches'])} matches to count summary"
                     )
-                elif "retrieved_chunks" in result and isinstance(
-                    result["retrieved_chunks"], list
-                ):
-                    summary = (
-                        f"Retrieved {len(result['retrieved_chunks'])} code chunks."
-                    )
+                elif "retrieved_chunks" in result and isinstance(result["retrieved_chunks"], list):
+                    summary = f"Retrieved {len(result['retrieved_chunks'])} code chunks."
                     logger.info(
                         f"Code Retrieval Transformation: Condensed {len(result['retrieved_chunks'])} chunks to count summary"
                     )
@@ -618,11 +569,9 @@ class ContextManager:
                     f"Generic Dict Transformation: Extracting important keys from {list(result.keys())}"
                 )
                 for key in important_keys:
-                    if key in result and result[key]:
+                    if result.get(key):
                         val_str = str(result[key])
-                        truncated_val = (
-                            val_str[:300] + "..." if len(val_str) > 300 else val_str
-                        )
+                        truncated_val = val_str[:300] + "..." if len(val_str) > 300 else val_str
                         summary_parts.append(f"{key}: {truncated_val}")
                         if len(val_str) > 300:
                             logger.info(
@@ -642,7 +591,9 @@ class ContextManager:
                         f"Fallback Transformation: Truncated result from {len(original_str)} to 800 characters"
                     )
             elif isinstance(result, str):
-                summary = f"Tool {tool_name} output (truncated): {result[:800]}..."  # Increased from 200
+                summary = (
+                    f"Tool {tool_name} output (truncated): {result[:800]}..."  # Increased from 200
+                )
                 logger.info(
                     f"String Result Transformation: Truncated from {len(result)} to 800 characters"
                 )
@@ -655,10 +606,7 @@ class ContextManager:
         # Apply final length limit and log if truncated
         if len(summary) > MAX_SUMMARY_LEN:
             original_summary_len = len(summary)
-            summary = (
-                summary[: MAX_SUMMARY_LEN - len(TRUNC_MSG_TEMPLATE)]
-                + TRUNC_MSG_TEMPLATE
-            )
+            summary = summary[: MAX_SUMMARY_LEN - len(TRUNC_MSG_TEMPLATE)] + TRUNC_MSG_TEMPLATE
             logger.info(
                 f"Final Summary Transformation: Truncated from {original_summary_len} to {MAX_SUMMARY_LEN} characters"
             )
@@ -675,14 +623,12 @@ class ContextManager:
 
     def track_file_modification(self, file_path: str) -> None:
         if file_path not in self.state.last_modified_files:
-            if (
-                len(self.state.last_modified_files) >= 15
-            ):  # Increased from 5 to track more files
+            if len(self.state.last_modified_files) >= 15:  # Increased from 5 to track more files
                 self.state.last_modified_files.pop(0)
             self.state.last_modified_files.append(file_path)
             logger.info(f"Tracked file modification: {file_path}")
 
-    def _gather_proactive_context(self) -> Dict[str, Any]:
+    def _gather_proactive_context(self) -> dict[str, Any]:
         """Gather proactive context and cache it for token counting."""
         if self._proactive_context_cache is None:
             logger.info(
@@ -692,14 +638,10 @@ class ContextManager:
             # Enhanced diagnostic logging
             logger.info("DIAGNOSTIC: Starting proactive context gathering...")
             logger.info(f"DIAGNOSTIC: Current working directory: {os.getcwd()}")
-            logger.info(
-                f"DIAGNOSTIC: Workspace root: {getattr(self, 'workspace_root', 'Not set')}"
-            )
+            logger.info(f"DIAGNOSTIC: Workspace root: {getattr(self, 'workspace_root', 'Not set')}")
 
             try:
-                self._proactive_context_cache = (
-                    self.proactive_gatherer.gather_all_context()
-                )
+                self._proactive_context_cache = self.proactive_gatherer.gather_all_context()
 
                 # Detailed diagnostic logging
                 if self._proactive_context_cache:
@@ -710,9 +652,7 @@ class ContextManager:
                         if isinstance(value, list):
                             logger.info(f"DIAGNOSTIC: {key}: {len(value)} items")
                             if len(value) > 0:
-                                logger.info(
-                                    f"DIAGNOSTIC: {key} sample: {str(value[0])[:100]}..."
-                                )
+                                logger.info(f"DIAGNOSTIC: {key} sample: {str(value[0])[:100]}...")
                         elif isinstance(value, dict):
                             logger.info(
                                 f"DIAGNOSTIC: {key}: dict with {len(value)} keys: {list(value.keys())[:5]}"
@@ -722,9 +662,7 @@ class ContextManager:
                                 f"DIAGNOSTIC: {key}: {type(value).__name__} - {str(value)[:100]}..."
                             )
                 else:
-                    logger.warning(
-                        "DIAGNOSTIC: Proactive context gathering returned None/empty!"
-                    )
+                    logger.warning("DIAGNOSTIC: Proactive context gathering returned None/empty!")
 
             except Exception as e:
                 logger.error(
@@ -755,16 +693,14 @@ class ContextManager:
 
                 # Additional diagnostics when gathering fails
                 logger.info("DIAGNOSTIC: Checking proactive gatherer state...")
-                logger.info(
-                    f"DIAGNOSTIC: Gatherer type: {type(self.proactive_gatherer)}"
-                )
+                logger.info(f"DIAGNOSTIC: Gatherer type: {type(self.proactive_gatherer)}")
                 logger.info(
                     f"DIAGNOSTIC: Gatherer workspace: {getattr(self.proactive_gatherer, 'workspace_root', 'Not found')}"
                 )
 
         return self._proactive_context_cache or {}
 
-    def assemble_context(self, base_prompt_tokens: int) -> Tuple[Dict[str, Any], int]:
+    def assemble_context(self, base_prompt_tokens: int) -> tuple[dict[str, Any], int]:
         """
         Assemble context dictionary with intelligent token management.
 
@@ -777,9 +713,7 @@ class ContextManager:
 
         # Calculate available token budget with adaptive safety margin
         initial_safety_margin = 2000  # Reserve for response generation
-        available_tokens = (
-            self.max_token_limit - base_prompt_tokens - initial_safety_margin
-        )
+        available_tokens = self.max_token_limit - base_prompt_tokens - initial_safety_margin
 
         # If budget is negative, reduce safety margin progressively
         if available_tokens <= 0:
@@ -788,13 +722,9 @@ class ContextManager:
             )
             # Try with reduced safety margins
             for reduced_margin in [1000, 500, 200, 100, 50]:
-                available_tokens = (
-                    self.max_token_limit - base_prompt_tokens - reduced_margin
-                )
+                available_tokens = self.max_token_limit - base_prompt_tokens - reduced_margin
                 if available_tokens > 0:
-                    logger.warning(
-                        f"Using reduced safety margin of {reduced_margin} tokens"
-                    )
+                    logger.warning(f"Using reduced safety margin of {reduced_margin} tokens")
                     break
 
             # If still negative, use minimal emergency allocation
@@ -812,9 +742,7 @@ class ContextManager:
         logger.info(f"🧠 Available context budget: {available_tokens:,} tokens")
 
         # Try multiple optimization strategies
-        context_dict, total_tokens = self._assemble_with_priority_optimization(
-            available_tokens
-        )
+        context_dict, total_tokens = self._assemble_with_priority_optimization(available_tokens)
 
         if total_tokens > available_tokens:
             logger.warning(
@@ -829,26 +757,20 @@ class ContextManager:
         self._last_context_tokens = total_tokens
 
         # Log optimization results
-        utilization = (
-            (total_tokens / available_tokens) * 100 if available_tokens > 0 else 0
-        )
-        logger.info(f"🧠 CONTEXT ASSEMBLY COMPLETE:")
+        utilization = (total_tokens / available_tokens) * 100 if available_tokens > 0 else 0
+        logger.info("🧠 CONTEXT ASSEMBLY COMPLETE:")
         logger.info(
             f"   📊 Context tokens: {total_tokens:,} / {available_tokens:,} ({utilization:.1f}%)"
         )
-        logger.info(
-            f"   📊 Turns included: {len(context_dict.get('conversation_history', []))}"
-        )
-        logger.info(
-            f"   📊 Code snippets: {len(context_dict.get('code_snippets', []))}"
-        )
+        logger.info(f"   📊 Turns included: {len(context_dict.get('conversation_history', []))}")
+        logger.info(f"   📊 Code snippets: {len(context_dict.get('code_snippets', []))}")
         logger.info(f"   📊 Tool results: {len(context_dict.get('tool_results', []))}")
 
         return context_dict, total_tokens
 
     def _assemble_with_priority_optimization(
         self, available_tokens: int
-    ) -> Tuple[Dict[str, Any], int]:
+    ) -> tuple[dict[str, Any], int]:
         """Assemble context using priority-based optimization."""
         context_dict = {}
         used_tokens = 0
@@ -870,9 +792,7 @@ class ContextManager:
 
         # 2. HIGH PRIORITY: Recent conversation with tool activity
         conversation_budget = min(available_tokens - used_tokens, available_tokens // 2)
-        selected_turns, turn_tokens = self._select_prioritized_turns(
-            conversation_budget
-        )
+        selected_turns, turn_tokens = self._select_prioritized_turns(conversation_budget)
         if selected_turns:
             context_dict["conversation_history"] = selected_turns
             used_tokens += turn_tokens
@@ -882,9 +802,7 @@ class ContextManager:
 
         # 3. HIGH PRIORITY: Recent tool results
         results_budget = min(available_tokens - used_tokens, available_tokens // 4)
-        selected_results, results_tokens = self._select_prioritized_tool_results(
-            results_budget
-        )
+        selected_results, results_tokens = self._select_prioritized_tool_results(results_budget)
         if selected_results:
             context_dict["tool_results"] = selected_results
             used_tokens += results_tokens
@@ -894,9 +812,7 @@ class ContextManager:
 
         # 4. MEDIUM PRIORITY: Code snippets (remaining budget)
         snippets_budget = available_tokens - used_tokens
-        selected_snippets, snippets_tokens = self._select_prioritized_code_snippets(
-            snippets_budget
-        )
+        selected_snippets, snippets_tokens = self._select_prioritized_code_snippets(snippets_budget)
         if selected_snippets:
             context_dict["code_snippets"] = selected_snippets
             used_tokens += snippets_tokens
@@ -908,14 +824,12 @@ class ContextManager:
 
     def _assemble_with_emergency_optimization(
         self, available_tokens: int
-    ) -> Tuple[Dict[str, Any], int]:
+    ) -> tuple[dict[str, Any], int]:
         """
         Emergency context assembly when normal optimization fails.
         Extremely aggressive truncation to fit within tiny token budgets.
         """
-        logger.warning(
-            f"⚠️  EMERGENCY OPTIMIZATION: Only {available_tokens} tokens available"
-        )
+        logger.warning(f"⚠️  EMERGENCY OPTIMIZATION: Only {available_tokens} tokens available")
 
         # For extremely small budgets (<= 300 tokens), return minimal context
         if available_tokens <= 300:
@@ -1024,14 +938,10 @@ class ContextManager:
                 "core_goal": "Minimal context",
             }, 20
 
-        logger.warning(
-            f"Emergency optimization complete: {estimated_tokens} tokens used"
-        )
+        logger.warning(f"Emergency optimization complete: {estimated_tokens} tokens used")
         return context_dict, int(estimated_tokens)
 
-    def _select_prioritized_turns(
-        self, budget: int
-    ) -> Tuple[List[Dict[str, Any]], int]:
+    def _select_prioritized_turns(self, budget: int) -> tuple[list[dict[str, Any]], int]:
         """Select conversation turns based on priority and token budget."""
         if not self.conversation_turns:
             return [], 0
@@ -1066,17 +976,13 @@ class ContextManager:
         selected.sort(key=lambda t: t["turn_number"])
         return selected, used_tokens
 
-    def _select_prioritized_tool_results(
-        self, budget: int
-    ) -> Tuple[List[Dict[str, Any]], int]:
+    def _select_prioritized_tool_results(self, budget: int) -> tuple[list[dict[str, Any]], int]:
         """Select tool results based on priority and token budget."""
         if not self.tool_results:
             return [], 0
 
         # Sort by priority then recency
-        sorted_results = sorted(
-            self.tool_results, key=lambda r: (r.priority.value, -r.turn_number)
-        )
+        sorted_results = sorted(self.tool_results, key=lambda r: (r.priority.value, -r.turn_number))
 
         selected = []
         used_tokens = 0
@@ -1100,9 +1006,7 @@ class ContextManager:
 
         return selected, used_tokens
 
-    def _select_prioritized_code_snippets(
-        self, budget: int
-    ) -> Tuple[List[Dict[str, Any]], int]:
+    def _select_prioritized_code_snippets(self, budget: int) -> tuple[list[dict[str, Any]], int]:
         """Select code snippets based on relevance and token budget."""
         if not self.code_snippets:
             return [], 0
@@ -1144,19 +1048,15 @@ class ContextManager:
             decisions_json = json.dumps(self.state.key_decisions)
             self.state.decisions_tokens = self._count_tokens(decisions_json)
         except Exception:
-            self.state.decisions_tokens = self._count_tokens(
-                str(self.state.key_decisions)
-            )
+            self.state.decisions_tokens = self._count_tokens(str(self.state.key_decisions))
 
         try:
             files_json = json.dumps(self.state.last_modified_files)
             self.state.files_tokens = self._count_tokens(files_json)
         except Exception:
-            self.state.files_tokens = self._count_tokens(
-                str(self.state.last_modified_files)
-            )
+            self.state.files_tokens = self._count_tokens(str(self.state.last_modified_files))
 
-    def _calculate_adaptive_limits(self) -> Dict[str, int]:
+    def _calculate_adaptive_limits(self) -> dict[str, int]:
         """Calculate adaptive limits based on conversation progress."""
         conversation_length = len(self.conversation_turns)
 
@@ -1170,7 +1070,7 @@ class ContextManager:
                 "emergency_snippets": 2,
                 "emergency_results": 3,
             }
-        elif conversation_length <= 10:
+        if conversation_length <= 10:
             # Mid conversation: balanced limits
             return {
                 "target_recent_turns": 4,
@@ -1180,18 +1080,17 @@ class ContextManager:
                 "emergency_snippets": 1,
                 "emergency_results": 2,
             }
-        else:
-            # Long conversation: conservative limits
-            return {
-                "target_recent_turns": 3,
-                "target_code_snippets": 3,
-                "target_tool_results": 5,
-                "emergency_turns": 1,
-                "emergency_snippets": 0,
-                "emergency_results": 1,
-            }
+        # Long conversation: conservative limits
+        return {
+            "target_recent_turns": 3,
+            "target_code_snippets": 3,
+            "target_tool_results": 5,
+            "emergency_turns": 1,
+            "emergency_snippets": 0,
+            "emergency_results": 1,
+        }
 
-    def get_token_growth_analysis(self) -> Dict[str, Any]:
+    def get_token_growth_analysis(self) -> dict[str, Any]:
         """Analyze token growth patterns over conversation history."""
         if len(self._token_growth_history) < 2:
             return {"status": "insufficient_data"}
@@ -1200,23 +1099,17 @@ class ContextManager:
         first_turn, first_tokens = self._token_growth_history[0]
         last_turn, last_tokens = self._token_growth_history[-1]
 
-        growth_rate = (
-            ((last_tokens - first_tokens) / first_tokens * 100)
-            if first_tokens > 0
-            else 0
+        growth_rate = ((last_tokens - first_tokens) / first_tokens * 100) if first_tokens > 0 else 0
+        avg_tokens_per_turn = sum(tokens for _, tokens in self._token_growth_history) / len(
+            self._token_growth_history
         )
-        avg_tokens_per_turn = sum(
-            tokens for _, tokens in self._token_growth_history
-        ) / len(self._token_growth_history)
 
         # Detect concerning patterns
         concerns = []
         if growth_rate > 50:
             concerns.append(f"High growth rate: {growth_rate:.1f}%")
         if last_tokens > self.max_token_limit * 0.8:
-            concerns.append(
-                f"Approaching token limit: {last_tokens:,}/{self.max_token_limit:,}"
-            )
+            concerns.append(f"Approaching token limit: {last_tokens:,}/{self.max_token_limit:,}")
 
         return {
             "status": "analyzed",
@@ -1229,8 +1122,8 @@ class ContextManager:
         }
 
     def expand_context_dynamically(
-        self, current_errors: List[str] = None, max_expansion_files: int = 10
-    ) -> List[DiscoveredContent]:
+        self, current_errors: Optional[list[str]] = None, max_expansion_files: int = 10
+    ) -> list[DiscoveredContent]:
         """Perform dynamic context expansion to discover relevant files."""
 
         if current_errors is None:
@@ -1246,13 +1139,9 @@ class ContextManager:
         # Extract keywords from current goal and phase
         keywords = []
         if self.state.core_goal:
-            keywords.extend(
-                [word for word in self.state.core_goal.split() if len(word) > 3]
-            )
+            keywords.extend([word for word in self.state.core_goal.split() if len(word) > 3])
         if self.state.current_phase:
-            keywords.extend(
-                [word for word in self.state.current_phase.split() if len(word) > 3]
-            )
+            keywords.extend([word for word in self.state.current_phase.split() if len(word) > 3])
 
         # Create expansion context
         expansion_context = ExpansionContext(
@@ -1266,14 +1155,12 @@ class ContextManager:
         )
 
         # Perform expansion
-        discovered_content = self.dynamic_expander.expand_context(
+        return self.dynamic_expander.expand_context(
             expansion_context, current_files, current_errors
         )
 
-        return discovered_content
-
     def auto_add_discovered_content(
-        self, discovered_content: List[DiscoveredContent], max_files_to_add: int = 5
+        self, discovered_content: list[DiscoveredContent], max_files_to_add: int = 5
     ) -> int:
         """Automatically add discovered content to context."""
 
@@ -1286,7 +1173,7 @@ class ContextManager:
                     and content.size_bytes < 50000
                 ):
                     # Add code files as code snippets
-                    with open(content.full_path, "r", encoding="utf-8") as f:
+                    with open(content.full_path, encoding="utf-8") as f:
                         file_content = f.read()
 
                     # Add as full file content
@@ -1297,20 +1184,17 @@ class ContextManager:
                     )
 
                 elif (
-                    content.content_type in ["config", "dependency"]
-                    and content.size_bytes < 20000
+                    content.content_type in ["config", "dependency"] and content.size_bytes < 20000
                 ):
                     # Add config files to context
-                    with open(content.full_path, "r", encoding="utf-8") as f:
+                    with open(content.full_path, encoding="utf-8") as f:
                         file_content = f.read()
 
                     # Create a summarized version for config files
                     context = SummarizationContext(
                         current_task=self.state.core_goal,
                         relevant_keywords=[
-                            word
-                            for word in self.state.core_goal.split()
-                            if len(word) > 3
+                            word for word in self.state.core_goal.split() if len(word) > 3
                         ]
                         if self.state.core_goal
                         else [],
@@ -1329,20 +1213,15 @@ class ContextManager:
                         f"AUTO-ADDED: Config file {content.file_path} (summarized, {content.relevance_score:.2f})"
                     )
 
-                elif (
-                    content.content_type == "documentation"
-                    and content.size_bytes < 30000
-                ):
+                elif content.content_type == "documentation" and content.size_bytes < 30000:
                     # Add documentation with summarization
-                    with open(content.full_path, "r", encoding="utf-8") as f:
+                    with open(content.full_path, encoding="utf-8") as f:
                         file_content = f.read()
 
                     context = SummarizationContext(
                         current_task=self.state.core_goal,
                         relevant_keywords=[
-                            word
-                            for word in self.state.core_goal.split()
-                            if len(word) > 3
+                            word for word in self.state.core_goal.split() if len(word) > 3
                         ]
                         if self.state.core_goal
                         else [],
@@ -1362,13 +1241,11 @@ class ContextManager:
                     )
 
             except Exception as e:
-                logger.warning(
-                    f"Could not auto-add discovered content {content.file_path}: {e}"
-                )
+                logger.warning(f"Could not auto-add discovered content {content.file_path}: {e}")
 
         return added_count
 
-    def _create_minimal_emergency_context(self) -> Dict[str, Any]:
+    def _create_minimal_emergency_context(self) -> dict[str, Any]:
         """Create minimal emergency context when tokens are critically low."""
         context = {}
 
@@ -1390,7 +1267,5 @@ class ContextManager:
                     }
                 ]
 
-        logger.warning(
-            f"🚨 Created minimal emergency context: {len(context)} components"
-        )
+        logger.warning(f"🚨 Created minimal emergency context: {len(context)} components")
         return context

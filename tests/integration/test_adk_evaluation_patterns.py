@@ -9,8 +9,8 @@ tool usage, and response quality.
 import json
 import logging
 import os
-import tempfile
 from pathlib import Path
+import tempfile
 from typing import Any, Dict, List, Optional
 
 import pytest
@@ -36,15 +36,13 @@ class TestADKEvaluationPatterns:
         test_dir = Path(__file__).parent / "evaluation_tests"
         return test_dir / "test_config.json"
 
-    def _load_config(self) -> Dict[str, Any]:
+    def _load_config(self) -> dict[str, Any]:
         """Load evaluation configuration."""
         config_path = self._get_config_file_path()
         if config_path.exists():
-            with open(config_path, "r") as f:
+            with open(config_path) as f:
                 return json.load(f)
-        return {
-            "criteria": {"tool_trajectory_avg_score": 0.8, "response_match_score": 0.7}
-        }
+        return {"criteria": {"tool_trajectory_avg_score": 0.8, "response_match_score": 0.7}}
 
     def test_agent_structure_evaluation(self):
         """Test that the agent has the expected structure for evaluation."""
@@ -85,7 +83,7 @@ class TestADKEvaluationPatterns:
 
             # Verify it's valid JSON
             try:
-                with open(test_path, "r") as f:
+                with open(test_path) as f:
                     json.load(f)
             except json.JSONDecodeError as e:
                 pytest.fail(f"Invalid JSON in {test_file}: {e}")
@@ -105,7 +103,7 @@ class TestADKEvaluationPatterns:
         for test_file in test_files:
             test_path = test_dir / test_file
 
-            with open(test_path, "r") as f:
+            with open(test_path) as f:
                 test_data = json.load(f)
 
             # Check if it's the new format (with test_scenarios) or old format (direct list)
@@ -117,24 +115,18 @@ class TestADKEvaluationPatterns:
                 test_scenarios = test_data["test_scenarios"]
             else:
                 # Old format (direct list)
-                assert isinstance(test_data, list), (
-                    f"Test file {test_file} should contain a list"
-                )
+                assert isinstance(test_data, list), f"Test file {test_file} should contain a list"
                 test_scenarios = test_data
 
             for i, test_case in enumerate(test_scenarios):
-                assert "query" in test_case, (
-                    f"Test case {i} in {test_file} missing 'query'"
-                )
+                assert "query" in test_case, f"Test case {i} in {test_file} missing 'query'"
                 assert "expected_tool_use" in test_case, (
                     f"Test case {i} in {test_file} missing 'expected_tool_use'"
                 )
                 assert "expected_intermediate_agent_responses" in test_case, (
                     f"Test case {i} in {test_file} missing 'expected_intermediate_agent_responses'"
                 )
-                assert "reference" in test_case, (
-                    f"Test case {i} in {test_file} missing 'reference'"
-                )
+                assert "reference" in test_case, f"Test case {i} in {test_file} missing 'reference'"
 
                 # Validate tool use structure
                 for j, tool_use in enumerate(test_case["expected_tool_use"]):
@@ -160,9 +152,7 @@ class TestADKEvaluationPatterns:
         tool_score = criteria["tool_trajectory_avg_score"]
         response_score = criteria["response_match_score"]
 
-        assert 0.0 <= tool_score <= 1.0, (
-            f"Tool trajectory score must be 0-1, got {tool_score}"
-        )
+        assert 0.0 <= tool_score <= 1.0, f"Tool trajectory score must be 0-1, got {tool_score}"
         assert 0.0 <= response_score <= 1.0, (
             f"Response match score must be 0-1, got {response_score}"
         )
@@ -182,7 +172,7 @@ class TestADKEvaluationPatterns:
         for test_file in test_files:
             test_path = test_dir / test_file
 
-            with open(test_path, "r") as f:
+            with open(test_path) as f:
                 test_data = json.load(f)
 
             # Handle both new format (with test_scenarios) and old format
@@ -194,9 +184,7 @@ class TestADKEvaluationPatterns:
             for i, test_case in enumerate(test_scenarios):
                 # Validate query content
                 query = test_case["query"]
-                assert len(query.strip()) > 0, (
-                    f"Empty query in test case {i} of {test_file}"
-                )
+                assert len(query.strip()) > 0, f"Empty query in test case {i} of {test_file}"
 
                 # Validate reference content
                 reference = test_case["reference"]
@@ -240,7 +228,7 @@ class TestADKEvaluationPatterns:
         for test_file in test_files:
             test_path = test_dir / test_file
 
-            with open(test_path, "r") as f:
+            with open(test_path) as f:
                 test_data = json.load(f)
 
             for test_case in test_data:
@@ -249,16 +237,12 @@ class TestADKEvaluationPatterns:
 
         # For logging purposes, show what tools we found
         logger.info(f"Agent has {len(actual_tool_names)} tools")
-        logger.info(
-            f"Evaluation scenarios expect {len(expected_tool_names)} unique tools"
-        )
+        logger.info(f"Evaluation scenarios expect {len(expected_tool_names)} unique tools")
 
         # Note: We don't assert exact matches since tool naming can vary
         # but we validate that both sets are non-empty and meaningful
         assert len(actual_tool_names) > 0, "Agent should have some tools available"
-        assert len(expected_tool_names) > 0, (
-            "Evaluation scenarios should expect some tools"
-        )
+        assert len(expected_tool_names) > 0, "Evaluation scenarios should expect some tools"
 
     def test_evaluation_pattern_completeness(self):
         """Test that we have evaluation patterns covering all key areas."""
@@ -273,19 +257,15 @@ class TestADKEvaluationPatterns:
 
         for required_file in required_files:
             file_path = test_files_dir / required_file
-            assert file_path.exists(), (
-                f"Required evaluation file missing: {required_file}"
-            )
+            assert file_path.exists(), f"Required evaluation file missing: {required_file}"
 
         # Verify each evalset file has multiple test cases
         for evalset_file in required_files[:-1]:  # Exclude config file
             file_path = test_files_dir / evalset_file
-            with open(file_path, "r") as f:
+            with open(file_path) as f:
                 test_data = json.load(f)
 
-            assert len(test_data) > 0, (
-                f"Evaluation file {evalset_file} should have test cases"
-            )
+            assert len(test_data) > 0, f"Evaluation file {evalset_file} should have test cases"
             logger.info(f"{evalset_file} contains {len(test_data)} test cases")
 
     def test_adk_evaluation_framework_readiness(self):
@@ -322,29 +302,21 @@ class TestADKEvaluationPatterns:
 
         # Agent should have introspectable structure
         assert hasattr(agent, "name"), "Agent should have introspectable name"
-        assert hasattr(agent, "description"), (
-            "Agent should have introspectable description"
-        )
+        assert hasattr(agent, "description"), "Agent should have introspectable description"
         assert hasattr(agent, "tools"), "Agent should have introspectable tools"
-        assert hasattr(agent, "sub_agents"), (
-            "Agent should have introspectable sub-agents"
-        )
+        assert hasattr(agent, "sub_agents"), "Agent should have introspectable sub-agents"
 
         # Agent hierarchy should be traversable
         if agent.sub_agents:
             for sub_agent in agent.sub_agents:
-                assert hasattr(sub_agent, "name"), (
-                    f"Sub-agent should have name: {sub_agent}"
-                )
+                assert hasattr(sub_agent, "name"), f"Sub-agent should have name: {sub_agent}"
 
         # Tools should be introspectable
         if agent.tools:
             for tool in agent.tools:
                 # Tools should have some identifying information
                 has_name = (
-                    hasattr(tool, "name")
-                    or hasattr(tool, "__name__")
-                    or hasattr(tool, "__class__")
+                    hasattr(tool, "name") or hasattr(tool, "__name__") or hasattr(tool, "__class__")
                 )
                 assert has_name, f"Tool should have identifying information: {tool}"
 
@@ -358,17 +330,13 @@ class TestADKEvaluationPatterns:
         """Test multi-agent coordination evaluation scenarios."""
         # Load and validate multi-agent coordination evaluation file
         test_file = self._get_test_file_path("multi_agent_coordination")
-        assert test_file.exists(), (
-            "Multi-agent coordination evaluation file should exist"
-        )
+        assert test_file.exists(), "Multi-agent coordination evaluation file should exist"
 
-        with open(test_file, "r") as f:
+        with open(test_file) as f:
             data = json.load(f)
 
         # Validate structure
-        assert "test_scenarios" in data, (
-            "Multi-agent coordination file should have test_scenarios"
-        )
+        assert "test_scenarios" in data, "Multi-agent coordination file should have test_scenarios"
         assert "coordination_patterns" in data, (
             "Multi-agent coordination file should have coordination_patterns"
         )
@@ -378,9 +346,7 @@ class TestADKEvaluationPatterns:
 
         # Validate scenario content
         scenarios = data["test_scenarios"]
-        assert len(scenarios) > 0, (
-            "Multi-agent coordination should have evaluation scenarios"
-        )
+        assert len(scenarios) > 0, "Multi-agent coordination should have evaluation scenarios"
 
         # Test coordination patterns coverage
         expected_patterns = [
@@ -417,17 +383,13 @@ class TestADKEvaluationPatterns:
         """Test agent memory and persistence evaluation scenarios."""
         # Load and validate agent memory persistence evaluation file
         test_file = self._get_test_file_path("agent_memory_persistence")
-        assert test_file.exists(), (
-            "Agent memory persistence evaluation file should exist"
-        )
+        assert test_file.exists(), "Agent memory persistence evaluation file should exist"
 
-        with open(test_file, "r") as f:
+        with open(test_file) as f:
             data = json.load(f)
 
         # Validate structure
-        assert "test_scenarios" in data, (
-            "Agent memory persistence file should have test_scenarios"
-        )
+        assert "test_scenarios" in data, "Agent memory persistence file should have test_scenarios"
         assert "memory_patterns" in data, (
             "Agent memory persistence file should have memory_patterns"
         )
@@ -437,9 +399,7 @@ class TestADKEvaluationPatterns:
 
         # Validate scenario content
         scenarios = data["test_scenarios"]
-        assert len(scenarios) > 0, (
-            "Agent memory persistence should have evaluation scenarios"
-        )
+        assert len(scenarios) > 0, "Agent memory persistence should have evaluation scenarios"
 
         # Test memory patterns coverage
         expected_patterns = [

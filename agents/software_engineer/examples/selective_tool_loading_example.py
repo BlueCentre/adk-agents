@@ -65,9 +65,7 @@ def example_2_custom_profile_overrides():
     # Example of adding specific tools to a profile
     testing_with_extras = {
         "included_tools": ["google_search_grounding", "analyze_code_tool"],
-        "excluded_tools": [
-            "execute_shell_command_tool"
-        ],  # Remove shell access for security
+        "excluded_tools": ["execute_shell_command_tool"],  # Remove shell access for security
     }
 
     tools = load_tools_for_sub_agent("testing", testing_with_extras)
@@ -164,7 +162,7 @@ def example_5_custom_tool_profiles():
     profiles.update(custom_profiles)
 
     # Test custom profiles
-    for profile_name in custom_profiles.keys():
+    for profile_name in custom_profiles:
         config = profiles[profile_name]
         tools = load_selective_tools_and_toolsets(**config)
         print(f"Custom profile '{profile_name}': {len(tools)} tools loaded")

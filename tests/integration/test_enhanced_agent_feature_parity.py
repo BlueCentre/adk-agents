@@ -11,8 +11,8 @@ These tests prevent regressions in the core functionality without requiring
 the original heavy duplication approach.
 """
 
-import pytest
 from google.adk.agents import LlmAgent
+import pytest
 
 # Test imports
 from agents.swe.enhanced_agent import create_enhanced_sub_agents
@@ -33,9 +33,7 @@ class TestEnhancedAgentFeatureParity:
 
         # Verify all agents have tools (not empty tool lists)
         agents_with_tools = [
-            agent
-            for agent in enhanced_agents
-            if hasattr(agent, "tools") and len(agent.tools) > 0
+            agent for agent in enhanced_agents if hasattr(agent, "tools") and len(agent.tools) > 0
         ]
         assert len(agents_with_tools) == 8, (
             f"REGRESSION DETECTED: {8 - len(agents_with_tools)} agents have no tools! "
@@ -51,19 +49,13 @@ class TestEnhancedAgentFeatureParity:
 
         for agent in factory_based_agents:
             # These agents should have their sophisticated features (callbacks, generate_config, etc.)
-            assert hasattr(agent, "tools"), (
-                f"Factory-based agent {agent.name} missing tools"
-            )
-            assert len(agent.tools) > 0, (
-                f"Factory-based agent {agent.name} has no tools"
-            )
+            assert hasattr(agent, "tools"), f"Factory-based agent {agent.name} missing tools"
+            assert len(agent.tools) > 0, f"Factory-based agent {agent.name} has no tools"
 
         print(
             f"✅ Efficient approach: {len(agents_with_tools)} agents with tools, {len(factory_based_agents)} use factory functions"
         )
-        print(
-            "📋 This approach reuses already-loaded tools, avoiding unnecessary re-computation"
-        )
+        print("📋 This approach reuses already-loaded tools, avoiding unnecessary re-computation")
 
     def test_no_parent_conflicts(self):
         """Test that enhanced agents avoid parent conflicts by having unique names."""
@@ -123,9 +115,7 @@ class TestEnhancedAgentFeatureParity:
         # Verify sophisticated features are preserved for all factory-based agents
         for agent in factory_based_agents:
             assert hasattr(agent, "tools"), f"Agent {agent.name} should have tools"
-            assert len(agent.tools) > 0, (
-                f"Agent {agent.name} should have non-empty tools"
-            )
+            assert len(agent.tools) > 0, f"Agent {agent.name} should have non-empty tools"
             # Some agents might have generate_content_config=None (like ollama) - that's valid
             if (
                 hasattr(agent, "generate_content_config")

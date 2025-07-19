@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 # WORKSPACE_ROOT = os.path.abspath(".") # Example: Use current working directory
 
 
-def read_file_content(filepath: str) -> Dict[str, Any]:
+def read_file_content(filepath: str) -> dict[str, Any]:
     """
     Reads the content of a file from the local filesystem.
 
@@ -35,7 +35,7 @@ def read_file_content(filepath: str) -> Dict[str, Any]:
     #     logger.error(message)
     #     return {"status": "error", "error_type": "SecurityViolation", "message": message}
     try:
-        with open(filepath, "r", encoding="utf-8") as f:
+        with open(filepath, encoding="utf-8") as f:
             content = f.read()
         logger.info(f"Successfully read file: {filepath}")
         return {"status": "success", "content": content}
@@ -53,7 +53,7 @@ def read_file_content(filepath: str) -> Dict[str, Any]:
         return {"status": "error", "error_type": "IOError", "message": message}
 
 
-def list_directory_contents(directory_path: str) -> Dict[str, Any]:
+def list_directory_contents(directory_path: str) -> dict[str, Any]:
     """
     Lists the contents (files and directories) of a directory on the local filesystem.
 
@@ -98,7 +98,7 @@ def list_directory_contents(directory_path: str) -> Dict[str, Any]:
         return {"status": "error", "error_type": "IOError", "message": message}
 
 
-def edit_file_content(filepath: str, content: str, tool_context: ToolContext) -> Dict[str, Any]:
+def edit_file_content(filepath: str, content: str, tool_context: ToolContext) -> dict[str, Any]:
     """
     Writes content to a file or proposes the write, requiring user approval based on session state.
     Creates the file if it does not exist (including parent directories).
@@ -166,7 +166,7 @@ def edit_file_content(filepath: str, content: str, tool_context: ToolContext) ->
         return {"status": "error", "error_type": "IOError", "message": message}
 
 
-def configure_edit_approval(require_approval: bool, tool_context: ToolContext) -> Dict[str, Any]:
+def configure_edit_approval(require_approval: bool, tool_context: ToolContext) -> dict[str, Any]:
     """
     Configures whether file edits require user approval for the current session.
     Sets the 'require_edit_approval' flag in the session state.

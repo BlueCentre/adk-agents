@@ -1,6 +1,7 @@
 """Debugging Agent Implementation."""
 
 from google.adk.agents import LlmAgent
+
 from google.genai.types import GenerateContentConfig
 
 from ... import config as agent_config
@@ -42,9 +43,7 @@ def create_debugging_agent(name_suffix=""):
         base_config["mcp_server_filter"].extend(["trace-analyzer", "heap-analyzer"])
 
     # Load tools with per-sub-agent MCP configuration
-    tools = load_tools_for_sub_agent(
-        "debugging", base_config, sub_agent_name=agent_name
-    )
+    tools = load_tools_for_sub_agent("debugging", base_config, sub_agent_name=agent_name)
 
     # Create telemetry callbacks for observability
     callbacks = create_telemetry_callbacks(agent_name)

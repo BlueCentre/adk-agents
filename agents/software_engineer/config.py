@@ -6,6 +6,7 @@ import logging
 import os
 
 from dotenv import load_dotenv
+
 from google.genai import types as genai_types
 
 # Load .env file from the current directory
@@ -17,9 +18,7 @@ logger = logging.getLogger(__name__)
 
 # --- LLM Configuration ---
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-GEMINI_FLASH_MODEL_NAME = os.getenv(
-    "GEMINI_FLASH_MODEL", "gemini-2.5-flash-preview-05-20"
-)
+GEMINI_FLASH_MODEL_NAME = os.getenv("GEMINI_FLASH_MODEL", "gemini-2.5-flash-preview-05-20")
 GEMINI_PRO_MODEL_NAME = os.getenv("GEMINI_PRO_MODEL", "gemini-2.5-pro-preview-06-05")
 GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL", GEMINI_FLASH_MODEL_NAME)  # Default to Pro
 
@@ -29,9 +28,7 @@ GEMINI_2_5_PRO_MODEL_NAME = "gemini-2.5-pro-preview-06-05"
 
 DEFAULT_AGENT_MODEL = os.getenv("AGENT_MODEL", GEMINI_MODEL_NAME)
 DEFAULT_SUB_AGENT_MODEL = os.getenv("SUB_AGENT_MODEL", GEMINI_FLASH_MODEL_NAME)
-DEFAULT_CODE_EXECUTION_MODEL = os.getenv(
-    "CODE_EXECUTION_MODEL", GEMINI_FLASH_MODEL_NAME
-)
+DEFAULT_CODE_EXECUTION_MODEL = os.getenv("CODE_EXECUTION_MODEL", GEMINI_FLASH_MODEL_NAME)
 DEFAULT_SEARCH_MODEL = os.getenv("GOOGLE_SEARCH_MODEL", GEMINI_FLASH_MODEL_NAME)
 DEFAULT_SUMMARIZER_MODEL = os.getenv("SUMMARIZER_MODEL", GEMINI_FLASH_MODEL_NAME)
 
@@ -39,12 +36,8 @@ DEFAULT_SUMMARIZER_MODEL = os.getenv("SUMMARIZER_MODEL", GEMINI_FLASH_MODEL_NAME
 GEMINI_THINKING_ENABLE_STR = os.getenv("GEMINI_THINKING_ENABLE", "false")
 GEMINI_THINKING_ENABLE = GEMINI_THINKING_ENABLE_STR.lower() == "true"
 
-GEMINI_THINKING_INCLUDE_THOUGHTS_STR = os.getenv(
-    "GEMINI_THINKING_INCLUDE_THOUGHTS", "true"
-)
-GEMINI_THINKING_INCLUDE_THOUGHTS = (
-    GEMINI_THINKING_INCLUDE_THOUGHTS_STR.lower() == "true"
-)
+GEMINI_THINKING_INCLUDE_THOUGHTS_STR = os.getenv("GEMINI_THINKING_INCLUDE_THOUGHTS", "true")
+GEMINI_THINKING_INCLUDE_THOUGHTS = GEMINI_THINKING_INCLUDE_THOUGHTS_STR.lower() == "true"
 
 # Thinking budget (tokens allocated for internal reasoning)
 # Higher values allow more complex reasoning but cost more
@@ -66,12 +59,16 @@ def should_enable_thinking(model_name: str) -> bool:
 
 # --- Observability and Telemetry Configuration ---
 # Agent observability control
-DEVOPS_AGENT_OBSERVABILITY_ENABLE = os.getenv(
-    "DEVOPS_AGENT_OBSERVABILITY_ENABLE", ""
-).lower() in ("true", "1", "yes")
-DEVOPS_AGENT_ENABLE_LOCAL_METRICS = os.getenv(
-    "DEVOPS_AGENT_ENABLE_LOCAL_METRICS", ""
-).lower() in ("true", "1", "yes")
+DEVOPS_AGENT_OBSERVABILITY_ENABLE = os.getenv("DEVOPS_AGENT_OBSERVABILITY_ENABLE", "").lower() in (
+    "true",
+    "1",
+    "yes",
+)
+DEVOPS_AGENT_ENABLE_LOCAL_METRICS = os.getenv("DEVOPS_AGENT_ENABLE_LOCAL_METRICS", "").lower() in (
+    "true",
+    "1",
+    "yes",
+)
 DEVOPS_AGENT_DISABLE_TELEMETRY_EXPORT = os.getenv(
     "DEVOPS_AGENT_DISABLE_TELEMETRY_EXPORT", ""
 ).lower() in ("true", "1", "yes")
@@ -137,9 +134,7 @@ def should_enable_observability() -> bool:
 
     # Check if any observability configuration is present (auto-enable for convenience)
     has_grafana_config = bool(GRAFANA_OTLP_ENDPOINT and GRAFANA_OTLP_TOKEN)
-    has_openlit_config = bool(
-        OPENLIT_ENVIRONMENT != "Production" or OPENLIT_APPLICATION_NAME
-    )
+    has_openlit_config = bool(OPENLIT_ENVIRONMENT != "Production" or OPENLIT_APPLICATION_NAME)
 
     # Auto-enable if production observability is configured
     if has_grafana_config or has_openlit_config:
@@ -282,9 +277,7 @@ logger.info(f"Config - Interactive Planning Enabled: {ENABLE_INTERACTIVE_PLANNIN
 logger.info(f"Config - Code Execution Enabled: {ENABLE_CODE_EXECUTION}")
 logger.info(f"Config - Gemini Thinking Enabled: {GEMINI_THINKING_ENABLE}")
 if GEMINI_THINKING_ENABLE:
-    logger.info(
-        f"Config - Gemini Thinking Include Thoughts: {GEMINI_THINKING_INCLUDE_THOUGHTS}"
-    )
+    logger.info(f"Config - Gemini Thinking Include Thoughts: {GEMINI_THINKING_INCLUDE_THOUGHTS}")
     logger.info(f"Config - Gemini Thinking Budget: {GEMINI_THINKING_BUDGET}")
     logger.info(
         f"Config - Agent Model Supports Thinking: {is_thinking_supported(DEFAULT_AGENT_MODEL)}"

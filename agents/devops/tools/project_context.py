@@ -27,7 +27,7 @@ def load_project_context(callback_context: CallbackContext):
 
     try:
         if os.path.exists(DEFAULT_CONTEXT_PATH):
-            with open(DEFAULT_CONTEXT_PATH, "r") as file:
+            with open(DEFAULT_CONTEXT_PATH) as file:
                 data = json.load(file)
                 project_context = data.get("project_context", {})
                 user_profile = data.get("user_profile", {})

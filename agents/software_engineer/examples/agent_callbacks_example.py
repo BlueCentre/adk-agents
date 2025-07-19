@@ -8,8 +8,8 @@ session metrics, and lifecycle events.
 """
 
 import logging
-import sys
 from pathlib import Path
+import sys
 
 # Add the parent directory to the path so we can import from agents
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -44,12 +44,12 @@ def demonstrate_basic_callbacks():
     print("  - after_agent: Callback executed after agent completes processing")
 
     # Access callbacks via dictionary keys
-    before_model_callback = callbacks["before_model"]
-    after_model_callback = callbacks["after_model"]
-    before_tool_callback = callbacks["before_tool"]
-    after_tool_callback = callbacks["after_tool"]
-    before_agent_callback = callbacks["before_agent"]
-    after_agent_callback = callbacks["after_agent"]
+    callbacks["before_model"]
+    callbacks["after_model"]
+    callbacks["before_tool"]
+    callbacks["after_tool"]
+    callbacks["before_agent"]
+    callbacks["after_agent"]
 
     print("\nAll callbacks are callable:", all(callable(cb) for cb in callbacks.values()))
     return callbacks

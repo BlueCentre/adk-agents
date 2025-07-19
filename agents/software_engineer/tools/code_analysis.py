@@ -4,9 +4,9 @@ This tool performs static analysis on code files using language-specific analyze
 and provides detailed reports on quality, complexity, and potential issues.
 """
 
+from enum import Enum
 import os
 import re
-from enum import Enum
 from typing import Any, Dict, List, Optional
 
 from google.adk.tools import FunctionTool, ToolContext
@@ -80,8 +80,8 @@ class CodeAnalysisResult(BaseModel):
     file_path: str
     language: str
     lines_of_code: int
-    issues: List[CodeIssue] = []
-    metrics: Dict[str, Any] = {}
+    issues: list[CodeIssue] = []
+    metrics: dict[str, Any] = {}
     status: str
     error: Optional[str] = None
 
@@ -118,7 +118,7 @@ def detect_language(file_path: str) -> str:
     return language_map.get(ext, "unknown")
 
 
-def analyze_python_code(file_path: str, code: str) -> Dict[str, Any]:
+def analyze_python_code(file_path: str, code: str) -> dict[str, Any]:
     """
     Analyze Python code using pylint, flake8, radon, and bandit.
 
@@ -168,7 +168,13 @@ def analyze_python_code(file_path: str, code: str) -> Dict[str, Any]:
                     )
                 )
         except Exception as e:
-            issues.append(CodeIssue(severity=AnalysisSeverity.ERROR, message=f"Error running pylint: {e!s}", source="analyzer"))
+            issues.append(
+                CodeIssue(
+                    severity=AnalysisSeverity.ERROR,
+                    message=f"Error running pylint: {e!s}",
+                    source="analyzer",
+                )
+            )
 
     # Run flake8
     if FLAKE8_AVAILABLE:
@@ -191,26 +197,51 @@ def analyze_python_code(file_path: str, code: str) -> Dict[str, Any]:
                         elif message.startswith("F"):
                             severity = AnalysisSeverity.CRITICAL
 
-                        issues.append(CodeIssue(line=line_num, column=col_num, severity=severity, message=message, code=message.split(" ")[0], source="flake8"))
+                        issues.append(
+                            CodeIssue(
+                                line=line_num,
+                                column=col_num,
+                                severity=severity,
+                                message=message,
+                                code=message.split(" ")[0],
+                                source="flake8",
+                            )
+                        )
 
             flake8_app.formatter.stop()
             flake8_app.report_errors()
         except Exception as e:
-            issues.append(CodeIssue(severity=AnalysisSeverity.ERROR, message=f"Error running flake8: {e!s}", source="analyzer"))
+            issues.append(
+                CodeIssue(
+                    severity=AnalysisSeverity.ERROR,
+                    message=f"Error running flake8: {e!s}",
+                    source="analyzer",
+                )
+            )
 
     # Run radon for complexity metrics
     if RADON_AVAILABLE:
         try:
             # Cyclomatic Complexity
             cc_blocks = radon.complexity.cc_visit(code)
-            avg_complexity = sum(block.complexity for block in cc_blocks) / len(cc_blocks) if cc_blocks else 0
+            avg_complexity = (
+                sum(block.complexity for block in cc_blocks) / len(cc_blocks) if cc_blocks else 0
+            )
 
             # Maintainability Index
             mi_score = radon.metrics.mi_visit(code, multi=True)
 
             metrics["cyclomatic_complexity"] = {
                 "average": avg_complexity,
-                "blocks": [{"name": block.name, "complexity": block.complexity, "rank": block.rank, "line": block.lineno} for block in cc_blocks],
+                "blocks": [
+                    {
+                        "name": block.name,
+                        "complexity": block.complexity,
+                        "rank": block.rank,
+                        "line": block.lineno,
+                    }
+                    for block in cc_blocks
+                ],
             }
 
             metrics["maintainability_index"] = mi_score
@@ -234,7 +265,13 @@ def analyze_python_code(file_path: str, code: str) -> Dict[str, Any]:
                         )
                     )
         except Exception as e:
-            issues.append(CodeIssue(severity=AnalysisSeverity.ERROR, message=f"Error calculating code complexity: {e!s}", source="analyzer"))
+            issues.append(
+                CodeIssue(
+                    severity=AnalysisSeverity.ERROR,
+                    message=f"Error calculating code complexity: {e!s}",
+                    source="analyzer",
+                )
+            )
 
     # Run bandit for security analysis
     if BANDIT_AVAILABLE:
@@ -260,12 +297,18 @@ def analyze_python_code(file_path: str, code: str) -> Dict[str, Any]:
                     )
                 )
         except Exception as e:
-            issues.append(CodeIssue(severity=AnalysisSeverity.ERROR, message=f"Error running security analysis: {e!s}", source="analyzer"))
+            issues.append(
+                CodeIssue(
+                    severity=AnalysisSeverity.ERROR,
+                    message=f"Error running security analysis: {e!s}",
+                    source="analyzer",
+                )
+            )
 
     return {"issues": issues, "metrics": metrics}
 
 
-def analyze_javascript_code(file_path: str, code: str) -> Dict[str, Any]:
+def analyze_javascript_code(file_path: str, code: str) -> dict[str, Any]:
     """
     Analyze JavaScript code.
 
@@ -280,10 +323,19 @@ def analyze_javascript_code(file_path: str, code: str) -> Dict[str, Any]:
     """
     # Placeholder for JavaScript analysis
     # In a real implementation, we would integrate tools like ESLint
-    return {"issues": [CodeIssue(severity=AnalysisSeverity.INFO, message="JavaScript analysis not yet implemented", source="analyzer")], "metrics": {}}
+    return {
+        "issues": [
+            CodeIssue(
+                severity=AnalysisSeverity.INFO,
+                message="JavaScript analysis not yet implemented",
+                source="analyzer",
+            )
+        ],
+        "metrics": {},
+    }
 
 
-def _analyze_code(file_path: str, tool_context: ToolContext) -> Dict[str, Any]:
+def _analyze_code(file_path: str, tool_context: ToolContext) -> dict[str, Any]:
     """
     Analyze code in a file for quality issues.
 
@@ -298,7 +350,7 @@ def _analyze_code(file_path: str, tool_context: ToolContext) -> Dict[str, Any]:
         if not os.path.exists(file_path):
             return {"error": f"File {file_path} does not exist", "status": "Failed"}
 
-        with open(file_path, "r", encoding="utf-8") as file:
+        with open(file_path, encoding="utf-8") as file:
             code = file.read()
 
         # Store the code in the state for the agent to access
@@ -309,7 +361,12 @@ def _analyze_code(file_path: str, tool_context: ToolContext) -> Dict[str, Any]:
         language = detect_language(file_path)
 
         # Initialize result object
-        result = CodeAnalysisResult(file_path=file_path, language=language, lines_of_code=len(code.split("\n")), status="Analysis complete")
+        result = CodeAnalysisResult(
+            file_path=file_path,
+            language=language,
+            lines_of_code=len(code.split("\n")),
+            status="Analysis complete",
+        )
 
         # Analyze based on language
         if language == "python":
@@ -321,7 +378,13 @@ def _analyze_code(file_path: str, tool_context: ToolContext) -> Dict[str, Any]:
             result.issues = analysis["issues"]
             result.metrics = analysis["metrics"]
         else:
-            result.issues.append(CodeIssue(severity=AnalysisSeverity.INFO, message=f"Analysis for {language} is not yet supported", source="analyzer"))
+            result.issues.append(
+                CodeIssue(
+                    severity=AnalysisSeverity.INFO,
+                    message=f"Analysis for {language} is not yet supported",
+                    source="analyzer",
+                )
+            )
 
         # Store analysis issues in state for other tools to use
         tool_context.state["analysis_issues"] = [issue.dict() for issue in result.issues]
@@ -344,7 +407,9 @@ def _analyze_code(file_path: str, tool_context: ToolContext) -> Dict[str, Any]:
 analyze_code_tool = FunctionTool(func=_analyze_code)
 
 
-def get_issues_by_severity(tool_context: ToolContext, severity: Optional[str] = None) -> Dict[str, Any]:
+def get_issues_by_severity(
+    tool_context: ToolContext, severity: Optional[str] = None
+) -> dict[str, Any]:
     """
     Retrieves code analysis issues filtered by severity.
 
@@ -363,16 +428,23 @@ def get_issues_by_severity(tool_context: ToolContext, severity: Optional[str] = 
         return {"issues": issues}
 
     # Filter by severity
-    filtered_issues = [issue for issue in issues if issue.get("severity", "").lower() == severity.lower()]
+    filtered_issues = [
+        issue for issue in issues if issue.get("severity", "").lower() == severity.lower()
+    ]
 
-    return {"issues": filtered_issues, "count": len(filtered_issues), "total_issues": len(issues), "severity": severity}
+    return {
+        "issues": filtered_issues,
+        "count": len(filtered_issues),
+        "total_issues": len(issues),
+        "severity": severity,
+    }
 
 
 # Define additional tools to work with analysis results
 get_analysis_issues_by_severity_tool = FunctionTool(func=get_issues_by_severity)
 
 
-def suggest_fixes(tool_context: ToolContext) -> Dict[str, Any]:
+def suggest_fixes(tool_context: ToolContext) -> dict[str, Any]:
     """
     Analyzes issues and suggests fixes based on common patterns.
 
@@ -407,12 +479,18 @@ def suggest_fixes(tool_context: ToolContext) -> Dict[str, Any]:
 
         # Complexity suggestions
         elif "complexity" in message.lower():
-            suggestion = f"Refactor the complex function at line {issue.get('line')} into smaller functions"
+            suggestion = (
+                f"Refactor the complex function at line {issue.get('line')} into smaller functions"
+            )
 
         if suggestion:
             suggested_fixes.append({"issue": issue, "suggestion": suggestion})
 
-    return {"suggested_fixes": suggested_fixes, "count": len(suggested_fixes), "analyzed_file": tool_context.state.get("analyzed_file")}
+    return {
+        "suggested_fixes": suggested_fixes,
+        "count": len(suggested_fixes),
+        "analyzed_file": tool_context.state.get("analyzed_file"),
+    }
 
 
 # Define a tool for suggesting fixes

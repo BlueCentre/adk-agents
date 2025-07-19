@@ -13,7 +13,9 @@ DEFAULT_MEMORY_FILE = "./.manual_agent_memory.json"
 # === Tool Implementation Functions (Commented Out) ===
 
 
-def _save_current_session_to_file_impl(tool_context: ToolContext, filepath: str = DEFAULT_MEMORY_FILE) -> Dict[str, str]:
+def _save_current_session_to_file_impl(
+    tool_context: ToolContext, filepath: str = DEFAULT_MEMORY_FILE
+) -> dict[str, str]:
     """
     (Placeholder) Saves the *current* session's state to a specified JSON file.
     NOTE: This is a placeholder and not fully implemented.
@@ -71,7 +73,7 @@ def _save_current_session_to_file_impl(tool_context: ToolContext, filepath: str 
     return {"status": "skipped", "message": "Tool is not implemented."}
 
 
-def _load_memory_from_file_impl(query: str, filepath: str = DEFAULT_MEMORY_FILE) -> Dict[str, Any]:
+def _load_memory_from_file_impl(query: str, filepath: str = DEFAULT_MEMORY_FILE) -> dict[str, Any]:
     """
     (Placeholder) Loads memory from a JSON file and performs a simple query.
     NOTE: This is a placeholder and not fully implemented.

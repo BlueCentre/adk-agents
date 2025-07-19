@@ -55,9 +55,7 @@ class TestConftestFixtures:
 
         # Test smart prioritizer
         snippets = [{"content": "test code", "file_path": "test.py"}]
-        prioritized = mock_smart_prioritizer.prioritize_code_snippets(
-            snippets, "test context"
-        )
+        prioritized = mock_smart_prioritizer.prioritize_code_snippets(snippets, "test context")
         assert len(prioritized) == 1
         assert hasattr(prioritized[0]["_relevance_score"], "final_score")
 
@@ -68,9 +66,7 @@ class TestConftestFixtures:
 
         print("✅ Context management fixtures working correctly")
 
-    def test_agent_fixtures(
-        self, mock_devops_agent, mock_software_engineer_agent, mock_swe_agent
-    ):
+    def test_agent_fixtures(self, mock_devops_agent, mock_software_engineer_agent, mock_swe_agent):
         """Test agent fixtures."""
         agents = [mock_devops_agent, mock_software_engineer_agent, mock_swe_agent]
 
@@ -107,9 +103,7 @@ class TestConftestFixtures:
 
         print("✅ Async fixtures working correctly")
 
-    def test_performance_fixtures(
-        self, mock_performance_monitor, mock_resource_monitor
-    ):
+    def test_performance_fixtures(self, mock_performance_monitor, mock_resource_monitor):
         """Test performance monitoring fixtures."""
         # Test performance monitor
         mock_performance_monitor.start_monitoring()
@@ -151,9 +145,7 @@ class TestConftestFixtures:
             assert (
                 "user_message" in turn or "agent_message" in turn or "message" in turn
             )  # Support different formats
-            assert (
-                "timestamp" in turn or "tool_calls" in turn
-            )  # Support different formats
+            assert "timestamp" in turn or "tool_calls" in turn  # Support different formats
 
         print("✅ Test data fixtures working correctly")
 
@@ -175,9 +167,7 @@ class TestConftestFixtures:
 
         print("✅ Configuration fixtures working correctly")
 
-    def test_phase_specific_fixtures(
-        self, foundation_test_setup, core_integration_setup
-    ):
+    def test_phase_specific_fixtures(self, foundation_test_setup, core_integration_setup):
         """Test phase-specific fixtures."""
         # Test foundation setup
         assert "context_manager" in foundation_test_setup
@@ -196,13 +186,9 @@ class TestConftestFixtures:
     def test_metrics_collection(self, test_metrics_collector):
         """Test metrics collection fixture."""
         # Record some test metrics
-        test_metrics_collector.record_metric(
-            "test_execution_time", 1.5, {"test": "example"}
-        )
+        test_metrics_collector.record_metric("test_execution_time", 1.5, {"test": "example"})
         test_metrics_collector.record_metric("test_memory_usage", 100.0, {"unit": "MB"})
-        test_metrics_collector.record_metric(
-            "test_operations_count", 50, {"type": "read"}
-        )
+        test_metrics_collector.record_metric("test_operations_count", 50, {"type": "read"})
 
         # Get metrics
         metrics = test_metrics_collector.get_metrics()

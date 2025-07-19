@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import asyncio
-import os
+from collections.abc import Awaitable
 from datetime import datetime
-from typing import Awaitable, Callable, Optional
+import os
+from typing import Callable, Optional
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
@@ -22,8 +23,8 @@ class EnhancedCLI:
 
     def __init__(
         self,
-        theme: Optional[UITheme] = None,
-        rich_renderer: Optional[RichRenderer] = None,
+        theme: UITheme | None = None,
+        rich_renderer: RichRenderer | None = None,
     ):
         # Determine theme from environment or default
         self.theme = theme or self._detect_theme()
@@ -42,9 +43,9 @@ class EnhancedCLI:
 
         # Interruptible CLI attributes
         self.agent_running = False
-        self.current_agent_task: Optional[asyncio.Task] = None
-        self.input_callback: Optional[Callable[[str], Awaitable[None]]] = None
-        self.interrupt_callback: Optional[Callable[[], Awaitable[None]]] = None
+        self.current_agent_task: asyncio.Task | None = None
+        self.input_callback: Callable[[str], Awaitable[None]] | None = None
+        self.interrupt_callback: Callable[[], Awaitable[None]] | None = None
 
         # Agent thought display
         self.agent_thought_enabled = True
@@ -184,7 +185,7 @@ class EnhancedCLI:
                 self.categorized_commands = categorized_commands
                 # Flatten all commands for matching
                 self.all_commands = []
-                for category, commands in categorized_commands.items():
+                for _category, commands in categorized_commands.items():
                     self.all_commands.extend(commands)
 
             def get_completions(self, document, complete_event):
@@ -303,25 +304,23 @@ class EnhancedCLI:
         # Welcome ASCII Art Logo
         self.console.print()
         self.console.print(
-"""
-  .'|=|`.     .'|                                                         
-.'  | |  `. .'  |                                                         
-|   |=|   | |   |                                                         
-|   | |   | |   |                                                         
-|___| |___| |___|                                                         
-                                                                          
-                   ___         ___        ___   ___  ___   ___  ___   ___ 
-  .'|=|`.     .'|=|_.'    .'|=|_.'   .'| |   | `._|=|   |=|_.' |   |=|_.' 
-.'  | |  `. .'  |___    .'  |  ___ .'  |\|   |      |   |      `.  |      
-|   |=|   | |   |`._|=. |   |=|_.' |   | |   |      |   |        `.|=|`.  
+            r"""
+  .'|=|`.     .'|
+.'  | |  `. .'  |
+|   |=|   | |   |
+|   | |   | |   |
+|___| |___| |___|
+
+                   ___         ___        ___   ___  ___   ___  ___   ___
+  .'|=|`.     .'|=|_.'    .'|=|_.'   .'| |   | `._|=|   |=|_.' |   |=|_.'
+.'  | |  `. .'  |___    .'  |  ___ .'  |\|   |      |   |      `.  |
+|   |=|   | |   |`._|=. |   |=|_.' |   | |   |      |   |        `.|=|`.
 |   | |   | `.  |  __|| |   |  ___ |   | |  .'      `.  |       ___  |  `.
 |___| |___|   `.|=|_.'' |___|=|_.' |___| |.'          `.|       `._|=|___|
 """
         )
         self.console.print()
-        self.console.print(
-            "[muted]           🤖 Advanced AI Agent Development Kit 🤖[/muted]"
-        )
+        self.console.print("[muted]           🤖 Advanced AI Agent Development Kit 🤖[/muted]")
         self.console.print()
 
         self.console.print(
@@ -346,28 +345,18 @@ class EnhancedCLI:
             "\n[accent]┌─ Available Commands ─────────────────────────────────────┐[/accent]"
         )
         self.console.print("[accent]│[/accent] [highlight]Navigation:[/highlight]")
-        self.console.print(
-            "[accent]│[/accent]   [user]exit, quit, bye[/user] - Exit the CLI"
-        )
+        self.console.print("[accent]│[/accent]   [user]exit, quit, bye[/user] - Exit the CLI")
         self.console.print("[accent]│[/accent]   [user]clear[/user] - Clear the screen")
-        self.console.print(
-            "[accent]│[/accent]   [user]help[/user] - Show this help message"
-        )
+        self.console.print("[accent]│[/accent]   [user]help[/user] - Show this help message")
         self.console.print("[accent]│[/accent]")
         self.console.print("[accent]│[/accent] [highlight]Theming:[/highlight]")
         self.console.print(
             "[accent]│[/accent]   [user]theme toggle[/user] - Toggle between light/dark"
         )
-        self.console.print(
-            "[accent]│[/accent]   [user]theme dark[/user] - Switch to dark theme"
-        )
-        self.console.print(
-            "[accent]│[/accent]   [user]theme light[/user] - Switch to light theme"
-        )
+        self.console.print("[accent]│[/accent]   [user]theme dark[/user] - Switch to dark theme")
+        self.console.print("[accent]│[/accent]   [user]theme light[/user] - Switch to light theme")
         self.console.print("[accent]│[/accent]")
-        self.console.print(
-            "[accent]│[/accent] [highlight]Keyboard Shortcuts:[/highlight]"
-        )
+        self.console.print("[accent]│[/accent] [highlight]Keyboard Shortcuts:[/highlight]")
         self.console.print("[accent]│[/accent]   [user]Enter[/user] - Submit input")
         self.console.print(
             "[accent]│[/accent]   [user]Alt+Enter[/user] - Insert new line for multi-line input"
@@ -375,9 +364,7 @@ class EnhancedCLI:
         self.console.print("[accent]│[/accent]   [user]Ctrl+D[/user] - Exit gracefully")
         self.console.print("[accent]│[/accent]   [user]Ctrl+L[/user] - Clear screen")
         self.console.print("[accent]│[/accent]   [user]Ctrl+T[/user] - Toggle theme")
-        self.console.print(
-            "[accent]│[/accent]   [user]Tab[/user] - Show command suggestions"
-        )
+        self.console.print("[accent]│[/accent]   [user]Tab[/user] - Show command suggestions")
         self.console.print(
             "[accent]└──────────────────────────────────────────────────────────┘[/accent]"
         )
@@ -394,7 +381,9 @@ class EnhancedCLI:
     #     panel = self.rich_renderer.format_agent_thought(text)
     #     self.console.print(panel, soft_wrap=True, overflow="fold")
 
-    def display_agent_response(self, parent_console: Console, response_summary: str, author: str = "Agent"):
+    def display_agent_response(
+        self, parent_console: Console, response_summary: str, author: str = "Agent"
+    ):
         """Displays agent response summary in a Rich panel."""
         self.rich_renderer.display_agent_response(parent_console, response_summary, author)
 
