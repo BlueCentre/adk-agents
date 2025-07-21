@@ -1,7 +1,7 @@
 """Project context tool for the software engineer agent."""
 
 import json
-import os
+from pathlib import Path
 
 from google.adk.agents.callback_context import CallbackContext
 
@@ -26,8 +26,8 @@ def load_project_context(callback_context: CallbackContext):
     user_profile = {}
 
     try:
-        if os.path.exists(DEFAULT_CONTEXT_PATH):
-            with open(DEFAULT_CONTEXT_PATH) as file:
+        if Path(DEFAULT_CONTEXT_PATH).exists():
+            with Path.open(DEFAULT_CONTEXT_PATH) as file:
                 data = json.load(file)
                 project_context = data.get("project_context", {})
                 user_profile = data.get("user_profile", {})

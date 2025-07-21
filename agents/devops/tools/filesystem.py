@@ -1,7 +1,7 @@
 # code_agent/agent/software_engineer/software_engineer/tools/filesystem_tools.py
 import logging
-import os
-from typing import Any, Dict
+from pathlib import Path
+from typing import Any
 
 from google.adk.tools import FunctionTool, ToolContext
 
@@ -22,9 +22,12 @@ def read_file_content(filepath: str) -> dict[str, Any]:
 
     Returns:
         A dictionary with:
-        - {'status': 'success', 'content': 'file_content_string', 'filepath': 'filepath'} on success.
-        - {'status': 'error', 'error_type': str, 'message': str, 'filepath': 'filepath'} on failure.
-          Possible error_types: 'FileNotFound', 'PermissionDenied', 'IOError', 'SecurityViolation' (if implemented).
+        - {'status': 'success', 'content': 'file_content_string', 'filepath': 'filepath'}
+          on success.
+        - {'status': 'error', 'error_type': str, 'message': str, 'filepath': 'filepath'}
+          on failure.
+          Possible error_types: 'FileNotFound', 'PermissionDenied', 'IOError',
+                                'SecurityViolation' (if implemented).
     """
     logger.info(f"Attempting to read file: {filepath}")
     # Add path validation/sandboxing here before opening
@@ -33,9 +36,11 @@ def read_file_content(filepath: str) -> dict[str, Any]:
     # if not abs_path.startswith(WORKSPACE_ROOT):
     #     message = f"Access denied: Path '{filepath}' is outside the allowed workspace."
     #     logger.error(message)
-    #     return {"status": "error", "error_type": "SecurityViolation", "message": message, "filepath": filepath}
+    #     return {
+    # "status": "error", "error_type": "SecurityViolation",
+    # "message": message, "filepath": filepath}
     try:
-        with open(filepath, encoding="utf-8") as f:
+        with Path(filepath).open(encoding="utf-8") as f:
             content = f.read()
         logger.info(f"Successfully read file: {filepath}")
         return {"status": "success", "content": content, "filepath": filepath}
@@ -81,7 +86,8 @@ def list_directory_contents(directory_path: str) -> dict[str, Any]:
         A dictionary with:
         - {'status': 'success', 'contents': ['item1', 'item2', ...]} on success.
         - {'status': 'error', 'error_type': str, 'message': str} on failure.
-          Possible error_types: 'NotADirectory', 'FileNotFound', 'PermissionDenied', 'IOError', 'SecurityViolation' (if implemented).
+          Possible error_types: 'NotADirectory', 'FileNotFound', 'PermissionDenied', 'IOError',
+                                'SecurityViolation' (if implemented).
     """
     logger.info(f"Attempting to list directory: {directory_path}")
     # Add path validation/sandboxing here
@@ -92,11 +98,11 @@ def list_directory_contents(directory_path: str) -> dict[str, Any]:
     #     logger.error(message)
     #     return {"status": "error", "error_type": "SecurityViolation", "message": message}
     try:
-        if not os.path.isdir(directory_path):
+        if not Path(directory_path).is_dir():
             message = f"The specified path '{directory_path}' is not a valid directory."
             logger.warning(message)
             return {"status": "error", "error_type": "NotADirectory", "message": message}
-        contents = os.listdir(directory_path)
+        contents = Path(directory_path).listdir()
         logger.info(f"Successfully listed directory: {directory_path}")
         return {"status": "success", "contents": contents}
     except FileNotFoundError:
@@ -135,7 +141,7 @@ def edit_file_content(filepath: str, content: str, tool_context: ToolContext) ->
         - {'status': 'success', 'message': 'Success message', 'filepath': str} on successful write (when approval not required).
         - {'status': 'error', 'error_type': str, 'message': str, 'filepath': str} on failure during write or validation.
           Possible error_types: 'PermissionDenied', 'IOError', 'SecurityViolation' (if implemented).
-    """
+    """  # noqa: E501
     logger.info(f"Checking approval requirement for writing to file: {filepath}")
 
     # Add path validation/sandboxing here FIRST
@@ -144,7 +150,9 @@ def edit_file_content(filepath: str, content: str, tool_context: ToolContext) ->
     # if not abs_path.startswith(WORKSPACE_ROOT):
     #     message = f"Access denied: Path '{filepath}' is outside the allowed workspace."
     #     logger.error(message)
-    #     return {"status": "error", "error_type": "SecurityViolation", "message": message, "filepath": filepath}
+    #     return {
+    # "status": "error", "error_type": "SecurityViolation",
+    # "message": message, "filepath": filepath}
 
     # TODO: Remove this once we have a proper approval mechanism
     needs_approval = tool_context.state.get(
@@ -165,12 +173,12 @@ def edit_file_content(filepath: str, content: str, tool_context: ToolContext) ->
     logger.info(f"Approval not required. Proceeding with write to file: {filepath}")
     try:
         # Ensure the directory exists
-        dir_path = os.path.dirname(filepath)
+        dir_path = Path(filepath).parent
         if dir_path:  # Ensure dir_path is not empty (happens for root-level files)
-            os.makedirs(dir_path, exist_ok=True)  # Creates parent dirs if needed
+            dir_path.mkdir(parents=True, exist_ok=True)  # Creates parent dirs if needed
 
         # Consider atomic write here: write to temp file, then os.replace()
-        with open(filepath, "w", encoding="utf-8") as f:
+        with Path(filepath).open("w", encoding="utf-8") as f:
             f.write(content)
         message = f"Successfully wrote content to '{filepath}'."
         logger.info(message)
@@ -215,7 +223,8 @@ def configure_edit_approval(require_approval: bool, tool_context: ToolContext) -
 
 
 # Wrap functions with FunctionTool
-# Note: The return type for the tool schema remains the base function's return type hint (Dict[str, Any])
+# Note: The return type for the tool schema remains the base function's
+# return type hint (Dict[str, Any])
 read_file_tool = FunctionTool(read_file_content)
 list_dir_tool = FunctionTool(list_directory_contents)
 edit_file_tool = FunctionTool(edit_file_content)

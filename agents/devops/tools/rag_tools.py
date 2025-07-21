@@ -6,8 +6,6 @@ from pathlib import Path  # Added for .indexignore and path manipulation
 import time
 from typing import Optional  # Added import
 
-# from google.adk.tools.utils import tool_utils # For defining ADK tools
-# from google.adk.tools import FunctionTool, ToolContext # For defining ADK tools and accessing context
 from google.adk.tools import FunctionTool  # For defining ADK tools
 
 from .rag_components import chunking, indexing, purging  # Relative import from parent dir
@@ -66,7 +64,7 @@ def _is_path_ignored(relative_path_str: str, ignore_patterns: list[str], is_dir:
             if (relative_path_str + "/").startswith(
                 normalized_pattern + "/"
             ):  # e.g. pattern "build/", path "build/foo"
-                # logger.debug(f"Ignoring path '{relative_path_str}' due to item under dir pattern '{pattern}'")
+                # logger.debug(f"Ignoring path '{relative_path_str}' due to item under dir pattern '{pattern}'")  # noqa: E501
                 return True
             # No else here, a dir pattern like "foo/" should not match a file "foo"
 
@@ -77,16 +75,17 @@ def _is_path_ignored(relative_path_str: str, ignore_patterns: list[str], is_dir:
 
         # Check against the full relative path
         if fnmatch.fnmatch(relative_path_str, pattern):
-            # logger.debug(f"Ignoring '{relative_path_str}' due to full match with pattern '{pattern}'")
+            # logger.debug(f"Ignoring '{relative_path_str}' due to full match with pattern '{pattern}'")  # noqa: E501
             return True
 
         # 3. If pattern has no slashes, it can match a basename anywhere (like .gitignore)
         #    e.g. pattern "*.tmp" should match "foo.tmp" and "bar/baz.tmp"
-        #    e.g. pattern "node_modules" (no trailing slash) should match a dir "node_modules" anywhere
+        #    e.g. pattern "node_modules" (no trailing slash) should match a dir "node_modules"
+        #    anywhere
         if "/" not in pattern:
             item_name = Path(relative_path_str).name
             if fnmatch.fnmatch(item_name, pattern):
-                # logger.debug(f"Ignoring '{relative_path_str}' (basename '{item_name}') due to basename pattern '{pattern}'")
+                # logger.debug(f"Ignoring '{relative_path_str}' (basename '{item_name}') due to basename pattern '{pattern}'")  # noqa: E501
                 return True
 
     return False
@@ -107,7 +106,8 @@ def index_directory_tool(
     Args:
         directory_path: The absolute path to the directory to scan.
         file_extensions: Optional list of file extensions to process (e.g., ['.py', '.md']).
-                         Defaults to ['.py', '.md', '.txt', '.sh', '.yaml', '.yml', '.json', '.tf', '.hcl', '.go'] if None.
+                         Defaults to ['.py', '.md', '.txt', '.sh', '.yaml', '.yml', '.json',
+                         '.tf', '.hcl', '.go'] if None.
         force_reindex: If True, existing entries for a file will be removed and re-indexed.
     Returns:
         A summary message of the indexing process.
@@ -127,7 +127,7 @@ def index_directory_tool(
         ]  # Default to a wider set of extensions
 
     if not directory_path:
-        directory_path = os.getcwd()
+        directory_path = Path.cwd()
 
     # Ensure file_extensions is a set for efficient lookup
     file_extensions_set = set(file_extensions)
@@ -181,12 +181,12 @@ def index_directory_tool(
             # 2. Check file extension
             if file_abs_path.suffix not in file_extensions_set:
                 # This check is fine, but ensure file_extensions_set is correctly populated
-                # logger.debug(f"Skipping file due to extension: {file_rel_path_str} (suffix: {file_abs_path.suffix})")
+                # logger.debug(f"Skipping file due to extension: {file_rel_path_str} (suffix: {file_abs_path.suffix})")  # noqa: E501
                 continue
 
             logger.info(f"Processing file: {file_abs_path}")
             try:
-                with open(
+                with Path.open(
                     file_abs_path, encoding="utf-8", errors="ignore"
                 ) as f:  # Added errors='ignore'
                     content = f.read()
@@ -211,16 +211,18 @@ def index_directory_tool(
                             existing_ids_to_delete = query_results["ids"]
                             if existing_ids_to_delete:
                                 logger.info(
-                                    f"Deleting {len(existing_ids_to_delete)} existing chunks for {file_abs_path}."
+                                    f"Deleting {len(existing_ids_to_delete)} existing chunks for "
+                                    f"{file_abs_path}."
                                 )
                                 collection.delete(ids=existing_ids_to_delete)
                             # else:
-                            #     logger.info(f"No existing chunks found to delete for {file_abs_path} during force_reindex.")
+                            #     logger.info(f"No existing chunks found to delete for {file_abs_path} during force_reindex.")  # noqa: E501
                         # else:
-                        #     logger.info(f"No existing chunks found (or query failed) for {file_abs_path} during force_reindex attempt.")
+                        #     logger.info(f"No existing chunks found (or query failed) for {file_abs_path} during force_reindex attempt.")  # noqa: E501
                     except Exception as e_del:
                         logger.error(
-                            f"Error deleting existing chunks for {file_abs_path} during force_reindex: {e_del}"
+                            f"Error deleting existing chunks for {file_abs_path} during "
+                            f"force_reindex: {e_del}"
                         )
 
                 success = indexing.index_file_chunks(collection, file_chunks_data)
@@ -232,7 +234,8 @@ def index_directory_tool(
                     )
 
                     # Add a small delay between file processing to avoid hitting rate limits
-                    # Only delay if we successfully processed a file and there are more files to process
+                    # Only delay if we successfully processed a file and there are more files to
+                    # process
                     time.sleep(0.5)  # 500ms delay between files
                 else:
                     logger.error(f"Failed to index chunks from {file_abs_path}.")
@@ -246,7 +249,7 @@ def index_directory_tool(
         f"Indexing complete for directory: {root_scan_path}.\n"
         f"Processed {processed_files} files.\n"
         f"Indexed a total of {total_chunks_indexed} chunks.\n"
-        f"Ignored {ignored_files_count} files and {ignored_dirs_count} directories based on .indexignore rules.\n"
+        f"Ignored {ignored_files_count} files and {ignored_dirs_count} directories based on .indexignore rules.\n"  # noqa: E501
         f"Current collection size: {collection.count()} items."
     )
     if errors:

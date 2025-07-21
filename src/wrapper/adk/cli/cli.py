@@ -17,7 +17,6 @@ from __future__ import annotations
 from datetime import datetime
 import logging
 import time
-from typing import Optional
 
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.artifacts import BaseArtifactService, InMemoryArtifactService
@@ -30,12 +29,11 @@ from google.adk.auth.credential_service.in_memory_credential_service import (
 from google.adk.sessions.base_session_service import BaseSessionService
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.adk.sessions.session import Session
+from google.genai import types
 from prompt_toolkit.patch_stdout import patch_stdout
 from pydantic import BaseModel
 from rich.console import Console
 import rich_click as click
-
-from google.genai import types
 
 from .utils import envs  # Modified to use our packaged path
 from .utils.agent_loader import AgentLoader  # Modified to use our packaged path
@@ -376,7 +374,10 @@ async def run_interactively_with_tui(
 
         # Call original callback if it exists
         if original_before_tool:
-            return await original_before_tool(tool, args, tool_context, callback_context)
+            result = original_before_tool(tool, args, tool_context, callback_context)
+            if result is not None and hasattr(result, "__await__"):
+                return await result
+            return result
         return None
 
     async def enhanced_after_tool(
@@ -402,9 +403,10 @@ async def run_interactively_with_tui(
 
         # Call original callback if it exists
         if original_after_tool:
-            return await original_after_tool(
-                tool, tool_response, callback_context, args, tool_context
-            )
+            result = original_after_tool(tool, tool_response, callback_context, args, tool_context)
+            if result is not None and hasattr(result, "__await__"):
+                return await result
+            return result
         return None
 
     # Replace agent callbacks with enhanced versions (if the agent supports it)

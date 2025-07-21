@@ -5,7 +5,7 @@ from enum import Enum, auto
 import json
 import logging
 import re
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -166,13 +166,15 @@ class IntelligentSummarizer:
             content_type = self._detect_content_type(content)
 
         logger.debug(
-            f"INTELLIGENT SUMMARIZATION: Content type: {content_type.name}, Target length: {context.target_length}"
+            f"INTELLIGENT SUMMARIZATION: Content type: {content_type.name}, "
+            f"Target length: {context.target_length}"
         )
 
         # If content is already short enough, return as-is
         if len(content) <= context.target_length:
             logger.debug(
-                f"  Content already within target length ({len(content)} <= {context.target_length})"
+                f"  Content already within target length "
+                f"({len(content)} <= {context.target_length})"
             )
             return content
 
@@ -185,7 +187,8 @@ class IntelligentSummarizer:
         # Log summarization metrics
         compression_ratio = len(summary) / len(content) if content else 0
         logger.info(
-            f"  📝 SUMMARIZED: {len(content):,} → {len(summary):,} chars (ratio: {compression_ratio:.2f})"
+            f"  📝 SUMMARIZED: {len(content):,} → {len(summary):,} chars "
+            f"(ratio: {compression_ratio:.2f})"
         )
 
         return summary
@@ -534,7 +537,7 @@ class IntelligentSummarizer:
             summary_parts.extend(error_lines[:5])
 
         if warning_lines:
-            summary_parts.append("⚠️  WARNINGS:")
+            summary_parts.append("🚨 WARNINGS:")
             summary_parts.extend(warning_lines[:3])
 
         if relevant_lines:
@@ -542,7 +545,7 @@ class IntelligentSummarizer:
             summary_parts.extend(relevant_lines[:5])
 
         if info_lines and len(summary_parts) < 10:
-            summary_parts.append("ℹ️  INFO:")
+            summary_parts.append("💡 INFO:")
             summary_parts.extend(info_lines[:3])
 
         summary = "\n".join(summary_parts)
@@ -627,7 +630,8 @@ class IntelligentSummarizer:
             return content
 
         logger.debug(
-            f"INTELLIGENT SUMMARIZATION: Generic content ({len(content)} chars -> {context.target_length})"
+            f"INTELLIGENT SUMMARIZATION: Generic content "
+            f"({len(content)} chars -> {context.target_length})"
         )
 
         # Define high-importance keywords that should be preserved
@@ -714,7 +718,7 @@ class IntelligentSummarizer:
         summary_parts = []
         current_length = 0
 
-        for score, sentence in scored_sentences:
+        for _score, sentence in scored_sentences:
             sentence_with_period = sentence + "."
             if current_length + len(sentence_with_period) <= context.target_length:
                 summary_parts.append(sentence_with_period)

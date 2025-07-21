@@ -1,10 +1,8 @@
 import logging
 import os
 from pathlib import Path
-import shutil
 import tempfile
 import time
-from typing import Any, Dict, List, Optional
 
 import chromadb
 from dotenv import load_dotenv  # Added import
@@ -31,13 +29,13 @@ def get_chroma_data_path():
         # 1. Environment variable (highest priority)
         CONFIGURED_CHROMA_DATA_PATH,
         # 2. Current working directory + .index_data subfolder
-        os.path.join(os.getcwd(), ".index_data", "chroma_data"),
+        Path.joinpath(Path.cwd(), ".index_data", "chroma_data"),
         # 3. Home directory + .adk/devops_agent subfolder
-        os.path.join(str(Path.home()), ".adk", "devops_agent", "chroma_data"),
+        Path.joinpath(Path.home(), ".adk", "devops_agent", "chroma_data"),
         # 4. Original path from __file__ (kept for backward compatibility)
-        os.path.abspath(os.path.join(os.path.dirname(__file__), "chroma_data")),
+        Path.absolute(Path.joinpath(Path(__file__).parent, "chroma_data")),
         # 5. System temp directory (final fallback)
-        os.path.join(tempfile.gettempdir(), "devops_agent_chroma_data"),
+        Path.joinpath(Path(tempfile.gettempdir()), "devops_agent_chroma_data"),
     ]
 
     # Try each path until we find one that's writable
@@ -47,13 +45,13 @@ def get_chroma_data_path():
 
         try:
             # Create the directory if it doesn't exist
-            os.makedirs(path, exist_ok=True)
+            Path(path).mkdir(parents=True, exist_ok=True)
 
             # Test if we can write to it
-            test_file = os.path.join(path, ".write_test")
-            with open(test_file, "w") as f:
+            test_file = Path.joinpath(Path(path), ".write_test")
+            with test_file.open("w") as f:
                 f.write("test")
-            os.remove(test_file)
+            test_file.unlink()
 
             logger.info(f"Using ChromaDB data path: {path}")
             return path
@@ -61,8 +59,8 @@ def get_chroma_data_path():
             logger.warning(f"Cannot use path {path} for ChromaDB data: {e}")
 
     # If all paths fail, create a new directory in the temp folder with a unique name
-    fallback_path = os.path.join(tempfile.gettempdir(), f"devops_agent_chroma_{os.getpid()}")
-    os.makedirs(fallback_path, exist_ok=True)
+    fallback_path = Path.joinpath(Path(tempfile.gettempdir()), f"devops_agent_chroma_{os.getpid()}")
+    fallback_path.mkdir(parents=True, exist_ok=True)
     logger.warning(f"Using fallback temp directory for ChromaDB: {fallback_path}")
     return fallback_path
 
@@ -105,8 +103,10 @@ def create_chroma_client():
         logger.warning("Attempting to create a fresh database in an alternate location...")
 
         # Pick a new temp directory path
-        new_path = os.path.join(tempfile.gettempdir(), f"devops_agent_chroma_new_{os.getpid()}")
-        os.makedirs(new_path, exist_ok=True)
+        new_path = Path.joinpath(
+            Path(tempfile.gettempdir()), f"devops_agent_chroma_new_{os.getpid()}"
+        )
+        new_path.mkdir(parents=True, exist_ok=True)
 
         try:
             # Update the global path
@@ -158,7 +158,8 @@ def embed_chunks_batch(
     for attempt in range(max_retries + 1):
         try:
             logger.info(
-                f"Requesting embeddings for {len(chunks_content)} chunks using {EMBEDDING_MODEL_NAME}..."
+                f"Requesting embeddings for {len(chunks_content)} chunks using "
+                f"{EMBEDDING_MODEL_NAME}..."
             )
             # Use the client instance to call embed_content
             result = genai_client.models.embed_content(
@@ -187,7 +188,8 @@ def embed_chunks_batch(
                     # Calculate exponential backoff delay (60s, 120s, 240s)
                     delay = 60 * (2**attempt)
                     logger.warning(
-                        f"Rate limit hit during embedding (attempt {attempt + 1}/{max_retries + 1}). "
+                        f"Rate limit hit during embedding (attempt {attempt + 1}/"
+                        f"{max_retries + 1}). "
                         f"Waiting {delay} seconds before retry..."
                     )
                     time.sleep(delay)
@@ -200,9 +202,10 @@ def embed_chunks_batch(
             logger.error(f"Google API error during embedding: {e}")
             return None
 
-        except AttributeError as ae:
+        except AttributeError:
             logger.error(
-                f"Attribute error during embedding (check SDK setup or API changes for embed_content): {ae}"
+                "Attribute error during embedding (check SDK setup or API changes for "
+                "embed_content): {ae}"
             )
             return None
         except Exception as e:
@@ -231,7 +234,8 @@ def index_file_chunks(collection, file_chunks_data: list[dict]):
 
     if embeddings is None or len(embeddings) != len(file_chunks_data):
         logger.error(
-            f"Failed to generate embeddings or mismatch in count for {file_path_logging}. Aborting indexing for this file."
+            f"Failed to generate embeddings or mismatch in count for {file_path_logging}. "
+            "Aborting indexing for this file."
         )
         return False
 
@@ -240,7 +244,7 @@ def index_file_chunks(collection, file_chunks_data: list[dict]):
     documents = []
 
     for _i, chunk_data in enumerate(file_chunks_data):
-        chunk_id = f"{chunk_data['file_path']}_{chunk_data['type']}_{chunk_data['name']}_{chunk_data['start_line']}-{chunk_data['end_line']}"
+        chunk_id = f"{chunk_data['file_path']}_{chunk_data['type']}_{chunk_data['name']}_{chunk_data['start_line']}-{chunk_data['end_line']}"  # noqa: E501
         ids.append(chunk_id)
 
         metadata = {
@@ -266,15 +270,16 @@ def index_file_chunks(collection, file_chunks_data: list[dict]):
         # Special case for readonly database error
         if "readonly database" in str(e).lower():
             logger.warning(
-                "Detected readonly database issue. Attempting to recreate the client in a writable location..."
+                "Detected readonly database issue. Attempting to recreate the client in a "
+                "writable location..."
             )
             global chroma_client, CHROMA_DATA_PATH
 
             # Try to force recreation of the client in a new location
-            new_path = os.path.join(
-                tempfile.gettempdir(), f"devops_agent_chroma_retry_{os.getpid()}"
+            new_path = Path.joinpath(
+                Path(tempfile.gettempdir()), f"devops_agent_chroma_retry_{os.getpid()}"
             )
-            os.makedirs(new_path, exist_ok=True)
+            new_path.mkdir(parents=True, exist_ok=True)
             CHROMA_DATA_PATH = new_path
 
             try:
@@ -312,8 +317,10 @@ def clear_index():
             )
 
             # Create a completely new database
-            new_path = os.path.join(tempfile.gettempdir(), f"devops_agent_chroma_new_{os.getpid()}")
-            os.makedirs(new_path, exist_ok=True)
+            new_path = Path.joinpath(
+                Path(tempfile.gettempdir()), f"devops_agent_chroma_new_{os.getpid()}"
+            )
+            new_path.mkdir(parents=True, exist_ok=True)
             CHROMA_DATA_PATH = new_path
 
             try:

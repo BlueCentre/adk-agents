@@ -1,5 +1,4 @@
-import logging  # It's good practice to use logging
-import os
+import logging
 import shutil
 
 # Attempt to import CHROMA_DATA_PATH from indexing.py in the same directory
@@ -12,7 +11,8 @@ except ImportError as e:
     # This fallback is less likely to be needed if they are in the same directory
     # and the package structure is standard.
     logging.error(
-        f"Failed to import CHROMA_DATA_PATH from .indexing: {e}. Purging tool may not work correctly."
+        f"Failed to import CHROMA_DATA_PATH from .indexing: {e}. Purging tool may not work "
+        "correctly."
     )
     # Define a plausible fallback or raise an error if critical
     # For now, let's make it so the script would fail loudly if CHROMA_DATA_PATH is not set.
@@ -31,19 +31,26 @@ def purge_rag_index_data():
         logging.error(message)
         return {"status": "error", "message": message}
 
-    if not os.path.isabs(CHROMA_DATA_PATH):
-        message = f"Error: CHROMA_DATA_PATH ('{CHROMA_DATA_PATH}') is not an absolute path. Aborting purge for safety."
+    if not CHROMA_DATA_PATH.is_absolute():
+        message = (
+            f"Error: CHROMA_DATA_PATH ('{CHROMA_DATA_PATH}') is not an absolute path. "
+            "Aborting purge for safety."
+        )
         logging.error(message)
         return {"status": "error", "message": message}
 
     logging.warning(f"Attempting to purge RAG index data directory: {CHROMA_DATA_PATH}")
     logging.warning(
-        f"This will affect the collection: {CHROMA_COLLECTION_NAME if CHROMA_COLLECTION_NAME else 'Unknown'}"
+        f"This will affect the collection: "
+        f"{CHROMA_COLLECTION_NAME if CHROMA_COLLECTION_NAME else 'Unknown'}"
     )
 
-    if os.path.exists(CHROMA_DATA_PATH):
-        if not os.path.isdir(CHROMA_DATA_PATH):
-            message = f"Error: Target path {CHROMA_DATA_PATH} exists but is not a directory. Aborting purge."
+    if CHROMA_DATA_PATH.exists():
+        if not CHROMA_DATA_PATH.is_dir():
+            message = (
+                f"Error: Target path {CHROMA_DATA_PATH} exists but is not a directory. "
+                "Aborting purge."
+            )
             logging.error(message)
             return {"status": "error", "message": message}
         try:
@@ -71,7 +78,8 @@ if __name__ == "__main__":
         print("WARNING: This script will permanently delete the ChromaDB data directory.")
         print(f"The target directory is: {CHROMA_DATA_PATH}")
         print(
-            f"This is expected to contain data for collection: {CHROMA_COLLECTION_NAME if CHROMA_COLLECTION_NAME else 'Unknown'}"
+            "This is expected to contain data for collection: "
+            f"{CHROMA_COLLECTION_NAME if CHROMA_COLLECTION_NAME else 'Unknown'}"
         )
 
         confirmation = (

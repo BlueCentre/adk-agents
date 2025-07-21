@@ -2,9 +2,7 @@
 
 import hashlib
 import logging
-import os
 import re
-from typing import Dict, List, Optional, Set, Tuple
 
 # Set up logging
 logger = logging.getLogger(__name__)

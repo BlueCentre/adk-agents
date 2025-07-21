@@ -1,24 +1,31 @@
 """Enhanced Software Engineer Agent with ADK Workflow Patterns."""
 
 import logging
-from typing import Any, Dict
+from typing import Any
+import warnings
 
 from google.adk.agents import Agent, LlmAgent
 from google.adk.models.lite_llm import LiteLlm
+from google.adk.planners import BuiltInPlanner
 from google.adk.tools import FunctionTool, ToolContext, load_memory
-
+from google.genai import types
 from google.genai.types import GenerateContentConfig
 
 from . import config as agent_config, prompt
-from .shared_libraries.callbacks import create_enhanced_telemetry_callbacks
+from .shared_libraries.callbacks import (
+    create_enhanced_telemetry_callbacks,
+    create_model_config_callbacks,
+)
 
 # Import sub-agent prompts and tools to create separate instances
 from .tools.setup import load_all_tools_and_toolsets
 
-# Import workflow patterns
+# Ignore all warnings
+warnings.filterwarnings("ignore")
+logging.basicConfig(level=logging.ERROR)
 
-logging.getLogger("LiteLLM").setLevel(logging.WARNING)
-logger = logging.getLogger(__name__)
+# logging.getLogger("LiteLLM").setLevel(logging.WARNING)
+# logger = logging.getLogger(__name__)
 
 
 def create_enhanced_sub_agents():
@@ -63,6 +70,55 @@ def create_enhanced_sub_agents():
     enhanced_sub_agents.append(create_ollama_agent("enhanced_"))
 
     return enhanced_sub_agents
+
+
+def state_manager_tool(
+    action: str, key: str = "", value: str = "", tool_context: ToolContext = None
+) -> dict[str, Any]:
+    """
+    Tool for managing shared state between agents in workflows.
+
+    Args:
+        action: Action to perform (get, set, update, delete, list_keys)
+        key: State key to operate on
+        value: String value to set (for set/update actions)
+        tool_context: ADK tool context
+
+    Returns:
+        Dict containing operation result
+    """
+
+    if not tool_context or not tool_context.state:
+        return {"status": "error", "message": "No session state available"}
+
+    try:
+        if action == "get":
+            result = tool_context.state.get(key)
+            return {"status": "success", "key": key, "value": result}
+
+        if action == "set":
+            tool_context.state[key] = value
+            return {"status": "success", "message": f"Set {key} = {value}"}
+
+        if action == "update":
+            # For simplicity, treat update as set for string values
+            tool_context.state[key] = value
+            return {"status": "success", "message": f"Updated {key}"}
+
+        if action == "delete":
+            if key in tool_context.state:
+                del tool_context.state[key]
+                return {"status": "success", "message": f"Deleted {key}"}
+            return {"status": "warning", "message": f"Key {key} not found"}
+
+        if action == "list_keys":
+            keys = list(tool_context.state.keys())
+            return {"status": "success", "keys": keys}
+
+        return {"status": "error", "message": f"Unknown action: {action}"}
+
+    except Exception as e:
+        return {"status": "error", "message": f"State operation failed: {e!s}"}
 
 
 def workflow_selector_tool(
@@ -149,62 +205,15 @@ def workflow_selector_tool(
             "parallel_capable": parallel_capable,
             "iterative": iterative,
         },
-        "recommendation_reason": f"Selected {selected_workflow} based on task complexity and requirements",
+        "recommendation_reason": (
+            f"Selected {selected_workflow} based on task complexity and requirements",
+        ),
     }
 
 
-def state_manager_tool(
-    action: str, key: str = "", value: str = "", tool_context: ToolContext = None
-) -> dict[str, Any]:
-    """
-    Tool for managing shared state between agents in workflows.
-
-    Args:
-        action: Action to perform (get, set, update, delete, list_keys)
-        key: State key to operate on
-        value: String value to set (for set/update actions)
-        tool_context: ADK tool context
-
-    Returns:
-        Dict containing operation result
-    """
-
-    if not tool_context or not tool_context.state:
-        return {"status": "error", "message": "No session state available"}
-
-    try:
-        if action == "get":
-            result = tool_context.state.get(key)
-            return {"status": "success", "key": key, "value": result}
-
-        if action == "set":
-            tool_context.state[key] = value
-            return {"status": "success", "message": f"Set {key} = {value}"}
-
-        if action == "update":
-            # For simplicity, treat update as set for string values
-            tool_context.state[key] = value
-            return {"status": "success", "message": f"Updated {key}"}
-
-        if action == "delete":
-            if key in tool_context.state:
-                del tool_context.state[key]
-                return {"status": "success", "message": f"Deleted {key}"}
-            return {"status": "warning", "message": f"Key {key} not found"}
-
-        if action == "list_keys":
-            keys = list(tool_context.state.keys())
-            return {"status": "success", "keys": keys}
-
-        return {"status": "error", "message": f"Unknown action: {action}"}
-
-    except Exception as e:
-        return {"status": "error", "message": f"State operation failed: {e!s}"}
-
-
 # Create tool instances
-workflow_selector_function_tool = FunctionTool(workflow_selector_tool)
 state_manager_function_tool = FunctionTool(state_manager_tool)
+workflow_selector_function_tool = FunctionTool(workflow_selector_tool)
 
 
 def create_enhanced_software_engineer_agent() -> Agent:
@@ -218,38 +227,58 @@ def create_enhanced_software_engineer_agent() -> Agent:
     4. Intelligent task routing and coordination
     """
 
+    # Initialize model
+    model = LiteLlm(model=f"gemini/{agent_config.DEFAULT_AGENT_MODEL}")
+
     # Load all tools
     tools = load_all_tools_and_toolsets()
-
-    # Add workflow and state management tools
-    tools.extend([workflow_selector_function_tool, state_manager_function_tool, load_memory])
-
-    # Create telemetry callbacks for observability
-    callbacks = create_enhanced_telemetry_callbacks("enhanced_software_engineer")
 
     # Note: Workflows are created on-demand to avoid agent parent conflicts
     # This allows dynamic workflow creation without pre-instantiating all workflows
 
+    # Add workflow and state management tools
+    tools.extend(
+        [
+            state_manager_function_tool,
+            workflow_selector_function_tool,
+            load_memory,
+        ]
+    )
+
+    # Create telemetry callbacks for observability
+    telemetry_callbacks = create_enhanced_telemetry_callbacks("enhanced_software_engineer")
+
+    # Create model thinking config callback
+    config_callback = create_model_config_callbacks(model.model)
+
     # Create the enhanced agent
     return Agent(
-        model=LiteLlm(model=f"gemini/{agent_config.DEFAULT_AGENT_MODEL}"),
+        model=model,
         name="enhanced_software_engineer",
         description="Advanced software engineer with ADK workflow orchestration capabilities",
         instruction=prompt.SOFTWARE_ENGINEER_ENHANCED_INSTR,
-        generate_content_config=GenerateContentConfig(
-            temperature=0.1,
-            top_p=0.95,
-            # max_output_tokens=4096,
-        ),
-        sub_agents=create_enhanced_sub_agents(),  # Create separate instances to avoid parent conflicts
+        planner=BuiltInPlanner(
+            thinking_config=types.ThinkingConfig(
+                include_thoughts=agent_config.GEMINI_THINKING_INCLUDE_THOUGHTS,
+                thinking_budget=agent_config.GEMINI_THINKING_BUDGET,
+            ),
+        )
+        if agent_config.GEMINI_THINKING_ENABLE
+        and agent_config.is_thinking_supported(agent_config.DEFAULT_AGENT_MODEL)
+        else None,  # noqa: E501 Add planner for thinking
+        generate_content_config=agent_config.MAIN_LLM_GENERATION_CONFIG,
+        sub_agents=create_enhanced_sub_agents(),  # Separate instances to avoid parent conflicts
         tools=tools,
         # Add telemetry callbacks for observability
-        before_agent_callback=callbacks["before_agent"],
-        after_agent_callback=callbacks["after_agent"],
-        before_model_callback=callbacks["before_model"],
-        after_model_callback=callbacks["after_model"],
-        before_tool_callback=callbacks["before_tool"],
-        after_tool_callback=callbacks["after_tool"],
+        before_agent_callback=telemetry_callbacks["before_agent"],
+        after_agent_callback=telemetry_callbacks["after_agent"],
+        before_model_callback=[
+            telemetry_callbacks["before_model"],
+            config_callback["before_model"],
+        ],
+        after_model_callback=telemetry_callbacks["after_model"],
+        before_tool_callback=telemetry_callbacks["before_tool"],
+        after_tool_callback=telemetry_callbacks["after_tool"],
         output_key="enhanced_software_engineer",
     )
 

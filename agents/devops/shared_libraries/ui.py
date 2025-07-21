@@ -30,7 +30,8 @@ def display_agent_thought(console: Console, thought_summaries: list):
     """Displays agent thought summaries in a Rich panel."""
     try:
         logger.info(
-            f"display_agent_thought called with {len(thought_summaries) if thought_summaries else 0} summaries"
+            "display_agent_thought called with "
+            f"{len(thought_summaries) if thought_summaries else 0} summaries"
         )
         if not thought_summaries:
             logger.info("No thought summaries to display, returning early")
@@ -64,7 +65,8 @@ def display_model_usage(
     """Displays model token usage in a Rich panel."""
     try:
         content = Text.from_markup(
-            f"[dim][b]Token Usage:[/b] Prompt: {prompt_tokens}, Completion: {completion_tokens}, Total: {total_tokens}[/dim]"
+            f"[dim][b]Token Usage:[/b] Prompt: {prompt_tokens}, "
+            f"Completion: {completion_tokens}, Total: {total_tokens}[/dim]"
         )
         panel = Panel(
             content,
@@ -179,7 +181,8 @@ def display_tool_error_with_suggestions(
 
         content_parts = [
             f"[dim][b]Tool:[/b] {escape(tool_name)}[/dim]",
-            f"[red][b]Error:[/b] {escape(base_error[:300])}{'...' if len(base_error) > 300 else ''}[/red]",
+            f"[red][b]Error:[/b] {escape(base_error[:300])}"
+            f"{'...' if len(base_error) > 300 else ''}[/red]",
         ]
 
         if suggestion_text:
@@ -210,7 +213,10 @@ def display_tool_error_with_suggestions(
 def display_unhandled_error(console: Console, error_type: str, error_message: str, mcp_hint: str):
     """Displays an unhandled agent error in a Rich panel."""
     try:
-        rich_error_message_display = f"Type: {escape(error_type)}\nMessage: {escape(error_message)}\n{escape(mcp_hint) if mcp_hint else ''}"
+        rich_error_message_display = (
+            f"Type: {escape(error_type)}\nMessage: {escape(error_message)}\n"
+            f"{escape(mcp_hint) if mcp_hint else ''}"
+        )
         panel = Panel(
             Text.from_markup(
                 f"""[bold red]💥 Unhandled Agent Error[/bold red]\n{rich_error_message_display}"""
@@ -228,7 +234,8 @@ def display_retry_suggestions(console: Console, command: str, suggestions: list)
     """Displays command retry suggestions in a Rich panel."""
     try:
         content_parts = [
-            f"[b]Original Command:[/b] {escape(command[:100])}{'...' if len(command) > 100 else ''}",
+            f"[b]Original Command:[/b] {escape(command[:100])}"
+            f"{'...' if len(command) > 100 else ''}",
             "[b]Suggested Alternatives:[/b]",
         ]
 

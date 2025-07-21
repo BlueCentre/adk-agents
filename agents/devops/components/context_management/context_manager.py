@@ -4,9 +4,9 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 import json
 import logging
-import os
+from pathlib import Path
 import time
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Optional
 
 from google import genai
 from google.genai.types import Content, CountTokensResponse, Part  # For native token counting
@@ -26,7 +26,8 @@ try:
 except ImportError:
     TIKTOKEN_AVAILABLE = False
     logging.warning(
-        "tiktoken library not found. Token counting will be a rough estimate based on character count if native counter also fails."
+        "tiktoken library not found. Token counting will be a rough estimate based on "
+        "character count if native counter also fails."
     )
 
 # Set up logging
@@ -133,8 +134,6 @@ class ContextManager:
         # If llm_client is None, try to create one if possible
         if llm_client is None:
             try:
-                import os
-
                 from ... import config as agent_config
 
                 # Create genai client with API key directly
@@ -200,7 +199,8 @@ class ContextManager:
             f"LLM Client Type: {type(self.llm_client).__name__ if self.llm_client else 'None'}"
         )
         logger.info(
-            f"Token Counting Strategy: {self._token_counting_fn.__name__ if hasattr(self._token_counting_fn, '__name__') else 'lambda function'}"
+            f"Token Counting Strategy: "
+            f"{self._token_counting_fn.__name__ if hasattr(self._token_counting_fn, '__name__') else 'lambda function'}"  # noqa: E501
         )
         logger.info("=" * 60)
 
@@ -225,7 +225,9 @@ class ContextManager:
                         return response.total_tokens
                     except Exception as e_native_call:
                         logger.debug(
-                            f"Native Google count_tokens call (via Content object) failed for model {self.model_name}: {e_native_call}. Attempting string directly."
+                            f"Native Google count_tokens call (via Content object) failed for "
+                            f"model {self.model_name}: {e_native_call}. "
+                            "Attempting string directly."
                         )
                         try:  # Try with string directly as contents
                             response: CountTokensResponse = self.llm_client.models.count_tokens(
@@ -234,7 +236,8 @@ class ContextManager:
                             return response.total_tokens
                         except Exception as e_native_str_call:
                             logger.warning(
-                                f"Native Google count_tokens (string direct) also failed for model {self.model_name}: {e_native_str_call}. Falling back."
+                                f"Native Google count_tokens (string direct) also failed for "
+                                f"model {self.model_name}: {e_native_str_call}. Falling back."
                             )
                             # Fall through to tiktoken if native fails unexpectedly
                             if TIKTOKEN_AVAILABLE:
@@ -254,22 +257,26 @@ class ContextManager:
                     test_response, "total_tokens"
                 ):
                     logger.info(
-                        f"Using native Google GenAI token counter for model {self.model_name} (via google.genai client)."
+                        f"Using native Google GenAI token counter for model "
+                        f"{self.model_name} (via google.genai client)."
                     )
                     return native_google_counter
                 logger.warning(
-                    f"Native Google count_tokens for {self.model_name} did not return expected response ({type(test_response)}). Falling back."
+                    f"Native Google count_tokens for {self.model_name} did not return expected "
+                    f"response ({type(test_response)}). Falling back."
                 )
             except Exception as e_init:
                 logger.warning(
-                    f"Could not initialize or test native Google count_tokens for model {self.model_name}: {e_init}. Falling back."
+                    f"Could not initialize or test native Google count_tokens for model "
+                    f"{self.model_name}: {e_init}. Falling back."
                 )
         else:
             if self.llm_client is None:
                 logger.warning("llm_client is None - cannot use native token counter")
             elif not isinstance(self.llm_client, genai.Client):
                 logger.warning(
-                    f"llm_client is not a genai.Client instance (got {type(self.llm_client).__name__})"
+                    f"llm_client is not a genai.Client instance (got "
+                    f"{type(self.llm_client).__name__})"
                 )
             elif not hasattr(self.llm_client, "models") or not hasattr(
                 self.llm_client.models, "count_tokens"
@@ -286,11 +293,13 @@ class ContextManager:
                 try:
                     tokenizer = tiktoken.get_encoding("cl100k_base")
                     logger.info(
-                        f"Using tiktoken with cl100k_base encoding for {self.model_name} (model-specific not found)."
+                        f"Using tiktoken with cl100k_base encoding for "
+                        f"{self.model_name} (model-specific not found)."
                     )
                 except Exception as e_cl100k:
                     logger.error(
-                        f"Failed to get cl100k_base tokenizer: {e_cl100k}. Tiktoken unavailable for {self.model_name}."
+                        f"Failed to get cl100k_base tokenizer: {e_cl100k}. "
+                        f"Tiktoken unavailable for {self.model_name}."
                     )
 
             if tokenizer:
@@ -299,14 +308,16 @@ class ContextManager:
 
         # Strategy 3: Character count fallback
         logger.warning(
-            f"No advanced tokenizer available for {self.model_name}. Using character-based token estimation (len // 4)."
+            f"No advanced tokenizer available for {self.model_name}. "
+            "Using character-based token estimation (len // 4)."
         )
         return lambda text: len(text) // 4
 
     def _count_tokens(self, text: str) -> int:
         if not isinstance(text, str):
             logger.debug(
-                f"Non-string type ({type(text)}) passed to _count_tokens. Converting to string for counting."
+                f"Non-string type ({type(text)}) passed to _count_tokens. "
+                "Converting to string for counting."
             )
             text = str(text)
         if not text:  # Handle empty or None string
@@ -315,7 +326,8 @@ class ContextManager:
             return self._token_counting_fn(text)
         except Exception as e:
             logger.error(
-                f"Error during token counting for text '{text[:50]}...': {e}. Falling back to char count.",
+                f"Error during token counting for text '{text[:50]}...': "
+                f"{e}. Falling back to char count.",
                 exc_info=True,
             )
             return len(text) // 4
@@ -394,7 +406,8 @@ class ContextManager:
             logger.debug(f"Removed code snippet due to store limit: {removed.file_path}")
         self.code_snippets.append(new_snippet)
         logger.info(
-            f"Added code snippet from {file_path} ({start_line}-{end_line}), tokens: {new_snippet.token_count}"
+            f"Added code snippet from {file_path} ({start_line}-{end_line}), "
+            f"tokens: {new_snippet.token_count}"
         )
 
     def add_full_file_content(self, file_path: str, content: str) -> None:
@@ -468,15 +481,22 @@ class ContextManager:
                 content = result["content"]
                 if isinstance(content, str):
                     if any(kw in content for kw in ["def ", "class ", "import ", "function("]):
-                        summary = f"Read code file. Length: {len(content)} chars. Content (truncated): {content[:500]}...{content[-500:] if len(content) > 1000 else ''}"
+                        summary = (
+                            f"Read code file. Length: {len(content)} chars. Content (truncated): "
+                            f"{content[:500]}...{content[-500:] if len(content) > 1000 else ''}"
+                        )
                     else:
-                        summary = f"Read file. Length: {len(content)} chars. Content (truncated): {content[:500]}...{content[-500:] if len(content) > 1000 else ''}"
+                        summary = (
+                            f"Read file. Length: {len(content)} chars. Content (truncated): "
+                            f"{content[:500]}...{content[-500:] if len(content) > 1000 else ''}"
+                        )
 
                     # Log transformation details for file content
                     logger.info("Transformation Type: File content summary")
                     logger.info(f"Original File Content Size: {len(content):,} characters")
                     logger.info(
-                        f"Content Type: {'Code file' if any(kw in content for kw in ['def ', 'class ', 'import ', 'function(']) else 'Text file'}"
+                        "Content Type: "
+                        f"{'Code file' if any(kw in content for kw in ['def ', 'class ', 'import ', 'function(']) else 'Text file'}"  # noqa: E501
                     )
                 else:
                     summary = f"Read file, content type: {type(content).__name__}."
@@ -502,11 +522,13 @@ class ContextManager:
                         logger.info("Stdout Transformation: Already truncated by tool")
                         newline = "\n"
                         parts.append(
-                            f"Stdout was large and truncated. First/last parts: {stdout.split(newline, 1)[-1]}"
+                            f"Stdout was large and truncated. First/last parts: "
+                            f"{stdout.split(newline, 1)[-1]}"
                         )  # Show after truncation message
                     else:
                         logger.info(
-                            f"Stdout Transformation: Truncating to {MAX_SUMMARY_LEN // 2} characters"
+                            f"Stdout Transformation: Truncating to "
+                            f"{MAX_SUMMARY_LEN // 2} characters"
                         )
                         parts.append(
                             f"Stdout: {stdout[: MAX_SUMMARY_LEN // 2]}"
@@ -518,11 +540,13 @@ class ContextManager:
                         logger.info("Stderr Transformation: Already truncated by tool")
                         newline = "\n"
                         parts.append(
-                            f"Stderr was large and truncated. First/last parts: {stderr.split(newline, 1)[-1]}"
+                            f"Stderr was large and truncated. First/last parts: "
+                            f"{stderr.split(newline, 1)[-1]}"
                         )
                     else:
                         logger.info(
-                            f"Stderr Transformation: Truncating to {MAX_SUMMARY_LEN // 2} characters"
+                            f"Stderr Transformation: Truncating to "
+                            f"{MAX_SUMMARY_LEN // 2} characters"
                         )
                         parts.append(f"Stderr: {stderr[: MAX_SUMMARY_LEN // 2]}")
 
@@ -532,18 +556,23 @@ class ContextManager:
                     parts.append("No output on stdout or stderr, but command failed.")
                 summary = " ".join(parts)
             else:
-                summary = f"Tool {tool_name} (shell command) produced non-dict result: {str(result)[:100]}"
+                summary = (
+                    f"Tool {tool_name} (shell command) produced non-dict result: "
+                    f"{str(result)[:100]}"
+                )
         elif tool_name in ["ripgrep_code_search", "retrieve_code_context_tool"]:
             if isinstance(result, dict):
                 if "matches" in result and isinstance(result["matches"], list):
                     summary = f"Search returned {len(result['matches'])} matches."
                     logger.info(
-                        f"Search Result Transformation: Condensed {len(result['matches'])} matches to count summary"
+                        "Search Result Transformation: Condensed "
+                        f"{len(result['matches'])} matches to count summary"
                     )
                 elif "retrieved_chunks" in result and isinstance(result["retrieved_chunks"], list):
                     summary = f"Retrieved {len(result['retrieved_chunks'])} code chunks."
                     logger.info(
-                        f"Code Retrieval Transformation: Condensed {len(result['retrieved_chunks'])} chunks to count summary"
+                        "Code Retrieval Transformation: Condensed "
+                        f"{len(result['retrieved_chunks'])} chunks to count summary"
                     )
                 else:
                     summary = f"{tool_name} completed. Keys: {list(result.keys())}"
@@ -565,7 +594,8 @@ class ContextManager:
                 ]
                 summary_parts = []
                 logger.info(
-                    f"Generic Dict Transformation: Extracting important keys from {list(result.keys())}"
+                    "Generic Dict Transformation: Extracting important keys from "
+                    f'"{list(result.keys())}"'
                 )
                 for key in important_keys:
                     if result.get(key):
@@ -585,9 +615,13 @@ class ContextManager:
                     summary = f"Tool {tool_name}: " + "; ".join(summary_parts)
                 else:
                     original_str = str(result)
-                    summary = f"Tool {tool_name} completed. Result (truncated): {original_str[:800]}..."  # Increased from 200
+                    summary = (
+                        f"Tool {tool_name} completed. Result (truncated): "
+                        f"{original_str[:800]}..."  # Increased from 200
+                    )
                     logger.info(
-                        f"Fallback Transformation: Truncated result from {len(original_str)} to 800 characters"
+                        f"Fallback Transformation: Truncated result from "
+                        f"{len(original_str)} to 800 characters"
                     )
             elif isinstance(result, str):
                 summary = (
@@ -599,7 +633,8 @@ class ContextManager:
             else:
                 summary = f"Tool {tool_name} completed with result type: {type(result).__name__}."
                 logger.info(
-                    f"Non-string Result Transformation: Converted {type(result).__name__} to type description"
+                    f"Non-string Result Transformation: Converted "
+                    f"{type(result).__name__} to type description"
                 )
 
         # Apply final length limit and log if truncated
@@ -607,7 +642,8 @@ class ContextManager:
             original_summary_len = len(summary)
             summary = summary[: MAX_SUMMARY_LEN - len(TRUNC_MSG_TEMPLATE)] + TRUNC_MSG_TEMPLATE
             logger.info(
-                f"Final Summary Transformation: Truncated from {original_summary_len} to {MAX_SUMMARY_LEN} characters"
+                f"Final Summary Transformation: Truncated from "
+                f"{original_summary_len} to {MAX_SUMMARY_LEN} characters"
             )
 
         # Log the final transformed summary
@@ -636,7 +672,7 @@ class ContextManager:
 
             # Enhanced diagnostic logging
             logger.info("DIAGNOSTIC: Starting proactive context gathering...")
-            logger.info(f"DIAGNOSTIC: Current working directory: {os.getcwd()}")
+            logger.info(f"DIAGNOSTIC: Current working directory: {Path.cwd()}")
             logger.info(f"DIAGNOSTIC: Workspace root: {getattr(self, 'workspace_root', 'Not set')}")
 
             try:
@@ -645,7 +681,8 @@ class ContextManager:
                 # Detailed diagnostic logging
                 if self._proactive_context_cache:
                     logger.info(
-                        f"DIAGNOSTIC: Proactive context keys: {list(self._proactive_context_cache.keys())}"
+                        f"DIAGNOSTIC: Proactive context keys: "
+                        f"{list(self._proactive_context_cache.keys())}"
                     )
                     for key, value in self._proactive_context_cache.items():
                         if isinstance(value, list):
@@ -654,7 +691,8 @@ class ContextManager:
                                 logger.info(f"DIAGNOSTIC: {key} sample: {str(value[0])[:100]}...")
                         elif isinstance(value, dict):
                             logger.info(
-                                f"DIAGNOSTIC: {key}: dict with {len(value)} keys: {list(value.keys())[:5]}"
+                                f"DIAGNOSTIC: {key}: dict with {len(value)} keys: "
+                                f"{list(value.keys())[:5]}"
                             )
                         else:
                             logger.info(
@@ -675,7 +713,8 @@ class ContextManager:
                 context_str = json.dumps(self._proactive_context_cache)
                 self._proactive_context_tokens = self._count_tokens(context_str)
                 logger.info(
-                    f"PROACTIVE CONTEXT: Gathered context with {self._proactive_context_tokens:,} tokens"
+                    f"PROACTIVE CONTEXT: Gathered context with "
+                    f"{self._proactive_context_tokens:,} tokens"
                 )
 
                 # Log summary of what was gathered
@@ -694,7 +733,8 @@ class ContextManager:
                 logger.info("DIAGNOSTIC: Checking proactive gatherer state...")
                 logger.info(f"DIAGNOSTIC: Gatherer type: {type(self.proactive_gatherer)}")
                 logger.info(
-                    f"DIAGNOSTIC: Gatherer workspace: {getattr(self.proactive_gatherer, 'workspace_root', 'Not found')}"
+                    f"DIAGNOSTIC: Gatherer workspace: "
+                    f"{getattr(self.proactive_gatherer, 'workspace_root', 'Not found')}"
                 )
 
         return self._proactive_context_cache or {}
@@ -707,7 +747,8 @@ class ContextManager:
             Tuple of (context_dict, total_context_tokens)
         """
         logger.info(
-            f"🧠 ASSEMBLING CONTEXT: Base prompt={base_prompt_tokens:,}, Limit={self.max_token_limit:,}"
+            f"🧠 ASSEMBLING CONTEXT: Base prompt={base_prompt_tokens:,}, "
+            f"Limit={self.max_token_limit:,}"
         )
 
         # Calculate available token budget with adaptive safety margin
@@ -796,7 +837,8 @@ class ContextManager:
             context_dict["conversation_history"] = selected_turns
             used_tokens += turn_tokens
             logger.debug(
-                f"🧠 Added conversation history: {turn_tokens:,} tokens ({len(selected_turns)} turns)"
+                f"🧠 Added conversation history: {turn_tokens:,} tokens "
+                f"({len(selected_turns)} turns)"
             )
 
         # 3. HIGH PRIORITY: Recent tool results
@@ -806,7 +848,8 @@ class ContextManager:
             context_dict["tool_results"] = selected_results
             used_tokens += results_tokens
             logger.debug(
-                f"🧠 Added tool results: {results_tokens:,} tokens ({len(selected_results)} results)"
+                f"🧠 Added tool results: {results_tokens:,} tokens "
+                f"({len(selected_results)} results)"
             )
 
         # 4. MEDIUM PRIORITY: Code snippets (remaining budget)
@@ -816,7 +859,8 @@ class ContextManager:
             context_dict["code_snippets"] = selected_snippets
             used_tokens += snippets_tokens
             logger.debug(
-                f"🧠 Added code snippets: {snippets_tokens:,} tokens ({len(selected_snippets)} snippets)"
+                f"🧠 Added code snippets: {snippets_tokens:,} tokens "
+                f"({len(selected_snippets)} snippets)"
             )
 
         return context_dict, used_tokens
@@ -928,7 +972,9 @@ class ContextManager:
         # Final safety check - if still too large, return absolute minimum
         if estimated_tokens > available_tokens:
             logger.warning(
-                f"Emergency optimization still too large ({estimated_tokens} > {available_tokens}), returning absolute minimum"
+                f"Emergency optimization still too large "
+                f"({estimated_tokens} > {available_tokens}), "
+                f"returning absolute minimum"
             )
             return {
                 "conversation_history": [],
@@ -1172,7 +1218,7 @@ class ContextManager:
                     and content.size_bytes < 50000
                 ):
                     # Add code files as code snippets
-                    with open(content.full_path, encoding="utf-8") as f:
+                    with Path(content.full_path).open(encoding="utf-8") as f:
                         file_content = f.read()
 
                     # Add as full file content
@@ -1186,7 +1232,7 @@ class ContextManager:
                     content.content_type in ["config", "dependency"] and content.size_bytes < 20000
                 ):
                     # Add config files to context
-                    with open(content.full_path, encoding="utf-8") as f:
+                    with Path(content.full_path).open(encoding="utf-8") as f:
                         file_content = f.read()
 
                     # Create a summarized version for config files
@@ -1209,12 +1255,13 @@ class ContextManager:
                     )
                     added_count += 1
                     logger.info(
-                        f"AUTO-ADDED: Config file {content.file_path} (summarized, {content.relevance_score:.2f})"
+                        f"AUTO-ADDED: Config file {content.file_path} "
+                        f"(summarized, {content.relevance_score:.2f})"
                     )
 
                 elif content.content_type == "documentation" and content.size_bytes < 30000:
                     # Add documentation with summarization
-                    with open(content.full_path, encoding="utf-8") as f:
+                    with Path(content.full_path).open(encoding="utf-8") as f:
                         file_content = f.read()
 
                     context = SummarizationContext(
@@ -1236,7 +1283,8 @@ class ContextManager:
                     )
                     added_count += 1
                     logger.info(
-                        f"AUTO-ADDED: Documentation {content.file_path} (summarized, {content.relevance_score:.2f})"
+                        f"AUTO-ADDED: Documentation {content.file_path} "
+                        f"(summarized, {content.relevance_score:.2f})"
                     )
 
             except Exception as e:

@@ -4,7 +4,7 @@ import logging
 import shlex
 import shutil
 import subprocess
-from typing import Any, Dict, List, Literal, Optional
+from typing import Literal, Optional
 
 # Import ToolContext for state management
 from google.adk.tools import (
@@ -103,7 +103,8 @@ def configure_shell_whitelist(
         # Initialize with default safe commands
         tool_context.state["shell_command_whitelist"] = agent_config.DEFAULT_SAFE_COMMANDS[:]
         logger.info(
-            f"Initialized shell command whitelist with defaults: {agent_config.DEFAULT_SAFE_COMMANDS}"
+            f"Initialized shell command whitelist with defaults: "
+            f"{agent_config.DEFAULT_SAFE_COMMANDS}"
         )
 
     whitelist: list[str] = tool_context.state["shell_command_whitelist"]
@@ -166,7 +167,7 @@ class CheckCommandExistsOutput(BaseModel):
     message: str
 
 
-def check_command_exists(args: dict, tool_context: ToolContext) -> CheckCommandExistsOutput:
+def check_command_exists(args: dict, tool_context: ToolContext) -> CheckCommandExistsOutput:  # noqa: ARG001
     """Checks if a command exists in the system's PATH. Extracts the base command."""
     # Handle potential nested args structure from LLM function calls
     # Try to get 'command' directly, then check for nested 'args.command_name'
@@ -264,10 +265,11 @@ def check_shell_command_safety(
         )
 
     require_approval = tool_context.state.get("require_shell_approval", True)
-    # Ensure whitelist is initialized if needed (accessing it via configure_shell_whitelist initializes)
+    # Ensure whitelist is initialized if needed
+    # (accessing it via configure_shell_whitelist initializes)
     if "shell_command_whitelist" not in tool_context.state:
         # Temporarily call configure_shell_whitelist with 'list' action to initialize state
-        # This is a slight workaround to ensure initialization happens if only check/execute are called.
+        # This is a workaround to ensure initialization happens if only check/execute are called.
         # A cleaner approach might involve a dedicated initialization step or context manager.
         _ = configure_shell_whitelist({"action": "list"}, tool_context)
 
@@ -330,7 +332,10 @@ def _truncate_output(output: str, max_len: int, head_tail_len: int) -> str:
     if output is None or len(output) <= max_len:
         return output
 
-    truncated_msg = f"[Output truncated. Original length: {len(output)} chars. Showing first and last {head_tail_len} chars]\\n"
+    truncated_msg = (
+        f"[Output truncated. Original length: {len(output)} chars. "
+        f"Showing first and last {head_tail_len} chars]\\n"
+    )
     head = output[:head_tail_len]
     tail = output[-head_tail_len:]
     return truncated_msg + head + "\\n...\\n" + tail

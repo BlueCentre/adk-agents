@@ -2,11 +2,9 @@
 
 import json
 import logging
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional
 
-from google.adk.agents.callback_context import CallbackContext
 from google.adk.models.llm_request import LlmRequest
-from google.adk.models.llm_response import LlmResponse
 from google.genai import types as genai_types
 
 # Set up logging
@@ -67,11 +65,13 @@ Use this context to inform your response. Do not directly refer to this context 
     )
 
     # Find the right position to insert our context
-    # We want it after system messages but before the first non-system message that isn't our own context block
+    # We want it after system messages but before the first non-system message that isn't our own
+    # context block
     first_non_system_idx = 0
     for i, content in enumerate(llm_request.contents):
         if content.role != "system":
-            # Avoid inserting multiple times if this function is called repeatedly on the same request
+            # Avoid inserting multiple times if this function is called repeatedly on
+            # the same request
             if content.parts and content.parts[0].text.startswith("SYSTEM CONTEXT (JSON):"):
                 logger.debug("Context block already present, replacing.")
                 new_contents = list(llm_request.contents)
@@ -81,7 +81,8 @@ Use this context to inform your response. Do not directly refer to this context 
                 )
             first_non_system_idx = i
             break
-    else:  # If only system messages exist or no messages at all (though we checked for empty contents)
+    # If only system messages exist or no messages at all (though we checked for empty contents)
+    else:
         first_non_system_idx = len(llm_request.contents)
 
     # Create a new list of contents with our context inserted

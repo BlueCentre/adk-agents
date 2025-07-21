@@ -35,7 +35,8 @@ callbacks = create_enhanced_telemetry_callbacks("software_engineer")
 root_agent = Agent(
     # model=LiteLlm(model="ollama_chat/llama3.2"),  # Use ollama_chat provider with LiteLlm
     model=LiteLlm(
-        model=f"gemini/{agent_config.DEFAULT_AGENT_MODEL}"
+        model=f"gemini/{agent_config.DEFAULT_AGENT_MODEL}",
+        generate_content_config=agent_config.MAIN_LLM_GENERATION_CONFIG,
     ),  # Use ollama_chat provider with LiteLlm
     # model="gemini-2.5-flash-preview-05-20",  # Changed from Ollama to Gemini to match sub-agents
     name="software_engineer",

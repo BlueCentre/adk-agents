@@ -1,8 +1,7 @@
 """Human-in-the-loop workflow patterns for the Software Engineer Agent."""
 
-import asyncio
 import logging
-from typing import Any, Dict
+from typing import Any
 
 from google.adk.agents import LlmAgent, SequentialAgent
 from google.adk.tools import FunctionTool, ToolContext

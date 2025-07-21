@@ -1,14 +1,11 @@
 """Dynamic context expansion for automatic discovery and gathering of relevant context."""
 
-from collections import defaultdict
 from dataclasses import dataclass
-import json
 import logging
-import os
 from pathlib import Path
 import re
 import subprocess
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -164,7 +161,8 @@ class DynamicContextExpander:
 
         logger.info("DYNAMIC CONTEXT EXPANSION: Starting intelligent context discovery...")
         logger.info(
-            f"  Working Directory: {expansion_context.current_working_directory or self.workspace_root}"
+            "  Working Directory: "
+            f"{expansion_context.current_working_directory or self.workspace_root}"
         )
         logger.info(f"  Current Files in Context: {len(current_files)}")
         logger.info(f"  Keywords: {expansion_context.keywords}")
@@ -214,7 +212,8 @@ class DynamicContextExpander:
         logger.info(f"  📊 FINAL RESULTS: {len(final_results)} files discovered")
         for i, content in enumerate(final_results[:5]):
             logger.info(
-                f"    {i + 1}. {content.file_path} ({content.content_type}, score: {content.relevance_score:.2f})"
+                f"    {i + 1}. {content.file_path} ({content.content_type}, "
+                f"score: {content.relevance_score:.2f}, size: {content.size_bytes / 1024:.2f} KB)"
             )
 
         return final_results
@@ -249,7 +248,7 @@ class DynamicContextExpander:
         discovered = []
 
         for file_path in current_files:
-            if not os.path.exists(file_path):
+            if not Path(file_path).exists():
                 continue
 
             logger.debug(f"    Analyzing dependencies for: {file_path}")
@@ -328,7 +327,7 @@ class DynamicContextExpander:
         return "unknown"
 
     def _find_import_related_files(
-        self, error: str, context: ExpansionContext
+        self, error: str, _context: ExpansionContext
     ) -> list[DiscoveredContent]:
         """Find files related to import errors."""
 
@@ -363,7 +362,7 @@ class DynamicContextExpander:
 
                 for potential_file in potential_files:
                     full_path = Path(self.workspace_root) / potential_file
-                    if full_path.exists():
+                    if Path(full_path).exists():
                         discovered.append(
                             self._create_discovered_content(
                                 str(full_path),
@@ -376,7 +375,7 @@ class DynamicContextExpander:
         return discovered
 
     def _find_file_error_related_files(
-        self, error: str, context: ExpansionContext
+        self, error: str, _context: ExpansionContext
     ) -> list[DiscoveredContent]:
         """Find files related to file not found errors."""
 
@@ -397,10 +396,10 @@ class DynamicContextExpander:
         # Look for similar files or directory structure that might help
         for file_path in files[:3]:
             # Try to find files with similar names
-            file_name = os.path.basename(file_path)
-            file_stem = os.path.splitext(file_name)[0]
+            file_name = Path(file_path).name
+            file_stem = Path(file_name).stem
 
-            similar_files = self._find_similar_files(file_stem, context)
+            similar_files = self._find_similar_files(file_stem, _context)
             discovered.extend(similar_files)
 
         return discovered
@@ -417,16 +416,16 @@ class DynamicContextExpander:
         matches = re.findall(file_pattern, error)
 
         for file_path in matches:
-            if os.path.exists(file_path):
+            if Path(file_path).exists():
                 # Look for related files in the same directory
-                directory = os.path.dirname(file_path)
+                directory = Path(file_path).parent
                 related_files = self._scan_directory(Path(directory), context, max_depth=1)
                 discovered.extend(related_files[:5])  # Limit to 5 related files
 
         return discovered
 
     def _find_dependency_error_related_files(
-        self, error: str, context: ExpansionContext
+        self, _error: str, _context: ExpansionContext
     ) -> list[DiscoveredContent]:
         """Find files related to dependency errors."""
 
@@ -448,7 +447,7 @@ class DynamicContextExpander:
 
         for dep_file in dependency_files:
             full_path = Path(self.workspace_root) / dep_file
-            if full_path.exists():
+            if Path(full_path).exists():
                 discovered.append(
                     self._create_discovered_content(
                         str(full_path),
@@ -461,14 +460,14 @@ class DynamicContextExpander:
         return discovered
 
     def _analyze_python_dependencies(
-        self, file_path: str, context: ExpansionContext
+        self, file_path: str, _context: ExpansionContext
     ) -> list[DiscoveredContent]:
         """Analyze Python file dependencies."""
 
         discovered = []
 
         try:
-            with open(file_path, encoding="utf-8") as f:
+            with Path(file_path).open(encoding="utf-8") as f:
                 content = f.read()
 
             # Extract imports
@@ -485,8 +484,8 @@ class DynamicContextExpander:
             # Look for corresponding files
             for imp in imports[:10]:  # Limit to first 10 imports
                 if imp.startswith("."):  # Relative import
-                    base_dir = os.path.dirname(file_path)
-                    os.path.join(base_dir, f"{imp[1:]}.py")
+                    base_dir = Path(file_path).parent
+                    Path(base_dir) / f"{imp[1:]}.py"
                 else:
                     potential_files = [
                         f"{imp}.py",
@@ -496,14 +495,14 @@ class DynamicContextExpander:
                     ]
 
                     for pot_file in potential_files:
-                        full_path = Path(self.workspace_root) / pot_file
-                        if full_path.exists():
+                        full_path = Path(self.workspace_root) / Path(pot_file)
+                        if Path(full_path).exists():
                             discovered.append(
                                 self._create_discovered_content(
                                     str(full_path),
                                     "python_code",
                                     0.6,
-                                    f"Imported by {os.path.basename(file_path)}",
+                                    f"Imported by {Path(file_path).name}",
                                 )
                             )
                             break
@@ -514,14 +513,14 @@ class DynamicContextExpander:
         return discovered
 
     def _analyze_js_dependencies(
-        self, file_path: str, context: ExpansionContext
+        self, file_path: str, _context: ExpansionContext
     ) -> list[DiscoveredContent]:
         """Analyze JavaScript/TypeScript file dependencies."""
 
         discovered = []
 
         try:
-            with open(file_path, encoding="utf-8") as f:
+            with Path(file_path).open(encoding="utf-8") as f:
                 content = f.read()
 
             # Extract imports/requires
@@ -540,22 +539,22 @@ class DynamicContextExpander:
             for imp in imports[:10]:
                 if imp.startswith(("./", "../")):
                     # Relative import
-                    base_dir = os.path.dirname(file_path)
+                    base_dir = Path(file_path).parent
                     potential_files = [
-                        os.path.join(base_dir, f"{imp}.js"),
-                        os.path.join(base_dir, f"{imp}.ts"),
-                        os.path.join(base_dir, f"{imp}/index.js"),
-                        os.path.join(base_dir, f"{imp}/index.ts"),
+                        Path(base_dir) / f"{imp}.js",
+                        Path(base_dir) / f"{imp}.ts",
+                        Path(base_dir) / f"{imp}/index.js",
+                        Path(base_dir) / f"{imp}/index.ts",
                     ]
 
                     for pot_file in potential_files:
-                        if os.path.exists(pot_file):
+                        if Path(pot_file).exists():
                             discovered.append(
                                 self._create_discovered_content(
-                                    pot_file,
+                                    str(pot_file),
                                     "js_code",
                                     0.6,
-                                    f"Imported by {os.path.basename(file_path)}",
+                                    f"Imported by {Path(file_path).name}",
                                 )
                             )
                             break
@@ -566,14 +565,14 @@ class DynamicContextExpander:
         return discovered
 
     def _analyze_config_dependencies(
-        self, file_path: str, context: ExpansionContext
+        self, file_path: str, _context: ExpansionContext
     ) -> list[DiscoveredContent]:
         """Analyze configuration file dependencies."""
 
         discovered = []
 
         try:
-            with open(file_path, encoding="utf-8") as f:
+            with Path(file_path).open(encoding="utf-8") as f:
                 content = f.read()
 
             # Look for file references in config
@@ -592,19 +591,19 @@ class DynamicContextExpander:
             for ref_file in referenced_files[:5]:
                 potential_paths = [
                     ref_file,
-                    os.path.join(os.path.dirname(file_path), ref_file),
-                    os.path.join(self.workspace_root, ref_file),
+                    Path(file_path).parent / ref_file,
+                    Path(self.workspace_root) / ref_file,
                 ]
 
                 for pot_path in potential_paths:
-                    if os.path.exists(pot_path):
-                        file_type = self._classify_file_type(pot_path)
+                    if Path(pot_path).exists():
+                        file_type = self._classify_file_type(str(pot_path))
                         discovered.append(
                             self._create_discovered_content(
-                                pot_path,
+                                str(pot_path),
                                 file_type,
                                 0.5,
-                                f"Referenced by {os.path.basename(file_path)}",
+                                f"Referenced by {Path(file_path).name}",
                             )
                         )
                         break
@@ -662,7 +661,7 @@ class DynamicContextExpander:
         return discovered
 
     def _search_files_for_keyword(
-        self, keyword: str, directory: Path, context: ExpansionContext
+        self, keyword: str, directory: Path, _context: ExpansionContext
     ) -> list[DiscoveredContent]:
         """Search files for keyword using grep-like functionality."""
 
@@ -692,7 +691,7 @@ class DynamicContextExpander:
             if result.returncode == 0:
                 files = result.stdout.strip().split("\n")
                 for file_path in files[:10]:  # Limit results
-                    if os.path.exists(file_path):
+                    if Path(file_path).exists():
                         file_type = self._classify_file_type(file_path)
                         discovered.append(
                             self._create_discovered_content(
@@ -706,12 +705,12 @@ class DynamicContextExpander:
         except (subprocess.TimeoutExpired, FileNotFoundError):
             # Fallback to Python-based search
             logger.debug(f"    Grep not available, using Python search for: {keyword}")
-            discovered.extend(self._python_keyword_search(keyword, directory, context))
+            discovered.extend(self._python_keyword_search(keyword, directory, _context))
 
         return discovered
 
     def _python_keyword_search(
-        self, keyword: str, directory: Path, context: ExpansionContext
+        self, keyword: str, directory: Path, _context: ExpansionContext
     ) -> list[DiscoveredContent]:
         """Python-based keyword search fallback."""
 
@@ -722,7 +721,7 @@ class DynamicContextExpander:
             for item in directory.rglob("*"):
                 if item.is_file() and item.suffix in search_extensions:
                     try:
-                        with open(item, encoding="utf-8", errors="ignore") as f:
+                        with Path(item).open(encoding="utf-8", errors="ignore") as f:
                             content = f.read()
                             if keyword.lower() in content.lower():
                                 file_type = self._classify_file_type(str(item))
@@ -745,7 +744,7 @@ class DynamicContextExpander:
         return discovered
 
     def _find_similar_files(
-        self, file_stem: str, context: ExpansionContext
+        self, file_stem: str, _context: ExpansionContext
     ) -> list[DiscoveredContent]:
         """Find files with similar names."""
 
@@ -782,7 +781,7 @@ class DynamicContextExpander:
     def _classify_file_type(self, file_path: str) -> str:
         """Classify file type based on patterns."""
 
-        file_name = os.path.basename(file_path).lower()
+        file_name = Path(file_path).name.lower()
 
         for file_type, patterns in self.patterns.items():
             if any(re.match(pattern, file_name) for pattern in patterns):
@@ -794,7 +793,7 @@ class DynamicContextExpander:
         """Calculate relevance score for a file."""
 
         score = 0.0
-        file_name = os.path.basename(file_path).lower()
+        file_name = Path(file_path).name.lower()
 
         # Base score by file type
         file_type = self._classify_file_type(file_path)
@@ -821,7 +820,7 @@ class DynamicContextExpander:
         # File context proximity bonus
         if context.file_context:
             for existing_file in context.file_context:
-                if os.path.dirname(file_path) == os.path.dirname(existing_file):
+                if Path(file_path).parent == Path(existing_file).parent:
                     score += 0.3
                     break
 
@@ -833,12 +832,12 @@ class DynamicContextExpander:
         """Create a DiscoveredContent object."""
 
         try:
-            size_bytes = os.path.getsize(file_path) if os.path.exists(file_path) else 0
-        except:
+            size_bytes = Path(file_path).stat().st_size if Path(file_path).exists() else 0
+        except Exception:
             size_bytes = 0
 
         return DiscoveredContent(
-            file_path=os.path.relpath(file_path, self.workspace_root),
+            file_path=str(Path(file_path).relative_to(self.workspace_root)),
             content_type=content_type,
             relevance_score=relevance_score,
             summary=summary,

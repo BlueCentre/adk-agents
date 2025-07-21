@@ -1,11 +1,9 @@
 """Proactive context gathering for enhanced agent understanding."""
 
-import json
 import logging
-import os
 from pathlib import Path
 import subprocess
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -180,7 +178,8 @@ class ProactiveContextGatherer:
                                     }
                                 )
                                 logger.debug(
-                                    f"Added documentation file: {file_path.relative_to(self.workspace_root)}"
+                                    f"Added documentation file: "
+                                    f"{file_path.relative_to(self.workspace_root)}"
                                 )
                 except Exception as e:
                     logger.warning(f"Failed to scan documentation directory {doc_dir}: {e}")
@@ -227,10 +226,10 @@ class ProactiveContextGatherer:
 
             # Try to read with UTF-8, fall back to latin-1 if needed
             try:
-                with open(file_path, encoding="utf-8") as f:
+                with Path(file_path).open(encoding="utf-8") as f:
                     content = f.read()
             except UnicodeDecodeError:
-                with open(file_path, encoding="latin-1") as f:
+                with Path(file_path).open(encoding="latin-1") as f:
                     content = f.read()
 
             # Truncate if too long

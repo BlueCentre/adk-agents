@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable
 
 from rich.console import Console
 from rich.text import Text
@@ -182,7 +182,7 @@ class AgentTUI(App):
                 output_log.border_title = (
                     f"🤖 {self.agent_name}" if self.agent_name else "🤖 Agent Output"
                 )
-                # output_log.border_subtitle = f"🧑 Session: {self.session_id}" if self.session_id else "🧑 Session: Unknown"
+                # output_log.border_subtitle = f"🧑 Session: {self.session_id}" if self.session_id else "🧑 Session: Unknown" # noqa: E501
                 # Use same status logic as status bar
                 if self.agent_thinking:
                     thinking_icon = self._thinking_frames[
@@ -195,11 +195,12 @@ class AgentTUI(App):
                     status = "🟢 Ready"
                 output_log.border_subtitle = status
                 yield output_log
-                # This pane can be hidden (Ctrl+Y)
-                if self.agent_thought_enabled:
-                    event_log = RichLog(id="event-log", classes="event-pane")
-                    event_log.border_title = "💡 Events (Ctrl+Y to toggle)"
-                    yield event_log
+                event_log = RichLog(id="event-log", classes="event-pane")
+                event_log.border_title = "💡 Events (Ctrl+Y to toggle)"
+                # Initially hide if not enabled
+                if not self.agent_thought_enabled:
+                    event_log.display = False
+                yield event_log
             if self.user_multiline_input_enabled:
                 input_widget = SubmittableTextArea(
                     id="input-area",
@@ -688,6 +689,9 @@ class AgentTUI(App):
         if self.agent_thought_enabled:
             event_log = self.query_one("#event-log", RichLog)
             event_log.write(self.rich_renderer.format_agent_thought(text))
+        else:
+            # Fallback for debugging: if thought pane is disabled, show in main output
+            self.add_output(f"💭 [Thought]: {text}", rich_format=True, style="info")
 
     def add_agent_output(self, text: str, author: str = "Agent"):
         """Add agent output with proper markdown rendering."""

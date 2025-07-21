@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
-from typing import Dict, List, Optional, Tuple
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -134,7 +134,7 @@ class DynamicToolDiscovery:
             # Discover basic environment info
             shell = os.environ.get("SHELL", "unknown")
             os_type = os.name
-            working_directory = os.getcwd()
+            working_directory = Path.cwd()
 
             # Discover Python version
             try:
@@ -143,17 +143,17 @@ class DynamicToolDiscovery:
                     stderr=subprocess.STDOUT,
                     text=True,
                 ).strip()
-            except:
+            except Exception:
                 try:
                     python_version = subprocess.check_output(
                         ["python3", "--version"], stderr=subprocess.STDOUT, text=True
                     ).strip()
-                except:
+                except Exception:
                     try:
                         python_version = subprocess.check_output(
                             ["python", "--version"], stderr=subprocess.STDOUT, text=True
                         ).strip()
-                    except:
+                    except Exception:
                         python_version = "Unknown"
 
             # Discover package managers
@@ -170,7 +170,8 @@ class DynamicToolDiscovery:
 
                 if capability.available:
                     logger.info(
-                        f"DISCOVERY: ✅ {tool_name} v{capability.version} available at {capability.path}"
+                        f"DISCOVERY: ✅ {tool_name} v{capability.version} "
+                        f"available at {capability.path}"
                     )
                 else:
                     logger.info(f"DISCOVERY: ❌ {tool_name} not available")
@@ -185,7 +186,9 @@ class DynamicToolDiscovery:
             )
 
             logger.info(
-                f"DISCOVERY: Environment discovery complete. Found {len([t for t in discovered_tools.values() if t.available])} available tools."
+                f"DISCOVERY: Environment discovery complete. Found "
+                f"{len([t for t in discovered_tools.values() if t.available])} "
+                "available tools."
             )
 
         return self.capabilities_cache

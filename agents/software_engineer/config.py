@@ -6,7 +6,6 @@ import logging
 import os
 
 from dotenv import load_dotenv
-
 from google.genai import types as genai_types
 
 # Load .env file from the current directory
@@ -44,7 +43,11 @@ GEMINI_THINKING_INCLUDE_THOUGHTS = GEMINI_THINKING_INCLUDE_THOUGHTS_STR.lower() 
 GEMINI_THINKING_BUDGET = int(os.getenv("GEMINI_THINKING_BUDGET", "16384"))
 
 # Models that support thinking
-THINKING_SUPPORTED_MODELS = {GEMINI_2_5_FLASH_MODEL_NAME, GEMINI_2_5_PRO_MODEL_NAME}
+THINKING_SUPPORTED_MODELS = {
+    GEMINI_2_5_FLASH_MODEL_NAME,
+    GEMINI_2_5_PRO_MODEL_NAME,
+    "gemini/gemini-2.5-flash-preview-05-20",
+}
 
 
 def is_thinking_supported(model_name: str) -> bool:
@@ -171,6 +174,15 @@ MAIN_LLM_GENERATION_CONFIG = genai_types.GenerateContentConfig(
             threshold=genai_types.HarmBlockThreshold.OFF,
         )
     ],
+    # Add thinking_config directly here, conditional on environment variables
+    # thinking_config=(
+    #     genai_types.ThinkingConfig(
+    #         include_thoughts=GEMINI_THINKING_INCLUDE_THOUGHTS,
+    #         thinking_budget=GEMINI_THINKING_BUDGET,
+    #     )
+    #     if GEMINI_THINKING_ENABLE and is_thinking_supported(DEFAULT_AGENT_MODEL)
+    #     else None
+    # ),
 )
 
 # --- LLM Token Limits (Context Window Sizes) ---
@@ -254,10 +266,10 @@ DEFAULT_MEMORY_FILE = ".memory.json"
 # MCP_ALLOWED_DIRECTORIES_STR = os.getenv("MCP_ALLOWED_DIRECTORIES")
 # MCP_ALLOWED_DIRECTORIES = []
 # if MCP_ALLOWED_DIRECTORIES_STR:
-#     MCP_ALLOWED_DIRECTORIES = [d.strip() for d in MCP_ALLOWED_DIRECTORIES_STR.split(",") if d.strip()]
+#     MCP_ALLOWED_DIRECTORIES = [d.strip() for d in MCP_ALLOWED_DIRECTORIES_STR.split(",") if d.strip()] # noqa: E501
 # if not MCP_ALLOWED_DIRECTORIES:
 #     MCP_ALLOWED_DIRECTORIES = [os.path.dirname(os.path.abspath(__file__))]
-#     logger.info(f"MCP_ALLOWED_DIRECTORIES not set in .env, defaulting to agent directory: {MCP_ALLOWED_DIRECTORIES[0]}")
+#     logger.info(f"MCP_ALLOWED_DIRECTORIES not set in .env, defaulting to agent directory: {MCP_ALLOWED_DIRECTORIES[0]}") # noqa: E501
 
 # --- Feature Flags ---
 ENABLE_INTERACTIVE_PLANNING_STR = os.getenv("ENABLE_INTERACTIVE_PLANNING", "false")

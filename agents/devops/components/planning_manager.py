@@ -1,6 +1,6 @@
 # Agents/devops/components/planning_manager.py
 import logging
-from typing import Optional, Tuple
+from typing import Optional
 
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
@@ -103,7 +103,8 @@ class PlanningManager:
         for pattern in modification_sequences:
             if re.search(pattern, lower_user_message):
                 logger.info(
-                    f"PlanningManager: Multi-step modification sequence detected ({pattern}), triggering planning."
+                    f"PlanningManager: Multi-step modification sequence detected ({pattern}), "
+                    "triggering planning."
                 )
                 return True
 
@@ -148,7 +149,8 @@ class PlanningManager:
             found_indicators = [ind for ind in multi_step_indicators if ind in lower_user_message]
             found_verbs = [verb for verb in action_verbs if verb in lower_user_message]
             logger.info(
-                f"PlanningManager: Multi-step implementation task detected (indicators: {found_indicators}, verbs: {found_verbs}), triggering planning."
+                f"PlanningManager: Multi-step implementation task detected (indicators: "
+                f"{found_indicators}, verbs: {found_verbs}), triggering planning."
             )
             return True
 
@@ -166,7 +168,8 @@ class PlanningManager:
         found_deliverables = [word for word in deliverable_keywords if word in lower_user_message]
         if len(found_deliverables) >= 2:
             logger.info(
-                f"PlanningManager: Multiple deliverables detected ({found_deliverables}), triggering planning."
+                f"PlanningManager: Multiple deliverables detected ({found_deliverables}), "
+                "triggering planning."
             )
             return True
 
@@ -276,7 +279,8 @@ class PlanningManager:
             if any(keyword in lower_message for keyword in unrelated_keywords):
                 return False
 
-            return True  # Assume it's plan feedback if it has modification language but no unrelated keywords
+            # Assume it's plan feedback if it has modification language but no unrelated keywords
+            return True
 
         # Short questions are probably new requests
         if len(user_message.split()) <= 8 and any(
@@ -308,17 +312,21 @@ class PlanningManager:
                     return None, approved_plan  # (No LlmResponse, approved_plan_text)
                 if self._is_plan_related_feedback(user_message_content):
                     logger.info(
-                        "PlanningManager: User provided feedback on the plan. Resetting planning state."
+                        "PlanningManager: User provided feedback on the plan. "
+                        "Resetting planning state."
                     )
                     self.reset_planning_state()
                     response_part = genai_types.Part(
-                        text="Okay, I've received your feedback. I will consider it for the next step. If you'd like me to try planning again with this new information, please let me know or re-state your goal."
+                        text="Okay, I've received your feedback. I will consider it for the "
+                        "next step. If you'd like me to try planning again with this new "
+                        "information, please let me know or re-state your goal."
                     )
                     # (LlmResponse to send, no approved_plan_text)
                     return LlmResponse(content=genai_types.Content(parts=[response_part])), None
                 # This appears to be a completely different request, not plan feedback
                 logger.info(
-                    "PlanningManager: User message appears to be a new request, not plan feedback. Resetting planning state and allowing normal processing."
+                    "PlanningManager: User message appears to be a new request, not plan "
+                    "feedback. Resetting planning state and allowing normal processing."
                 )
                 self.reset_planning_state()
                 # Return None to allow normal processing of the new request
@@ -353,7 +361,8 @@ class PlanningManager:
                             ]
                         ):
                             logger.info(
-                                "PlanningManager: Request mentions code/codebase, attempting to retrieve context."
+                                "PlanningManager: Request mentions code/codebase, "
+                                "attempting to retrieve context."
                             )
 
                             # This is a simplified context gathering approach
@@ -362,8 +371,10 @@ class PlanningManager:
                             code_context_str += (
                                 "Note: Planning system detected this is a code-related request.\n"
                             )
-                            code_context_str += "The agent has access to tools like 'codebase_search', 'read_file', and 'index_directory_tool'\n"
-                            code_context_str += "to analyze and understand the codebase structure during plan execution.\n"
+                            code_context_str += "The agent has access to tools like "
+                            "'codebase_search', 'read_file', and 'index_directory_tool'\n"
+                            "to analyze and understand the codebase structure during plan "
+                            "execution.\n"
                             code_context_str += "--- END RELEVANT CODE CONTEXT ---\n"
 
                     except Exception as e:
@@ -380,13 +391,16 @@ class PlanningManager:
                         )
                     except Exception as format_error:
                         logger.error(
-                            f"PlanningManager: Failed to format planning prompt template: {format_error}"
+                            f"PlanningManager: Failed to format planning prompt template: "
+                            f"{format_error}"
                         )
                         logger.error(
-                            f"user_request type: {type(safe_user_request)}, value: {safe_user_request!r}"
+                            f"user_request type: {type(safe_user_request)}, "
+                            f"value: {safe_user_request!r}"
                         )
                         logger.error(
-                            f"code_context_section type: {type(safe_code_context)}, value: {safe_code_context!r}"
+                            f"code_context_section type: {type(safe_code_context)}, "
+                            f"value: {safe_code_context!r}"
                         )
                         # Fallback to a simple prompt without template formatting
                         planning_prompt_text = (
@@ -404,11 +418,13 @@ class PlanningManager:
                             llm_request.tools = []
                         else:
                             logger.warning(
-                                "PlanningManager: 'LlmRequest' object has no 'tools' attribute to clear. Tools might remain active."
+                                "PlanningManager: 'LlmRequest' object has no 'tools' "
+                                "attribute to clear. Tools might remain active."
                             )
 
                         logger.info(
-                            "PlanningManager: LLM request modified for plan generation with enhanced context."
+                            "PlanningManager: LLM request modified for plan generation with "
+                            "enhanced context."
                         )
                         return None, None  # (No LlmResponse, no approved_plan_text yet)
                     except Exception as request_error:
@@ -464,7 +480,10 @@ class PlanningManager:
                     "PlanningManager: Plan generation turn, but could not extract plan text."
                 )
                 self.reset_planning_state()
-                error_message = "I tried to generate a plan, but something went wrong. Please try rephrasing your request."
+                error_message = (
+                    "I tried to generate a plan, but something went wrong. "
+                    "Please try rephrasing your request."
+                )
                 return LlmResponse(
                     content=genai_types.Content(parts=[genai_types.Part(text=error_message)])
                 )
@@ -478,7 +497,10 @@ class PlanningManager:
             )
             # Reset state to prevent stuck conditions
             self.reset_planning_state()
-            error_message = f"I encountered an error while processing the planning response: {e!s}. Please try again."
+            error_message = (
+                f"I encountered an error while processing the planning response: {e!s}. "
+                "Please try again."
+            )
             return LlmResponse(
                 content=genai_types.Content(parts=[genai_types.Part(text=error_message)])
             )

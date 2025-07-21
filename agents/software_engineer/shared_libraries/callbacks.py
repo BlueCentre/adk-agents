@@ -4,14 +4,19 @@ import functools
 import logging
 import os
 import time
-from typing import Any, Dict, List, Optional, Protocol
+from typing import Any, Optional, Protocol
 
+# from google import genai
 from google.adk.agents.callback_context import CallbackContext
-from google.adk.agents.invocation_context import InvocationContext
+
+# from google.adk.agents.invocation_context import InvocationContext
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
 from google.adk.tools.base_tool import BaseTool
 from google.adk.tools.tool_context import ToolContext
+from google.genai import types as genai_types
+
+from .. import config as agent_config
 
 logger = logging.getLogger(__name__)
 
@@ -425,6 +430,12 @@ def create_telemetry_callbacks(agent_name: str, enhanced: bool = False):
         )
         logger.debug(f"[{agent_name}] Before model request - ID: {invocation_id}")
 
+        # DEBUG: Inspect the LLM request configuration
+        if hasattr(llm_request, "config") and llm_request.config:
+            logger.info(f"[{agent_name}] LLM Request Config: {llm_request.config}")
+        else:
+            logger.info(f"[{agent_name}] LLM Request has no config attribute or config is None.")
+
         # Update session metrics
         if callback_context and hasattr(callback_context, "_agent_metrics"):
             callback_context._agent_metrics["total_model_calls"] += 1
@@ -577,3 +588,63 @@ def create_enhanced_telemetry_callbacks(agent_name: str):
     This is a convenience function that calls create_telemetry_callbacks with enhanced=True.
     """
     return create_telemetry_callbacks(agent_name, enhanced=True)
+
+
+def _create_thinking_config(model_name: str) -> Optional[genai_types.ThinkingConfig]:
+    """
+    Create thinking configuration if thinking is enabled and supported for the current model.
+
+    Ref: @devops_agent.py:MyDevopsAgent:_create_thinking_config
+    """
+
+    if not agent_config.should_enable_thinking(model_name):
+        logger.info(f"Thinking is not enabled for model {model_name}")
+        return None
+
+    logger.info(f"Creating thinking configuration for model {model_name}")
+    logger.info(f"  Include thoughts: {agent_config.GEMINI_THINKING_INCLUDE_THOUGHTS}")
+    logger.info(f"  Thinking budget: {agent_config.GEMINI_THINKING_BUDGET}")
+
+    return genai_types.ThinkingConfig(
+        include_thoughts=agent_config.GEMINI_THINKING_INCLUDE_THOUGHTS,
+        thinking_budget=agent_config.GEMINI_THINKING_BUDGET,
+    )
+
+
+def create_model_config_callbacks(model_name: str):
+    """
+    Create model config callbacks for an agent.
+
+    Ref: @devops_agent.py:MyDevopsAgent:handle_before_model
+
+    Args:
+        model_name: Name of the model to enable thinking config
+
+    Returns:
+        Dictionary containing callback functions
+    """
+
+    # @_callback_error_handler(model_name, "before_model_callback")
+    def before_model_callback(callback_context: CallbackContext, llm_request: LlmRequest):
+        """Callback executed before LLM model request."""
+        invocation_id = (
+            getattr(callback_context, "invocation_id", "unknown") if callback_context else "unknown"
+        )
+        logger.debug(f"[{model_name}] Before model request - ID: {invocation_id}")
+        # Apply thinking configuration if supported and enabled
+        thinking_config = _create_thinking_config(model_name)
+        if thinking_config and hasattr(llm_request, "config"):
+            # Apply thinking config to the existing request config
+            if hasattr(llm_request.config, "thinking_config"):
+                llm_request.config.thinking_config = thinking_config
+                logger.info("Applied thinking configuration to LLM request")
+            else:
+                logger.warning("LLM request config does not support thinking_config attribute")
+        elif thinking_config:
+            logger.warning(
+                "LLM request does not have config attribute to apply thinking configuration"
+            )
+
+    return {
+        "before_model": before_model_callback,
+    }

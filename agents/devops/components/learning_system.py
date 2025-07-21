@@ -1,10 +1,10 @@
 from collections import defaultdict
 from datetime import datetime
 import json
-import os
+from pathlib import Path
 
 # Define a simple file for persistence
-LEARNING_DATA_FILE = os.path.join(os.path.dirname(__file__), "learning_data.json")
+LEARNING_DATA_FILE = Path(__file__).parent / "learning_data.json"
 
 
 class LearningSystem:
@@ -12,13 +12,13 @@ class LearningSystem:
         self.learned_patterns = self._load_data()
 
     def _load_data(self):
-        if os.path.exists(LEARNING_DATA_FILE):
-            with open(LEARNING_DATA_FILE) as f:
+        if Path(LEARNING_DATA_FILE).exists():
+            with Path(LEARNING_DATA_FILE).open() as f:
                 return json.load(f)
         return {}
 
     def _save_data(self):
-        with open(LEARNING_DATA_FILE, "w") as f:
+        with Path(LEARNING_DATA_FILE).open("w") as f:
             json.dump(self.learned_patterns, f, indent=4)
 
     def record_success(

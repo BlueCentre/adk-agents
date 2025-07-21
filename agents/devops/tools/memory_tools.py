@@ -1,7 +1,7 @@
 """Tools for interacting with the persistent memory service."""
 
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 from google.adk.tools import FunctionTool
 from google.adk.tools.tool_context import ToolContext

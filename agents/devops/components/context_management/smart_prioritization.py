@@ -1,11 +1,9 @@
 """Smart prioritization for context components using relevance-based ranking."""
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
 import logging
-import math
 import re
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 logger = logging.getLogger(__name__)
 

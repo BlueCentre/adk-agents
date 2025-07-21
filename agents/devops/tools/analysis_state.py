@@ -6,7 +6,7 @@
 # the code_review agent after running linters) to populate this state key
 # with structured issue data (e.g., list of dicts) for this tool to be useful.
 
-from typing import Any, Dict
+from typing import Any
 
 from google.adk.tools import FunctionTool, ToolContext
 

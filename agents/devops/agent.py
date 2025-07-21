@@ -31,15 +31,15 @@ if OBSERVABILITY_ENABLED:
     openlit_config = {
         "application_name": "DevOps Agent",
         "environment": agent_config.OPENLIT_ENVIRONMENT,
-        # Enable GPU monitoring if available (disabled by default to avoid warnings on non-GPU systems)
+        # Enable GPU monitoring if available (disabled by default to avoid warnings on non-GPU systems)  # noqa: E501
         "collect_gpu_stats": agent_config.OPENLIT_COLLECT_GPU_STATS,
         # Disable metrics if requested (for rate limiting)
         "disable_metrics": agent_config.OPENLIT_DISABLE_METRICS,
         # Tracing configuration
         "capture_message_content": agent_config.OPENLIT_CAPTURE_CONTENT,
         "disable_batch": agent_config.OPENLIT_DISABLE_BATCH,
-        # Disable specific instrumentations if needed (disable some that might cause attribute issues)
-        # "disabled_instrumentors": agent_config.OPENLIT_DISABLED_INSTRUMENTORS.split(',') if agent_config.OPENLIT_DISABLED_INSTRUMENTORS else ['google_generativeai'],
+        # Disable specific instrumentations if needed (disable some that might cause attribute issues)  # noqa: E501
+        # "disabled_instrumentors": agent_config.OPENLIT_DISABLED_INSTRUMENTORS.split(',') if agent_config.OPENLIT_DISABLED_INSTRUMENTORS else ['google_generativeai'],  # noqa: E501
     }
 
     # Set custom resource attributes for better trace context
@@ -101,7 +101,7 @@ async def create_agent():
     devops_agent_instance = MyDevopsAgent(
         model=agent_config.DEFAULT_AGENT_MODEL,
         name="devops_agent",
-        description="Self-sufficient agent specialized in Platform Engineering, DevOps, and SRE practices.",
+        description="Self-sufficient agent specialized in Platform Engineering, DevOps, and SRE practices.",  # noqa: E501
         instruction=agent_prompts.DEVOPS_AGENT_INSTR,
         # planner=BuiltInPlanner(
         #     thinking_config=types.ThinkingConfig(
@@ -129,7 +129,7 @@ try:
     root_agent = MyDevopsAgent(
         model=agent_config.DEFAULT_AGENT_MODEL,
         name="devops_agent",
-        description="Self-sufficient agent specialized in Platform Engineering, DevOps, and SRE practices.",
+        description="Self-sufficient agent specialized in Platform Engineering, DevOps, and SRE practices.",  # noqa: E501
         instruction=agent_prompts.DEVOPS_AGENT_INSTR,
         generate_content_config=agent_config.MAIN_LLM_GENERATION_CONFIG,
         tools=tools,
@@ -145,7 +145,7 @@ except Exception as e:
     root_agent = MyDevopsAgent(
         model=agent_config.DEFAULT_AGENT_MODEL,
         name="devops_agent",
-        description="Self-sufficient agent specialized in Platform Engineering, DevOps, and SRE practices.",
+        description="Self-sufficient agent specialized in Platform Engineering, DevOps, and SRE practices.",  # noqa: E501
         instruction=agent_prompts.DEVOPS_AGENT_INSTR,
         generate_content_config=agent_config.MAIN_LLM_GENERATION_CONFIG,
         tools=[],

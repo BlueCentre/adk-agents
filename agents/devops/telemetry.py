@@ -4,8 +4,9 @@ from dataclasses import dataclass
 from enum import Enum
 import functools
 import logging
+from pathlib import Path
 import time
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable
 
 from . import config as agent_config
 
@@ -18,66 +19,65 @@ if OBSERVABILITY_ENABLED:
     # OpenTelemetry imports for custom instrumentation
     from opentelemetry import metrics, trace
     from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
-    from opentelemetry.metrics import CallbackOptions, Observation
+    from opentelemetry.metrics import Observation
     from opentelemetry.sdk.metrics import MeterProvider
     from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
-    from opentelemetry.sdk.trace import TracerProvider
     from opentelemetry.trace import Status, StatusCode
 else:
     # Create no-op imports when observability is disabled
     class NoOpTrace:
-        def get_tracer(self, name):
+        def get_tracer(self, _name):
             return NoOpTracer()
 
     class NoOpMetrics:
-        def get_meter(self, name):
+        def get_meter(self, _name):
             return NoOpMeter()
 
-        def set_meter_provider(self, provider):
+        def set_meter_provider(self, _provider):
             pass
 
     class NoOpTracer:
-        def start_span(self, name, **kwargs):
+        def start_span(self, _name, **_kwargs):
             return NoOpSpan()
 
-        def start_as_current_span(self, name, **kwargs):
+        def start_as_current_span(self, _name, **_kwargs):
             return NoOpSpan()
 
     class NoOpMeter:
-        def create_counter(self, name="noop", **kwargs):
+        def create_counter(self, _name="noop", **_kwargs):
             return NoOpCounter()
 
-        def create_histogram(self, name="noop", **kwargs):
+        def create_histogram(self, _name="noop", **_kwargs):
             return NoOpHistogram()
 
-        def create_up_down_counter(self, name="noop", **kwargs):
+        def create_up_down_counter(self, _name="noop", **_kwargs):
             return NoOpCounter()
 
-        def create_observable_gauge(self, name="noop", **kwargs):
+        def create_observable_gauge(self, _name="noop", **_kwargs):
             return NoOpGauge()
 
     class NoOpSpan:
-        def set_attribute(self, key, value):
+        def set_attribute(self, _key, _value):
             pass
 
-        def set_status(self, status):
+        def set_status(self, _status):
             pass
 
-        def record_exception(self, exception):
+        def record_exception(self, _exception):
             pass
 
         def __enter__(self):
             return self
 
-        def __exit__(self, *args):
+        def __exit__(self, *_args):
             pass
 
     class NoOpCounter:
-        def add(self, amount, attributes=None):
+        def add(self, _amount, _attributes=None):
             pass
 
     class NoOpHistogram:
-        def record(self, amount, attributes=None):
+        def record(self, _amount, _attributes=None):
             pass
 
     class NoOpGauge:
@@ -87,7 +87,7 @@ else:
         pass
 
     class NoOpObservation:
-        def __init__(self, *args, **kwargs):
+        def __init__(self, *_args, **_kwargs):
             pass
 
     # Create no-op instances
@@ -95,7 +95,7 @@ else:
     metrics = NoOpMetrics()
 
     class NoOpStatus:
-        def __init__(self, *args, **kwargs):
+        def __init__(self, *_args, **_kwargs):
             pass
 
     Status = NoOpStatus
@@ -219,7 +219,8 @@ class DevOpsAgentTelemetry:
 
             logger.info("✅ Grafana Cloud OTLP export configured successfully")
             logger.info(
-                f"📊 Export interval: {export_interval_seconds}s, Timeout: {export_timeout_seconds}s"
+                f"📊 Export interval: {export_interval_seconds}s, "
+                f"Timeout: {export_timeout_seconds}s"
             )
         else:
             logger.info("🔍 Grafana Cloud credentials not found - using local metrics only")
@@ -334,7 +335,7 @@ class DevOpsAgentTelemetry:
                 description="Current disk usage in MB",
             )
 
-    def _get_memory_usage(self, options):
+    def _get_memory_usage(self, _options):
         """Callback for memory usage metric."""
         try:
             import psutil
@@ -352,7 +353,7 @@ class DevOpsAgentTelemetry:
             else:
                 yield NoOpObservation(0, {"component": "devops_agent", "status": "unavailable"})
 
-    def _get_avg_response_time(self, options):
+    def _get_avg_response_time(self, _options):
         """Callback for average response time metric."""
         if self.operation_metrics:
             all_times = []
@@ -366,7 +367,7 @@ class DevOpsAgentTelemetry:
                 else:
                     yield NoOpObservation(avg_time, {"metric": "avg_response_time"})
 
-    def _get_cpu_usage(self, options):
+    def _get_cpu_usage(self, _options):
         """Callback for CPU usage metric."""
         try:
             import psutil
@@ -383,20 +384,18 @@ class DevOpsAgentTelemetry:
             else:
                 yield NoOpObservation(0, {"component": "devops_agent", "status": "unavailable"})
 
-    def _get_disk_usage(self, options):
+    def _get_disk_usage(self, _options):
         """Callback for disk usage metric."""
         try:
-            import os
-
             import psutil
 
             # Get disk usage for current working directory
-            disk_usage = psutil.disk_usage(os.getcwd())
+            disk_usage = psutil.disk_usage(Path.cwd())
             used_mb = disk_usage.used / 1024 / 1024
             if self.enabled:
-                yield Observation(used_mb, {"component": "devops_agent", "path": os.getcwd()})
+                yield Observation(used_mb, {"component": "devops_agent", "path": Path.cwd()})
             else:
-                yield NoOpObservation(used_mb, {"component": "devops_agent", "path": os.getcwd()})
+                yield NoOpObservation(used_mb, {"component": "devops_agent", "path": Path.cwd()})
         except ImportError:
             # Fallback if psutil not available
             if self.enabled:
@@ -409,7 +408,7 @@ class DevOpsAgentTelemetry:
 
         def decorator(func: Callable) -> Callable:
             @functools.wraps(func)
-            def wrapper(*args, **kwargs):
+            def wrapper(*_args, **_kwargs):
                 start_time = time.time()
                 operation_key = f"{operation_type.value}_{operation_name or func.__name__}"
 
@@ -424,7 +423,7 @@ class DevOpsAgentTelemetry:
 
                     try:
                         # Execute the operation
-                        result = func(*args, **kwargs)
+                        result = func(*_args, **_kwargs)
 
                         # Track success
                         duration = time.time() - start_time
@@ -530,7 +529,7 @@ class DevOpsAgentTelemetry:
             import psutil
 
             memory_mb = psutil.Process().memory_info().rss / 1024 / 1024
-        except:
+        except Exception:
             memory_mb = 0
 
         # Calculate averages

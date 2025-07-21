@@ -17,7 +17,8 @@ def chunk_python_code(file_path: str, code_content: str) -> list[dict]:
 
     Returns:
         A list of dictionaries, where each dictionary represents a chunk:
-        {'file_path': str, 'name': str, 'type': str, 'content': str, 'start_line': int, 'end_line': int}
+        {'file_path': str, 'name': str, 'type': str, 'content': str,
+         'start_line': int, 'end_line': int}
     """
     chunks = []
     try:
@@ -28,8 +29,10 @@ def chunk_python_code(file_path: str, code_content: str) -> list[dict]:
 
         for node in tree.body:
             start_line = node.lineno
-            # end_lineno might be None for some nodes or not precise enough for ast.get_source_segment
-            # We will rely on ast.get_source_segment for content, and calculate end_line from it if possible
+            # end_lineno might be None for some nodes or not precise enough for
+            # ast.get_source_segment
+            # We will rely on ast.get_source_segment for content, and calculate
+            # end_line from it if possible
 
             # Capture module-level code before this node
             if start_line > current_pos + 1:

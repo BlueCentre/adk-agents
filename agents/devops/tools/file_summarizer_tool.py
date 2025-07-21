@@ -1,6 +1,6 @@
 # Agents/devops/tools/file_summarizer_tool.py
-import logging  # Good practice!
-import os
+import logging
+from pathlib import Path
 from typing import Optional  # Import Optional
 
 from google.adk.tools import FunctionTool  # Assuming this is the correct base class
@@ -28,7 +28,8 @@ class FileSummarizerTool(FunctionTool):
             )
         except Exception as e:
             logger.error(
-                f"Failed to initialize GenerativeModel for FileSummarizerTool with model {agent_config.SUMMARIZER_MODEL_NAME}: {e}"
+                f"Failed to initialize GenerativeModel for FileSummarizerTool with model "
+                f"{agent_config.SUMMARIZER_MODEL_NAME}: {e}"
             )
             self.model = None  # Ensure model is None if initialization fails
 
@@ -37,19 +38,20 @@ class FileSummarizerTool(FunctionTool):
     ) -> dict:
         logger.info(
             f"Summarizing file '{filepath}' "
-            f"with instructions: '{instructions}', max_summary_length_words: {max_summary_length_words}"
+            f"with instructions: '{instructions}', "
+            f"max_summary_length_words: {max_summary_length_words}"
         )
         if not self.model:
             return {"summary": None, "error": "Summarizer model not initialized."}
 
         try:
-            file_size = os.path.getsize(filepath)
+            file_size = Path(filepath).stat().st_size
             logger.info(f"File size for {filepath}: {file_size} bytes.")
 
             if file_size == 0:
                 return {"summary": "<File is empty>", "error": None}
 
-            with open(filepath, encoding="utf-8", errors="ignore") as f:
+            with Path(filepath).open(encoding="utf-8", errors="ignore") as f:
                 content = f.read()
 
         except FileNotFoundError:
@@ -63,7 +65,8 @@ class FileSummarizerTool(FunctionTool):
         if len(content) > agent_config.MAX_CONTENT_CHARS_FOR_SUMMARIZER_SINGLE_PASS:
             logger.warning(
                 f"File content length ({len(content)} chars) exceeds "
-                f"MAX_CONTENT_CHARS_FOR_SUMMARIZER_SINGLE_PASS ({agent_config.MAX_CONTENT_CHARS_FOR_SUMMARIZER_SINGLE_PASS}). "
+                f"MAX_CONTENT_CHARS_FOR_SUMMARIZER_SINGLE_PASS "
+                f"({agent_config.MAX_CONTENT_CHARS_FOR_SUMMARIZER_SINGLE_PASS}). "
                 f"Will summarize only the first part."
             )
             content_to_summarize = content[
@@ -71,13 +74,15 @@ class FileSummarizerTool(FunctionTool):
             ]
 
         prompt_parts = [
-            "You are an expert assistant specialized in summarizing text documents accurately and concisely.",
+            "You are an expert assistant specialized in summarizing text documents "
+            "accurately and concisely.",
             "Please summarize the following document based on the provided instructions.",
             f'Instructions from user: "{instructions}"',
         ]
         if max_summary_length_words:
             prompt_parts.append(
-                f"Aim for a summary of approximately {max_summary_length_words} words, but prioritize accuracy and completeness of the requested information."
+                f"Aim for a summary of approximately {max_summary_length_words} words, "
+                "but prioritize accuracy and completeness of the requested information."
             )
 
         prompt_parts.append("\nDocument to summarize:\n---\n")

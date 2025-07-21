@@ -1,8 +1,9 @@
 """Tool hooks for context management in agent loop."""
 
 import logging
+from pathlib import Path
 import re
-from typing import Any, Dict, List, Optional, Tuple, Type, Union
+from typing import Any, Optional
 
 from google.adk.tools.base_tool import BaseTool
 
@@ -80,7 +81,8 @@ def process_read_file_results(
     if hasattr(result, "__dict__"):
         logger.info(f"DEBUG: Result attributes: {list(result.__dict__.keys())}")
         logger.info(
-            f"DEBUG: Result content preview: {getattr(result, 'content', 'NO_CONTENT')[:200] if hasattr(result, 'content') else 'NO_CONTENT'}"
+            "DEBUG: Result content preview: "
+            f"{getattr(result, 'content', 'NO_CONTENT')[:200] if hasattr(result, 'content') else 'NO_CONTENT'}"  # noqa: E501
         )
 
     # Handle both MCP CallToolResult and dictionary formats
@@ -146,24 +148,28 @@ def process_read_file_results(
         )
 
     logger.info(
-        f"DEBUG: Extracted - Content length: {len(content) if content else 0}, File path: {file_path}"
+        f"DEBUG: Extracted - Content length: {len(content) if content else 0}, "
+        f"File path: {file_path}"
     )
 
     if not content or not file_path:
         logger.warning(
-            f"Missing content or file path for process_read_file_results. Content: {bool(content)}, Path: {bool(file_path)}"
+            f"Missing content or file path for process_read_file_results. "
+            f"Content: {bool(content)}, Path: {bool(file_path)}"
         )
         return
 
     try:
-        # Register this file with the file change tracker (assuming file_tracker can operate without ContextManager instance)
+        # Register this file with the file change tracker
+        # (assuming file_tracker can operate without ContextManager instance)
         file_change_tracker.register_file_read(file_path, content)
 
         # Extract line numbers if available
         start_line = 1  # Default for MCP tools
         end_line = start_line + content.count("\n")
 
-        # Add the entire content as a code snippet to state - be more inclusive with our massive token budget!
+        # Add the entire content as a code snippet to state - be more inclusive with our massive
+        # token budget!
         code_snippets = state.get("app:code_snippets", [])
         if code_snippets is None:
             code_snippets = []
@@ -261,7 +267,7 @@ def process_edit_file_results(
         # For write operations, we need to read the current content to track changes
         # Since MCP write_file doesn't provide before/after content, we'll read it
         try:
-            with open(file_path, encoding="utf-8") as f:
+            with Path(file_path).open(encoding="utf-8") as f:
                 new_content = f.read()
                 logger.info(f"DEBUG EDIT: Read current file content, length: {len(new_content)}")
         except Exception as e:
@@ -304,7 +310,7 @@ def process_edit_file_results(
 
 def process_codebase_search_results(
     state: dict[str, Any],  # Accept state dictionary
-    tool: BaseTool,
+    _tool: BaseTool,
     result: dict[str, Any],
 ) -> None:
     """Process codebase_search tool results.

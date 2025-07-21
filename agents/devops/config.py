@@ -253,10 +253,10 @@ DEFAULT_MEMORY_FILE = ".memory.json"
 # MCP_ALLOWED_DIRECTORIES_STR = os.getenv("MCP_ALLOWED_DIRECTORIES")
 # MCP_ALLOWED_DIRECTORIES = []
 # if MCP_ALLOWED_DIRECTORIES_STR:
-#     MCP_ALLOWED_DIRECTORIES = [d.strip() for d in MCP_ALLOWED_DIRECTORIES_STR.split(",") if d.strip()]
+#     MCP_ALLOWED_DIRECTORIES = [d.strip() for d in MCP_ALLOWED_DIRECTORIES_STR.split(",") if d.strip()]  # noqa: E501
 # if not MCP_ALLOWED_DIRECTORIES:
 #     MCP_ALLOWED_DIRECTORIES = [os.path.dirname(os.path.abspath(__file__))]
-#     logger.info(f"MCP_ALLOWED_DIRECTORIES not set in .env, defaulting to agent directory: {MCP_ALLOWED_DIRECTORIES[0]}")
+#     logger.info(f"MCP_ALLOWED_DIRECTORIES not set in .env, defaulting to agent directory: {MCP_ALLOWED_DIRECTORIES[0]}")  # noqa: E501
 
 # --- Feature Flags ---
 ENABLE_INTERACTIVE_PLANNING_STR = os.getenv("ENABLE_INTERACTIVE_PLANNING", "false")

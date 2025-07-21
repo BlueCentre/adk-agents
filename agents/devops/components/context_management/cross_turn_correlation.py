@@ -1,10 +1,9 @@
 """Cross-turn correlation for linking related code and tool results across conversation turns."""
 
-from collections import defaultdict
 from dataclasses import dataclass
 import logging
 import re
-from typing import Any, Dict, List, Set, Tuple
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +96,7 @@ class CrossTurnCorrelator:
         return enhanced_snippets, enhanced_tools
 
     def _build_snippet_correlations(
-        self, snippets: list[dict[str, Any]], conversation_turns: list[dict[str, Any]]
+        self, snippets: list[dict[str, Any]], _conversation_turns: list[dict[str, Any]]
     ) -> dict[int, dict[int, CorrelationScore]]:
         """Build correlation scores between code snippets."""
 
@@ -144,7 +143,7 @@ class CrossTurnCorrelator:
     def _build_tool_correlations(
         self,
         tool_results: list[dict[str, Any]],
-        conversation_turns: list[dict[str, Any]],
+        _conversation_turns: list[dict[str, Any]],
     ) -> dict[int, dict[int, CorrelationScore]]:
         """Build correlation scores between tool results."""
 
@@ -198,7 +197,7 @@ class CrossTurnCorrelator:
         self,
         code_snippets: list[dict[str, Any]],
         tool_results: list[dict[str, Any]],
-        conversation_turns: list[dict[str, Any]],
+        _conversation_turns: list[dict[str, Any]],
     ) -> dict[str, list[tuple[int, int, CorrelationScore]]]:
         """Build correlations between code snippets and tool results."""
 
@@ -417,7 +416,7 @@ class CrossTurnCorrelator:
         self,
         items: list[dict[str, Any]],
         correlations: dict[int, dict[int, CorrelationScore]],
-        item_type: str,
+        _item_type: str,
     ) -> list[dict[str, Any]]:
         """Add correlation information to items."""
 
@@ -523,7 +522,8 @@ class CrossTurnCorrelator:
                 related_count = correlations.get("count", 0)
                 file_path = snippet.get("file_path", "unknown")
                 logger.info(
-                    f"    Snippet {i + 1} ({file_path}): {related_count} correlations (max: {max_score:.3f})"
+                    f"    Snippet {i + 1} ({file_path}): {related_count} "
+                    f"correlations (max: {max_score:.3f})"
                 )
 
         for i, tool in enumerate(tools[:3]):  # Top 3 tools
@@ -533,5 +533,6 @@ class CrossTurnCorrelator:
                 related_count = correlations.get("count", 0)
                 tool_name = tool.get("tool", "unknown")
                 logger.info(
-                    f"    Tool {i + 1} ({tool_name}): {related_count} correlations (max: {max_score:.3f})"
+                    f"    Tool {i + 1} ({tool_name}): {related_count} "
+                    f"correlations (max: {max_score:.3f})"
                 )

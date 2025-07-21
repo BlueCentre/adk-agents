@@ -1,6 +1,5 @@
 # /Users/james/Agents/devops_v2/rag_components/retriever.py
 import logging
-import os
 
 # Import agent configuration
 from ...config import GOOGLE_API_KEY
@@ -104,7 +103,8 @@ def retrieve_relevant_chunks(
 if __name__ == "__main__":
     # Example Usage (for testing this module directly)
     # Note: logging is configured in the import fallback if this is run standalone.
-    # If run via an agent that already configures logging, this basicConfig might not run or might conflict.
+    # If run via an agent that already configures logging, this basicConfig might not run or
+    # might conflict.
     if "indexing" not in globals():  # A proxy to see if we are in fallback mode
         logging.basicConfig(
             level=logging.INFO, format="%(asctime)s - %(levelname)s - %(name)s - %(message)s"
@@ -113,11 +113,13 @@ if __name__ == "__main__":
     # This requires GOOGLE_API_KEY to be set in the environment if .indexing is not found
     if not GOOGLE_API_KEY and "indexing" not in globals():
         logger.error(
-            "Please set the GOOGLE_API_KEY environment variable to run this example if .indexing is not found."
+            "Please set the GOOGLE_API_KEY environment variable to run this example if "
+            ".indexing is not found."
         )
     else:
         logger.info(
-            "Attempting to retrieve chunks. Make sure you have indexed some data first (e.g., by running indexing.py example)."
+            "Attempting to retrieve chunks. Make sure you have indexed some data first "
+            "(e.g., by running indexing.py example)."
         )
 
         sample_query = "How does MyClass work?"
@@ -128,7 +130,8 @@ if __name__ == "__main__":
                 print(f'\n--- Top {len(retrieved)} relevant chunks for query: "{sample_query}" ---')
                 for i, chunk_dict in enumerate(retrieved):
                     print(
-                        f"\nChunk {i + 1} (ID: {chunk_dict['id']}, Distance: {chunk_dict['distance']:.4f}):"
+                        f"\nChunk {i + 1} (ID: {chunk_dict['id']}, Distance: "
+                        f"{chunk_dict['distance']:.4f}):"
                     )
                     print("Metadata:", chunk_dict["metadata"])
                     print("Content:\n", chunk_dict["document"])
@@ -142,11 +145,13 @@ if __name__ == "__main__":
         if retrieved_again is not None:
             if retrieved_again:
                 print(
-                    f'\n--- Top {len(retrieved_again)} relevant chunks for query: "{another_query}" ---'
+                    f"\n--- Top {len(retrieved_again)} relevant chunks for query: "
+                    f'"{another_query}" ---'
                 )
                 for i, chunk_dict in enumerate(retrieved_again):
                     print(
-                        f"\nChunk {i + 1} (ID: {chunk_dict['id']}, Distance: {chunk_dict['distance']:.4f}):"
+                        f"\nChunk {i + 1} (ID: {chunk_dict['id']}, Distance: "
+                        f"{chunk_dict['distance']:.4f}):"
                     )
                     print("Metadata:", chunk_dict["metadata"])
                     print("Content:\n", chunk_dict["document"])
