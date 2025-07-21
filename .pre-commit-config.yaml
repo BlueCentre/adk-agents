@@ -2,12 +2,12 @@ repos:
   # Use ruff for linting, formatting, and import sorting via uv
   - repo: local
     hooks:
-      # - id: ruff-check
-      #   name: ruff check
-      #   entry: uv run ruff check --fix
-      #   language: system
-      #   types: [python]
-      #   require_serial: false
+      - id: ruff-check
+        name: ruff check
+        entry: uv run ruff check . --fix
+        language: system
+        types: [python]
+        require_serial: false
       
       - id: ruff-format
         name: ruff format

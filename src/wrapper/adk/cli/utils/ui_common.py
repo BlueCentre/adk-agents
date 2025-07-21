@@ -16,7 +16,7 @@ class UITheme(Enum):
 class ThemeConfig:
     """Theme configuration for the CLI interface."""
 
-    DARK_THEME = {
+    DARK_THEME = {  # noqa: RUF012
         # Prompt styles
         "prompt": "#87ceeb bold",  # sky blue
         "user-input": "#ffffff",  # white
@@ -44,7 +44,7 @@ class ThemeConfig:
         "status.agent": "#ffa500",  # orange
     }
 
-    LIGHT_THEME = {
+    LIGHT_THEME = {  # noqa: RUF012
         # Prompt styles
         "prompt": "#0066cc bold",  # blue
         "user-input": "#000000",  # black
@@ -134,9 +134,11 @@ class StatusBar:
 
     def get_status_segments(self, agent_name: str, session_id: str) -> list[tuple[str, str]]:
         """Get status bar segments as (content, style) tuples."""
-        now = datetime.now()
-        uptime = now - self.session_start_time
-        f"{uptime.seconds // 3600:02d}:{(uptime.seconds % 3600) // 60:02d}:{uptime.seconds % 60:02d}"
+        # now = datetime.now()
+        # uptime = now - self.session_start_time
+        # uptime_str = (
+        #     f"{uptime.seconds // 3600:02d}:{(uptime.seconds % 3600) // 60:02d}:{uptime.seconds % 60:02d}"  # noqa: E501
+        # )
 
         return [
             (f" 🤖 {agent_name} ", "bottom-toolbar.accent"),

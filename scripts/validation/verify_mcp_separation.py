@@ -12,12 +12,12 @@ Usage:
     uv run scripts/validation/verify_mcp_separation.py
 """
 
-import os
+from pathlib import Path
 import sys
-from typing import Dict, List, Optional, Set
+from typing import Optional
 
 # Add the project root to the Python path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, str(Path(__file__).parent / ".."))
 
 try:
     from agents.software_engineer.tools import (
@@ -152,7 +152,7 @@ def analyze_separation(root_mcp_servers: list[str], sub_agent_data: dict):
         if exclusive_to_sub_agent:
             print(f"   ✅ Exclusive tools: {list(exclusive_to_sub_agent)}")
         else:
-            print("   ℹ️  No exclusive tools found")
+            print("   [INFO] No exclusive tools found")
 
         if shared_with_root:
             print(f"   🔄 Shared with root: {list(shared_with_root)}")
@@ -160,16 +160,14 @@ def analyze_separation(root_mcp_servers: list[str], sub_agent_data: dict):
         # Check if sub-agent has access to tools it shouldn't
         excluded_servers = set(config.get("excludedServers", []))
         if excluded_servers & sub_agent_servers:
-            print(
-                f"   ⚠️  WARNING: Sub-agent has access to excluded servers: {list(excluded_servers & sub_agent_servers)}"
-            )
+            excluded_list = list(excluded_servers & sub_agent_servers)
+            print(f"   ⚠️  WARNING: Sub-agent has access to excluded servers: {excluded_list}")
 
         # Check if global servers are properly included
         global_servers_included = set(config.get("globalServers", []))
         if global_servers_included and not (global_servers_included & sub_agent_servers):
-            print(
-                f"   ⚠️  WARNING: Global servers not found in sub-agent tools: {list(global_servers_included)}"
-            )
+            global_list = list(global_servers_included)
+            print(f"   ⚠️  WARNING: Global servers not found in sub-agent tools: {global_list}")
 
 
 def main():

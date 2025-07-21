@@ -12,28 +12,23 @@ Usage:
 """
 
 import os
+from pathlib import Path
 import sys
 
 # Add the project root to the path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import argparse
-import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime
 import json
-from pathlib import Path
-import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 try:
     # Rich console for beautiful output
     from rich import box
     from rich.align import Align
     from rich.console import Console
-    from rich.layout import Layout
-    from rich.live import Live
     from rich.panel import Panel
-    from rich.progress import Progress, SpinnerColumn, TextColumn
     from rich.table import Table
     from rich.text import Text
 except ImportError:
@@ -64,7 +59,7 @@ try:
         logging_spec.loader.exec_module(logging_module)
         log_performance_metrics = logging_module.log_performance_metrics
         log_business_event = logging_module.log_business_event
-    except:
+    except Exception:
         log_performance_metrics = None
         log_business_event = None
 
@@ -75,7 +70,7 @@ try:
         analytics_module = importlib.util.module_from_spec(analytics_spec)
         analytics_spec.loader.exec_module(analytics_module)
         tool_analytics = analytics_module.tool_analytics
-    except:
+    except Exception:
         tool_analytics = None
 
     TELEMETRY_AVAILABLE = True
@@ -239,7 +234,7 @@ class TelemetryDashboard:
                 else {},
             }
 
-            with open(filename, "w") as f:
+            with Path(filename).open("w") as f:
                 json.dump(report, f, indent=2, default=str)
 
             console.print(f"[green]✅ Development metrics exported: {filename}[/green]")

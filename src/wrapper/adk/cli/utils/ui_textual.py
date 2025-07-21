@@ -45,7 +45,7 @@ class AgentTUI(App):
 
     CSS_PATH = "ui_textual.tcss"
 
-    BINDINGS = [
+    BINDINGS = [  # noqa: RUF012
         Binding("f12", "toggle_user_multiline_input", "Toggle Input Mode", show=False),
         Binding("ctrl+t", "toggle_theme", "Toggle Theme", show=False),
         Binding("ctrl+y", "toggle_agent_thought", "Toggle Thought", show=False),
@@ -118,7 +118,7 @@ class AgentTUI(App):
                 "run security scan",
                 "run performance tests",
                 "generate documentation",
-                "summarize git status & diff using https://www.conventionalcommits.org/en/v1.0.0/#specification, commit, push changes to feature branch, and create a pull request",
+                "summarize git status & diff using https://www.conventionalcommits.org/en/v1.0.0/#specification, commit, push changes to feature branch, and create a pull request",  # noqa: E501
                 "push changes",
             ],
             "⚙️ CLI Commands": [
@@ -317,11 +317,6 @@ class AgentTUI(App):
         if not self.is_mounted:
             return
 
-        # now = datetime.now()
-        # uptime = now - self.status_bar.session_start_time
-        # self._uptime = f"{uptime.seconds // 3600:02d}:{(uptime.seconds % 3600) // 60:02d}:{uptime.seconds % 60:02d}"
-        # self._current_time = now.strftime('%H:%M:%S')
-
         try:
             # Determine status with thinking animation
             if self.agent_thinking:
@@ -472,7 +467,7 @@ class AgentTUI(App):
             else:
                 # Hide the thought log
                 event_log.display = False
-        except:
+        except Exception:
             # Thought log doesn't exist, create it if needed
             if self.agent_thought_enabled:
                 main_content = self.query_one("#main-content")
@@ -495,7 +490,7 @@ class AgentTUI(App):
                 current_content = current_input.value
             elif hasattr(current_input, "text"):
                 current_content = current_input.text
-        except:
+        except Exception:
             pass
 
         # Toggle the mode
@@ -505,7 +500,7 @@ class AgentTUI(App):
         try:
             current_input = self.query_one("#input-area")
             current_input.remove()
-        except:
+        except Exception:
             pass
 
         # Create the new input widget after a small delay to ensure removal is complete
@@ -551,7 +546,7 @@ class AgentTUI(App):
             try:
                 output_log = self.query_one("#output-log", RichLog)
                 output_log.border_title = f"🤖 {name}" if name else "🤖 Agent Output"
-            except:
+            except Exception:
                 # If the output log doesn't exist yet, ignore
                 pass
 
@@ -572,7 +567,7 @@ class AgentTUI(App):
                 else:
                     status = "🟢 Ready"
                 output_log.border_subtitle = status
-            except:
+            except Exception:
                 # If the output log doesn't exist yet, ignore
                 pass
 
@@ -593,7 +588,7 @@ class AgentTUI(App):
                 else:
                     status = "🟢 Ready"
                 output_log.border_subtitle = status
-            except:
+            except Exception:
                 # If the output log doesn't exist yet, ignore
                 pass
 
@@ -606,7 +601,7 @@ class AgentTUI(App):
                 output_log.border_subtitle = (
                     f"🧑 Session: {session_id}" if session_id else "🧑 Session: Unknown"
                 )
-            except:
+            except Exception:
                 # If the output log doesn't exist yet, ignore
                 pass
 
@@ -719,7 +714,7 @@ class AgentTUI(App):
         # If the app is not yet mounted, store the info for later
         try:
             self.query_one("#output-log", RichLog)
-        except:
+        except Exception:
             self._pending_welcome_info = (agent_name, agent_description, tools)
             return
 
@@ -794,7 +789,7 @@ class AgentTUI(App):
 • Use Ctrl+C to interrupt long-running agent operations
 
 [bold green]💡 Tip:[/bold green] This is an advanced multi-pane interface with persistent input, real-time agent interaction, and DevOps-optimized completions!
-""")
+""")  # noqa: E501
         self.add_output(help_text, rich_format=True)
 
     def display_model_usage(
@@ -1010,7 +1005,8 @@ class SubmittableTextArea(TextArea):
                 submit_event = Input.Submitted(self, content)
                 self.post_message(submit_event)
             event.prevent_default()
-        # Let Enter and other keys be handled by TextArea's default behavior (Enter creates new line)
+        # Let Enter and other keys be handled by TextArea's default behavior
+        # (Enter creates new line)
 
 
 class CompletionWidget(ModalScreen[str]):

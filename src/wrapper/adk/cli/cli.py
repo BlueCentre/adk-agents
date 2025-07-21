@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from datetime import datetime
 import logging
+from pathlib import Path
 import time
 
 from google.adk.agents.llm_agent import LlmAgent
@@ -82,7 +83,7 @@ async def run_input_file(
         session_service=session_service,
         credential_service=credential_service,
     )
-    with open(input_path, encoding="utf-8") as f:
+    with Path(input_path).open(encoding="utf-8") as f:
         input_file = InputFile.model_validate_json(f.read())
     input_file.state["_time"] = datetime.now()
 
@@ -483,7 +484,7 @@ async def run_cli(
             input_path=input_file,
         )
     elif saved_session_file:
-        with open(saved_session_file, encoding="utf-8") as f:
+        with Path(saved_session_file).open(encoding="utf-8") as f:
             loaded_session = Session.model_validate_json(f.read())
 
         if loaded_session:
@@ -538,7 +539,7 @@ async def run_cli(
             user_id=session.user_id,
             session_id=session.id,
         )
-        with open(session_path, "w", encoding="utf-8") as f:
+        with Path(session_path).open("w", encoding="utf-8") as f:
             f.write(session.model_dump_json(indent=2, exclude_none=True))
 
         print("Session saved to", session_path)

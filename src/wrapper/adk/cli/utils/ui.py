@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Optional
-
 from .ui_common import UITheme
 from .ui_prompt_toolkit import EnhancedCLI
 from .ui_rich import RichRenderer

@@ -22,7 +22,6 @@ from tests.fixtures.test_helpers import (
     MockTool,
     MockToolContext,
     StateManager,
-    StateValidationError,
     create_populated_state_manager,
     create_sample_legacy_state,
 )
@@ -182,7 +181,7 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "async_test: mark test as async")
 
 
-def pytest_collection_modifyitems(config, items):
+def pytest_collection_modifyitems(config, items):  # noqa: ARG001
     """Modify test collection to add markers automatically."""
     for item in items:
         # Add unit marker to tests in unit/ directory
@@ -221,13 +220,13 @@ def pytest_runtest_setup(item):
     logging.getLogger("test").info(f"Starting test: {item.name}")
 
 
-def pytest_runtest_teardown(item, nextitem):
+def pytest_runtest_teardown(item, nextitem):  # noqa: ARG001
     """Teardown hook called after each test."""
     # Log test completion
     logging.getLogger("test").info(f"Completed test: {item.name}")
 
 
-def pytest_exception_interact(node, call, report):
+def pytest_exception_interact(node, call, report):  # noqa: ARG001
     """Hook called when an exception occurs during test execution."""
     if report.failed:
         logging.getLogger("test").error(f"Test {node.name} failed with: {report.longrepr}")

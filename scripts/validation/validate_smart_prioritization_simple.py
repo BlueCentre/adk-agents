@@ -4,29 +4,27 @@ Simplified validation script for Smart Prioritization system.
 Tests various scenarios to demonstrate relevance-based ranking.
 """
 
-from datetime import datetime, timezone
 import logging
-import os
+from pathlib import Path
 import sys
-from typing import Any, Dict, List
 
 # Add the agents/devops directory to the path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "agents", "devops"))
+sys.path.insert(0, str(Path(__file__).parent / "agents" / "devops"))
 
 # Import only the smart prioritization module directly
 sys.path.insert(
     0,
-    os.path.join(os.path.dirname(__file__), "agents", "devops", "components", "context_management"),
+    str(Path(__file__).parent / "agents" / "devops" / "components" / "context_management"),
 )
+
+# Import the smart prioritization classes directly
+from smart_prioritization import SmartPrioritizer
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
-
-# Import the smart prioritization classes directly
-from smart_prioritization import RelevanceScore, SmartPrioritizer
 
 
 class SmartPrioritizationValidator:
@@ -75,7 +73,11 @@ class SmartPrioritizationValidator:
         test_snippets = [
             {
                 "file": "auth/login.py",
-                "code": 'def authenticate_user(username, password):\n    if not validate_credentials(username, password):\n        raise AuthenticationError("Invalid credentials")',
+                "code": (
+                    "def authenticate_user(username, password):\n"
+                    "    if not validate_credentials(username, password):\n"
+                    '        raise AuthenticationError("Invalid credentials")'
+                ),
                 "start_line": 45,
                 "last_accessed": 10,
             },
@@ -87,7 +89,11 @@ class SmartPrioritizationValidator:
             },
             {
                 "file": "auth/models.py",
-                "code": "class User(Model):\n    username = CharField(max_length=150)\n    password = CharField(max_length=128)",
+                "code": (
+                    "class User(Model):\n"
+                    "    username = CharField(max_length=150)\n"
+                    "    password = CharField(max_length=128)"
+                ),
                 "start_line": 8,
                 "last_accessed": 10,
             },
@@ -102,7 +108,9 @@ class SmartPrioritizationValidator:
         for i, snippet in enumerate(ranked_snippets):
             score = snippet["_relevance_score"]
             print(
-                f"  {i + 1}. {snippet['file']} (final: {score.final_score:.3f}, content: {score.content_relevance:.3f})"
+                f"  {i + 1}. {snippet['file']} "
+                f"(final: {score.final_score:.3f}, "
+                f"content: {score.content_relevance:.3f})"
             )
 
         # Validate that auth-related files rank higher
@@ -155,7 +163,10 @@ class SmartPrioritizationValidator:
         for i, snippet in enumerate(ranked_snippets):
             score = snippet["_relevance_score"]
             print(
-                f"  {i + 1}. Line {snippet['start_line']} (final: {score.final_score:.3f}, recency: {score.recency_score:.3f}, last_accessed: {snippet['last_accessed']})"
+                f"  {i + 1}. Line {snippet['start_line']} "
+                f"(final: {score.final_score:.3f}, "
+                f"recency: {score.recency_score:.3f}, "
+                f"last_accessed: {snippet['last_accessed']})"
             )
 
         # Validate that more recent snippet ranks higher
@@ -183,13 +194,23 @@ class SmartPrioritizationValidator:
         test_snippets = [
             {
                 "file": "error_handler.py",
-                "code": 'try:\n    process_data()\nexcept Exception as e:\n    logger.error(f"Critical error: {e}")\n    raise',
+                "code": (
+                    "try:\n"
+                    "    process_data()\n"
+                    "except Exception as e:\n"
+                    '    logger.error(f"Critical error: {e}")\n'
+                    "    raise"
+                ),
                 "start_line": 10,
                 "last_accessed": 10,
             },
             {
                 "file": "data_processor.py",
-                "code": "def process_data():\n    # Normal processing logic\n    return clean_data(raw_data)",
+                "code": (
+                    "def process_data():\n"
+                    "    # Normal processing logic\n"
+                    "    return clean_data(raw_data)"
+                ),
                 "start_line": 5,
                 "last_accessed": 10,
             },
@@ -204,7 +225,9 @@ class SmartPrioritizationValidator:
         for i, snippet in enumerate(ranked_snippets):
             score = snippet["_relevance_score"]
             print(
-                f"  {i + 1}. {snippet['file']} (final: {score.final_score:.3f}, error: {score.error_priority:.3f})"
+                f"  {i + 1}. {snippet['file']} "
+                f"(final: {score.final_score:.3f}, "
+                f"error: {score.error_priority:.3f})"
             )
 
         # Validate that error-related snippet ranks higher
@@ -259,7 +282,9 @@ class SmartPrioritizationValidator:
         for i, snippet in enumerate(ranked_snippets):
             score = snippet["_relevance_score"]
             print(
-                f"  {i + 1}. {snippet['file']} (final: {score.final_score:.3f}, coherence: {score.context_coherence:.3f})"
+                f"  {i + 1}. {snippet['file']} "
+                f"(final: {score.final_score:.3f}, "
+                f"coherence: {score.context_coherence:.3f})"
             )
 
         # Validate that relevant files rank higher
@@ -319,7 +344,10 @@ class SmartPrioritizationValidator:
         for i, snippet in enumerate(ranked_snippets):
             score = snippet["_relevance_score"]
             print(
-                f"  {i + 1}. {snippet['file']} (final: {score.final_score:.3f}, frequency: {score.frequency_score:.3f}, existing_relevance: {snippet.get('relevance_score', 1.0)})"
+                f"  {i + 1}. {snippet['file']} "
+                f"(final: {score.final_score:.3f}, "
+                f"frequency: {score.frequency_score:.3f}, "
+                f"existing_relevance: {snippet.get('relevance_score', 1.0)})"
             )
 
         # Validate that frequently used snippet ranks higher
@@ -350,14 +378,27 @@ class SmartPrioritizationValidator:
         test_snippets = [
             {
                 "file": "auth/login.py",
-                "code": 'def login(username, password):\n    try:\n        user = authenticate(username, password)\n    except DatabaseError as e:\n        logger.error(f"DB connection failed: {e}")\n        raise',
+                "code": (
+                    "def login(username, password):\n"
+                    "    try:\n"
+                    "        user = authenticate(username, password)\n"
+                    "    except DatabaseError as e:\n"
+                    '        logger.error(f"DB connection failed: {e}")\n'
+                    "        raise"
+                ),
                 "start_line": 10,
                 "last_accessed": 24,  # Very recent
                 "relevance_score": 3.2,
             },
             {
                 "file": "database/connection.py",
-                "code": 'def connect_to_db():\n    try:\n        return psycopg2.connect(DATABASE_URL)\n    except Exception as e:\n        raise DatabaseError(f"Connection failed: {e}")',
+                "code": (
+                    "def connect_to_db():\n"
+                    "    try:\n"
+                    "        return psycopg2.connect(DATABASE_URL)\n"
+                    "    except Exception as e:\n"
+                    '        raise DatabaseError(f"Connection failed: {e}")'
+                ),
                 "start_line": 5,
                 "last_accessed": 20,  # Recent
                 "relevance_score": 2.1,
@@ -459,7 +500,9 @@ class SmartPrioritizationValidator:
             score = result["_relevance_score"]
             error_indicator = " ❌" if result.get("is_error") else ""
             print(
-                f"  {i + 1}. {result['tool']} (turn {result['turn']}){error_indicator} (final: {score.final_score:.3f})"
+                f"  {i + 1}. {result['tool']} "
+                f"(turn {result['turn']}){error_indicator} "
+                f"(final: {score.final_score:.3f})"
             )
 
         # Validate that error result ranks highest

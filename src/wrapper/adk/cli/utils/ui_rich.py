@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from rich.console import Console
 from rich.markdown import Markdown
@@ -45,7 +45,7 @@ class RichRenderer:
 
         Returns:
             Text: A Rich Text object representing the formatted message.
-        """
+        """  # noqa: E501
         if isinstance(text, Text):
             return text
 
@@ -81,7 +81,11 @@ class RichRenderer:
         markdown = Markdown(text, style=self.rich_theme.styles.get("agent.style", "gray"))
         return Panel(
             markdown,
-            title=f"[bold {self.rich_theme.styles.get('agent.border_color', 'green')}]🤖 {author} Response[/bold {self.rich_theme.styles.get('agent.border_color', 'green')}]",
+            title=(
+                f"[bold {self.rich_theme.styles.get('agent.border_color', 'green')}]"
+                f"🤖 {author} Response"
+                f"[/bold {self.rich_theme.styles.get('agent.border_color', 'green')}]"
+            ),
             title_align="right",
             border_style=self.rich_theme.styles.get("agent.border_color", "green"),
             expand=True,
@@ -92,7 +96,11 @@ class RichRenderer:
         markdown = Markdown(text, style=self.rich_theme.styles.get("thought.style", "gray"))
         return Panel(
             markdown,
-            title=f"[bold {self.rich_theme.styles.get('thought.border_color', 'magenta')}]🧠 Agent Thought[/bold {self.rich_theme.styles.get('thought.border_color', 'magenta')}]",
+            title=(
+                f"[bold {self.rich_theme.styles.get('thought.border_color', 'magenta')}]"
+                "🧠 Agent Thought"
+                f"[/bold {self.rich_theme.styles.get('thought.border_color', 'magenta')}]"
+            ),
             title_align="right",
             border_style=self.rich_theme.styles.get("thought.border_color", "magenta"),
             expand=True,
@@ -165,7 +173,11 @@ class RichRenderer:
         message.append(rendered_text)
         panel = Panel(
             message,
-            title=f"[bold {self.rich_theme.styles.get('agent.border_color', 'green')}]🤖 {author} Response[/bold {self.rich_theme.styles.get('agent.border_color', 'green')}]",
+            title=(
+                f"[bold {self.rich_theme.styles.get('agent.border_color', 'green')}]"
+                f"🤖 {author} Response"
+                f"[/bold {self.rich_theme.styles.get('agent.border_color', 'green')}]"
+            ),
             title_align="right",
             border_style=self.rich_theme.styles.get("agent.border_color", "green"),
             expand=True,
@@ -188,7 +200,11 @@ class RichRenderer:
         message.append(rendered_text)
         panel = Panel(
             message,
-            title=f"[bold {self.rich_theme.styles.get('thought.border_color', 'magenta')}]🧠 Agent Thought[/bold {self.rich_theme.styles.get('thought.border_color', 'magenta')}]",
+            title=(
+                f"[bold {self.rich_theme.styles.get('thought.border_color', 'magenta')}]"
+                "🧠 Agent Thought"
+                "[/bold {self.rich_theme.styles.get('thought.border_color', 'magenta')}]"
+            ),
             title_align="right",
             border_style=self.rich_theme.styles.get("thought.border_color", "magenta"),
             expand=True,

@@ -76,6 +76,9 @@ class TelemetryProvider(Protocol):
 class NoOpTelemetryProvider:
     """No-op implementation for when no telemetry is available."""
 
+    def __init__(self):
+        self.available = False
+
     def track_llm_request(
         self,
         model: str,
@@ -93,6 +96,19 @@ class NoOpTelemetryProvider:
 
     def track_agent_session_end(self, agent_name: str, session_id: str, duration: float) -> None:
         pass
+
+    def track_agent_session(self, agent_name: str, session_id: str, event: str, **kwargs) -> None:
+        """Track agent lifecycle events (start/end) - no-op implementation."""
+
+    def track_model_request(
+        self, agent_name: str, model: str, invocation_id: str, event: str, **kwargs
+    ) -> None:
+        """Track model request events (start/end) - no-op implementation."""
+
+    def track_tool_usage(
+        self, agent_name: str, tool_name: str, invocation_id: str, event: str, **kwargs
+    ) -> None:
+        """Track tool usage events - no-op implementation."""
 
 
 class DevOpsTelemetryProvider:

@@ -275,17 +275,30 @@ def load_sub_agent_mcp_tools(
         List of MCP tools for the sub-agent
     """
     try:
-        # Try async pattern first
-        tools, exit_stack = asyncio.run(
-            load_sub_agent_mcp_tools_async(
+        # Check if we're already in an event loop
+        try:
+            asyncio.get_running_loop()
+            # If we get here, we're in an event loop - can't use asyncio.run()
+            logger.info(f"Already in event loop, using simple pattern for {sub_agent_name}")
+            return _load_sub_agent_mcp_tools_simple(
                 sub_agent_name,
                 mcp_server_filter,
                 include_global_servers,
                 excluded_servers,
                 server_overrides,
             )
-        )
-        return tools
+        except RuntimeError:
+            # No event loop running, safe to use asyncio.run()
+            tools, exit_stack = asyncio.run(
+                load_sub_agent_mcp_tools_async(
+                    sub_agent_name,
+                    mcp_server_filter,
+                    include_global_servers,
+                    excluded_servers,
+                    server_overrides,
+                )
+            )
+            return tools
     except Exception as e:
         logger.warning(f"Failed to load MCP tools for {sub_agent_name} using async pattern: {e}")
         # Fallback to simple pattern

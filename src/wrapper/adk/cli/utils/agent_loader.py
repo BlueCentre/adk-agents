@@ -16,10 +16,8 @@ from __future__ import annotations
 
 import importlib
 import logging
-import os
 from pathlib import Path
 import sys
-from typing import Optional
 
 from google.adk.agents.base_agent import BaseAgent
 
@@ -83,14 +81,17 @@ class AgentLoader:
             return []
 
         agent_modules = []
-        for item in os.listdir(base_path):
+        for item in Path(base_path).iterdir():
             item_path = base_path / item
-            if item_path.is_dir() and not item.startswith(".") and item != "__pycache__":
+            item_name = item.name  # Get the string name from the Path object
+            if item_path.is_dir() and not item_name.startswith(".") and item_name != "__pycache__":
                 # This is a package, so the module name is the directory name
-                agent_modules.append(item)
-            elif item_path.is_file() and item.endswith(".py") and not item.startswith("."):
+                agent_modules.append(item_name)
+            elif (
+                item_path.is_file() and item_name.endswith(".py") and not item_name.startswith(".")
+            ):
                 # This is a module, remove .py extension
-                module_name = item[:-3]
+                module_name = item_name[:-3]
                 if module_name != "__init__":  # Avoid listing __init__.py as a separate agent
                     agent_modules.append(module_name)
 

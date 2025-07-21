@@ -19,9 +19,9 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 import functools
 import logging
-import os
+import os  # noqa: F401  # Used in tests
+from pathlib import Path
 import tempfile
-from typing import Optional
 import warnings
 
 from fastapi import FastAPI
@@ -290,7 +290,8 @@ def adk_services_options():
                 """Optional. The URI of the session service.
               - Use 'agentengine://<agent_engine_resource_id>' to connect to Agent Engine sessions.
               - Use 'sqlite://<path_to_sqlite_file>' to connect to a SQLite DB.
-              - See https://docs.sqlalchemy.org/en/20/core/engines.html#backend-specific-urls for more details on supported database URIs."""
+              - See https://docs.sqlalchemy.org/en/20/core/engines.html#backend-specific-urls
+                for more details on supported database URIs."""
             ),
         )
         @click.option(
@@ -317,7 +318,9 @@ def adk_services_options():
             help=(
                 """Optional. The URI of the memory service.
                 - Use 'rag://<rag_corpus_id>' to connect to Vertex AI Rag Memory Service.
-                - Use 'agentengine://<agent_engine_resource_id>' to connect to Vertex AI Memory Bank Service. e.g. agentengine://12345"""
+                - Use 'agentengine://<agent_engine_resource_id>' to connect to
+                  Vertex AI Memory Bank Service.
+                  e.g. agentengine://12345"""
             ),
             default=None,
         )
@@ -333,7 +336,7 @@ def adk_services_options():
 def deprecated_adk_services_options():
     """Depracated ADK services options."""
 
-    def warn(alternative_param, ctx, param, value):
+    def warn(alternative_param, _ctx, param, value):
         if value:
             click.echo(
                 click.style(
@@ -438,7 +441,7 @@ def fast_api_common_options():
 @click.argument(
     "agents_dir",
     type=click.Path(exists=True, dir_okay=True, file_okay=False, resolve_path=True),
-    default=os.getcwd(),
+    default=str(Path.cwd()),
 )
 def cli_web(
     agents_dir: str,
@@ -469,7 +472,7 @@ def cli_web(
     logs.setup_adk_logger(getattr(logging, log_level.upper()))
 
     @asynccontextmanager
-    async def _lifespan(app: FastAPI):
+    async def _lifespan(_app: FastAPI):
         click.secho(
             f"""
 +-----------------------------------------------------------------------------+
@@ -501,7 +504,7 @@ def cli_web(
         allow_origins=allow_origins,
         web=True,
         trace_to_cloud=trace_to_cloud,
-        a2a=a2a,
+        _a2a=a2a,
         reload_agents=reload_agents,
         lifespan=_lifespan,
     )
@@ -556,28 +559,28 @@ def cli_web_packaged(
         try:
             import agents
 
-            agents_dir = os.path.dirname(agents.__file__)
+            agents_dir = str(Path(agents.__file__).parent)
         except ImportError:
             # Fallback: look for agents directory relative to the package
             # Find the package root directory
-            current_file = os.path.abspath(__file__)
+            current_file = Path(__file__).resolve()
             # Navigate up from src/wrapper/adk/cli/cli_tools_click.py to package root
-            package_root = os.path.dirname(
-                os.path.dirname(os.path.dirname(os.path.dirname(current_file)))
-            )
-            agents_dir = os.path.join(package_root, "agents")
+            package_root = current_file.parent.parent.parent.parent
+            agents_dir = str(package_root / "agents")
 
-            if not os.path.exists(agents_dir):
+            if not Path(agents_dir).exists():
                 click.echo(
-                    "Error: Packaged agents not found. Please use 'agent web' with a local agents directory.",
+                    "Error: Packaged agents not found. Please use 'agent web' "
+                    "with a local agents directory.",
                     err=True,
                 )
                 click.echo(f"Searched for agents in: {agents_dir}", err=True)
                 return
 
-        if not os.path.exists(agents_dir):
+        if not Path(agents_dir).exists():
             click.echo(
-                "Error: Packaged agents directory not found. Please use 'agent web' with a local agents directory.",
+                "Error: Packaged agents directory not found. Please use 'agent web' "
+                "with a local agents directory.",
                 err=True,
             )
             return
@@ -611,7 +614,7 @@ def cli_web_packaged(
     # )
 
     @asynccontextmanager
-    async def _lifespan(app: FastAPI):
+    async def _lifespan(_app: FastAPI):
         click.secho(
             f"""
 +-----------------------------------------------------------------------------+
@@ -643,7 +646,7 @@ def cli_web_packaged(
         allow_origins=allow_origins,
         web=True,
         trace_to_cloud=trace_to_cloud,
-        a2a=a2a,
+        _a2a=a2a,
         reload_agents=reload_agents,
         lifespan=_lifespan,
     )
@@ -674,7 +677,7 @@ def cli_web_packaged(
 @click.argument(
     "agents_dir",
     type=click.Path(exists=True, dir_okay=True, file_okay=False, resolve_path=True),
-    default=os.getcwd(),
+    default=str(Path.cwd()),
 )
 def cli_api_server(
     agents_dir: str,
@@ -716,9 +719,9 @@ def cli_api_server(
             allow_origins=allow_origins,
             web=False,
             trace_to_cloud=trace_to_cloud,
-            a2a=a2a,
-            host=host,
-            port=port,
+            _a2a=a2a,
+            _host=host,
+            _port=port,
             reload_agents=reload_agents,
         ),
         host=host,
@@ -784,10 +787,10 @@ def cli_api_server(
 @click.option(
     "--temp_folder",
     type=str,
-    default=os.path.join(
-        tempfile.gettempdir(),
-        "cloud_run_deploy_src",
-        datetime.now().strftime("%Y%m%d_%H%M%S"),
+    default=str(
+        Path(tempfile.gettempdir())
+        / "cloud_run_deploy_src"
+        / datetime.now().strftime("%Y%m%d_%H%M%S")
     ),
     help=(
         "Optional. Temp folder for the generated Cloud Run source files"
@@ -809,7 +812,8 @@ def cli_api_server(
 
   - Use 'sqlite://<path_to_sqlite_file>' to connect to a SQLite DB.
 
-  - See https://docs.sqlalchemy.org/en/20/core/engines.html#backend-specific-urls for more details on supported DB URLs."""
+  - See https://docs.sqlalchemy.org/en/20/core/engines.html#backend-specific-urls
+    for more details on supported DB URLs."""
     ),
 )
 @click.option(
@@ -912,10 +916,10 @@ def cli_deploy_cloud_run(
 @click.option(
     "--temp_folder",
     type=str,
-    default=os.path.join(
-        tempfile.gettempdir(),
-        "agent_engine_deploy_src",
-        datetime.now().strftime("%Y%m%d_%H%M%S"),
+    default=str(
+        Path(tempfile.gettempdir())
+        / "agent_engine_deploy_src"
+        / datetime.now().strftime("%Y%m%d_%H%M%S")
     ),
     help=(
         "Optional. Temp folder for the generated Agent Engine source files."

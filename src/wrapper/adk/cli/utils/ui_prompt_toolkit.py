@@ -4,7 +4,7 @@ import asyncio
 from collections.abc import Awaitable
 from datetime import datetime
 import os
-from typing import Callable, Optional
+from typing import Callable
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
@@ -80,7 +80,10 @@ class EnhancedCLI:
             return self.status_bar.format_toolbar(agent_name, session_id)
         except Exception:
             # Fallback to simple toolbar if formatting fails
-            return f" 🤖 {agent_name} | Session: {session_id[:8]}... | 💡 Alt+Enter:multi-line | 🚪 Ctrl+D:exit"
+            return (
+                f" 🤖 {agent_name} | Session: {session_id[:8]}... | "
+                "💡 Alt+Enter:multi-line | 🚪 Ctrl+D:exit"
+            )
 
     # BEGIN: Used from cli.py
 
@@ -163,7 +166,7 @@ class EnhancedCLI:
                 "run security scan",
                 "run performance tests",
                 "generate documentation",
-                "summarize git status & diff using https://www.conventionalcommits.org/en/v1.0.0/#specification, commit, push changes to feature branch, and create a pull request",
+                "summarize git status & diff using https://www.conventionalcommits.org/en/v1.0.0/#specification, commit, push changes to feature branch, and create a pull request",  # noqa: E501
                 "push changes",
             ],
             "⚙️ CLI Commands": [
@@ -188,7 +191,7 @@ class EnhancedCLI:
                 for _category, commands in categorized_commands.items():
                     self.all_commands.extend(commands)
 
-            def get_completions(self, document, complete_event):
+            def get_completions(self, document, complete_event):  # noqa: ARG002
                 text = document.get_word_before_cursor()
                 text_lower = text.lower()
 
@@ -232,7 +235,7 @@ class EnhancedCLI:
             mouse_support=False,
             wrap_lines=True,
             enable_history_search=True,
-            prompt_continuation=lambda width, line_number, is_soft_wrap: "     > "
+            prompt_continuation=lambda width, line_number, is_soft_wrap: "     > "  # noqa: ARG005
             if not is_soft_wrap
             else "",
             bottom_toolbar=lambda: self._safe_format_toolbar(agent_name, session_id),
@@ -333,7 +336,8 @@ class EnhancedCLI:
             f"[accent]│[/accent] [muted]Theme:[/muted] {theme_indicator} {self.theme.value.title()}"
         )
         self.console.print(
-            f"[accent]│[/accent] [muted]Session started:[/muted] {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            f"[accent]│[/accent] [muted]Session started:[/muted] "
+            f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         )
         self.console.print(
             "[accent]└──────────────────────────────────────────────────────────┘[/accent]"

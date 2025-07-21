@@ -76,7 +76,7 @@ class ServiceFactory:
                     raise click.ClickException("Agent engine id can not be empty.")
                 envs.load_dotenv_for_agent("", self.agents_dir)
                 # Assuming VertexAiMemoryBankService exists and is correctly imported/used
-                # from google.adk.memory.vertex_ai_memory_bank_service import VertexAiMemoryBankService
+                # from google.adk.memory.vertex_ai_memory_bank_service import VertexAiMemoryBankService # noqa: E501
                 # return VertexAiMemoryBankService(
                 #     project=os.environ["GOOGLE_CLOUD_PROJECT"],
                 #     location=os.environ["GOOGLE_CLOUD_LOCATION"],

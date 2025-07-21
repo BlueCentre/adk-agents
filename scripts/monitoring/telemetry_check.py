@@ -13,6 +13,7 @@ Usage:
 from datetime import datetime
 import json
 import os
+from pathlib import Path
 import sys
 
 
@@ -65,20 +66,20 @@ def check_telemetry_modules():
 
     try:
         # Check if telemetry.py exists
-        if os.path.exists("agents/devops/telemetry.py"):
+        if Path("agents/devops/telemetry.py").exists():
             print("✅ agents/devops/telemetry.py: Found")
         else:
             print("❌ agents/devops/telemetry.py: Not found")
             return False
 
         # Check if logging_config.py exists
-        if os.path.exists("agents/devops/disabled/logging_config.py"):
+        if Path("agents/devops/disabled/logging_config.py").exists():
             print("✅ agents/devops/disabled/logging_config.py: Found")
         else:
             print("❌ agents/devops/disabled/logging_config.py: Not found")
 
         # Check if analytics.py exists
-        if os.path.exists("agents/devops/tools/disabled/analytics.py"):
+        if Path("agents/devops/tools/disabled/analytics.py").exists():
             print("✅ agents/devops/tools/disabled/analytics.py: Found")
         else:
             print("❌ agents/devops/tools/disabled/analytics.py: Not found")
@@ -144,16 +145,16 @@ def export_config_summary():
             "environment": os.getenv("OPENLIT_ENVIRONMENT", "Production"),
         },
         "modules": {
-            "telemetry_py": os.path.exists("agents/devops/telemetry.py"),
-            "logging_config_py": os.path.exists("agents/devops/disabled/logging_config.py"),
-            "analytics_py": os.path.exists("agents/devops/tools/disabled/analytics.py"),
+            "telemetry_py": Path("agents/devops/telemetry.py").exists(),
+            "logging_config_py": Path("agents/devops/disabled/logging_config.py").exists(),
+            "analytics_py": Path("agents/devops/tools/disabled/analytics.py").exists(),
         },
     }
 
     filename = f"telemetry_config_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
 
     try:
-        with open(filename, "w") as f:
+        with Path(filename).open("w") as f:
             json.dump(summary, f, indent=2)
         print(f"📄 Configuration summary exported: {filename}")
         return filename
@@ -168,7 +169,7 @@ def check_run_sh_dependencies():
     print("=" * 28)
 
     try:
-        with open("run.sh") as f:
+        with Path("run.sh").open() as f:
             content = f.read()
 
         required_deps = [
@@ -256,7 +257,8 @@ def main():
             print("📊 Run './run.sh' to start with Grafana Cloud monitoring")
         else:
             print(
-                "📊 Run './run.sh' to start with local telemetry (set Grafana Cloud env vars for production)"
+                "📊 Run './run.sh' to start with local telemetry "
+                "(set Grafana Cloud env vars for production)"
             )
         print("📊 Test dependencies: uv run scripts/test_run_sh_telemetry.py")
     else:

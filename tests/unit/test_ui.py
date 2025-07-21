@@ -356,9 +356,9 @@ class TestIntegrationScenarios:
     def test_numeric_theme_handling(
         self,
         mock_ui_theme,
-        mock_rich_renderer,
+        _mock_rich_renderer,
         mock_agent_tui,
-        mock_enhanced_cli,  # noqa: ARG002
+        mock_enhanced_cli,
     ):
         """Test how functions handle numeric themes."""
         # Setup mocks - numeric theme should cause ValueError
@@ -388,9 +388,9 @@ class TestIntegrationScenarios:
     def test_special_characters_in_theme(
         self,
         mock_ui_theme,
-        mock_rich_renderer,
+        _mock_rich_renderer,
         mock_agent_tui,
-        mock_enhanced_cli,  # noqa: ARG002
+        mock_enhanced_cli,
     ):
         """Test how functions handle themes with special characters."""
         # Setup mocks - special characters should cause ValueError

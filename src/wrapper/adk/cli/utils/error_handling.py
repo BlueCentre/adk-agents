@@ -53,7 +53,8 @@ class ErrorHandler:
                 f"⚠️  The agent tried to call a function '{missing_function}' that doesn't exist."
             )
             self.display_interface.display_info(
-                "💡 This is likely a hallucination. The agent can answer your question without this function."
+                "💡 This is likely a hallucination. The agent can answer your question without "
+                "this function."
             )
             self.display_interface.display_info(
                 "✅ You can rephrase your question or ask the agent to use available tools instead."
@@ -130,19 +131,19 @@ class ConsoleErrorDisplay:
             self.console = cli.console if cli else console
         self.fallback_mode = fallback_mode
 
-    def display_error(self, message: str, style: str = "error") -> None:
+    def display_error(self, message: str, style: str = "error") -> None:  # noqa: ARG002
         if self.fallback_mode:
             self.console.print(f"[red]{message}[/red]")
         else:
             self.console.print(f"[red]{message}[/red]")
 
-    def display_warning(self, message: str, style: str = "warning") -> None:
+    def display_warning(self, message: str, style: str = "warning") -> None:  # noqa: ARG002
         if self.fallback_mode:
             self.console.print(f"[yellow]{message}[/yellow]")
         else:
             self.console.print(f"[yellow]{message}[/yellow]")
 
-    def display_info(self, message: str, style: str = "info") -> None:
+    def display_info(self, message: str, style: str = "info") -> None:  # noqa: ARG002
         if self.fallback_mode:
             self.console.print(f"[blue]{message}[/blue]")
         else:
@@ -155,11 +156,11 @@ class TUIErrorDisplay:
     def __init__(self, tui_app):
         self.tui_app = tui_app
 
-    def display_error(self, message: str, style: str = "error") -> None:
+    def display_error(self, message: str, style: str = "error") -> None:  # noqa: ARG002
         self.tui_app.add_output(message, author="System", rich_format=True, style="error")
 
-    def display_warning(self, message: str, style: str = "warning") -> None:
+    def display_warning(self, message: str, style: str = "warning") -> None:  # noqa: ARG002
         self.tui_app.add_output(message, author="System", rich_format=True, style="warning")
 
-    def display_info(self, message: str, style: str = "info") -> None:
+    def display_info(self, message: str, style: str = "info") -> None:  # noqa: ARG002
         self.tui_app.add_output(message, author="System", rich_format=True, style="info")

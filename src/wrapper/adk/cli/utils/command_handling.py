@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Optional, Protocol
+from typing import Protocol
 
 from .ui_common import UITheme
 

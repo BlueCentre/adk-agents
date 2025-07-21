@@ -22,8 +22,9 @@ from pathlib import Path
 import time
 import traceback
 import typing
-from typing import Any, List, Literal, Optional
+from typing import Any, Literal
 
+import click
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse, StreamingResponse
@@ -59,18 +60,16 @@ from google.adk.sessions.database_session_service import DatabaseSessionService
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.adk.sessions.session import Session
 from google.adk.sessions.vertex_ai_session_service import VertexAiSessionService
+from google.genai import types
 import graphviz
 from opentelemetry import trace
 from opentelemetry.exporter.cloud_trace import CloudTraceSpanExporter
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider, export
 from pydantic import Field, ValidationError
-import rich_click as click
 from starlette.types import Lifespan
 from typing_extensions import override
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
-
-from google.genai import types
 
 from .utils import envs  # Modified to use our packaged path
 from .utils.agent_loader import AgentLoader  # Modified to use our packaged path
@@ -112,7 +111,7 @@ class ApiServerSpanExporter(export.SpanExporter):
                     self.trace_dict[attributes["gcp.vertex.agent.event_id"]] = attributes
         return export.SpanExportResult.SUCCESS
 
-    def force_flush(self, timeout_millis: int = 30000) -> bool:
+    def force_flush(self, _timeout_millis: int = 30000) -> bool:
         return True
 
 
@@ -198,9 +197,9 @@ def get_fast_api_app(
     eval_storage_uri: str | None = None,
     allow_origins: list[str] | None = None,
     web: bool,
-    a2a: bool = False,
-    host: str = "127.0.0.1",
-    port: int = 8000,
+    _a2a: bool = False,
+    _host: str = "127.0.0.1",
+    _port: int = 8000,
     trace_to_cloud: bool = False,
     reload_agents: bool = False,
     lifespan: Lifespan[FastAPI] | None = None,
@@ -277,14 +276,9 @@ def get_fast_api_app(
                 rag_corpus=f"projects/{os.environ['GOOGLE_CLOUD_PROJECT']}/locations/{os.environ['GOOGLE_CLOUD_LOCATION']}/ragCorpora/{rag_corpus}"
             )
         elif memory_service_uri.startswith("agentengine://"):
-            agent_engine_id = memory_service_uri.split("://")[1]
-            if not agent_engine_id:
-                raise click.ClickException("Agent engine id can not be empty.")
-            envs.load_dotenv_for_agent("", agents_dir)
-            memory_service = VertexAiMemoryBankService(
-                project=os.environ["GOOGLE_CLOUD_PROJECT"],
-                location=os.environ["GOOGLE_CLOUD_LOCATION"],
-                agent_engine_id=agent_engine_id,
+            raise click.ClickException(
+                "VertexAiMemoryBankService is not yet implemented. "
+                "Use memory service URIs starting with 'rag://' instead."
             )
         else:
             raise click.ClickException(f"Unsupported memory service URI: {memory_service_uri}")
@@ -339,12 +333,11 @@ def get_fast_api_app(
             raise HTTPException(status_code=404, detail="Path not found")
         if not base_path.is_dir():
             raise HTTPException(status_code=400, detail="Not a directory")
+        base_path_obj = Path(base_path)
         agent_names = [
-            x
-            for x in os.listdir(base_path)
-            if os.path.isdir(os.path.join(base_path, x))
-            and not x.startswith(".")
-            and x != "__pycache__"
+            x.name
+            for x in base_path_obj.iterdir()
+            if x.is_dir() and not x.name.startswith(".") and x.name != "__pycache__"
         ]
         agent_names.sort()
         return agent_names
@@ -449,11 +442,7 @@ def get_fast_api_app(
         return session
 
     def _get_eval_set_file_path(app_name, agents_dir, eval_set_id) -> str:
-        return os.path.join(
-            agents_dir,
-            app_name,
-            eval_set_id + _EVAL_SET_FILE_EXTENSION,
-        )
+        return str(Path(agents_dir) / app_name / (eval_set_id + _EVAL_SET_FILE_EXTENSION))
 
     @app.post(
         "/apps/{app_name}/eval_sets/{eval_set_id}",
@@ -849,10 +838,10 @@ def get_fast_api_app(
         app_name: str,
         user_id: str,
         session_id: str,
-        modalities: list[Literal["TEXT", "AUDIO"]] = Query(
-            default=["TEXT", "AUDIO"]
-        ),  # Only allows "TEXT" or "AUDIO"
+        modalities: list[Literal["TEXT", "AUDIO"]] | None = None,  # Only allows "TEXT" or "AUDIO"
     ) -> None:
+        if modalities is None:
+            modalities = ["TEXT", "AUDIO"]
         await websocket.accept()
 
         session = await session_service.get_session(
@@ -914,7 +903,7 @@ def get_fast_api_app(
             runner = runner_dict.pop(app_name, None)
             await cleanup.close_runners([runner])
 
-        envs.load_dotenv_for_agent(os.path.basename(app_name), agents_dir)
+        envs.load_dotenv_for_agent(Path(app_name).name, agents_dir)
         if app_name in runner_dict:
             return runner_dict[app_name]
         root_agent = agent_loader.load_agent(app_name)
@@ -938,7 +927,7 @@ def get_fast_api_app(
 
         # BASE_DIR = Path(__file__).parent.resolve()
         # ANGULAR_DIST_PATH = BASE_DIR / "browser"
-        browser_dir = os.path.join(os.path.dirname(__file__), "browser")
+        browser_dir = Path(__file__).parent / "browser"
 
         @app.get("/")
         async def redirect_root_to_dev_ui():
