@@ -2,7 +2,7 @@
 
 from collections.abc import AsyncGenerator
 
-from google.adk.agents import BaseAgent, LlmAgent, ParallelAgent
+from google.adk.agents import LlmAgent, ParallelAgent
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events import Event, EventActions
 
@@ -50,7 +50,10 @@ class StateAggregatorAgent(LlmAgent):
         # Generate completion event
         yield Event(
             author=self.name,
-            text=f"Parallel analysis complete. Aggregated results from {len([r for r in [code_review_result, code_quality_result, testing_result, design_pattern_result] if r])} agents.",
+            text=(
+                f"Parallel analysis complete. Aggregated results from "
+                f"{len([r for r in [code_review_result, code_quality_result, testing_result, design_pattern_result] if r])} agents."  # noqa: E501
+            ),
             actions=EventActions(),
         )
 

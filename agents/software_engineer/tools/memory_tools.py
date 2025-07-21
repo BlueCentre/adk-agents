@@ -1,7 +1,7 @@
 """Memory tools for the Software Engineer Agent."""
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from google.adk.tools import FunctionTool, ToolContext
 from pydantic import BaseModel, Field
@@ -29,7 +29,7 @@ class AddMemoryFactOutput(BaseModel):
     category: str = Field(..., description="The category used")
 
 
-def add_memory_fact_func(args: dict, tool_context: ToolContext) -> AddMemoryFactOutput:
+def add_memory_fact_func(args: dict, tool_context: ToolContext) -> AddMemoryFactOutput:  # noqa: ARG001
     """
     Add a fact to memory for later retrieval.
     """
@@ -75,7 +75,7 @@ class SearchMemoryFactsOutput(BaseModel):
     total_categories: int = Field(..., description="Number of categories with results")
 
 
-def search_memory_facts_func(args: dict, tool_context: ToolContext) -> SearchMemoryFactsOutput:
+def search_memory_facts_func(args: dict, tool_context: ToolContext) -> SearchMemoryFactsOutput:  # noqa: ARG001
     """
     Search for facts in memory.
     """
@@ -103,7 +103,8 @@ def search_memory_facts_func(args: dict, tool_context: ToolContext) -> SearchMem
                 results[cat] = category_results
 
         logger.info(
-            f"Memory search completed. Query: '{query}', Category: '{category}', Results: {len(results)} categories"
+            f"Memory search completed. Query: '{query}', Category: '{category}', "
+            f"Results: {len(results)} categories"
         )
 
         return SearchMemoryFactsOutput(

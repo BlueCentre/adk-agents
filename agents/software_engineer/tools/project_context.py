@@ -1,8 +1,8 @@
 """Project context loading for the Software Engineer Agent."""
 
 import logging
-import os
-from typing import Any, Dict, Optional
+from pathlib import Path
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -19,15 +19,17 @@ def load_project_context(callback_context) -> Optional[dict[str, Any]]:
     """
     try:
         # Get current working directory
-        current_dir = os.getcwd()
+        current_dir = Path.cwd()
 
         # Log project information without returning it in the event
         logger.info("Project context loaded:")
         logger.info(f"  Working directory: {current_dir}")
-        logger.info(f"  Project name: {os.path.basename(current_dir)}")
+        logger.info(f"  Project name: {Path(current_dir).name}")
 
         # Detect project type
-        project_files = os.listdir(current_dir) if os.path.exists(current_dir) else []
+        project_files = (
+            [str(p.name) for p in Path(current_dir).iterdir()] if Path(current_dir).exists() else []
+        )
         if "pyproject.toml" in project_files:
             project_type = "python"
         elif "package.json" in project_files:
@@ -46,7 +48,7 @@ def load_project_context(callback_context) -> Optional[dict[str, Any]]:
         if hasattr(callback_context, "user_data"):
             callback_context.user_data["project_context"] = {
                 "working_directory": current_dir,
-                "project_name": os.path.basename(current_dir),
+                "project_name": Path(current_dir).name,
                 "project_type": project_type,
                 "files_found": project_files,
             }

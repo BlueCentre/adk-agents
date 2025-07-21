@@ -5,9 +5,9 @@ and provides detailed reports on quality, complexity, and potential issues.
 """
 
 from enum import Enum
-import os
+from pathlib import Path
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from google.adk.tools import FunctionTool, ToolContext
 from pydantic import BaseModel, Field
@@ -96,7 +96,7 @@ def detect_language(file_path: str) -> str:
     Returns:
         String representing the language
     """
-    ext = os.path.splitext(file_path)[1].lower()
+    ext = Path(file_path).suffix.lower()
     language_map = {
         ".py": "python",
         ".js": "javascript",
@@ -143,8 +143,8 @@ def analyze_python_code(file_path: str, code: str) -> dict[str, Any]:
             pylint.lint.Run([file_path, "--output-format=text"], reporter=reporter, exit=False)
 
             pylint_output = output.getvalue()
-            # TODO: Sonar Report - https://sonarcloud.io/project/security_hotspots?id=BlueCentre_code-agent&pullRequest=19&issueStatuses=OPEN,CONFIRMED&sinceLeakPeriod=true
-            # NOTE: Make sure the regex used here, which is vulnerable to polynomial runtime due to backtracking, cannot lead to denial of service.
+            # TODO: Sonar Report - https://sonarcloud.io/project/security_hotspots?id=BlueCentre_code-agent&pullRequest=19&issueStatuses=OPEN,CONFIRMED&sinceLeakPeriod=true  # noqa: E501
+            # NOTE: Make sure the regex used here, which is vulnerable to polynomial runtime due to backtracking, cannot lead to denial of service.  # noqa: E501
             # Parse pylint output
             pattern = r"([A-Z]):\s*(\d+),\s*(\d+):\s*(.+)\s*\(([A-Z0-9]+)\)"
             for match in re.finditer(pattern, pylint_output):
@@ -189,7 +189,7 @@ def analyze_python_code(file_path: str, code: str) -> dict[str, Any]:
                 for error in file_errors:
                     if len(error) >= 4:  # Make sure the error has all components
                         line_num, col_num, message = error[0], error[1], error[2]
-                        # line_num, col_num, message, code_obj = error[0], error[1], error[2], error[3]
+                        # line_num, col_num, message, code_obj = error[0], error[1], error[2], error[3]  # noqa: E501
 
                         severity = AnalysisSeverity.WARNING
                         if message.startswith("E"):
@@ -259,7 +259,7 @@ def analyze_python_code(file_path: str, code: str) -> dict[str, Any]:
                         CodeIssue(
                             line=block.lineno,
                             severity=severity,
-                            message=f"High cyclomatic complexity ({block.complexity}) in {block.name}",
+                            message=f"High cyclomatic complexity ({block.complexity}) in {block.name}",  # noqa: E501
                             code="R001",
                             source="radon",
                         )
@@ -308,7 +308,7 @@ def analyze_python_code(file_path: str, code: str) -> dict[str, Any]:
     return {"issues": issues, "metrics": metrics}
 
 
-def analyze_javascript_code(file_path: str, code: str) -> dict[str, Any]:
+def analyze_javascript_code(file_path: str, code: str) -> dict[str, Any]:  # noqa: ARG001
     """
     Analyze JavaScript code.
 
@@ -347,10 +347,10 @@ def _analyze_code(file_path: str, tool_context: ToolContext) -> dict[str, Any]:
         Dict containing analysis results.
     """
     try:
-        if not os.path.exists(file_path):
+        if not Path(file_path).exists():
             return {"error": f"File {file_path} does not exist", "status": "Failed"}
 
-        with open(file_path, encoding="utf-8") as file:
+        with Path(file_path).open(encoding="utf-8") as file:
             code = file.read()
 
         # Store the code in the state for the agent to access

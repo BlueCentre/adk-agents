@@ -544,18 +544,18 @@ class TestProjectContextLoading:
     """Test project context loading functionality."""
 
     @patch("agents.software_engineer.shared_libraries.callbacks.os.getcwd")
-    @patch("agents.software_engineer.shared_libraries.callbacks.os.path.exists")
-    @patch("agents.software_engineer.shared_libraries.callbacks.os.path.isdir")
+    @patch("agents.software_engineer.shared_libraries.callbacks.Path.exists")
+    @patch("agents.software_engineer.shared_libraries.callbacks.Path.is_dir")
     @patch("agents.software_engineer.shared_libraries.callbacks.os.scandir")
     @patch("agents.software_engineer.shared_libraries.callbacks.os.getenv")
     def test_project_context_python_detection(
-        self, mock_getenv, mock_scandir, mock_isdir, mock_exists, mock_getcwd
+        self, mock_getenv, mock_scandir, mock_is_dir, mock_exists, mock_getcwd
     ):
         """Test that Python projects are detected correctly."""
         mock_getcwd.return_value = "/test/python_project"
         mock_getenv.return_value = None  # No environment variables set
         mock_exists.return_value = True
-        mock_isdir.return_value = True
+        mock_is_dir.return_value = True
         # Create mock scandir entries with proper name attribute
         mock_entries = []
         for filename in [
@@ -587,18 +587,18 @@ class TestProjectContextLoading:
         assert "pyproject.toml" in project_context["files_found"]
 
     @patch("agents.software_engineer.shared_libraries.callbacks.os.getcwd")
-    @patch("agents.software_engineer.shared_libraries.callbacks.os.path.exists")
-    @patch("agents.software_engineer.shared_libraries.callbacks.os.path.isdir")
+    @patch("agents.software_engineer.shared_libraries.callbacks.Path.exists")
+    @patch("agents.software_engineer.shared_libraries.callbacks.Path.is_dir")
     @patch("agents.software_engineer.shared_libraries.callbacks.os.scandir")
     @patch("agents.software_engineer.shared_libraries.callbacks.os.getenv")
     def test_project_context_javascript_detection(
-        self, mock_getenv, mock_scandir, mock_isdir, mock_exists, mock_getcwd
+        self, mock_getenv, mock_scandir, mock_is_dir, mock_exists, mock_getcwd
     ):
         """Test that JavaScript projects are detected correctly."""
         mock_getcwd.return_value = "/test/js_project"
         mock_getenv.return_value = None  # No environment variables set
         mock_exists.return_value = True
-        mock_isdir.return_value = True
+        mock_is_dir.return_value = True
         # Create mock scandir entries with proper name attribute
         mock_entries = []
         for filename in ["package.json", "src", "node_modules", "index.js", "app.ts"]:
@@ -624,18 +624,18 @@ class TestProjectContextLoading:
         assert "package.json" in project_context["files_found"]
 
     @patch("agents.software_engineer.shared_libraries.callbacks.os.getcwd")
-    @patch("agents.software_engineer.shared_libraries.callbacks.os.path.exists")
-    @patch("agents.software_engineer.shared_libraries.callbacks.os.path.isdir")
+    @patch("agents.software_engineer.shared_libraries.callbacks.Path.exists")
+    @patch("agents.software_engineer.shared_libraries.callbacks.Path.is_dir")
     @patch("agents.software_engineer.shared_libraries.callbacks.os.scandir")
     @patch("agents.software_engineer.shared_libraries.callbacks.os.getenv")
     def test_project_context_unknown_detection(
-        self, mock_getenv, mock_scandir, mock_isdir, mock_exists, mock_getcwd
+        self, mock_getenv, mock_scandir, mock_is_dir, mock_exists, mock_getcwd
     ):
         """Test that unknown projects are handled correctly."""
         mock_getcwd.return_value = "/test/unknown_project"
         mock_getenv.return_value = None  # No environment variables set
         mock_exists.return_value = True
-        mock_isdir.return_value = True
+        mock_is_dir.return_value = True
         # Create mock scandir entries with proper name attribute
         mock_entries = []
         for filename in ["README.md", "data.csv", "config.ini"]:

@@ -129,7 +129,10 @@ def human_feedback_tool(
     # Simulate human feedback
     return {
         "status": "received",
-        "feedback": f"Human feedback for {feedback_type}: Please consider best practices and team conventions",
+        "feedback": (
+            f"Human feedback for {feedback_type}: "
+            "Please consider best practices and team conventions"
+        ),
         "suggestions": [
             "Review code style guidelines",
             "Consider performance implications",

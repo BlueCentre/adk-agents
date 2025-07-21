@@ -101,7 +101,7 @@ Handle directly when:
 - Provide progress updates during multi-step workflows
 - Summarize key findings from each sub-agent
 - Present final recommendations in order of priority
-"""
+"""  # noqa: E501
 
 # Enhanced instruction that understands workflow patterns
 SOFTWARE_ENGINEER_ENHANCED_INSTR = """
@@ -177,7 +177,7 @@ When delegating to workflow patterns, provide:
 - Quality improvement → iterative_refinement_workflow (Loop)
 
 Always explain your workflow selection reasoning and provide progress updates throughout execution.
-"""
+"""  # noqa: E501
 
 # Required constants for the SWE agent tools
 CODE_EXECUTION_AGENT_INSTR = """
@@ -186,7 +186,7 @@ CODE_EXECUTION_AGENT_INSTR = """
 **Output:** Raw script/code block only. Briefly explain assumptions if necessary *before* the code.
 **Constraints:** NO tool calls. NO simulated execution.
 **Principles:** Focus on correct, efficient, safe code. Comment complex logic. Warn if request seems risky. Be ready for refinement requests.
-"""
+"""  # noqa: E501
 
 SEARCH_AGENT_INSTR = """
 You are a specialized agent that performs Google searches based on the user's request.
@@ -198,4 +198,4 @@ You MUST return your findings as a JSON dictionary string with the following str
 }
 Do NOT return any text outside of this JSON dictionary string. Ensure the JSON is valid.
 The software_engineer_agent, which called you, expects this exact format for the search results.
-"""
+"""  # noqa: E501

@@ -1,7 +1,7 @@
 """Placeholder tools for manually saving/loading session memory to a file."""
 
 import logging
-from typing import Any, Dict
+from typing import Any
 
 from google.adk.tools import FunctionTool, ToolContext
 
@@ -14,7 +14,8 @@ DEFAULT_MEMORY_FILE = "./.manual_agent_memory.json"
 
 
 def _save_current_session_to_file_impl(
-    tool_context: ToolContext, filepath: str = DEFAULT_MEMORY_FILE
+    tool_context: ToolContext,  # noqa: ARG001
+    filepath: str = DEFAULT_MEMORY_FILE,  # noqa: ARG001
 ) -> dict[str, str]:
     """
     (Placeholder) Saves the *current* session's state to a specified JSON file.
@@ -54,7 +55,7 @@ def _save_current_session_to_file_impl(
     #             existing_data = json.load(f)
     #         logger.debug(f"Loaded {len(existing_data)} sessions from {filepath}")
     #     except (IOError, json.JSONDecodeError) as e:
-    #         logger.error(f"Error reading existing memory file {filepath}: {e}. Overwriting may occur.")
+    #         logger.error(f"Error reading existing memory file {filepath}: {e}. Overwriting may occur.")  # noqa: E501
     #
     # session_key = f"{session.app_name}_{session.user_id}_{session.session_id}"
     # existing_data[session_key] = session.model_dump(mode='json')
@@ -73,7 +74,7 @@ def _save_current_session_to_file_impl(
     return {"status": "skipped", "message": "Tool is not implemented."}
 
 
-def _load_memory_from_file_impl(query: str, filepath: str = DEFAULT_MEMORY_FILE) -> dict[str, Any]:
+def _load_memory_from_file_impl(query: str, filepath: str = DEFAULT_MEMORY_FILE) -> dict[str, Any]:  # noqa: ARG001
     """
     (Placeholder) Loads memory from a JSON file and performs a simple query.
     NOTE: This is a placeholder and not fully implemented.
@@ -103,7 +104,7 @@ def _load_memory_from_file_impl(query: str, filepath: str = DEFAULT_MEMORY_FILE)
     # try:
     #     with open(filepath, 'r', encoding='utf-8') as f:
     #         stored_sessions_data: Dict[str, Dict[str, Any]] = json.load(f)
-    #     logger.info(f"Loaded {len(stored_sessions_data)} sessions from {filepath} for query: '{query}'")
+    #     logger.info(f"Loaded {len(stored_sessions_data)} sessions from {filepath} for query: '{query}'")  # noqa: E501
     # except (IOError, json.JSONDecodeError) as e:
     #     msg = f"Error reading memory file {filepath}: {e}"
     #     logger.error(msg)
@@ -123,7 +124,7 @@ def _load_memory_from_file_impl(query: str, filepath: str = DEFAULT_MEMORY_FILE)
     #         for message in history:
     #             if isinstance(message, dict) and 'parts' in message:
     #                 message_text = "".join(
-    #                     [part.get('text', '') for part in message['parts'] if isinstance(part, dict)]
+    #                     [part.get('text', '') for part in message['parts'] if isinstance(part, dict)]  # noqa: E501
     #                 ).lower()
     #                 if query_lower in message_text:
     #                     session_matched = True

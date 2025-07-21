@@ -64,7 +64,10 @@ class IterativeQualityChecker(LlmAgent):
             should_stop = True
             reason = f"Maximum iterations reached ({max_iterations})"
         else:
-            reason = f"Quality needs improvement (score: {quality_score}/3), continuing iteration {current_iteration + 1}"
+            reason = (
+                f"Quality needs improvement (score: {quality_score}/3), "
+                f"continuing iteration {current_iteration + 1}"
+            )
 
         # Update iteration state
         iteration_state.update(

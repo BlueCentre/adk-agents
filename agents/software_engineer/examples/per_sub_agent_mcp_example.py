@@ -14,11 +14,9 @@ Usage:
 
 import json
 import logging
-import os
-from typing import Any, Dict, List
+from pathlib import Path
 
 from ..tools import (
-    SubAgentMCPConfig,
     create_sub_agent_mcp_config,
     get_sub_agent_mcp_config,
     list_available_mcp_servers,
@@ -276,11 +274,11 @@ def example_7_configuration_files():
     }
 
     # Save configuration to file
-    config_dir = os.path.join(os.getcwd(), ".agent", "sub-agents")
-    os.makedirs(config_dir, exist_ok=True)
+    config_dir = Path.cwd() / ".agent" / "sub-agents"
+    config_dir.mkdir(parents=True, exist_ok=True)
 
-    config_path = os.path.join(config_dir, "custom_debugging_agent.mcp.json")
-    with open(config_path, "w") as f:
+    config_path = config_dir / "custom_debugging_agent.mcp.json"
+    with config_path.open("w") as f:
         json.dump(config_content, f, indent=2)
 
     print(f"Configuration saved to: {config_path}")
@@ -294,8 +292,8 @@ def example_7_configuration_files():
     print(f"Tools loaded from configuration file: {len(tools)}")
 
     # Clean up
-    if os.path.exists(config_path):
-        os.remove(config_path)
+    if Path(config_path).exists():
+        Path(config_path).unlink()
         print("Configuration file cleaned up")
 
 

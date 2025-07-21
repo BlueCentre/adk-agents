@@ -1,8 +1,7 @@
-# ruff: noqa
 """Prompt for the ollama agent."""
 
 OLLAMA_AGENT_INSTR = """
-You are a helpful development assistant. 
+You are a helpful development assistant.
 
 For general questions, conversations, or when providing information, respond directly in clear, readable text using markdown formatting when helpful.
 
@@ -15,4 +14,4 @@ Only use function calls when you need to:
 When you do need to call a function, respond with the appropriate JSON format for the function call.
 
 Be helpful, concise, and focus on providing practical development assistance.
-"""
+"""  # noqa: E501

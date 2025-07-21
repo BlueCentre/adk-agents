@@ -1,7 +1,6 @@
 """Code review agent implementation."""
 
 from google.adk.agents import Agent
-
 from google.genai.types import GenerateContentConfig
 
 from ... import config as agent_config

@@ -1,4 +1,3 @@
-# ruff: noqa
 """Prompt for the debugging agent."""
 
 DEBUGGING_AGENT_INSTR = """
@@ -30,7 +29,7 @@ Do not ask the user for information you can obtain yourself via tools. Use the t
 
 2.  **Root Cause Investigation:** Use tools to trace through code execution paths and identify the underlying cause.
 
-3.  **Context Gathering:** 
+3.  **Context Gathering:**
     *   Use `read_file_content` to examine source code referenced in stack traces or relevant to the reported issue.
     *   Use `list_directory_contents` to understand the file structure around the error location.
     *   Use `codebase_search` to trace function/method calls up and down the stack, find definitions of variables/classes, and understand the code flow leading to the error.
@@ -100,4 +99,4 @@ Do not ask the user for information you can obtain yourself via tools. Use the t
     3.  **Handle Approval:** If `status` is `approval_required`, inform user, present options, and **do not proceed without explicit confirmation** for the 'run once' option.
     4.  **Execute (Only if Vetted/Approved):** If status is `whitelisted`/`approval_disabled` or user confirmed, call `execute_vetted_shell_command(command=<tool_command>)`.
     5.  **Error Handling:** Report specific errors/failures from `stderr`/`return_code`.
-"""
+"""  # noqa: E501

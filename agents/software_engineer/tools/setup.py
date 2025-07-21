@@ -8,7 +8,8 @@ from contextlib import AsyncExitStack
 import json
 import logging
 import os
-from typing import Any, List, Optional
+from pathlib import Path
+from typing import Any, Optional
 
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.tools.agent_tool import AgentTool
@@ -36,7 +37,6 @@ from .persistent_memory_tool import (
     load_memory_from_file_tool,
     save_current_session_to_file_tool,
 )
-from .search import google_search_grounding
 from .shell_command import execute_shell_command_tool
 from .system_info import get_os_info_tool
 
@@ -113,7 +113,7 @@ async def load_user_tools_and_toolsets_async():
     global _loaded_mcp_toolsets, _global_mcp_exit_stack
 
     user_mcp_tools_list = []
-    mcp_config_path = os.path.join(os.getcwd(), ".agent/mcp.json")
+    mcp_config_path = Path(Path.cwd(), ".agent/mcp.json")
 
     # Initialize _loaded_mcp_toolsets if it's None
     if _loaded_mcp_toolsets is None:
@@ -130,11 +130,11 @@ async def load_user_tools_and_toolsets_async():
     else:
         logger.info("Older ADK detected: Using simple pattern with MCPToolset()")
 
-    if not os.path.exists(mcp_config_path):
+    if not mcp_config_path.exists():
         logger.info("mcp.json not found. No user-defined MCP toolsets will be loaded.")
         return user_mcp_tools_list, _global_mcp_exit_stack if has_from_server else None
 
-    with open(mcp_config_path) as f:
+    with Path(mcp_config_path).open() as f:
         mcp_config = json.load(f)
 
     servers = mcp_config.get("mcpServers", {})
@@ -160,7 +160,8 @@ async def load_user_tools_and_toolsets_async():
                 and _loaded_mcp_toolsets[server_name] is not None
             ):
                 logger.info(
-                    f"MCP Toolset '{server_name}' already loaded. Adding existing instance to user tools list."
+                    f"MCP Toolset '{server_name}' already loaded. "
+                    "Adding existing instance to user tools list."
                 )
                 existing_tools = _loaded_mcp_toolsets[server_name]
                 if isinstance(existing_tools, list):
@@ -190,7 +191,9 @@ async def load_user_tools_and_toolsets_async():
                     _loaded_mcp_toolsets[server_name] = tools
 
                     logger.info(
-                        f"MCP Toolset '{server_name}' initialized successfully using async pattern. Loaded {len(tools)} tools."
+                        f"MCP Toolset '{server_name}' initialized successfully "
+                        "using async pattern. "
+                        f"Loaded {len(tools)} tools."
                     )
 
                 except Exception as e:
@@ -207,7 +210,8 @@ async def load_user_tools_and_toolsets_async():
                     user_mcp_tools_list.append(mcp_toolset)
                     _loaded_mcp_toolsets[server_name] = mcp_toolset
                     logger.info(
-                        f"MCP Toolset '{server_name}' initialized successfully using simple pattern."
+                        f"MCP Toolset '{server_name}' initialized successfully using "
+                        "simple pattern."
                     )
 
                 except Exception as e:
@@ -229,13 +233,13 @@ def load_user_tools_and_toolsets():
     the async lifecycle when needed.
     """
     user_mcp_tools_list = []
-    mcp_config_path = os.path.join(os.getcwd(), ".agent/mcp.json")
+    mcp_config_path = Path(Path.cwd(), ".agent/mcp.json")
 
-    if not os.path.exists(mcp_config_path):
+    if not mcp_config_path.exists():
         logger.info("mcp.json not found. No user-defined MCP toolsets will be loaded.")
         return user_mcp_tools_list
 
-    with open(mcp_config_path) as f:
+    with Path(mcp_config_path).open() as f:
         mcp_config = json.load(f)
 
     servers = mcp_config.get("mcpServers", {})
@@ -319,11 +323,13 @@ def _substitute_env_vars(value):
                 if value == f"{{{{env.{var_name}}}}}":
                     return env_value
                 logger.warning(
-                    f"Environment variable placeholder '{match.group(0)}' found within a string. Full string substitution is not supported. Skipping substitution."
+                    f"Environment variable placeholder '{match.group(0)}' found within a string. "
+                    "Full string substitution is not supported. Skipping substitution."
                 )
                 return value
             logger.warning(
-                f"Environment variable '{var_name}' not found. Could not substitute placeholder '{match.group(0)}'."
+                f"Environment variable '{var_name}' not found. "
+                f"Could not substitute placeholder '{match.group(0)}'."
             )
             return ""
         return value
@@ -341,7 +347,8 @@ def _create_connection_params(server_name, processed_config):
     if "url" in processed_config:
         if not isinstance(processed_config.get("url"), str):
             logger.warning(
-                f"Failed to load MCP Toolset '{server_name}': 'url' must be a string after env var substitution."
+                f"Failed to load MCP Toolset '{server_name}': "
+                "'url' must be a string after env var substitution."
             )
             return None
         connection_params = SseConnectionParams(url=processed_config["url"])
@@ -349,12 +356,14 @@ def _create_connection_params(server_name, processed_config):
     elif "command" in processed_config and "args" in processed_config:
         if not isinstance(processed_config.get("command"), str):
             logger.warning(
-                f"Failed to load MCP Toolset '{server_name}': 'command' must be a string after env var substitution."
+                f"Failed to load MCP Toolset '{server_name}': "
+                "'command' must be a string after env var substitution."
             )
             return None
         if not isinstance(processed_config.get("args"), list):
             logger.warning(
-                f"Failed to load MCP Toolset '{server_name}': 'args' must be a list after env var substitution."
+                f"Failed to load MCP Toolset '{server_name}': "
+                "'args' must be a list after env var substitution."
             )
             return None
 
@@ -362,7 +371,9 @@ def _create_connection_params(server_name, processed_config):
         for arg in processed_config["args"]:
             if not isinstance(arg, str):
                 logger.warning(
-                    f"Failed to load MCP Toolset '{server_name}': Argument '{arg}' in 'args' is not a string after env var substitution. Skipping toolset."
+                    f"Failed to load MCP Toolset '{server_name}': "
+                    f"Argument '{arg}' in 'args' is not a string after env var substitution. "
+                    "Skipping toolset."
                 )
                 return None
             processed_args.append(arg)
@@ -390,7 +401,9 @@ def _create_connection_params(server_name, processed_config):
         for key, value in processed_env.items():
             if not isinstance(value, str):
                 logger.warning(
-                    f"Failed to load MCP Toolset '{server_name}': Environment variable value for '{key}' is not a string after env var substitution. Converting to string."
+                    f"Failed to load MCP Toolset '{server_name}': "
+                    f"Environment variable value for '{key}' is not a string after env var "
+                    "substitution. Converting to string."
                 )
                 processed_env[key] = str(value)
 
@@ -418,7 +431,8 @@ def _create_connection_params(server_name, processed_config):
         )
     else:
         logger.warning(
-            f"Failed to load MCP Toolset '{server_name}': Configuration must contain either 'url' or 'command' and 'args'."
+            f"Failed to load MCP Toolset '{server_name}': "
+            "Configuration must contain either 'url' or 'command' and 'args'."
         )
         return None
 
@@ -450,7 +464,8 @@ def load_all_tools_and_toolsets():
 
     all_tools = core_tools + user_tools
     logger.info(
-        f"All tools loaded. Core: {len(core_tools)}, User/MCP: {len(user_tools)}, Total: {len(all_tools)} tools."
+        f"All tools loaded. Core: {len(core_tools)}, User/MCP: {len(user_tools)}, "
+        f"Total: {len(all_tools)} tools."
     )
     return all_tools
 
@@ -470,13 +485,13 @@ def _load_filtered_mcp_tools(mcp_server_filter: list[str]) -> list[Any]:
         List of tools from the specified MCP servers only
     """
     filtered_tools = []
-    mcp_config_path = os.path.join(os.getcwd(), ".agent/mcp.json")
+    mcp_config_path = Path(Path.cwd(), ".agent/mcp.json")
 
-    if not os.path.exists(mcp_config_path):
+    if not mcp_config_path.exists():
         logger.info("mcp.json not found. No MCP tools will be loaded.")
         return filtered_tools
 
-    with open(mcp_config_path) as f:
+    with Path(mcp_config_path).open() as f:
         mcp_config = json.load(f)
 
     servers = mcp_config.get("mcpServers", {})
@@ -598,12 +613,14 @@ def load_selective_tools_and_toolsets(
     Load tools selectively based on categories and specific tool names.
 
     Args:
-        included_categories: List of tool categories to include (e.g., ['filesystem', 'code_analysis'])
+        included_categories: List of tool categories to include (e.g., ['filesystem',
+                             'code_analysis'])
         excluded_categories: List of tool categories to exclude
         included_tools: List of specific tool names to include
         excluded_tools: List of specific tool names to exclude
         include_mcp_tools: Whether to include MCP tools
-        mcp_server_filter: List of specific MCP server names to include (now properly filters at server level)
+        mcp_server_filter: List of specific MCP server names to include (now properly filters at
+                           server level)
 
     Returns:
         List of selected tools

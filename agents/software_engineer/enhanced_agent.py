@@ -9,7 +9,6 @@ from google.adk.models.lite_llm import LiteLlm
 from google.adk.planners import BuiltInPlanner
 from google.adk.tools import FunctionTool, ToolContext, load_memory
 from google.genai import types
-from google.genai.types import GenerateContentConfig
 
 from . import config as agent_config, prompt
 from .shared_libraries.callbacks import (
@@ -265,7 +264,7 @@ def create_enhanced_software_engineer_agent() -> Agent:
         )
         if agent_config.GEMINI_THINKING_ENABLE
         and agent_config.is_thinking_supported(agent_config.DEFAULT_AGENT_MODEL)
-        else None,  # noqa: E501 Add planner for thinking
+        else None,
         generate_content_config=agent_config.MAIN_LLM_GENERATION_CONFIG,
         sub_agents=create_enhanced_sub_agents(),  # Separate instances to avoid parent conflicts
         tools=tools,

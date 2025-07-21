@@ -3,6 +3,7 @@
 import functools
 import logging
 import os
+from pathlib import Path
 import time
 from typing import Any, Optional, Protocol
 
@@ -76,7 +77,11 @@ class NoOpTelemetryProvider:
     """No-op implementation for when no telemetry is available."""
 
     def track_llm_request(
-        self, model: str, tokens_used: int, response_time: float, prompt_tokens: int
+        self,
+        model: str,
+        tokens_used: int,
+        response_time: float,
+        prompt_tokens: int,
     ) -> None:
         pass
 
@@ -106,7 +111,11 @@ class DevOpsTelemetryProvider:
             logger.debug("DevOps telemetry not available")
 
     def track_llm_request(
-        self, model: str, tokens_used: int, response_time: float, prompt_tokens: int
+        self,
+        model: str,
+        tokens_used: int,
+        response_time: float,
+        prompt_tokens: int,
     ) -> None:
         if self.available:
             try:
@@ -120,7 +129,12 @@ class DevOpsTelemetryProvider:
                 logger.warning(f"Failed to track LLM request: {e}")
 
     def track_tool_usage(
-        self, agent_name: str, tool_name: str, invocation_id: str, event: str, **kwargs
+        self,
+        agent_name: str,  # noqa: ARG002
+        tool_name: str,
+        invocation_id: str,  # noqa: ARG002
+        event: str,  # noqa: ARG002
+        **kwargs,
     ) -> None:
         if self.available:
             try:
@@ -145,7 +159,12 @@ class DevOpsTelemetryProvider:
                 logger.warning(f"Failed to track agent session: {e}")
 
     def track_model_request(
-        self, agent_name: str, model: str, invocation_id: str, event: str, **kwargs
+        self,
+        agent_name: str,  # noqa: ARG002
+        model: str,
+        invocation_id: str,
+        event: str,
+        **kwargs,  # noqa: ARG002
     ) -> None:
         """Track model request events (start/end)."""
         if self.available:
@@ -176,7 +195,7 @@ def _load_project_context(
         # Try multiple strategies to determine the working directory
         current_dir = _determine_working_directory(callback_context)
 
-        if not current_dir or not os.path.exists(current_dir):
+        if not current_dir or not Path(current_dir).exists():
             logger.warning(f"Could not determine valid working directory: {current_dir}")
             return None
 
@@ -190,8 +209,9 @@ def _load_project_context(
                     project_files.append(entry.name)
                     if len(project_files) > MAX_PROJECT_FILES:
                         logger.warning(
-                            f"Project directory '{current_dir}' contains more than {MAX_PROJECT_FILES} files. "
-                            f"Skipping project context analysis to prevent performance issues."
+                            f"Project directory '{current_dir}' contains more than "
+                            f"{MAX_PROJECT_FILES} files. "
+                            "Skipping project context analysis to prevent performance issues."
                         )
                         return None
         except (PermissionError, OSError) as e:
@@ -208,7 +228,7 @@ def _load_project_context(
 
         project_context = {
             "working_directory": current_dir,
-            "project_name": os.path.basename(current_dir),
+            "project_name": Path(current_dir).name,
             "project_type": project_type,
             "total_files": total_files,
             "python_files": python_files,
@@ -250,16 +270,17 @@ def _determine_working_directory(
 
     # Strategy 2: Try environment variables
     for env_var in ["PWD", "PROJECT_ROOT", "WORKSPACE_ROOT"]:
-        env_dir = os.getenv(env_var)
-        if env_dir:
+        env_value = os.getenv(env_var)
+        if env_value:
+            env_dir = Path(env_value)
             # Normalize path to prevent traversal and ensure it's a directory.
-            safe_path = os.path.abspath(env_dir)
-            if os.path.isdir(safe_path):
-                return safe_path
+            safe_path = env_dir.resolve()
+            if safe_path.is_dir():
+                return str(safe_path)
 
     # Strategy 3: Fall back to os.getcwd() with error handling
     try:
-        return os.getcwd()
+        return str(Path.cwd())
     except (OSError, PermissionError) as e:
         logger.warning(f"os.getcwd() failed: {e}")
         return None
@@ -268,11 +289,11 @@ def _determine_working_directory(
 def _safe_list_directory(directory: str) -> Optional[list[str]]:
     """Safely list directory contents with proper error handling."""
     try:
-        if not os.path.exists(directory):
+        if not Path(directory).exists():
             return None
-        if not os.path.isdir(directory):
+        if not Path(directory).is_dir():
             return None
-        return os.listdir(directory)
+        return [str(p.name) for p in Path(directory).iterdir()]
     except PermissionError:
         logger.warning(f"Permission denied listing directory: {directory}")
         return None
@@ -305,9 +326,9 @@ def _detect_project_type(project_files: list[str], current_dir: str) -> str:
     if "src" in project_files or "lib" in project_files:
         # Look for language hints in subdirectories
         try:
-            src_path = os.path.join(current_dir, "src")
-            if os.path.exists(src_path):
-                src_files = os.listdir(src_path)
+            src_path = Path(current_dir) / "src"
+            if src_path.exists():
+                src_files = [str(p.name) for p in Path(src_path).iterdir()]
                 if any(f.endswith((".py", ".pyx")) for f in src_files):
                     return "python"
                 if any(f.endswith((".js", ".ts", ".jsx", ".tsx")) for f in src_files):
@@ -499,7 +520,7 @@ def create_telemetry_callbacks(agent_name: str, enhanced: bool = False):
     def before_tool_callback(
         tool: BaseTool,
         args: dict,
-        tool_context: ToolContext,
+        tool_context: ToolContext,  # noqa: ARG001
         callback_context: CallbackContext = None,
     ):
         """Callback executed before tool execution."""
@@ -534,8 +555,8 @@ def create_telemetry_callbacks(agent_name: str, enhanced: bool = False):
         tool: BaseTool,
         tool_response: Any,
         callback_context: CallbackContext = None,
-        args: Optional[dict] = None,
-        tool_context: ToolContext = None,
+        args: Optional[dict] = None,  # noqa: ARG001
+        tool_context: ToolContext = None,  # noqa: ARG001
     ):
         """Callback executed after tool execution."""
         tool_name = getattr(tool, "name", "unknown") if tool else "unknown"

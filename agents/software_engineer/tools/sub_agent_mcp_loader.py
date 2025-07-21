@@ -17,19 +17,16 @@ import asyncio
 from contextlib import AsyncExitStack
 import json
 import logging
-import os
-from typing import Any, Dict, List, Optional, Tuple
+from pathlib import Path
+from typing import Any, Optional
 
 from google.adk.tools.mcp_tool.mcp_toolset import (
     MCPToolset,
-    SseConnectionParams,
-    StdioServerParameters,
 )
 
 from .setup import (
     _create_connection_params,
     _global_mcp_exit_stack,
-    _loaded_mcp_toolsets,
     _substitute_env_vars,
 )
 
@@ -44,10 +41,8 @@ class SubAgentMCPConfig:
 
     def __init__(self, sub_agent_name: str):
         self.sub_agent_name = sub_agent_name
-        self.config_path = os.path.join(
-            os.getcwd(), ".agent", "sub-agents", f"{sub_agent_name}.mcp.json"
-        )
-        self.global_config_path = os.path.join(os.getcwd(), ".agent", "mcp.json")
+        self.config_path = Path(Path.cwd(), ".agent", "sub-agents", f"{sub_agent_name}.mcp.json")
+        self.global_config_path = Path(Path.cwd(), ".agent", "mcp.json")
 
     def load_config(self) -> dict[str, Any]:
         """Load configuration for this sub-agent."""
@@ -59,14 +54,14 @@ class SubAgentMCPConfig:
         }
 
         # Load global MCP configuration
-        if os.path.exists(self.global_config_path):
-            with open(self.global_config_path) as f:
+        if Path(self.global_config_path).exists():
+            with Path(self.global_config_path).open() as f:
                 global_config = json.load(f)
                 config["globalServers"] = list(global_config.get("mcpServers", {}).keys())
 
         # Load sub-agent specific configuration
-        if os.path.exists(self.config_path):
-            with open(self.config_path) as f:
+        if Path(self.config_path).exists():
+            with Path(self.config_path).open() as f:
                 sub_agent_config = json.load(f)
                 config.update(sub_agent_config)
 
@@ -74,8 +69,8 @@ class SubAgentMCPConfig:
 
     def save_config(self, config: dict[str, Any]) -> None:
         """Save configuration for this sub-agent."""
-        os.makedirs(os.path.dirname(self.config_path), exist_ok=True)
-        with open(self.config_path, "w") as f:
+        Path(self.config_path).parent.mkdir(parents=True, exist_ok=True)
+        with Path(self.config_path).open("w") as f:
             json.dump(config, f, indent=2)
         logger.info(f"Saved MCP configuration for {self.sub_agent_name}")
 
@@ -139,8 +134,8 @@ async def load_sub_agent_mcp_tools_async(
         logger.info(f"Loading MCP tools for {sub_agent_name} using simple pattern")
 
     # Load global MCP servers (if enabled)
-    if include_global_servers and os.path.exists(config_loader.global_config_path):
-        with open(config_loader.global_config_path) as f:
+    if include_global_servers and Path(config_loader.global_config_path).exists():
+        with Path(config_loader.global_config_path).open() as f:
             global_mcp_config = json.load(f)
             global_servers = global_mcp_config.get("mcpServers", {})
 
@@ -233,7 +228,8 @@ async def _load_mcp_server_async(
                 tools.extend(server_tools)
                 _sub_agent_mcp_toolsets[sub_agent_key] = server_tools
                 logger.info(
-                    f"Loaded MCP server '{server_name}' for {sub_agent_name}: {len(server_tools)} tools"
+                    f"Loaded MCP server '{server_name}' for {sub_agent_name}: "
+                    f"{len(server_tools)} tools"
                 )
             except Exception as e:
                 logger.warning(
@@ -327,8 +323,8 @@ def _load_sub_agent_mcp_tools_simple(
         config["serverOverrides"] = server_overrides
 
     # Load global servers if enabled
-    if include_global_servers and os.path.exists(config_loader.global_config_path):
-        with open(config_loader.global_config_path) as f:
+    if include_global_servers and Path(config_loader.global_config_path).exists():
+        with Path(config_loader.global_config_path).open() as f:
             global_mcp_config = json.load(f)
             global_servers = global_mcp_config.get("mcpServers", {})
 
@@ -436,15 +432,15 @@ def list_available_mcp_servers(sub_agent_name: str) -> dict[str, list[str]]:
 
     # Get global servers
     global_servers = []
-    if os.path.exists(config_loader.global_config_path):
-        with open(config_loader.global_config_path) as f:
+    if Path(config_loader.global_config_path).exists():
+        with Path(config_loader.global_config_path).open() as f:
             global_config = json.load(f)
             global_servers = list(global_config.get("mcpServers", {}).keys())
 
     # Get sub-agent servers
     sub_agent_servers = []
-    if os.path.exists(config_loader.config_path):
-        with open(config_loader.config_path) as f:
+    if Path(config_loader.config_path).exists():
+        with Path(config_loader.config_path).open() as f:
             sub_agent_config = json.load(f)
             sub_agent_servers = list(sub_agent_config.get("mcpServers", {}).keys())
 

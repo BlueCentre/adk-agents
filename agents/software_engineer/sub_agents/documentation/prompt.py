@@ -1,4 +1,3 @@
-# ruff: noqa
 """Prompt for the documentation agent."""
 
 DOCUMENTATION_AGENT_INSTR = """
@@ -64,4 +63,4 @@ Current project context:
 -   **File I/O:** `read_file`, `edit_file`
 -   **Shell:** `configure_shell_approval`, `configure_shell_whitelist`, `check_command_exists_tool`, `check_shell_command_safety`, `execute_vetted_shell_command`.
 -   **Knowledge:** `codebase_search`, `file_search`
-"""
+"""  # noqa: E501

@@ -2,7 +2,7 @@
 
 import logging
 import subprocess
-from typing import Any, Dict, Optional
+from typing import Optional
 
 from google.adk.tools import FunctionTool, ToolContext
 from pydantic import BaseModel, Field
@@ -30,7 +30,7 @@ class ExecuteShellCommandOutput(BaseModel):
     working_directory: Optional[str] = Field(None, description="The working directory used")
 
 
-def execute_shell_command(args: dict, tool_context: ToolContext) -> ExecuteShellCommandOutput:
+def execute_shell_command(args: dict, tool_context: ToolContext) -> ExecuteShellCommandOutput:  # noqa: ARG001
     """
     Execute a shell command and return the result.
 

@@ -1,7 +1,7 @@
 # code_agent/agent/software_engineer/software_engineer/tools/filesystem_tools.py
 import logging
-import os
-from typing import Any, Dict
+from pathlib import Path
+from typing import Any
 
 from google.adk.tools import FunctionTool, ToolContext
 
@@ -24,7 +24,8 @@ def read_file_content(filepath: str) -> dict[str, Any]:
         A dictionary with:
         - {'status': 'success', 'content': 'file_content_string'} on success.
         - {'status': 'error', 'error_type': str, 'message': str} on failure.
-          Possible error_types: 'FileNotFound', 'PermissionDenied', 'IOError', 'SecurityViolation' (if implemented).
+          Possible error_types: 'FileNotFound', 'PermissionDenied', 'IOError', 'SecurityViolation'
+            (if implemented).
     """
     logger.info(f"Attempting to read file: {filepath}")
     # Add path validation/sandboxing here before opening
@@ -35,7 +36,7 @@ def read_file_content(filepath: str) -> dict[str, Any]:
     #     logger.error(message)
     #     return {"status": "error", "error_type": "SecurityViolation", "message": message}
     try:
-        with open(filepath, encoding="utf-8") as f:
+        with Path(filepath).open(encoding="utf-8") as f:
             content = f.read()
         logger.info(f"Successfully read file: {filepath}")
         return {"status": "success", "content": content}
@@ -66,7 +67,8 @@ def list_directory_contents(directory_path: str) -> dict[str, Any]:
         A dictionary with:
         - {'status': 'success', 'contents': ['item1', 'item2', ...]} on success.
         - {'status': 'error', 'error_type': str, 'message': str} on failure.
-          Possible error_types: 'NotADirectory', 'FileNotFound', 'PermissionDenied', 'IOError', 'SecurityViolation' (if implemented).
+          Possible error_types: 'NotADirectory', 'FileNotFound', 'PermissionDenied', 'IOError',
+            'SecurityViolation' (if implemented).
     """
     logger.info(f"Attempting to list directory: {directory_path}")
     # Add path validation/sandboxing here
@@ -77,11 +79,11 @@ def list_directory_contents(directory_path: str) -> dict[str, Any]:
     #     logger.error(message)
     #     return {"status": "error", "error_type": "SecurityViolation", "message": message}
     try:
-        if not os.path.isdir(directory_path):
+        if not Path(directory_path).is_dir():
             message = f"The specified path '{directory_path}' is not a valid directory."
             logger.warning(message)
             return {"status": "error", "error_type": "NotADirectory", "message": message}
-        contents = os.listdir(directory_path)
+        contents = [str(p.name) for p in Path(directory_path).iterdir()]
         logger.info(f"Successfully listed directory: {directory_path}")
         return {"status": "success", "contents": contents}
     except FileNotFoundError:
@@ -98,7 +100,11 @@ def list_directory_contents(directory_path: str) -> dict[str, Any]:
         return {"status": "error", "error_type": "IOError", "message": message}
 
 
-def edit_file_content(filepath: str, content: str, tool_context: ToolContext) -> dict[str, Any]:
+def edit_file_content(
+    filepath: str,
+    content: str,
+    tool_context: ToolContext,
+) -> dict[str, Any]:
     """
     Writes content to a file or proposes the write, requiring user approval based on session state.
     Creates the file if it does not exist (including parent directories).
@@ -120,7 +126,7 @@ def edit_file_content(filepath: str, content: str, tool_context: ToolContext) ->
         - {'status': 'success', 'message': 'Success message'} on successful write (when approval not required).
         - {'status': 'error', 'error_type': str, 'message': str} on failure during write or validation.
           Possible error_types: 'PermissionDenied', 'IOError', 'SecurityViolation' (if implemented).
-    """
+    """  # noqa: E501
     logger.info(f"Checking approval requirement for writing to file: {filepath}")
 
     # Add path validation/sandboxing here FIRST
@@ -146,12 +152,12 @@ def edit_file_content(filepath: str, content: str, tool_context: ToolContext) ->
     logger.info(f"Approval not required. Proceeding with write to file: {filepath}")
     try:
         # Ensure the directory exists
-        dir_path = os.path.dirname(filepath)
+        dir_path = Path(filepath).parent
         if dir_path:  # Ensure dir_path is not empty (happens for root-level files)
-            os.makedirs(dir_path, exist_ok=True)  # Creates parent dirs if needed
+            dir_path.mkdir(parents=True, exist_ok=True)  # Creates parent dirs if needed
 
         # Consider atomic write here: write to temp file, then os.replace()
-        with open(filepath, "w", encoding="utf-8") as f:
+        with Path(filepath).open("w", encoding="utf-8") as f:
             f.write(content)
         message = f"Successfully wrote content to '{filepath}'."
         logger.info(message)
@@ -186,7 +192,8 @@ def configure_edit_approval(require_approval: bool, tool_context: ToolContext) -
 
 
 # Wrap functions with FunctionTool
-# Note: The return type for the tool schema remains the base function's return type hint (Dict[str, Any])
+# Note: The return type for the tool schema remains the base function's
+#       return type hint (Dict[str, Any])
 read_file_tool = FunctionTool(read_file_content)
 list_dir_tool = FunctionTool(list_directory_contents)
 edit_file_tool = FunctionTool(edit_file_content)

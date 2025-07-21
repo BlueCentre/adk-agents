@@ -38,7 +38,10 @@ async def demonstrate_enhanced_agent():
     print("\n2. Complex Feature Development (Sequential Workflow)")
     print("-" * 50)
 
-    complex_task = "Implement a complete user management system with authentication, authorization, and profile management"
+    complex_task = (
+        "Implement a complete user management system with authentication, authorization, "
+        "and profile management"
+    )
     result = await enhanced_root_agent.run(complex_task)
     print(f"Result: {result}")
 
@@ -46,7 +49,10 @@ async def demonstrate_enhanced_agent():
     print("\n3. Code Analysis (Parallel Workflow)")
     print("-" * 35)
 
-    analysis_task = "Analyze our API codebase for security vulnerabilities, performance issues, and test coverage"
+    analysis_task = (
+        "Analyze our API codebase for security vulnerabilities, performance issues, "
+        "and test coverage"
+    )
     result = await enhanced_root_agent.run(analysis_task)
     print(f"Result: {result}")
 

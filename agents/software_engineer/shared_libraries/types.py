@@ -1,10 +1,9 @@
 """Type definitions for the software engineer agent."""
 
-from typing import List, Optional
-
-from pydantic import BaseModel, Field
+from typing import Optional
 
 from google.genai.types import GenerateContentConfig
+from pydantic import BaseModel, Field
 
 # Configure JSON response format
 json_response_config = GenerateContentConfig(

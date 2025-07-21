@@ -4,8 +4,8 @@ import logging
 
 from google.adk.agents import Agent
 from google.adk.models.lite_llm import LiteLlm
-from google.adk.tools import load_memory
-import litellm
+from google.adk.tools import load_memory  # noqa: F401
+import litellm  # noqa: F401
 
 from . import config as agent_config, prompt
 from .shared_libraries.callbacks import create_enhanced_telemetry_callbacks
@@ -40,7 +40,7 @@ root_agent = Agent(
     ),  # Use ollama_chat provider with LiteLlm
     # model="gemini-2.5-flash-preview-05-20",  # Changed from Ollama to Gemini to match sub-agents
     name="software_engineer",
-    description="An AI software engineer assistant that helps with various software development tasks",
+    description="An AI software engineer assistant that helps with various software development tasks",  # noqa: E501
     instruction=prompt.SOFTWARE_ENGINEER_INSTR,
     sub_agents=[
         # Ordered by typical workflow dependencies

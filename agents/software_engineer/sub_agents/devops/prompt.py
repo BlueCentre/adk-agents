@@ -1,4 +1,3 @@
-# ruff: noqa
 """Prompt for the devops agent."""
 
 DEVOPS_AGENT_INSTR = """
@@ -44,4 +43,4 @@ Leverage the available tools **cleverly and proactively** to analyze configurati
 
 -   **Tools:** `configure_shell_approval`, `configure_shell_whitelist`, `check_command_exists_tool`, `check_shell_command_safety`, `execute_vetted_shell_command`.
 -   **Workflow:** Follow the standard 5 steps: Check Existence (likely done), Check Safety, Handle Approval, Execute, Handle Errors.
-"""
+"""  # noqa: E501
