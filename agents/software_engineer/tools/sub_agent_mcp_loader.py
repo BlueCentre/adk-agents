@@ -44,6 +44,15 @@ class SubAgentMCPConfig:
         self.config_path = Path(Path.cwd(), ".agent", "sub-agents", f"{sub_agent_name}.mcp.json")
         self.global_config_path = Path(Path.cwd(), ".agent", "mcp.json")
 
+        # Calculate fallback path for enhanced agents
+        # Enhanced agents fallback to base name (enhanced_devops_agent -> devops_agent)
+        self.fallback_config_path = None
+        if sub_agent_name.startswith("enhanced_"):
+            base_name = sub_agent_name.replace("enhanced_", "", 1)
+            self.fallback_config_path = Path(
+                Path.cwd(), ".agent", "sub-agents", f"{base_name}.mcp.json"
+            )
+
     def load_config(self) -> dict[str, Any]:
         """Load configuration for this sub-agent."""
         config = {
@@ -59,9 +68,19 @@ class SubAgentMCPConfig:
                 global_config = json.load(f)
                 config["globalServers"] = list(global_config.get("mcpServers", {}).keys())
 
-        # Load sub-agent specific configuration
+        # Load sub-agent specific configuration with fallback support
+        config_file_to_use = None
         if Path(self.config_path).exists():
-            with Path(self.config_path).open() as f:
+            config_file_to_use = self.config_path
+            logger.debug(f"Using primary config file for {self.sub_agent_name}: {self.config_path}")
+        elif self.fallback_config_path and Path(self.fallback_config_path).exists():
+            config_file_to_use = self.fallback_config_path
+            logger.info(
+                f"Using fallback config file for {self.sub_agent_name}: {self.fallback_config_path}"
+            )
+
+        if config_file_to_use:
+            with config_file_to_use.open() as f:
                 sub_agent_config = json.load(f)
                 config.update(sub_agent_config)
 
@@ -117,6 +136,11 @@ async def load_sub_agent_mcp_tools_async(
     if server_overrides:
         config["serverOverrides"] = server_overrides
 
+    # Get combined excluded servers list from both config and parameters
+    combined_excluded_servers = set(config.get("excludedServers", []))
+    if excluded_servers:
+        combined_excluded_servers.update(excluded_servers)
+
     # Prepare tools list and exit stack
     tools_list = []
     local_exit_stack = AsyncExitStack()
@@ -143,7 +167,7 @@ async def load_sub_agent_mcp_tools_async(
                 # Apply filtering
                 if mcp_server_filter and server_name not in mcp_server_filter:
                     continue
-                if excluded_servers and server_name in excluded_servers:
+                if server_name in combined_excluded_servers:
                     continue
 
                 # Apply overrides
@@ -166,7 +190,7 @@ async def load_sub_agent_mcp_tools_async(
         # Apply filtering
         if mcp_server_filter and server_name not in mcp_server_filter:
             continue
-        if excluded_servers and server_name in excluded_servers:
+        if server_name in combined_excluded_servers:
             continue
 
         # Apply overrides
@@ -335,6 +359,11 @@ def _load_sub_agent_mcp_tools_simple(
     if server_overrides:
         config["serverOverrides"] = server_overrides
 
+    # Get combined excluded servers list from both config and parameters
+    combined_excluded_servers = set(config.get("excludedServers", []))
+    if excluded_servers:
+        combined_excluded_servers.update(excluded_servers)
+
     # Load global servers if enabled
     if include_global_servers and Path(config_loader.global_config_path).exists():
         with Path(config_loader.global_config_path).open() as f:
@@ -344,7 +373,7 @@ def _load_sub_agent_mcp_tools_simple(
             for server_name, server_config in global_servers.items():
                 if mcp_server_filter and server_name not in mcp_server_filter:
                     continue
-                if excluded_servers and server_name in excluded_servers:
+                if server_name in combined_excluded_servers:
                     continue
 
                 if server_overrides and server_name in server_overrides:
@@ -358,7 +387,7 @@ def _load_sub_agent_mcp_tools_simple(
     for server_name, server_config in sub_agent_servers.items():
         if mcp_server_filter and server_name not in mcp_server_filter:
             continue
-        if excluded_servers and server_name in excluded_servers:
+        if server_name in combined_excluded_servers:
             continue
 
         if server_overrides and server_name in server_overrides:
@@ -450,10 +479,16 @@ def list_available_mcp_servers(sub_agent_name: str) -> dict[str, list[str]]:
             global_config = json.load(f)
             global_servers = list(global_config.get("mcpServers", {}).keys())
 
-    # Get sub-agent servers
+    # Get sub-agent servers with fallback support
     sub_agent_servers = []
+    config_file_to_use = None
     if Path(config_loader.config_path).exists():
-        with Path(config_loader.config_path).open() as f:
+        config_file_to_use = config_loader.config_path
+    elif config_loader.fallback_config_path and Path(config_loader.fallback_config_path).exists():
+        config_file_to_use = config_loader.fallback_config_path
+
+    if config_file_to_use:
+        with config_file_to_use.open() as f:
             sub_agent_config = json.load(f)
             sub_agent_servers = list(sub_agent_config.get("mcpServers", {}).keys())
 

@@ -111,6 +111,13 @@ graph LR
 - **Access**: Only the specified sub-agent
 - **Examples**: `datadog` for testing agent, `debugger` for debugging agent
 
+#### Enhanced Agent Fallback Logic
+Enhanced agents (those with names starting with `enhanced_`) automatically fall back to base agent configurations:
+- `enhanced_devops_agent` → falls back to `devops_agent.mcp.json`
+- `enhanced_testing_agent` → falls back to `testing_agent.mcp.json`
+
+This allows enhanced agents to inherit the same MCP tool configurations as their base counterparts without duplicating configuration files.
+
 ## Configuration Format
 
 ### Sub-Agent MCP Configuration File
@@ -335,6 +342,16 @@ print(f'Testing agent: {len(tools)} tools')
 1. Verify environment variables are set correctly
 2. Check MCP server package is installed
 3. Review server logs for connection errors
+
+### Enhanced Agent Configuration Not Loading
+**Problem**: Enhanced agent (e.g., `enhanced_devops_agent`) not loading expected MCP tools.
+**Solution**:
+1. Check if base configuration file exists (e.g., `devops_agent.mcp.json`)
+2. Verify the enhanced agent name follows the `enhanced_` prefix pattern
+3. Check logs for fallback configuration messages:
+   ```
+   INFO: Using fallback config file for enhanced_devops_agent: /path/.agent/sub-agents/devops_agent.mcp.json
+   ```
 
 ## API Reference
 
