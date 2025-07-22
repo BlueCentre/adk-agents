@@ -43,6 +43,14 @@ Global MCP Config (.agent/mcp.json)
 }
 ```
 
+### Enhanced Agent Fallback
+Enhanced agents (with names starting with `enhanced_`) automatically fall back to base agent configurations:
+- `enhanced_debugging_agent` uses `debugging_agent.mcp.json`
+- `enhanced_devops_agent` uses `devops_agent.mcp.json`
+- `enhanced_testing_agent` uses `testing_agent.mcp.json`
+
+This eliminates the need to duplicate configuration files for enhanced variants.
+
 ### Per-Sub-Agent MCP Configuration
 ```json
 // .agent/sub-agents/debugging_agent.mcp.json
@@ -408,6 +416,17 @@ tools = load_tools_for_sub_agent('debugging', sub_agent_name='debugging_agent')
    Server override for 'debugger' not applied
    ```
    **Solution**: Ensure the server is in `mcp_server_filter` and not in `excluded_servers`
+
+4. **Enhanced Agent Configuration Issues**
+   ```
+   Enhanced agent not loading expected MCP tools
+   ```
+   **Solution**: 
+   - Check that base configuration file exists (e.g., `devops_agent.mcp.json` for `enhanced_devops_agent`)
+   - Verify fallback logic is working by checking logs for messages like:
+     ```
+     INFO: Using fallback config file for enhanced_devops_agent: /path/devops_agent.mcp.json
+     ```
 
 ### Debug Mode
 

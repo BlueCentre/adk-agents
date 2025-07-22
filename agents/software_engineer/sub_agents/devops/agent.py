@@ -28,9 +28,11 @@ def create_devops_agent(name_suffix=""):
         "include_mcp_tools": True,
         "mcp_server_filter": [
             "filesystem",
+            "memory",
             "docker",
             "kubernetes",
-        ],  # Only specific MCP tools
+            "datadog",
+        ],  # Only specific MCP tools including datadog for monitoring
     }
 
     tools = load_tools_for_sub_agent("devops", custom_devops_config, sub_agent_name=agent_name)
