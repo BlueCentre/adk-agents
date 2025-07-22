@@ -130,12 +130,19 @@ class TestLoadDotenvForAgent:
         mock_walk.assert_called_once_with(expected_start_folder.resolve(), ".env")
         mock_load_dotenv.assert_called_once_with(mock_env_path, override=True, verbose=True)
 
+    @patch("src.wrapper.adk.cli.utils.envs._get_user_dotenv_path")
+    @patch("src.wrapper.adk.cli.utils.envs._get_current_dir_dotenv_path")
     @patch("src.wrapper.adk.cli.utils.envs.load_dotenv")
     @patch("src.wrapper.adk.cli.utils.envs._walk_to_root_until_found")
-    def test_load_dotenv_with_agent_parent_folder_file_not_found(self, mock_walk, mock_load_dotenv):
-        """Test dotenv loading when file is not found."""
-        # Setup mocks - file not found
+    def test_load_dotenv_with_agent_parent_folder_file_not_found(
+        self, mock_walk, mock_load_dotenv, mock_get_current, mock_get_user
+    ):
+        """Test dotenv loading when file is not found in agent directory but falls back."""
+        # Setup mocks - file not found in agent directory
         mock_walk.return_value = ""
+        # Mock fallback paths - current directory has .env
+        mock_get_current.return_value = "/current/dir/.env"
+        mock_get_user.return_value = ""
 
         # Call function
         load_dotenv_for_agent("test_agent", "/path/to/agents", ".env")
@@ -143,7 +150,8 @@ class TestLoadDotenvForAgent:
         # Verify calls
         expected_start_folder = Path("/path/to/agents") / "test_agent"
         mock_walk.assert_called_once_with(expected_start_folder.resolve(), ".env")
-        mock_load_dotenv.assert_not_called()  # Should not call load_dotenv if file not found
+        # Should call load_dotenv with current directory path as fallback
+        mock_load_dotenv.assert_called_once_with("/current/dir/.env", override=True, verbose=True)
 
     @patch("src.wrapper.adk.cli.utils.envs.importlib.resources.files")
     @patch("src.wrapper.adk.cli.utils.envs.load_dotenv")
@@ -168,21 +176,28 @@ class TestLoadDotenvForAgent:
         mock_walk.assert_called_once_with(mock_path.resolve(), ".env")
         mock_load_dotenv.assert_called_once_with(mock_env_path, override=True, verbose=True)
 
+    @patch("src.wrapper.adk.cli.utils.envs._get_user_dotenv_path")
+    @patch("src.wrapper.adk.cli.utils.envs._get_current_dir_dotenv_path")
     @patch("src.wrapper.adk.cli.utils.envs.importlib.resources.files")
     @patch("src.wrapper.adk.cli.utils.envs.load_dotenv")
     @patch("src.wrapper.adk.cli.utils.envs._walk_to_root_until_found")
     def test_load_dotenv_with_installed_package_exception(
-        self, mock_walk, mock_load_dotenv, mock_files
+        self, mock_walk, mock_load_dotenv, mock_files, mock_get_current, mock_get_user
     ):
-        """Test dotenv loading when importlib.resources.files raises exception."""
-        # Setup mocks - importlib raises exception
+        """Test dotenv loading when importlib.resources.files raises exception for both attempts."""
+        # Setup mocks - importlib raises exception for both attempts
         mock_files.side_effect = ImportError("Module not found")
+        # Mock fallback paths - no .env files found
+        mock_get_current.return_value = ""
+        mock_get_user.return_value = ""
 
         # Call function without agent_parent_folder - should handle exception gracefully
         load_dotenv_for_agent("nonexistent.module")
 
-        # Verify calls
-        mock_files.assert_called_once_with("nonexistent.module")
+        # Verify calls - should try both the full module name and the package part
+        assert mock_files.call_count == 2
+        mock_files.assert_any_call("nonexistent.module")  # First attempt
+        mock_files.assert_any_call("nonexistent")  # Second attempt (package part)
         mock_walk.assert_not_called()  # Should not call walk due to exception
         mock_load_dotenv.assert_not_called()  # Should not call load_dotenv due to exception
 
