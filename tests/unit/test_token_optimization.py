@@ -535,3 +535,285 @@ class TestTokenOptimizedCallbacks:
 
         # Test after_agent callback (should be from base callbacks)
         callbacks["after_agent"](mock_context)
+
+
+class TestContentIdMappingFix:
+    """
+    Unit tests for the content ID mapping fix in token optimization callbacks.
+
+    Tests the fix for the critical bug where multiple content items with identical
+    text/role would always match the first occurrence, scrambling conversation order.
+    """
+
+    def create_test_content_with_id(self, content_id, text="test", role="user"):
+        """Helper to create mock content with specific properties."""
+        content = Mock()
+        content.text = text
+        content.role = role
+        content.parts = []
+        # Store the expected ID that would be generated
+        content._expected_id = content_id
+        return content
+
+    @patch("agents.software_engineer.shared_libraries.callbacks.TokenCounter")
+    @patch("agents.software_engineer.shared_libraries.callbacks.ContextBudgetManager")
+    @patch("agents.software_engineer.shared_libraries.callbacks.ContentPrioritizer")
+    @patch("agents.software_engineer.shared_libraries.callbacks.ContextCorrelator")
+    @patch("agents.software_engineer.shared_libraries.callbacks.ContextAssembler")
+    @patch("agents.software_engineer.shared_libraries.callbacks.ContextBridgeBuilder")
+    def test_content_id_mapping_preserves_object_identity(
+        self,
+        mock_bridge_builder,
+        mock_assembler,
+        mock_correlator,
+        mock_prioritizer,
+        mock_budget_manager,
+        mock_token_counter,
+    ):
+        """
+        Test that content ID mapping preserves object identity instead of matching by text/role.
+
+        This is the core test for the bug fix: ensuring that when content items have
+        identical text/role, the correct original objects are preserved in the optimized output.
+        """
+        # Setup mocks to trigger advanced optimization
+        mock_token_counter_instance = Mock()
+        mock_token_counter_instance.count_tokens.return_value = 100
+        mock_token_counter.return_value = mock_token_counter_instance
+
+        mock_budget_manager_instance = Mock()
+        mock_budget_manager.return_value = mock_budget_manager_instance
+        mock_budget_manager_instance.calculate_available_context_budget.return_value = (
+            30000,  # Tight budget to trigger optimization
+            {"utilization_pct": 85.0, "max_limit": 1000000},
+        )
+
+        # Create mock content with duplicate text/role combinations
+        original_content = [
+            self.create_test_content_with_id("content_0", "system prompt", "system"),
+            self.create_test_content_with_id("content_1", "ok", "user"),  # First "ok"
+            self.create_test_content_with_id("content_2", "understood", "assistant"),
+            self.create_test_content_with_id("content_3", "ok", "user"),  # Second "ok" - CRITICAL
+            self.create_test_content_with_id("content_4", "understood", "assistant"),  # Duplicate
+            self.create_test_content_with_id("content_5", "ok", "user"),  # Third "ok"
+        ]
+
+        # Mock the optimization pipeline to return a subset with specific IDs
+        # This simulates the optimization process selecting specific content items
+        mock_prioritizer_instance = Mock()
+        mock_prioritizer.return_value = mock_prioritizer_instance
+
+        # Mock prioritized content - note that items retain their IDs
+        prioritized_items = [
+            {"id": "content_0", "text": "system prompt", "role": "system"},
+            {"id": "content_1", "text": "ok", "role": "user"},  # First "ok"
+            {"id": "content_3", "text": "ok", "role": "user"},  # Second "ok" - should map correctly
+            {"id": "content_5", "text": "ok", "role": "user"},  # Third "ok"
+        ]
+        mock_prioritizer_instance.prioritize_content_list.return_value = prioritized_items
+
+        # Mock correlator
+        mock_correlator_instance = Mock()
+        mock_correlator.return_value = mock_correlator_instance
+        correlation_result = Mock()
+        correlation_result.references = []
+        mock_correlator_instance.correlate_context.return_value = correlation_result
+
+        # Mock assembler to return the prioritized content
+        mock_assembler_instance = Mock()
+        mock_assembler.return_value = mock_assembler_instance
+        assembly_result = Mock()
+        assembly_result.assembled_content = prioritized_items
+        assembly_result.total_tokens_used = 25000
+        assembly_result.budget_utilization = 83.3
+        assembly_result.tokens_by_priority = {"critical": 15000, "high": 10000}
+        mock_assembler_instance.assemble_prioritized_context.return_value = assembly_result
+
+        # Mock bridge builder
+        mock_bridge_builder_instance = Mock()
+        mock_bridge_builder.return_value = mock_bridge_builder_instance
+        bridging_result = Mock()
+        bridging_result.bridges = []  # No bridges for this test
+        bridging_result.total_bridge_tokens = 0
+        bridging_result.gaps_filled = 0
+        bridging_result.strategy_used = Mock(value="conservative")
+        mock_bridge_builder_instance.build_context_bridges.return_value = bridging_result
+
+        # Create the request
+        request = Mock(spec=LlmRequest)
+        request.contents = original_content
+
+        # Create callback context
+        context = Mock()
+        context.invocation_id = "content_id_test"
+
+        # Create callbacks
+        callbacks = create_token_optimized_callbacks(
+            agent_name="content_id_test_agent",
+            model_name="gemini-2.0-flash-exp",
+            max_token_limit=1_000_000,
+        )
+
+        # Store original object identities for verification
+        original_object_ids = {
+            f"content_{i}": id(content) for i, content in enumerate(original_content)
+        }
+
+        # Execute the optimization
+        callbacks["before_model"](context, request)
+
+        # Verify optimization was applied
+        assert hasattr(context, "_token_optimization")
+        optimization_data = context._token_optimization
+        assert optimization_data.get("optimization_applied", False)
+
+        # CRITICAL TEST: Verify that the optimized content preserves object identity
+        optimized_contents = request.contents
+
+        # Each optimized content should be the exact same object from the original list
+        # This verifies the ID-based lookup is working correctly
+        optimized_object_ids = [id(content) for content in optimized_contents]
+
+        # All optimized objects should be from the original set
+        for opt_id in optimized_object_ids:
+            assert opt_id in original_object_ids.values(), (
+                "Optimized content contains objects not from original conversation. "
+                "This suggests the ID-based lookup failed."
+            )
+
+        # Verify that the correct objects were selected based on content IDs
+        # Since we mocked the pipeline to return content_0, content_1, content_3, content_5
+        expected_positions = [0, 1, 3, 5]  # These are the positions in original_content
+        expected_objects = [original_content[i] for i in expected_positions]
+        expected_object_ids = [id(obj) for obj in expected_objects]
+
+        # The optimized content should contain exactly these objects
+        assert len(optimized_contents) == len(expected_objects), (
+            f"Expected {len(expected_objects)} items, got {len(optimized_contents)}"
+        )
+
+        for i, optimized_content in enumerate(optimized_contents):
+            optimized_obj_id = id(optimized_content)
+            expected_obj_id = expected_object_ids[i]
+            assert optimized_obj_id == expected_obj_id, (
+                f"At position {i}: Expected object ID {expected_obj_id}, "
+                f"got {optimized_obj_id}. This indicates the ID mapping failed."
+            )
+
+        # Additional verification: ensure the objects have the expected text/role
+        # but more importantly, that they are the CORRECT objects among duplicates
+        assert optimized_contents[1].text == "ok" and optimized_contents[1].role == "user"
+        assert optimized_contents[2].text == "ok" and optimized_contents[2].role == "user"
+        assert optimized_contents[3].text == "ok" and optimized_contents[3].role == "user"
+
+        # These should be different object instances (the 1st, 2nd, and 3rd "ok" messages)
+        ok_object_ids = [
+            id(optimized_contents[1]),
+            id(optimized_contents[2]),
+            id(optimized_contents[3]),
+        ]
+        assert len(set(ok_object_ids)) == 3, (
+            "The three 'ok' messages should be different object instances. "
+            "If they're the same, it means the text/role matching bug still exists."
+        )
+
+    @patch("agents.software_engineer.shared_libraries.callbacks.TokenCounter")
+    @patch("agents.software_engineer.shared_libraries.callbacks.ContextBudgetManager")
+    @patch("agents.software_engineer.shared_libraries.callbacks.ContentPrioritizer")
+    @patch("agents.software_engineer.shared_libraries.callbacks.ContextCorrelator")
+    @patch("agents.software_engineer.shared_libraries.callbacks.ContextAssembler")
+    @patch("agents.software_engineer.shared_libraries.callbacks.ContextBridgeBuilder")
+    def test_content_id_mapping_with_missing_id(
+        self,
+        mock_bridge_builder,
+        mock_assembler,
+        mock_correlator,
+        mock_prioritizer,
+        mock_budget_manager,
+        mock_token_counter,
+    ):
+        """
+        Test that the content ID mapping handles missing IDs gracefully.
+
+        This tests the error handling when a content item's ID is not found
+        in the original content mapping.
+        """
+        # Setup mocks to trigger optimization but return invalid content ID
+        mock_token_counter_instance = Mock()
+        mock_token_counter_instance.count_tokens.return_value = 100
+        mock_token_counter.return_value = mock_token_counter_instance
+
+        mock_budget_manager_instance = Mock()
+        mock_budget_manager.return_value = mock_budget_manager_instance
+        mock_budget_manager_instance.calculate_available_context_budget.return_value = (
+            30000,
+            {"utilization_pct": 85.0, "max_limit": 1000000},
+        )
+
+        # Mock the assembler to return content with an invalid ID
+        mock_assembler_instance = Mock()
+        mock_assembler.return_value = mock_assembler_instance
+        assembly_result = Mock()
+        assembly_result.assembled_content = [
+            {"id": "invalid_content_id", "text": "test", "role": "user"}  # Invalid ID
+        ]
+        assembly_result.total_tokens_used = 15000
+        assembly_result.budget_utilization = 50.0
+        assembly_result.tokens_by_priority = {"critical": 15000}
+        mock_assembler_instance.assemble_prioritized_context.return_value = assembly_result
+
+        # Mock other components
+        mock_prioritizer_instance = Mock()
+        mock_prioritizer.return_value = mock_prioritizer_instance
+        mock_prioritizer_instance.prioritize_content_list.return_value = [
+            {"id": "invalid_content_id", "text": "test", "role": "user"}
+        ]
+
+        mock_correlator_instance = Mock()
+        mock_correlator.return_value = mock_correlator_instance
+        mock_correlator_instance.correlate_context.return_value = Mock(references=[])
+
+        mock_bridge_builder_instance = Mock()
+        mock_bridge_builder.return_value = mock_bridge_builder_instance
+        mock_bridge_builder_instance.build_context_bridges.return_value = Mock(
+            bridges=[],
+            total_bridge_tokens=0,
+            gaps_filled=0,
+            strategy_used=Mock(value="conservative"),
+        )
+
+        # Create request with valid content (but with different IDs than what assembler returns)
+        original_content = [
+            Mock(text="valid content", role="user")  # This will have content_0 ID
+        ]
+        request = Mock(spec=LlmRequest)
+        request.contents = original_content
+
+        context = Mock()
+        context.invocation_id = "missing_id_test"
+
+        # Create callbacks
+        callbacks = create_token_optimized_callbacks(
+            agent_name="missing_id_test_agent",
+            model_name="gemini-2.0-flash-exp",
+            max_token_limit=1_000_000,
+        )
+
+        # Execute optimization - should handle missing ID gracefully
+        callbacks["before_model"](context, request)
+
+        # Should have completed without raising an exception
+        # The request.contents should either be empty (if no valid IDs found)
+        # or unchanged (if optimization failed gracefully)
+        assert isinstance(request.contents, list)
+
+        # Verify optimization was attempted but handled the missing ID gracefully
+        assert hasattr(context, "_token_optimization")
+        optimization_data = context._token_optimization
+
+        # The optimization should have been marked as applied, but content should be empty
+        # or the system should have logged warnings about missing IDs
+        if optimization_data.get("optimization_applied"):
+            # If optimization was applied, the content should be empty or very short
+            # since the invalid ID couldn't be mapped to any original content
+            assert len(request.contents) <= len(original_content)

@@ -460,3 +460,230 @@ class TestAdvancedTokenOptimizationIntegration:
                     optimization_data["final_content_count"]
                     < optimization_data["original_content_count"]
                 )
+
+    @patch("agents.software_engineer.shared_libraries.callbacks.TokenCounter")
+    @patch("agents.software_engineer.shared_libraries.callbacks.ContextBudgetManager")
+    def test_content_id_matching_with_duplicate_text_role(
+        self, mock_budget_manager, mock_token_counter, mock_callback_context
+    ):
+        """
+        Test for the critical bug where multiple messages with identical text/role
+        would always match the first occurrence, scrambling conversation order.
+
+        This is a regression test for the bug identified in the GitHub feedback.
+        """
+        # Create conversation with duplicate text/role combinations
+        # This simulates real scenarios like:
+        # - User says "ok" multiple times
+        # - Multiple identical tool calls
+        # - Repeated assistant confirmations
+        duplicate_conversation = [
+            create_mock_content("System prompt", "system"),
+            create_mock_content("ok", "user"),  # First "ok" from user
+            create_mock_content("I understand", "assistant"),
+            create_mock_content("Let me check the file", "assistant", has_function_call=True),
+            create_mock_content("File contents retrieved", "assistant", has_function_response=True),
+            create_mock_content("ok", "user"),  # Second "ok" from user - CRITICAL TEST CASE
+            create_mock_content("I understand", "assistant"),  # Duplicate assistant response
+            create_mock_content(
+                "Let me check the file", "assistant", has_function_call=True
+            ),  # Same tool call
+            create_mock_content("Different file contents", "assistant", has_function_response=True),
+            create_mock_content("ok", "user"),  # Third "ok" from user
+            create_mock_content("Final response", "assistant"),
+        ]
+
+        # Setup mocks to trigger advanced optimization
+        mock_token_counter_instance = Mock()
+        mock_token_counter_instance.count_tokens.return_value = 100
+        mock_token_counter.return_value = mock_token_counter_instance
+
+        mock_budget_manager_instance = Mock()
+        mock_budget_manager.return_value = mock_budget_manager_instance
+
+        # Force advanced optimization with high utilization
+        mock_budget_manager_instance.calculate_available_context_budget.return_value = (
+            30000,  # Tight budget
+            {"utilization_pct": 85.0, "max_limit": 1000000},
+        )
+
+        # Create request with duplicate content
+        request = Mock(spec=LlmRequest)
+        request.contents = duplicate_conversation
+
+        # Create callbacks
+        callbacks = create_token_optimized_callbacks(
+            agent_name="duplicate_test_agent",
+            model_name="gemini-2.0-flash-exp",
+            max_token_limit=1_000_000,
+        )
+
+        # Track original content object identities to verify correct mapping
+        original_content_ids = [id(content) for content in duplicate_conversation]
+
+        # Execute optimization
+        callbacks["before_model"](mock_callback_context, request)
+
+        # Verify that optimization was applied (should be with tight budget and many items)
+        assert hasattr(mock_callback_context, "_token_optimization")
+        optimization_data = mock_callback_context._token_optimization
+
+        # If optimization was applied, verify the content order preservation
+        if optimization_data.get("optimization_applied"):
+            optimized_contents = request.contents
+
+            # Key test: Verify that each optimized content item corresponds to the
+            # correct original content by object identity, not just text/role matching
+            optimized_content_ids = [id(content) for content in optimized_contents]
+
+            # All optimized content should be from the original set
+            for opt_id in optimized_content_ids:
+                assert opt_id in original_content_ids, (
+                    "Optimized content contains objects not from original conversation. "
+                    "This suggests the ID-based lookup failed and fell back to new objects."
+                )
+
+            # Verify conversation coherence: if multiple "ok" messages are preserved,
+            # they should maintain their relative order from the original conversation
+            ok_positions_optimized = [
+                i
+                for i, content in enumerate(optimized_contents)
+                if getattr(content, "text", "") == "ok" and getattr(content, "role", "") == "user"
+            ]
+
+            # If multiple "ok" messages are preserved, their relative order should be maintained
+            if len(ok_positions_optimized) > 1:
+                # The preserved "ok" messages should maintain increasing order
+                for i in range(1, len(ok_positions_optimized)):
+                    assert ok_positions_optimized[i] > ok_positions_optimized[i - 1], (
+                        "Multiple 'ok' messages were not preserved in correct order. "
+                        "This indicates the text/role matching bug may still exist."
+                    )
+
+            # Verify that the conversation flow makes sense
+            # (e.g., function responses come after function calls)
+            function_call_indices = []
+            function_response_indices = []
+
+            for i, content in enumerate(optimized_contents):
+                if getattr(content, "parts", None):
+                    for part in content.parts:
+                        if hasattr(part, "function_call"):
+                            function_call_indices.append(i)
+                        elif hasattr(part, "function_response"):
+                            function_response_indices.append(i)
+
+            # Each function response should come after a function call
+            # (This would be broken if content order was scrambled)
+            for response_idx in function_response_indices:
+                # Find the nearest preceding function call
+                preceding_calls = [idx for idx in function_call_indices if idx < response_idx]
+                assert len(preceding_calls) > 0, (
+                    f"Function response at index {response_idx} has no preceding function call. "
+                    "This suggests conversation order was scrambled by incorrect content matching."
+                )
+
+        else:
+            # Even if optimization wasn't applied, the test setup should be valid
+            # This ensures our test scenario is realistic
+            assert len(duplicate_conversation) >= 10, (
+                "Test conversation should be large enough to be realistic"
+            )
+
+            # Verify the test case actually has duplicates
+            text_role_pairs = [
+                (getattr(c, "text", ""), getattr(c, "role", "")) for c in duplicate_conversation
+            ]
+            unique_pairs = set(text_role_pairs)
+            assert len(text_role_pairs) > len(unique_pairs), (
+                "Test case should have duplicate text/role pairs to test the bug scenario"
+            )
+
+    def test_content_order_preservation_with_identical_tool_calls(self):
+        """
+        Additional test for content order preservation with identical tool calls.
+
+        This tests another common scenario where the text/role matching bug would manifest:
+        identical tool calls to the same function with same parameters.
+        """
+        # Create conversation with identical tool calls
+        identical_tool_conversation = [
+            create_mock_content("Check this file: src/app.py", "user"),
+            create_mock_content("I'll examine the file", "assistant", has_function_call=True),
+            create_mock_content(
+                "File contains main function", "assistant", has_function_response=True
+            ),
+            create_mock_content("Also check src/app.py again", "user"),  # Same file again
+            create_mock_content(
+                "I'll examine the file", "assistant", has_function_call=True
+            ),  # Same text!
+            create_mock_content(
+                "File contains updated main function", "assistant", has_function_response=True
+            ),
+            create_mock_content("Check src/app.py one more time", "user"),  # Third time
+            create_mock_content(
+                "I'll examine the file", "assistant", has_function_call=True
+            ),  # Same text again!
+            create_mock_content(
+                "File now has error handling", "assistant", has_function_response=True
+            ),
+        ]
+
+        request = Mock(spec=LlmRequest)
+        request.contents = identical_tool_conversation
+
+        context = Mock(spec=CallbackContext)
+        context.invocation_id = "tool_order_test"
+
+        # Create callbacks (use tight token limit to force optimization)
+        callbacks = create_token_optimized_callbacks(
+            agent_name="tool_order_test_agent",
+            model_name="gemini-2.0-flash-exp",
+            max_token_limit=10_000,  # Very tight to force aggressive optimization
+        )
+
+        # Execute optimization
+        callbacks["before_model"](context, request)
+
+        # Verify conversation structure is preserved
+        if hasattr(context, "_token_optimization") and context._token_optimization.get(
+            "optimization_applied"
+        ):
+            optimized_contents = request.contents
+
+            # Find all function call and response pairs
+            call_response_pairs = []
+            i = 0
+            while i < len(optimized_contents) - 1:
+                current = optimized_contents[i]
+                next_item = optimized_contents[i + 1]
+
+                # Check if current is function call and next is function response
+                current_has_call = (
+                    hasattr(current, "parts")
+                    and current.parts
+                    and any(hasattr(part, "function_call") for part in current.parts)
+                )
+                next_has_response = (
+                    hasattr(next_item, "parts")
+                    and next_item.parts
+                    and any(hasattr(part, "function_response") for part in next_item.parts)
+                )
+
+                if current_has_call and next_has_response:
+                    call_response_pairs.append((i, i + 1))
+                    i += 2  # Skip the response since we just processed it
+                else:
+                    i += 1
+
+            # All function calls should be followed by their corresponding responses
+            # This would be broken if content order was scrambled
+            assert len(call_response_pairs) > 0, "Test should have function call/response pairs"
+
+            # Verify each pair is sequential
+            for call_idx, response_idx in call_response_pairs:
+                assert response_idx == call_idx + 1, (
+                    f"Function call at {call_idx} should be immediately followed by "
+                    f"response at {response_idx}, but they are not sequential. "
+                    "This suggests content order was scrambled."
+                )

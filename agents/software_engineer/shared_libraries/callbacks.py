@@ -925,17 +925,24 @@ def create_token_optimization_callbacks(
                 # Step 7: Update LLM Request
                 logger.info(f"[{agent_name}] Step 7: Updating request...")
 
-                # Convert back to original format
+                # Create mapping of content IDs to original content objects BEFORE the loop
+                original_contents_map = {}
+                for i, orig_content in enumerate(llm_request.contents):
+                    content_id = f"content_{i}"  # This matches how IDs were created earlier
+                    original_contents_map[content_id] = orig_content
+
+                # Convert back to original format using direct ID lookup
                 optimized_contents = []
                 for item in final_content:
                     if not item.get("is_bridge", False):
-                        # Find original content by matching text/role
-                        for orig_content in llm_request.contents:
-                            if getattr(orig_content, "text", str(orig_content)) == item.get(
-                                "text", ""
-                            ) and getattr(orig_content, "role", "") == item.get("role", ""):
-                                optimized_contents.append(orig_content)
-                                break
+                        # Use direct lookup by content ID to avoid ambiguity
+                        item_id = item.get("id")
+                        if item_id and item_id in original_contents_map:
+                            optimized_contents.append(original_contents_map[item_id])
+                        else:
+                            logger.warning(
+                                f"[{agent_name}] Could not find original content for ID: {item_id}"
+                            )
                     else:
                         # Create bridge content in appropriate format
                         try:
