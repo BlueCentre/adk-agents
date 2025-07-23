@@ -12,7 +12,21 @@
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-memory"],
       "env": {
-        "MEMORY_FILE_PATH": "{{env.MEMORY_FILE_PATH}}"
+        "MEMORY_FILE_PATH":"{{env.MEMORY_FILE_PATH}}"
+      }
+    },
+    "github": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-e",
+        "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "ghcr.io/github/github-mcp-server"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "{{env.GITHUB_PERSONAL_ACCESS_TOKEN}}"
       }
     },
     "playwright": {

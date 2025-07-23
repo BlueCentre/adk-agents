@@ -14,6 +14,7 @@ from . import config as agent_config, prompt
 from .shared_libraries.callbacks import (
     create_enhanced_telemetry_callbacks,
     create_model_config_callbacks,
+    create_token_optimization_callbacks,
 )
 
 # Import sub-agent prompts and tools to create separate instances
@@ -244,11 +245,10 @@ def create_enhanced_software_engineer_agent() -> Agent:
         ]
     )
 
-    # Create telemetry callbacks for observability
+    # Create focused single-purpose callbacks
     telemetry_callbacks = create_enhanced_telemetry_callbacks("enhanced_software_engineer")
-
-    # Create model thinking config callback
-    config_callback = create_model_config_callbacks(model.model)
+    model_config_callbacks = create_model_config_callbacks(model.model)
+    optimization_callbacks = create_token_optimization_callbacks("enhanced_software_engineer")
 
     # Create the enhanced agent
     return Agent(
@@ -268,16 +268,32 @@ def create_enhanced_software_engineer_agent() -> Agent:
         generate_content_config=agent_config.MAIN_LLM_GENERATION_CONFIG,
         sub_agents=create_enhanced_sub_agents(),  # Separate instances to avoid parent conflicts
         tools=tools,
-        # Add telemetry callbacks for observability
-        before_agent_callback=telemetry_callbacks["before_agent"],
-        after_agent_callback=telemetry_callbacks["after_agent"],
+        # Add focused single-purpose callbacks (Telemetry → Config → Optimization)
+        before_agent_callback=[
+            telemetry_callbacks["before_agent"],
+            optimization_callbacks["before_agent"],
+        ],
+        after_agent_callback=[
+            telemetry_callbacks["after_agent"],
+            optimization_callbacks["after_agent"],
+        ],
         before_model_callback=[
             telemetry_callbacks["before_model"],
-            config_callback["before_model"],
+            model_config_callbacks["before_model"],
+            optimization_callbacks["before_model"],
         ],
-        after_model_callback=telemetry_callbacks["after_model"],
-        before_tool_callback=telemetry_callbacks["before_tool"],
-        after_tool_callback=telemetry_callbacks["after_tool"],
+        after_model_callback=[
+            telemetry_callbacks["after_model"],
+            optimization_callbacks["after_model"],
+        ],
+        before_tool_callback=[
+            telemetry_callbacks["before_tool"],
+            optimization_callbacks["before_tool"],
+        ],
+        after_tool_callback=[
+            telemetry_callbacks["after_tool"],
+            optimization_callbacks["after_tool"],
+        ],
         output_key="enhanced_software_engineer",
     )
 

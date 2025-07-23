@@ -13,11 +13,6 @@ from pathlib import Path
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.tools.agent_tool import AgentTool
 from google.adk.tools.google_search_tool import google_search
-from google.adk.tools.mcp_tool.mcp_toolset import (
-    MCPToolset,
-    SseConnectionParams,
-    StdioServerParameters,
-)
 
 from .. import config as agent_config, prompts
 
@@ -47,6 +42,37 @@ from .file_summarizer_tool import FileSummarizerTool
 # from .shell_command import check_command_exists_tool, execute_vetted_shell_command_tool
 
 logger = logging.getLogger(__name__)
+
+# Import MCP classes with compatibility for StdioConnectionParams vs StdioServerParameters
+try:
+    from google.adk.tools.mcp_tool.mcp_toolset import (
+        MCPToolset,
+        SseConnectionParams,
+        StdioConnectionParams,
+    )
+
+    # If StdioConnectionParams is available, we'll use it with proper signature
+    STDIO_CONNECTION_CLASS = StdioConnectionParams
+    USE_NEW_STDIO_API = True
+    logger.info("Using StdioConnectionParams (new API)")
+except ImportError:
+    # Fallback to the deprecated class with warning suppression
+    import warnings
+
+    from google.adk.tools.mcp_tool.mcp_toolset import (
+        MCPToolset,
+        SseConnectionParams,
+        StdioServerParameters,
+    )
+
+    # Suppress the specific deprecation warning for StdioServerParameters
+    warnings.filterwarnings(
+        "ignore", message=".*StdioServerParameters is not recommended.*", category=UserWarning
+    )
+
+    STDIO_CONNECTION_CLASS = StdioServerParameters
+    USE_NEW_STDIO_API = False
+    logger.info("Using StdioServerParameters (deprecated API) - warnings suppressed")
 
 # Global registry for MCP toolsets and their exit stacks
 # Following ADK documentation pattern for proper async lifecycle management
@@ -275,11 +301,20 @@ async def load_user_tools_and_toolsets_async():
                     **processed_env,  # User env vars override our defaults
                 }
 
-                connection_params = StdioServerParameters(
-                    command=processed_config["command"],
-                    args=processed_args,
-                    env=mcp_quiet_env,
-                )
+                if USE_NEW_STDIO_API:
+                    connection_params = STDIO_CONNECTION_CLASS(
+                        server_params={
+                            "command": processed_config["command"],
+                            "args": processed_args,
+                            "env": mcp_quiet_env,
+                        }
+                    )
+                else:
+                    connection_params = STDIO_CONNECTION_CLASS(
+                        command=processed_config["command"],
+                        args=processed_args,
+                        env=mcp_quiet_env,
+                    )
             else:
                 logger.warning(
                     f"Failed to load MCP Toolset '{server_name}': Configuration must contain "
@@ -553,11 +588,20 @@ def _create_connection_params(server_name, processed_config):
             **processed_env,
         }
 
-        connection_params = StdioServerParameters(
-            command=processed_config["command"],
-            args=processed_args,
-            env=mcp_quiet_env,
-        )
+        if USE_NEW_STDIO_API:
+            connection_params = STDIO_CONNECTION_CLASS(
+                server_params={
+                    "command": processed_config["command"],
+                    "args": processed_args,
+                    "env": mcp_quiet_env,
+                }
+            )
+        else:
+            connection_params = STDIO_CONNECTION_CLASS(
+                command=processed_config["command"],
+                args=processed_args,
+                env=mcp_quiet_env,
+            )
     else:
         logger.warning(
             f"Failed to load MCP Toolset '{server_name}': Configuration must contain either 'url' "
