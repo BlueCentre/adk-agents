@@ -957,9 +957,13 @@ def create_token_optimization_callbacks(
                                     if hasattr(bridge_obj, "role"):
                                         bridge_obj.role = "assistant"  # Bridge as assistant message
                                     optimized_contents.append(bridge_obj)
-                        except Exception:
-                            # Fallback: skip bridge if can't create compatible format
-                            pass
+                        except Exception as e:
+                            # Fallback: skip bridge if can't create compatible format, but
+                            # log the error.
+                            logger.warning(
+                                f"[{agent_name}] Failed to create bridge content: {e}",
+                                exc_info=True,
+                            )
 
                 # Update the request
                 if optimized_contents:
