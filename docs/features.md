@@ -190,6 +190,14 @@ Deep semantic search and retrieval using ChromaDB:
 
 > **Note:** This feature requires configuration. See the [[Getting Started Guide|getting_started]] for a tutorial and the [[Configuration Reference|configuration]] for all available options.
 
+### Token Optimization Callbacks
+The Software Engineer Agent uses a sophisticated callback system to optimize token usage, reducing costs and improving response times.
+- **Intelligent Filtering:** Reduces conversation history to the most relevant exchanges.
+- **Context Pruning:** Removes unnecessary data from the context.
+- **Summarization:** Condenses long text while preserving key information.
+
+> For more details, see the [[Token Optimization Callbacks|usage/token-optimization-callbacks]] user guide.
+
 ## 🛠️ DevOps Automation
 
 ### CI/CD Automation

@@ -15,6 +15,20 @@
         "MEMORY_FILE_PATH": "/Users/james/Workspace/gh/lab/adk-agents/.agent/memory.json"
       }
     },
+    "github": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-e",
+        "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "ghcr.io/github/github-mcp-server"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "{{env.GITHUB_PERSONAL_ACCESS_TOKEN}}"
+      }
+    },
     "playwright": {
       "command": "npx",
       "args": [
