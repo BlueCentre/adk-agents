@@ -12,7 +12,7 @@
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-memory"],
       "env": {
-        "MEMORY_FILE_PATH": "/Users/james/Workspace/gh/lab/adk-agents/.agent/memory.json"
+        "MEMORY_FILE_PATH":"{{env.MEMORY_FILE_PATH}}"
       }
     },
     "github": {
