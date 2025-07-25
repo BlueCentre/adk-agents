@@ -14,6 +14,7 @@ from . import config as agent_config, prompt
 from .shared_libraries.callbacks import (
     create_enhanced_telemetry_callbacks,
     create_model_config_callbacks,
+    create_retry_callbacks,
     create_token_optimization_callbacks,
 )
 
@@ -25,7 +26,72 @@ warnings.filterwarnings("ignore")
 logging.basicConfig(level=logging.ERROR)
 
 # logging.getLogger("LiteLLM").setLevel(logging.WARNING)
-# logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
+
+
+def add_retry_capabilities_to_agent(agent, retry_handler):
+    """Add retry capabilities to an agent by wrapping the model's generate_content_async method."""
+    if not retry_handler:
+        logger.warning(f"[{agent.name}] No retry handler provided, skipping retry setup")
+        return agent
+
+    # Get the agent's model
+    model = agent.model if hasattr(agent, "model") else None
+    if not model:
+        logger.warning(f"[{agent.name}] No model found on agent, skipping retry setup")
+        return agent
+
+    # Store the original generate_content_async method
+    original_generate_content_async = model.generate_content_async
+
+    # Create the retry-enabled version
+    async def generate_content_async_with_retry(llm_request, stream=False):
+        """Wrap generate_content_async with retry logic, handling streaming correctly."""
+
+        if not stream:
+            # For non-streaming calls, the existing approach of buffering is acceptable.
+            async def model_call():
+                responses = []
+                async for response in original_generate_content_async(llm_request, stream=False):
+                    responses.append(response)
+                return responses
+
+            responses = await retry_handler(model_call)
+            for response in responses:
+                yield response
+        else:
+            # For streaming calls, we bypass the current retry handler to avoid breaking the stream.
+            # A generator-aware retry handler would be needed for full retry support on streams.
+            logger.warning(
+                f"[{agent.name}] Retry logic is bypassed for streaming to preserve stream"
+            )
+            async for response in original_generate_content_async(llm_request, stream=True):
+                yield response
+
+    # Replace the model's method with the retry-enabled version
+    # Use object.__setattr__ to bypass Pydantic validation
+    try:
+        object.__setattr__(model, "generate_content_async", generate_content_async_with_retry)
+        logger.debug(f"[{agent.name}] Successfully replaced generate_content_async method")
+    except Exception as e:
+        logger.warning(f"[{agent.name}] Failed to replace generate_content_async method: {e}")
+        # Fallback: try direct assignment (might work for some model types)
+        try:
+            model.generate_content_async = generate_content_async_with_retry
+            logger.debug(f"[{agent.name}] Fallback method replacement successful")
+        except Exception as e2:
+            logger.error(f"[{agent.name}] Both method replacement attempts failed: {e2}")
+            return agent
+
+    # Store references for debugging/testing
+    agent._retry_handler = retry_handler
+    agent._original_generate_content_async = original_generate_content_async
+
+    logger.info(
+        f"[{agent.name}] Retry capabilities integrated - model calls now include "
+        "automatic retry with exponential backoff"
+    )
+    return agent
 
 
 def create_enhanced_sub_agents():
@@ -218,84 +284,91 @@ workflow_selector_function_tool = FunctionTool(workflow_selector_tool)
 
 def create_enhanced_software_engineer_agent() -> Agent:
     """
-    Creates an enhanced software engineer agent with intelligent workflow orchestration.
+    Create an enhanced software engineer agent with retry capabilities.
 
-    This agent provides:
-    1. Traditional sub-agent delegation for simple tasks
-    2. Workflow orchestration tools for complex tasks
-    3. Shared state management
-    4. Intelligent task routing and coordination
+    Returns:
+        RetryEnabledAgent: Configured agent instance with workflow orchestration
     """
+    try:
+        logger.info("Creating enhanced software engineer agent...")
 
-    # Initialize model
-    model = LiteLlm(model=f"gemini/{agent_config.DEFAULT_AGENT_MODEL}")
+        # Initialize model
+        model = LiteLlm(model=f"gemini/{agent_config.DEFAULT_AGENT_MODEL}")
 
-    # Load all tools
-    tools = load_all_tools_and_toolsets()
+        # Load all available tools and toolsets from enhanced tool setup
+        tools = load_all_tools_and_toolsets()  # This returns a flat list of tools
+        # This allows dynamic workflow creation without pre-instantiating all workflows
 
-    # Note: Workflows are created on-demand to avoid agent parent conflicts
-    # This allows dynamic workflow creation without pre-instantiating all workflows
-
-    # Add workflow and state management tools
-    tools.extend(
-        [
-            state_manager_function_tool,
-            workflow_selector_function_tool,
-            load_memory,
-        ]
-    )
-
-    # Create focused single-purpose callbacks
-    telemetry_callbacks = create_enhanced_telemetry_callbacks("enhanced_software_engineer")
-    model_config_callbacks = create_model_config_callbacks(model.model)
-    optimization_callbacks = create_token_optimization_callbacks("enhanced_software_engineer")
-
-    # Create the enhanced agent
-    return Agent(
-        model=model,
-        name="enhanced_software_engineer",
-        description="Advanced software engineer with ADK workflow orchestration capabilities",
-        instruction=prompt.SOFTWARE_ENGINEER_ENHANCED_INSTR,
-        planner=BuiltInPlanner(
-            thinking_config=types.ThinkingConfig(
-                include_thoughts=agent_config.GEMINI_THINKING_INCLUDE_THOUGHTS,
-                thinking_budget=agent_config.GEMINI_THINKING_BUDGET,
-            ),
+        # Add workflow and state management tools
+        tools.extend(
+            [
+                state_manager_function_tool,
+                workflow_selector_function_tool,
+                load_memory,
+            ]
         )
-        if agent_config.GEMINI_THINKING_ENABLE
-        and agent_config.is_thinking_supported(agent_config.DEFAULT_AGENT_MODEL)
-        else None,
-        generate_content_config=agent_config.MAIN_LLM_GENERATION_CONFIG,
-        sub_agents=create_enhanced_sub_agents(),  # Separate instances to avoid parent conflicts
-        tools=tools,
-        # Add focused single-purpose callbacks (Telemetry → Config → Optimization)
-        before_agent_callback=[
-            telemetry_callbacks["before_agent"],
-            optimization_callbacks["before_agent"],
-        ],
-        after_agent_callback=[
-            telemetry_callbacks["after_agent"],
-            optimization_callbacks["after_agent"],
-        ],
-        before_model_callback=[
-            telemetry_callbacks["before_model"],
-            model_config_callbacks["before_model"],
-            optimization_callbacks["before_model"],
-        ],
-        after_model_callback=[
-            telemetry_callbacks["after_model"],
-            optimization_callbacks["after_model"],
-        ],
-        before_tool_callback=[
-            telemetry_callbacks["before_tool"],
-            optimization_callbacks["before_tool"],
-        ],
-        after_tool_callback=[
-            telemetry_callbacks["after_tool"],
-            optimization_callbacks["after_tool"],
-        ],
-        output_key="enhanced_software_engineer",
-    )
+
+        # Create focused single-purpose callbacks
+        telemetry_callbacks = create_enhanced_telemetry_callbacks("enhanced_software_engineer")
+        model_config_callbacks = create_model_config_callbacks(model.model)
+        optimization_callbacks = create_token_optimization_callbacks("enhanced_software_engineer")
+        retry_callbacks = create_retry_callbacks("enhanced_software_engineer")
+
+        # Create the enhanced agent
+        agent = Agent(
+            model=model,
+            name="enhanced_software_engineer",
+            description="Advanced software engineer with ADK workflow orchestration capabilities",
+            instruction=prompt.SOFTWARE_ENGINEER_ENHANCED_INSTR,
+            planner=BuiltInPlanner(
+                thinking_config=types.ThinkingConfig(
+                    include_thoughts=agent_config.GEMINI_THINKING_INCLUDE_THOUGHTS,
+                    thinking_budget=agent_config.GEMINI_THINKING_BUDGET,
+                ),
+            )
+            if agent_config.GEMINI_THINKING_ENABLE
+            and agent_config.is_thinking_supported(agent_config.DEFAULT_AGENT_MODEL)
+            else None,
+            generate_content_config=agent_config.MAIN_LLM_GENERATION_CONFIG,
+            sub_agents=create_enhanced_sub_agents(),  # Separate instances to avoid parent conflicts
+            tools=tools,
+            # Add focused single-purpose callbacks (Telemetry → Config → Optimization)
+            before_agent_callback=[
+                telemetry_callbacks["before_agent"],
+                optimization_callbacks["before_agent"],
+            ],
+            after_agent_callback=[
+                telemetry_callbacks["after_agent"],
+                optimization_callbacks["after_agent"],
+            ],
+            before_model_callback=[
+                retry_callbacks["before_model"],  # Retry setup first
+                telemetry_callbacks["before_model"],
+                model_config_callbacks["before_model"],
+                optimization_callbacks["before_model"],
+            ],
+            after_model_callback=[
+                retry_callbacks["after_model"],  # Retry cleanup first
+                telemetry_callbacks["after_model"],
+                optimization_callbacks["after_model"],
+            ],
+            before_tool_callback=[
+                telemetry_callbacks["before_tool"],
+                optimization_callbacks["before_tool"],
+            ],
+            after_tool_callback=[
+                telemetry_callbacks["after_tool"],
+                optimization_callbacks["after_tool"],
+            ],
+            output_key="enhanced_software_engineer",
+        )
+
+        # Add retry capabilities to the agent
+        return add_retry_capabilities_to_agent(agent, retry_callbacks["retry_handler"])
+
+    except Exception as e:
+        logger.error(f"Failed to create enhanced software engineer agent: {e!s}")
+        raise
 
 
 # Create the enhanced agent instance

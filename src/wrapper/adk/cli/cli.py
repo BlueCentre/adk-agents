@@ -373,12 +373,25 @@ async def run_interactively_with_tui(
         # Send tool start event to Textual UI
         app_tui.add_tool_event(tool.name, "start", args=args)
 
-        # Call original callback if it exists
+        # Call original callback(s) if they exist
         if original_before_tool:
-            result = original_before_tool(tool, args, tool_context, callback_context)
-            if result is not None and hasattr(result, "__await__"):
-                return await result
-            return result
+            # Handle both single callback and list of callbacks
+            if isinstance(original_before_tool, list):
+                # Execute all callbacks in the list
+                for callback in original_before_tool:
+                    if callback:
+                        result = callback(tool, args, tool_context, callback_context)
+                        if result is not None and hasattr(result, "__await__"):
+                            result = await result
+                        # Return the first non-None result from the callback chain
+                        if result is not None:
+                            return result
+            else:
+                # Single callback
+                result = original_before_tool(tool, args, tool_context, callback_context)
+                if result is not None and hasattr(result, "__await__"):
+                    return await result
+                return result
         return None
 
     async def enhanced_after_tool(
@@ -402,12 +415,27 @@ async def run_interactively_with_tui(
         else:
             app_tui.add_tool_event(tool.name, "finish", result=tool_response, duration=duration)
 
-        # Call original callback if it exists
+        # Call original callback(s) if they exist
         if original_after_tool:
-            result = original_after_tool(tool, tool_response, callback_context, args, tool_context)
-            if result is not None and hasattr(result, "__await__"):
-                return await result
-            return result
+            # Handle both single callback and list of callbacks
+            if isinstance(original_after_tool, list):
+                # Execute all callbacks in the list
+                for callback in original_after_tool:
+                    if callback:
+                        result = callback(tool, tool_response, callback_context, args, tool_context)
+                        if result is not None and hasattr(result, "__await__"):
+                            result = await result
+                        # Return the first non-None result from the callback chain
+                        if result is not None:
+                            return result
+            else:
+                # Single callback
+                result = original_after_tool(
+                    tool, tool_response, callback_context, args, tool_context
+                )
+                if result is not None and hasattr(result, "__await__"):
+                    return await result
+                return result
         return None
 
     # Replace agent callbacks with enhanced versions (if the agent supports it)
