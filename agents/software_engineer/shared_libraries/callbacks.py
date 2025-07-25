@@ -1340,8 +1340,8 @@ def create_retry_callbacks(
                     # Calculate delay with exponential backoff and jitter
                     delay = min(base_delay * (backoff_multiplier**attempt), max_delay)
                     # Add jitter to prevent thundering herd
-                    jitter = random.uniform(0.1, 0.3) * delay
-                    total_delay = delay + jitter
+                    jitter_multiplier = 0.8 + (0.4 * random.random())  # Jitter of ±20%
+                    total_delay = delay * jitter_multiplier
 
                     logger.warning(
                         f"[{agent_name}] Model request failed "
