@@ -1231,3 +1231,145 @@ def create_token_optimized_callbacks(
     return create_token_optimization_callbacks(
         agent_name=agent_name, model_name=model_name, max_token_limit=max_token_limit
     )
+
+
+def create_retry_callbacks(
+    agent_name: str,
+    max_retries: int = 3,
+    base_delay: float = 1.0,
+    max_delay: float = 8.0,
+    backoff_multiplier: float = 2.0,
+) -> dict[str, Callable]:
+    """
+    Create retry callbacks with exponential backoff for model request failures.
+
+    This specifically handles the "No message in response" error from LiteLLM
+    by implementing automatic retry logic with exponential backoff.
+
+    Args:
+        agent_name: Name of the agent for logging
+        max_retries: Maximum number of retry attempts (default: 3)
+        base_delay: Initial delay in seconds (default: 1.0)
+        max_delay: Maximum delay between retries (default: 8.0)
+        backoff_multiplier: Multiplier for exponential backoff (default: 2.0)
+
+    Returns:
+        Dictionary containing retry-enabled callback functions and retry handler
+    """
+    import asyncio
+    import random
+
+    # Validate parameters
+    if max_retries < 0:
+        raise ValueError(f"max_retries must be non-negative, got {max_retries}")
+    if base_delay <= 0:
+        raise ValueError(f"base_delay must be positive, got {base_delay}")
+    if max_delay <= 0:
+        raise ValueError(f"max_delay must be positive, got {max_delay}")
+    if backoff_multiplier <= 0:
+        raise ValueError(f"backoff_multiplier must be positive, got {backoff_multiplier}")
+
+    logger.info(
+        f"[{agent_name}] Creating retry callbacks with max_retries={max_retries}, "
+        f"base_delay={base_delay}s, max_delay={max_delay}s"
+    )
+
+    @_callback_error_handler(agent_name, "retry_before_model_callback")
+    def before_model_callback(callback_context: CallbackContext, llm_request: LlmRequest):
+        """Log model request initiation."""
+        del callback_context, llm_request  # Unused but required by callback signature
+        logger.debug(f"[{agent_name}] Model request initiated (retry system active)")
+
+    @_callback_error_handler(agent_name, "retry_after_model_callback")
+    def after_model_callback(callback_context: CallbackContext, llm_response: LlmResponse):
+        """Log successful model response."""
+        del callback_context, llm_response  # Unused but required by callback signature
+        logger.debug(f"[{agent_name}] Model request completed successfully")
+
+    def create_retry_handler():
+        """Create a retry handler that can be used by agents to wrap model calls."""
+
+        async def handle_model_request_with_retry(model_call_func, *args, **kwargs):
+            """
+            Wrapper function that handles model requests with automatic retry logic.
+
+            Args:
+                model_call_func: The original model call function to retry
+                *args, **kwargs: Arguments to pass to the model call function
+
+            Returns:
+                The result of the successful model call
+
+            Raises:
+                The last error if all retries are exhausted
+            """
+            last_error = None
+
+            for attempt in range(max_retries + 1):  # +1 for initial attempt
+                try:
+                    # Attempt the model call
+                    if asyncio.iscoroutinefunction(model_call_func):
+                        result = await model_call_func(*args, **kwargs)
+                    else:
+                        result = model_call_func(*args, **kwargs)
+
+                    if attempt > 0:
+                        logger.info(
+                            f"[{agent_name}] Model request succeeded on attempt {attempt + 1}"
+                        )
+                    return result
+
+                except ValueError as e:
+                    error_msg = str(e)
+
+                    # Only retry for "No message in response" errors
+                    if "No message in response" not in error_msg:
+                        logger.debug(f"[{agent_name}] Non-retryable ValueError: {error_msg}")
+                        raise
+
+                    last_error = e
+
+                    # Don't retry if we've exhausted attempts
+                    if attempt >= max_retries:
+                        logger.error(
+                            f"[{agent_name}] Model request failed after "
+                            f"{max_retries + 1} attempts. Final error: {error_msg}"
+                        )
+                        break
+
+                    # Calculate delay with exponential backoff and jitter
+                    delay = min(base_delay * (backoff_multiplier**attempt), max_delay)
+                    # Add jitter to prevent thundering herd
+                    jitter = random.uniform(0.1, 0.3) * delay
+                    total_delay = delay + jitter
+
+                    logger.warning(
+                        f"[{agent_name}] Model request failed "
+                        f"(attempt {attempt + 1}/{max_retries + 1}): {error_msg}. "
+                        f"Retrying in {total_delay:.2f}s..."
+                    )
+
+                    # Wait before retry
+                    await asyncio.sleep(total_delay)
+
+                except Exception as e:
+                    # Don't retry for other types of errors
+                    logger.debug(
+                        f"[{agent_name}] Non-retryable error in model request: "
+                        f"{type(e).__name__}: {e}"
+                    )
+                    raise
+
+            # If we get here, all retries failed
+            raise last_error
+
+        return handle_model_request_with_retry
+
+    # Create the retry handler for use by agents
+    retry_handler = create_retry_handler()
+
+    return {
+        "before_model": before_model_callback,
+        "after_model": after_model_callback,
+        "retry_handler": retry_handler,
+    }

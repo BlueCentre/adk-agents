@@ -214,8 +214,30 @@ class IntegrationTestRunner:
         self.test_suites.append(
             TestSuite(
                 name="Core Integration Tests",
-                description="Advanced context management and RAG integration tests",
+                description="Advanced context management, retry system, callback handling, and RAG integration tests",  # noqa: E501
                 tests=[
+                    # Retry system tests (error recovery and resilience)
+                    "tests/integration/test_retry_system_integration.py::TestRetryCallbackCreation::test_create_retry_callbacks_default_config",
+                    "tests/integration/test_retry_system_integration.py::TestRetryHandlerLogic::test_retry_handler_success_after_failure",
+                    "tests/integration/test_retry_system_integration.py::TestRetryHandlerLogic::test_retry_handler_exhaustion",
+                    "tests/integration/test_retry_system_integration.py::TestRetrySystemIntegration::test_enhanced_agent_has_retry_capabilities",
+                    "tests/integration/test_retry_system_integration.py::TestRetrySystemIntegration::test_enhanced_agent_model_method_wrapped",
+                    "tests/integration/test_retry_system_integration.py::TestRetrySystemPerformance::test_retry_exponential_backoff_timing",
+                    "tests/integration/test_retry_system_integration.py::TestEnhancedAgentRetryIntegration::test_enhanced_agent_full_loading_with_retry",
+                    # End-to-end retry tests (verify actual retry behavior)
+                    "tests/integration/test_retry_system_integration.py::TestEnhancedAgentEndToEndRetry::test_enhanced_agent_actual_retry_on_model_failure",
+                    "tests/integration/test_retry_system_integration.py::TestEnhancedAgentEndToEndRetry::test_enhanced_agent_retry_exhaustion_end_to_end",
+                    "tests/integration/test_retry_system_integration.py::TestEnhancedAgentEndToEndRetry::test_enhanced_agent_non_retryable_error_end_to_end",
+                    # Callback return value handling tests (regression prevention)
+                    "tests/integration/test_callback_return_values_integration.py::TestCallbackReturnValueHandling::test_list_callbacks_first_returns_value",
+                    "tests/integration/test_callback_return_values_integration.py::TestCallbackReturnValueHandling::test_list_callbacks_first_none_second_value",
+                    "tests/integration/test_callback_return_values_integration.py::TestCallbackReturnValueRegressionPrevention::test_callback_return_value_not_discarded",
+                    "tests/integration/test_callback_return_values_integration.py::TestCallbackReturnValueRegressionPrevention::test_callback_execution_order_matters",
+                    # Tool-specific callback return value tests (before_tool and after_tool)
+                    "tests/integration/test_callback_return_values_integration.py::TestToolCallbackReturnValueHandling::test_before_tool_callback_list_returns_first_non_none",
+                    "tests/integration/test_callback_return_values_integration.py::TestToolCallbackReturnValueHandling::test_after_tool_callback_list_returns_first_non_none",
+                    "tests/integration/test_callback_return_values_integration.py::TestToolCallbackReturnValueHandling::test_before_and_after_tool_callback_consistency",
+                    # Context management tests
                     "tests/integration/test_context_management_advanced.py::TestSmartPrioritization::test_prioritize_code_snippets_by_relevance",
                     "tests/integration/test_context_management_advanced.py::TestSmartPrioritization::test_prioritize_tool_results_by_error_priority",
                     "tests/integration/test_context_management_advanced.py::TestCrossTurnCorrelation::test_identify_related_conversations",
