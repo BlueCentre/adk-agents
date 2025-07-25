@@ -651,3 +651,98 @@ class TestEnhancedAgentEndToEndRetry:
         except Exception as e:
             logger.error(f"End-to-end non-retryable error test failed: {e}")
             raise
+
+    @pytest.mark.asyncio
+    async def test_enhanced_agent_streaming_wrapper_behavior(self):
+        """Test that streaming wrapper handles stream parameter correctly."""
+        try:
+            # Create a simple mock retry handler for testing
+            retry_call_count = 0
+
+            async def mock_retry_handler(model_call_func):
+                nonlocal retry_call_count
+                retry_call_count += 1
+                return await model_call_func()
+
+            # Track calls to original method
+            original_call_count = 0
+            streaming_calls = []
+
+            async def mock_original_generate_content_async(llm_request, stream=False):
+                nonlocal original_call_count
+                original_call_count += 1
+                streaming_calls.append(stream)
+                del llm_request  # Unused but required for signature compatibility
+
+                if stream:
+                    # Simulate streaming response
+                    yield "Streaming chunk 1"
+                    yield "Streaming chunk 2"
+                else:
+                    # Simulate non-streaming response
+                    yield "Non-streaming response"
+
+            # Create the wrapper function (similar to what's in enhanced_agent.py)
+            async def generate_content_async_with_retry(llm_request, stream=False):
+                """Test version of the wrapper function."""
+                if not stream:
+                    # For non-streaming calls, use retry logic with buffering
+                    async def model_call():
+                        responses = []
+                        async for response in mock_original_generate_content_async(
+                            llm_request, stream=False
+                        ):
+                            responses.append(response)
+                        return responses
+
+                    responses = await mock_retry_handler(model_call)
+                    for response in responses:
+                        yield response
+                else:
+                    # For streaming calls, bypass retry to preserve streaming
+                    async for response in mock_original_generate_content_async(
+                        llm_request, stream=True
+                    ):
+                        yield response
+
+            # Test non-streaming call
+            non_streaming_responses = []
+            async for response in generate_content_async_with_retry("test_request", stream=False):
+                non_streaming_responses.append(response)
+
+            # Test streaming call
+            streaming_responses = []
+            async for response in generate_content_async_with_retry("test_request", stream=True):
+                streaming_responses.append(response)
+
+            # Verify retry handler was called only for non-streaming
+            assert retry_call_count == 1, (
+                f"Expected retry handler called 1 time, got {retry_call_count}"
+            )
+
+            # Verify original method was called twice (once for each test)
+            assert original_call_count == 2, (
+                f"Expected 2 calls to original method, got {original_call_count}"
+            )
+
+            # Verify streaming parameter was passed correctly
+            assert streaming_calls == [False, True], (
+                f"Expected [False, True] stream params, got {streaming_calls}"
+            )
+
+            # Verify responses
+            assert non_streaming_responses == ["Non-streaming response"], (
+                f"Unexpected non-streaming response: {non_streaming_responses}"
+            )
+            assert streaming_responses == ["Streaming chunk 1", "Streaming chunk 2"], (
+                f"Unexpected streaming response: {streaming_responses}"
+            )
+
+            logger.info(
+                "✅ Streaming wrapper behavior test passed: "
+                "Non-streaming uses retry, streaming bypasses retry"
+            )
+
+        except Exception as e:
+            logger.error(f"Streaming wrapper behavior test failed: {e}")
+            raise

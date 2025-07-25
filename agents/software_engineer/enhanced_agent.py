@@ -46,21 +46,27 @@ def add_retry_capabilities_to_agent(agent, retry_handler):
 
     # Create the retry-enabled version
     async def generate_content_async_with_retry(llm_request, stream=False):
-        """Wrap generate_content_async with retry logic."""
+        """Wrap generate_content_async with retry logic, handling streaming correctly."""
 
-        async def model_call():
-            # Call the original method and collect all responses
-            responses = []
-            async for response in original_generate_content_async(llm_request, stream):
-                responses.append(response)
-            return responses
+        if not stream:
+            # For non-streaming calls, the existing approach of buffering is acceptable.
+            async def model_call():
+                responses = []
+                async for response in original_generate_content_async(llm_request, stream=False):
+                    responses.append(response)
+                return responses
 
-        # Use retry handler to wrap the model call
-        responses = await retry_handler(model_call)
-
-        # Yield the responses (to maintain the async generator interface)
-        for response in responses:
-            yield response
+            responses = await retry_handler(model_call)
+            for response in responses:
+                yield response
+        else:
+            # For streaming calls, we bypass the current retry handler to avoid breaking the stream.
+            # A generator-aware retry handler would be needed for full retry support on streams.
+            logger.warning(
+                f"[{agent.name}] Retry logic is bypassed for streaming to preserve stream"
+            )
+            async for response in original_generate_content_async(llm_request, stream=True):
+                yield response
 
     # Replace the model's method with the retry-enabled version
     # Use object.__setattr__ to bypass Pydantic validation

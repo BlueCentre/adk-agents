@@ -228,6 +228,7 @@ class IntegrationTestRunner:
                     "tests/integration/test_retry_system_integration.py::TestEnhancedAgentEndToEndRetry::test_enhanced_agent_actual_retry_on_model_failure",
                     "tests/integration/test_retry_system_integration.py::TestEnhancedAgentEndToEndRetry::test_enhanced_agent_retry_exhaustion_end_to_end",
                     "tests/integration/test_retry_system_integration.py::TestEnhancedAgentEndToEndRetry::test_enhanced_agent_non_retryable_error_end_to_end",
+                    "tests/integration/test_retry_system_integration.py::TestEnhancedAgentEndToEndRetry::test_enhanced_agent_streaming_wrapper_behavior",
                     # Callback return value handling tests (regression prevention)
                     "tests/integration/test_callback_return_values_integration.py::TestCallbackReturnValueHandling::test_list_callbacks_first_returns_value",
                     "tests/integration/test_callback_return_values_integration.py::TestCallbackReturnValueHandling::test_list_callbacks_first_none_second_value",
