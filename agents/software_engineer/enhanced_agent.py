@@ -399,11 +399,6 @@ def workflow_selector_tool(tool_context: ToolContext, task_description: str) -> 
     }
 
 
-# Create tool instances
-state_manager_function_tool = FunctionTool(state_manager_tool)
-workflow_selector_function_tool = FunctionTool(workflow_selector_tool)
-
-
 def create_enhanced_software_engineer_agent() -> Agent:
     """
     Create an enhanced software engineer agent with retry capabilities.
@@ -424,8 +419,8 @@ def create_enhanced_software_engineer_agent() -> Agent:
         # Add workflow and state management tools
         tools.extend(
             [
-                state_manager_function_tool,  # Re-enabled: proper ADK signature
-                workflow_selector_function_tool,  # Re-enabled: proper ADK signature
+                FunctionTool(state_manager_tool),  # Re-enabled: proper ADK signature
+                FunctionTool(workflow_selector_tool),  # Re-enabled: proper ADK signature
                 load_memory,
             ]
         )
