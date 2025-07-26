@@ -9,6 +9,7 @@ from google.adk.agents.callback_context import CallbackContext
 from google.adk.tools import ToolContext
 
 from .constants import DEPENDENCY_FILES
+from .proactive_error_detection import detect_and_suggest_error_fixes
 
 logger = logging.getLogger(__name__)
 
@@ -392,3 +393,23 @@ def _preprocess_and_add_context_to_agent_prompt(callback_context: CallbackContex
 
         except Exception as e:
             logger.error(f"Error in contextual preprocessing: {e}")
+
+        # NEW: Always check for proactive error suggestions, even without contextual actions
+        # This ensures we catch recent errors regardless of the user's query
+        try:
+            proactive_suggestions = detect_and_suggest_error_fixes(session_state)
+            if proactive_suggestions:
+                # Add or update proactive suggestions in existing context
+                if "__preprocessed_context_for_llm" not in session_state:
+                    session_state["__preprocessed_context_for_llm"] = {}
+
+                session_state["__preprocessed_context_for_llm"]["proactive_error_suggestions"] = (
+                    proactive_suggestions
+                )
+
+                logger.info(
+                    "[_preprocess_and_add_context_to_agent_prompt] "
+                    "Added proactive error suggestions to context"
+                )
+        except Exception as e:
+            logger.error(f"Error in proactive error detection: {e}")
