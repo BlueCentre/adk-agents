@@ -127,7 +127,9 @@ def create_enhanced_sub_agents():
     ]
 
 
-def state_manager_tool(context: ToolContext) -> dict[str, Any]:
+def state_manager_tool(
+    tool_context: ToolContext, action: str, key: str = "", value: str = ""
+) -> dict[str, Any]:
     """
     Enhanced state management tool with advanced session tracking.
 
@@ -135,12 +137,15 @@ def state_manager_tool(context: ToolContext) -> dict[str, Any]:
     and cross-agent state sharing capabilities.
 
     Args:
-        context: Tool execution context containing session state
+        tool_context: ADK tool context providing access to session state
+        action: The action to perform ('get', 'set', 'update', 'delete', 'list')
+        key: The state key to operate on
+        value: The value to set/update (for set/update operations)
 
     Returns:
-        dict: Current session state snapshot with metadata
+        dict: Result of the operation with metadata
     """
-    if not context or not context.state:
+    if not tool_context or not hasattr(tool_context, "state") or tool_context.state is None:
         return {
             "error": "No session state available",
             "session_initialized": False,
@@ -156,21 +161,136 @@ def state_manager_tool(context: ToolContext) -> dict[str, Any]:
         "error_recovery_context": {},
     }
 
-    for key, default_value in standard_keys.items():
-        if key not in context.state:
-            context.state[key] = default_value
+    for std_key, default_value in standard_keys.items():
+        if std_key not in tool_context.state:
+            tool_context.state[std_key] = default_value
+
+    # Handle different actions
+    if action == "get":
+        if not key:
+            return {
+                "error": "Key required for get operation",
+                "action": action,
+            }
+
+        value = tool_context.state.get(key)
+        return {
+            "action": action,
+            "key": key,
+            "value": value,
+            "found": key in tool_context.state,
+        }
+
+    if action == "set":
+        if not key:
+            return {
+                "error": "Key required for set operation",
+                "action": action,
+            }
+
+        # Parse value if it's a JSON string
+        parsed_value = value
+        if isinstance(value, str):
+            try:
+                import json
+
+                parsed_value = json.loads(value)
+            except (json.JSONDecodeError, ValueError):
+                # Keep as string if not valid JSON
+                parsed_value = value
+
+        tool_context.state[key] = parsed_value
+        return {
+            "action": action,
+            "key": key,
+            "value": parsed_value,
+            "success": True,
+        }
+
+    if action == "update":
+        if not key:
+            return {
+                "error": "Key required for update operation",
+                "action": action,
+            }
+
+        if key not in tool_context.state:
+            return {
+                "error": f"Key '{key}' not found for update operation",
+                "action": action,
+                "key": key,
+            }
+
+        # Parse value if it's a JSON string
+        parsed_value = value
+        if isinstance(value, str):
+            try:
+                import json
+
+                parsed_value = json.loads(value)
+            except (json.JSONDecodeError, ValueError):
+                parsed_value = value
+
+        # If both existing and new values are dicts, merge them
+        existing_value = tool_context.state[key]
+        if isinstance(existing_value, dict) and isinstance(parsed_value, dict):
+            existing_value.update(parsed_value)
+            updated_value = existing_value
+        else:
+            # Otherwise replace
+            tool_context.state[key] = parsed_value
+            updated_value = parsed_value
+
+        return {
+            "action": action,
+            "key": key,
+            "value": updated_value,
+            "success": True,
+        }
+
+    if action == "delete":
+        if not key:
+            return {
+                "error": "Key required for delete operation",
+                "action": action,
+            }
+
+        if key in tool_context.state:
+            deleted_value = tool_context.state.pop(key)
+            return {
+                "action": action,
+                "key": key,
+                "deleted_value": deleted_value,
+                "success": True,
+            }
+        return {
+            "action": action,
+            "key": key,
+            "error": f"Key '{key}' not found",
+            "success": False,
+        }
+
+    if action == "list":
+        # Return list of all keys and their types
+        return {
+            "action": action,
+            "session_initialized": True,
+            "available_keys": list(tool_context.state.keys()),
+            "workflow_state": tool_context.state.get("workflow_state", "unknown"),
+            "task_count": len(tool_context.state.get("task_history", [])),
+            "conversation_turns": len(tool_context.state.get("conversation_context", [])),
+            "state_summary": {
+                key: type(value).__name__ for key, value in tool_context.state.items()
+            },
+        }
 
     return {
-        "session_initialized": True,
-        "available_keys": list(context.state.keys()),
-        "workflow_state": context.state.get("workflow_state", "unknown"),
-        "task_count": len(context.state.get("task_history", [])),
-        "conversation_turns": len(context.state.get("conversation_context", [])),
-        "state_summary": {key: type(value).__name__ for key, value in context.state.items()},
+        "error": f"Unknown action '{action}'. Supported actions: get, set, update, delete, list",
+        "supported_actions": ["get", "set", "update", "delete", "list"],
     }
 
 
-def workflow_selector_tool(task_description: str, context: ToolContext) -> dict[str, Any]:
+def workflow_selector_tool(tool_context: ToolContext, task_description: str) -> dict[str, Any]:
     """
     Intelligent workflow selection based on task characteristics.
 
@@ -178,8 +298,8 @@ def workflow_selector_tool(task_description: str, context: ToolContext) -> dict[
     from the available ADK workflow orchestration options.
 
     Args:
+        tool_context: ADK tool context providing access to session state
         task_description: Description of the task to analyze
-        context: Tool execution context for state access
 
     Returns:
         dict: Workflow recommendation with reasoning and configuration
@@ -233,7 +353,9 @@ def workflow_selector_tool(task_description: str, context: ToolContext) -> dict[
     iterative = any(indicator in task_lower for indicator in iterative_indicators)
 
     # Determine task type
-    task_type = "development"  # Default
+    task_type = "general"
+
+    # Default
     if any(word in task_lower for word in ["test", "testing", "spec"]):
         task_type = "testing"
     elif any(word in task_lower for word in ["deploy", "build", "ci/cd"]):
@@ -251,10 +373,10 @@ def workflow_selector_tool(task_description: str, context: ToolContext) -> dict[
     else:
         selected_workflow = "standard_sequential"
 
-    # Update workflow state
-    if context and context.state:
-        context.state["workflow_state"] = selected_workflow
-        context.state["task_analysis"] = {
+    # Update workflow state in session if available
+    if tool_context and hasattr(tool_context, "state") and tool_context.state is not None:
+        tool_context.state["workflow_state"] = selected_workflow
+        tool_context.state["task_analysis"] = {
             "task_type": task_type,
             "complexity": complexity,
             "requires_approval": requires_approval,
@@ -302,8 +424,8 @@ def create_enhanced_software_engineer_agent() -> Agent:
         # Add workflow and state management tools
         tools.extend(
             [
-                # state_manager_function_tool,  # Temporarily disabled due to ADK parsing issues
-                # workflow_selector_function_tool,  # Temporarily disabled due to ADK parsing issues
+                state_manager_function_tool,  # Re-enabled: proper ADK signature
+                workflow_selector_function_tool,  # Re-enabled: proper ADK signature
                 load_memory,
             ]
         )

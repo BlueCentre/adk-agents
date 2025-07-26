@@ -163,15 +163,59 @@ def _execute_contextual_actions(tool_context: ToolContext, actions: list[dict]) 
     return results
 
 
+def _analyze_user_query_for_context(user_query: str) -> tuple[list[dict], str]:
+    """
+    Analyze user query to identify contextual actions needed.
+
+    Returns:
+        tuple: (actions_to_execute, command_history_context)
+    """
+    actions = []
+    query_lower = user_query.lower()
+
+    # Directory listing patterns
+    directory_patterns = [
+        r"(?:what['\s]*s|what is|show me|list|see)\s+(?:in|inside|within)?\s*"
+        r"(?:the\s+)?(?:[`\"']?)([^`\"'\s\?]+?)(?:[`\"']?)\s*(?:directory|folder|dir)?",
+        r"(?:list|show)\s+(?:contents?\s+of\s+)?(?:the\s+)?(?:[`\"']?)([^`\"'\s\?]+?)(?:[`\"']?)",
+        r"(?:contents?\s+of|files?\s+in)\s+(?:the\s+)?(?:[`\"']?)([^`\"'\s\?]+?)(?:[`\"']?)",
+    ]
+
+    # File reading patterns
+    file_patterns = [
+        r"(?:show me|read|open|view|display|what['\s]*s in)\s+(?:the\s+)?"
+        r"(?:file\s+)?(?:[`\"']?)([^`\"'\s\?]+?\.[a-z0-9]+)(?:[`\"']?)",
+        r"(?:contents?\s+of|what['\s]*s in)\s+(?:the\s+)?"
+        r"(?:file\s+)?(?:[`\"']?)([^`\"'\s\?]+?\.[a-z0-9]+)(?:[`\"']?)",
+    ]
+
+    # Check for directory references
+    for pattern in directory_patterns:
+        matches = re.finditer(pattern, query_lower)
+        for match in matches:
+            target = _extract_target(match)
+            if target and len(target) > 1:  # Avoid single character matches
+                actions.append({"type": "list_directory", "target": target})
+
+    # Check for file references
+    for pattern in file_patterns:
+        matches = re.finditer(pattern, query_lower)
+        for match in matches:
+            target = _extract_target(match)
+            if target and len(target) > 1:  # Avoid single character matches
+                actions.append({"type": "read_file", "target": target})
+
+    return actions, query_lower
+
+
 def _preprocess_and_add_context_to_agent_prompt(callback_context: CallbackContext = None):
     """
     Callback to preprocess user input and inject relevant contextual information
     (file system, command history, error logs) into the agent's session state.
     This function is intended to be used as a before_agent_callback.
 
-    Note: This callback initializes contextual state but doesn't directly modify
-    user messages. The agent's prompt instructions will guide the LLM to check
-    session state for contextual information.
+    This callback now actively analyzes recent user messages and executes contextual
+    actions like directory listing and file reading when appropriate.
     """
     if not callback_context:
         logger.warning(
@@ -192,9 +236,84 @@ def _preprocess_and_add_context_to_agent_prompt(callback_context: CallbackContex
         if "recent_errors" not in session_state:
             session_state["recent_errors"] = []
 
+        # NEW: Try to analyze recent user messages for contextual actions
+        try:
+            # Look for recent user messages in conversation history or state
+            recent_user_message = None
+
+            # Check various possible locations for the current user message
+            if "current_user_message" in session_state:
+                recent_user_message = session_state["current_user_message"]
+            elif session_state.get("conversation_context"):
+                # Get the most recent message if available
+                recent_entry = session_state["conversation_context"][-1]
+                if isinstance(recent_entry, dict) and "user_message" in recent_entry:
+                    recent_user_message = recent_entry["user_message"]
+            elif "temp:current_turn" in session_state:
+                current_turn = session_state["temp:current_turn"]
+                if isinstance(current_turn, dict) and "user_message" in current_turn:
+                    recent_user_message = current_turn["user_message"]
+
+            if recent_user_message and isinstance(recent_user_message, str):
+                logger.info(
+                    "[_preprocess_and_add_context_to_agent_prompt] "
+                    f"Analyzing user query: {recent_user_message[:100]}..."
+                )
+
+                # Analyze the user query for contextual actions
+                actions, query_lower = _analyze_user_query_for_context(recent_user_message)
+
+                if actions:
+                    logger.info(
+                        "[_preprocess_and_add_context_to_agent_prompt] "
+                        f"Found {len(actions)} contextual actions to execute"
+                    )
+
+                    # Create a mock ToolContext to execute actions
+                    from types import SimpleNamespace
+
+                    mock_tool_context = SimpleNamespace()
+                    mock_tool_context.state = session_state
+
+                    # Execute contextual actions
+                    results = _execute_contextual_actions(mock_tool_context, actions)
+
+                    # Check for command history context
+                    history_context = _check_command_history_context(mock_tool_context, query_lower)
+
+                    # Store results in session state for LLM access
+                    contextual_info = {
+                        "actions_executed": len(actions),
+                        "results": results,
+                        "command_history_context": history_context,
+                        "timestamp": str(Path.cwd()),  # Use a timestamp-like field
+                    }
+
+                    session_state["__preprocessed_context_for_llm"] = contextual_info
+
+                    logger.info(
+                        "[_preprocess_and_add_context_to_agent_prompt] "
+                        f"Executed {len(actions)} contextual actions with {len(results)} results"
+                    )
+                else:
+                    logger.debug(
+                        "[_preprocess_and_add_context_to_agent_prompt] "
+                        "No contextual actions identified in user query"
+                    )
+            else:
+                logger.debug(
+                    "[_preprocess_and_add_context_to_agent_prompt] "
+                    "No recent user message found for contextual analysis"
+                )
+
+        except Exception as e:
+            logger.error(
+                f"[_preprocess_and_add_context_to_agent_prompt] Error in contextual analysis: {e}",
+                exc_info=True,
+            )
+
         logger.info(
-            "[_preprocess_and_add_context_to_agent_prompt] "
-            "Initialized contextual state for agent session."
+            "[_preprocess_and_add_context_to_agent_prompt] Contextual state processing completed."
         )
     else:
         logger.warning(
