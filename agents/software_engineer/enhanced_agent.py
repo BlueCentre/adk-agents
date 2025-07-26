@@ -4,7 +4,7 @@ import logging
 from typing import Any
 import warnings
 
-from google.adk.agents import Agent, LlmAgent
+from google.adk.agents import Agent
 from google.adk.models.lite_llm import LiteLlm
 from google.adk.planners import BuiltInPlanner
 from google.adk.tools import FunctionTool, ToolContext, load_memory
@@ -16,6 +16,9 @@ from .shared_libraries.callbacks import (
     create_model_config_callbacks,
     create_retry_callbacks,
     create_token_optimization_callbacks,
+)
+from .shared_libraries.context_callbacks import (
+    _preprocess_and_add_context_to_agent_prompt,
 )
 
 # Import sub-agent prompts and tools to create separate instances
@@ -104,157 +107,276 @@ def create_enhanced_sub_agents():
     from .sub_agents.code_quality.agent import create_code_quality_agent
     from .sub_agents.code_review.agent import create_code_review_agent
     from .sub_agents.debugging.agent import create_debugging_agent
-    from .sub_agents.design_pattern.agent import (  # Static tools, no factory needed
-        design_pattern_agent,
-    )
+    from .sub_agents.design_pattern.agent import create_design_pattern_agent
     from .sub_agents.devops.agent import create_devops_agent
     from .sub_agents.documentation.agent import create_documentation_agent
     from .sub_agents.ollama.agent import create_ollama_agent
     from .sub_agents.testing.agent import create_testing_agent
 
-    # Create enhanced instances using factory functions
-    enhanced_sub_agents = []
+    logger.info("Creating enhanced sub-agents with ADK workflow patterns...")
 
-    # 1. Design Pattern Agent - Create new instance with different name (uses static tools)
-    enhanced_design_pattern_agent = LlmAgent(
-        model=design_pattern_agent.model,
-        name="enhanced_design_pattern_agent",
-        description=design_pattern_agent.description,
-        instruction=design_pattern_agent.instruction,
-        tools=design_pattern_agent.tools,  # Reuse same static tools
-        output_key="design_pattern",
-    )
-    enhanced_sub_agents.append(enhanced_design_pattern_agent)
-
-    # 2-8. All other agents - Use factory functions (eliminates all duplication!)
-    enhanced_sub_agents.append(create_code_review_agent("enhanced_"))
-    enhanced_sub_agents.append(create_testing_agent("enhanced_"))
-    enhanced_sub_agents.append(create_code_quality_agent("enhanced_"))
-    enhanced_sub_agents.append(create_debugging_agent("enhanced_"))
-    enhanced_sub_agents.append(create_documentation_agent("enhanced_"))
-    enhanced_sub_agents.append(create_devops_agent("enhanced_"))
-    enhanced_sub_agents.append(create_ollama_agent("enhanced_"))
-
-    return enhanced_sub_agents
+    return [
+        create_design_pattern_agent("enhanced_"),  # 1. Architecture and design decisions
+        create_code_review_agent("enhanced_"),  # 2. Code analysis and implementation guidance
+        create_code_quality_agent("enhanced_"),  # 3. Quality validation and improvement suggestions
+        create_testing_agent("enhanced_"),  # 4. Test strategy and implementation
+        create_debugging_agent("enhanced_"),  # 5. Issue identification and resolution
+        create_documentation_agent("enhanced_"),  # 6. Documentation after code stabilization
+        create_devops_agent("enhanced_"),  # 7. Deployment and operational considerations
+        create_ollama_agent("enhanced_"),  # 8. Local model sandbox environment
+    ]
 
 
 def state_manager_tool(
-    action: str, key: str = "", value: str = "", tool_context: ToolContext = None
+    tool_context: ToolContext, action: str, key: str, value: str
 ) -> dict[str, Any]:
     """
-    Tool for managing shared state between agents in workflows.
+    Enhanced state management tool with advanced session tracking.
+
+    Provides read-write access to session state with intelligent state persistence
+    and cross-agent state sharing capabilities.
 
     Args:
-        action: Action to perform (get, set, update, delete, list_keys)
-        key: State key to operate on
-        value: String value to set (for set/update actions)
-        tool_context: ADK tool context
+        tool_context: ADK tool context providing access to session state
+        action: The action to perform ('get', 'set', 'update', 'delete', 'list')
+        key: The state key to operate on
+        value: The value to set/update (for set/update operations)
 
     Returns:
-        Dict containing operation result
+        dict: Result of the operation with metadata
     """
+    if not tool_context or not hasattr(tool_context, "state") or tool_context.state is None:
+        return {
+            "error": "No session state available",
+            "session_initialized": False,
+            "available_keys": [],
+        }
 
-    if not tool_context or not tool_context.state:
-        return {"status": "error", "message": "No session state available"}
-
-    try:
-        if action == "get":
-            result = tool_context.state.get(key)
-            return {"status": "success", "key": key, "value": result}
-
-        if action == "set":
-            tool_context.state[key] = value
-            return {"status": "success", "message": f"Set {key} = {value}"}
-
-        if action == "update":
-            # For simplicity, treat update as set for string values
-            tool_context.state[key] = value
-            return {"status": "success", "message": f"Updated {key}"}
-
-        if action == "delete":
-            if key in tool_context.state:
-                del tool_context.state[key]
-                return {"status": "success", "message": f"Deleted {key}"}
-            return {"status": "warning", "message": f"Key {key} not found"}
-
-        if action == "list_keys":
-            keys = list(tool_context.state.keys())
-            return {"status": "success", "keys": keys}
-
-        return {"status": "error", "message": f"Unknown action: {action}"}
-
-    except Exception as e:
-        return {"status": "error", "message": f"State operation failed: {e!s}"}
-
-
-def workflow_selector_tool(
-    task_type: str,
-    complexity: str = "medium",
-    requires_approval: bool = False,
-    parallel_capable: bool = False,
-    iterative: bool = False,
-    tool_context: ToolContext = None,
-) -> dict[str, Any]:
-    """
-    Tool that selects the appropriate workflow pattern based on task characteristics.
-
-    Args:
-        task_type: Type of task (e.g., "feature_development", "bug_fix", "code_review")
-        complexity: Complexity level (low, medium, high)
-        requires_approval: Whether human approval is needed
-        parallel_capable: Whether task can benefit from parallel processing
-        iterative: Whether task needs iterative refinement
-        tool_context: ADK tool context
-
-    Returns:
-        Dict containing selected workflow and configuration
-    """
-
-    workflows = {
-        # Sequential workflows
-        "feature_development": "feature_development_workflow",
-        "bug_fix": "bug_fix_workflow",
-        "code_review": "code_review_workflow",
-        "refactoring": "refactoring_workflow",
-        # Parallel workflows
-        "analysis": "parallel_analysis_workflow",
-        "implementation": "parallel_implementation_workflow",
-        "validation": "parallel_validation_workflow",
-        # Iterative workflows
-        "refinement": "iterative_refinement_workflow",
-        "debug": "iterative_debug_workflow",
-        "test_improvement": "iterative_test_improvement_workflow",
-        "code_generation": "iterative_code_generation_workflow",
-        # Human-in-the-loop workflows
-        "approval": "approval_workflow",
-        "collaborative_review": "collaborative_review_workflow",
-        "architecture_decision": "architecture_decision_workflow",
-        "deployment": "deployment_approval_workflow",
+    # Initialize standard state keys if missing
+    standard_keys = {
+        "conversation_context": [],
+        "task_history": [],
+        "user_preferences": {},
+        "workflow_state": "initialized",
+        "error_recovery_context": {},
     }
 
-    selected_workflow = workflows.get(task_type, "feature_development_workflow")
+    for std_key, default_value in standard_keys.items():
+        if std_key not in tool_context.state:
+            tool_context.state[std_key] = default_value
 
-    # Modify selection based on characteristics
-    if requires_approval:
-        if task_type == "code_review":
-            selected_workflow = "collaborative_review_workflow"
-        elif task_type in ["architecture", "deployment"]:
-            selected_workflow = f"{task_type}_workflow"
+    # Handle different actions
+    if action == "get":
+        if not key:
+            return {
+                "error": "Key required for get operation",
+                "action": action,
+            }
+
+        value = tool_context.state.get(key)
+        return {
+            "action": action,
+            "key": key,
+            "value": value,
+            "found": key in tool_context.state,
+        }
+
+    if action == "set":
+        if not key:
+            return {
+                "error": "Key required for set operation",
+                "action": action,
+            }
+
+        # Parse value if it's a JSON string
+        parsed_value = value
+        if isinstance(value, str):
+            try:
+                import json
+
+                parsed_value = json.loads(value)
+            except (json.JSONDecodeError, ValueError):
+                # Keep as string if not valid JSON
+                parsed_value = value
+
+        tool_context.state[key] = parsed_value
+        return {
+            "action": action,
+            "key": key,
+            "value": parsed_value,
+            "success": True,
+        }
+
+    if action == "update":
+        if not key:
+            return {
+                "error": "Key required for update operation",
+                "action": action,
+            }
+
+        if key not in tool_context.state:
+            return {
+                "error": f"Key '{key}' not found for update operation",
+                "action": action,
+                "key": key,
+            }
+
+        # Parse value if it's a JSON string
+        parsed_value = value
+        if isinstance(value, str):
+            try:
+                import json
+
+                parsed_value = json.loads(value)
+            except (json.JSONDecodeError, ValueError):
+                parsed_value = value
+
+        # If both existing and new values are dicts, merge them
+        existing_value = tool_context.state[key]
+        if isinstance(existing_value, dict) and isinstance(parsed_value, dict):
+            existing_value.update(parsed_value)
+            updated_value = existing_value
         else:
-            selected_workflow = "approval_workflow"
+            # Otherwise replace
+            tool_context.state[key] = parsed_value
+            updated_value = parsed_value
 
-    if parallel_capable and complexity in ["medium", "high"]:
-        if task_type in ["analysis", "implementation", "validation"]:
-            selected_workflow = f"parallel_{task_type}_workflow"
+        return {
+            "action": action,
+            "key": key,
+            "value": updated_value,
+            "success": True,
+        }
 
-    if iterative and complexity == "high":
-        if task_type in ["refinement", "debug", "test_improvement", "code_generation"]:
-            selected_workflow = f"iterative_{task_type}_workflow"
+    if action == "delete":
+        if not key:
+            return {
+                "error": "Key required for delete operation",
+                "action": action,
+            }
 
-    # Store workflow selection in session state
-    if tool_context and tool_context.state:
-        tool_context.state["selected_workflow"] = {
-            "workflow": selected_workflow,
+        if key in tool_context.state:
+            deleted_value = tool_context.state.pop(key)
+            return {
+                "action": action,
+                "key": key,
+                "deleted_value": deleted_value,
+                "success": True,
+            }
+        return {
+            "action": action,
+            "key": key,
+            "error": f"Key '{key}' not found",
+            "success": False,
+        }
+
+    if action == "list":
+        # Return list of all keys and their types
+        return {
+            "action": action,
+            "session_initialized": True,
+            "available_keys": list(tool_context.state.keys()),
+            "workflow_state": tool_context.state.get("workflow_state", "unknown"),
+            "task_count": len(tool_context.state.get("task_history", [])),
+            "conversation_turns": len(tool_context.state.get("conversation_context", [])),
+            "state_summary": {
+                key: type(value).__name__ for key, value in tool_context.state.items()
+            },
+        }
+
+    return {
+        "error": f"Unknown action '{action}'. Supported actions: get, set, update, delete, list",
+        "supported_actions": ["get", "set", "update", "delete", "list"],
+    }
+
+
+def workflow_selector_tool(tool_context: ToolContext, task_description: str) -> dict[str, Any]:
+    """
+    Intelligent workflow selection based on task characteristics.
+
+    Analyzes task requirements and recommends the most appropriate workflow pattern
+    from the available ADK workflow orchestration options.
+
+    Args:
+        tool_context: ADK tool context providing access to session state
+        task_description: Description of the task to analyze
+
+    Returns:
+        dict: Workflow recommendation with reasoning and configuration
+    """
+    # Task analysis patterns
+    complexity_indicators = {
+        "high": ["refactor", "architecture", "design", "migration", "integration"],
+        "medium": ["implement", "fix", "optimize", "enhance", "update"],
+        "low": ["debug", "review", "format", "document", "test"],
+    }
+
+    approval_indicators = [
+        "deploy",
+        "release",
+        "merge",
+        "production",
+        "critical",
+        "security",
+    ]
+
+    parallel_indicators = [
+        "multiple files",
+        "batch",
+        "several",
+        "various",
+        "different modules",
+    ]
+
+    iterative_indicators = [
+        "improve",
+        "refine",
+        "optimize",
+        "gradually",
+        "step by step",
+        "iterative",
+    ]
+
+    # Analyze task characteristics
+    task_lower = task_description.lower()
+
+    # Determine complexity
+    complexity = "low"
+    for level, indicators in complexity_indicators.items():
+        if any(indicator in task_lower for indicator in indicators):
+            complexity = level
+            break
+
+    # Check other characteristics
+    requires_approval = any(indicator in task_lower for indicator in approval_indicators)
+    parallel_capable = any(indicator in task_lower for indicator in parallel_indicators)
+    iterative = any(indicator in task_lower for indicator in iterative_indicators)
+
+    # Determine task type
+    task_type = "general"
+
+    # Default
+    if any(word in task_lower for word in ["test", "testing", "spec"]):
+        task_type = "testing"
+    elif any(word in task_lower for word in ["deploy", "build", "ci/cd"]):
+        task_type = "deployment"
+    elif any(word in task_lower for word in ["review", "analyze", "audit"]):
+        task_type = "analysis"
+
+    # Select workflow
+    if requires_approval:
+        selected_workflow = "human_in_loop"
+    elif iterative and complexity == "high":
+        selected_workflow = "iterative_refinement"
+    elif parallel_capable:
+        selected_workflow = "parallel_execution"
+    else:
+        selected_workflow = "standard_sequential"
+
+    # Update workflow state in session if available
+    if tool_context and hasattr(tool_context, "state") and tool_context.state is not None:
+        tool_context.state["workflow_state"] = selected_workflow
+        tool_context.state["task_analysis"] = {
             "task_type": task_type,
             "complexity": complexity,
             "requires_approval": requires_approval,
@@ -302,8 +424,8 @@ def create_enhanced_software_engineer_agent() -> Agent:
         # Add workflow and state management tools
         tools.extend(
             [
-                state_manager_function_tool,
-                workflow_selector_function_tool,
+                state_manager_function_tool,  # Re-enabled: proper ADK signature
+                workflow_selector_function_tool,  # Re-enabled: proper ADK signature
                 load_memory,
             ]
         )
@@ -332,8 +454,9 @@ def create_enhanced_software_engineer_agent() -> Agent:
             generate_content_config=agent_config.MAIN_LLM_GENERATION_CONFIG,
             sub_agents=create_enhanced_sub_agents(),  # Separate instances to avoid parent conflicts
             tools=tools,
-            # Add focused single-purpose callbacks (Telemetry → Config → Optimization)
+            # Add focused single-purpose callbacks (Contextual → Telemetry → Config → Optimization)
             before_agent_callback=[
+                _preprocess_and_add_context_to_agent_prompt,  # Process context first
                 telemetry_callbacks["before_agent"],
                 optimization_callbacks["before_agent"],
             ],

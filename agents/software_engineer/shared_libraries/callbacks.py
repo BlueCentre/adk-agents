@@ -476,7 +476,7 @@ def create_telemetry_callbacks(agent_name: str, enhanced: bool = False):
 
         # DEBUG: Inspect the LLM request configuration
         if hasattr(llm_request, "config") and llm_request.config:
-            logger.info(f"[{agent_name}] LLM Request Config: {llm_request.config}")
+            logger.debug(f"[{agent_name}] LLM Request Config: {llm_request.config}")
         else:
             logger.info(f"[{agent_name}] LLM Request has no config attribute or config is None.")
 
@@ -579,7 +579,7 @@ def create_telemetry_callbacks(agent_name: str, enhanced: bool = False):
         tool_response: Any,
         callback_context: CallbackContext = None,
         args: Optional[dict] = None,  # noqa: ARG001
-        tool_context: ToolContext = None,  # noqa: ARG001
+        tool_context: Optional[ToolContext] = None,  # noqa: ARG001
     ):
         """Callback executed after tool execution."""
         tool_name = getattr(tool, "name", "unknown") if tool else "unknown"
@@ -1161,7 +1161,10 @@ def create_token_optimization_callbacks(
 
     @_callback_error_handler(agent_name, "token_optimization_before_tool")
     def token_optimization_before_tool(
-        callback_context: CallbackContext, tool_context: ToolContext
+        tool: BaseTool,
+        args: dict,  # noqa: ARG001
+        tool_context: ToolContext,  # noqa: ARG001
+        callback_context: CallbackContext = None,
     ):
         """Monitor tool usage for optimization insights."""
         # Track tool usage patterns for context prioritization
@@ -1170,14 +1173,18 @@ def create_token_optimization_callbacks(
             session_data.setdefault("tools_used", [])
             session_data["tools_used"].append(
                 {
-                    "tool_name": getattr(tool_context.tool, "name", "unknown"),
+                    "tool_name": getattr(tool, "name", "unknown") if tool else "unknown",
                     "timestamp": time.time(),
                 }
             )
 
     @_callback_error_handler(agent_name, "token_optimization_after_tool")
     def token_optimization_after_tool(
-        callback_context: CallbackContext, _tool_context: ToolContext, tool_response
+        tool: BaseTool,  # noqa: ARG001
+        tool_response,
+        callback_context: CallbackContext = None,
+        args: Optional[dict] = None,  # noqa: ARG001
+        tool_context: Optional[ToolContext] = None,  # noqa: ARG001
     ):
         """Track tool execution for context prioritization."""
         # Track tool execution results for optimization

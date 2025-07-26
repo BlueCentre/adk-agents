@@ -13,6 +13,9 @@ from .shared_libraries.callbacks import (
     create_model_config_callbacks,
     create_token_optimization_callbacks,
 )
+from .shared_libraries.context_callbacks import (
+    _preprocess_and_add_context_to_agent_prompt,
+)
 from .sub_agents.code_quality.agent import code_quality_agent
 from .sub_agents.code_review.agent import code_review_agent
 from .sub_agents.debugging.agent import debugging_agent
@@ -36,8 +39,9 @@ telemetry_callbacks = create_enhanced_telemetry_callbacks("software_engineer")
 config_callbacks = create_model_config_callbacks(agent_config.DEFAULT_AGENT_MODEL)
 optimization_callbacks = create_token_optimization_callbacks("software_engineer")
 
+
 # REF: https://google.github.io/adk-docs/agents/models/#ollama-integration
-# Create the agent using LiteLlm wrapper for Ollama integration
+# Create the root agent instance
 root_agent = Agent(
     # model=LiteLlm(model="ollama_chat/llama3.2"),  # Use ollama_chat provider with LiteLlm
     model=LiteLlm(
@@ -60,8 +64,9 @@ root_agent = Agent(
         ollama_agent,  # 8. Local model sandbox environment
     ],
     tools=tools,
-    # Add focused single-purpose callbacks (Telemetry → Config → Optimization)
+    # Add focused single-purpose callbacks (Contextual → Telemetry → Config → Optimization)
     before_agent_callback=[
+        _preprocess_and_add_context_to_agent_prompt,  # Process context first
         telemetry_callbacks["before_agent"],
         optimization_callbacks["before_agent"],
     ],

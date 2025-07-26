@@ -68,18 +68,22 @@ To ensure consistency, quality, and maintainability, all development efforts wil
 
 **Tasks:**
 
-*   - [ ] **Task 1.1.1: Enhance Agent's Internal State for Current Directory:**
+*   - [x] **Task 1.1.1: Enhance Agent's Internal State for Current Directory:** ✅ **COMPLETED**
     *   Modify the `enhanced_software_engineer` agent's state management to persistently store and update the "current working directory" within `session.state`.
     *   **Implementation Note:** Utilize `state_manager_tool` with `action='set'` for `current_directory` key.
-*   - [ ] **Task 1.1.2: Implement Contextual File Listing:**
+    *   **✅ Implementation:** Added `_update_current_directory()` and `_get_current_directory()` methods to both enhanced and base agents.
+*   - [x] **Task 1.1.2: Implement Contextual File Listing:** ✅ **COMPLETED**
     *   When a user asks a question, if a directory is mentioned (e.g., "What's in the `src` folder?"), use `list_directory` (or `list_directory_contents`) implicitly on the relevant directory.
     *   **Implementation Note:** Develop a pre-processing step for user queries to identify potential directory references. This could involve keyword matching, regular expressions, or leveraging the LLM for entity extraction within the user's natural language query.
-*   - [ ] **Task 1.1.3: Implement Contextual File Reading:**
+    *   **✅ Implementation:** Added `_preprocess_user_query()` method with sophisticated regex patterns to identify directory references and automatically trigger directory listing.
+*   - [x] **Task 1.1.3: Implement Contextual File Reading:** ✅ **COMPLETED**
     *   If a user asks about a specific file's content (e.g., "Show me `main.py`"), implicitly use `read_file` (or `read_file_content`) to fetch and present the file's content.
     *   **Implementation Note:** Similar pre-processing to identify file names. Prioritize searching in the `current_directory`.
-*   - [ ] **Task 1.1.4: Integration Tests:**
+    *   **✅ Implementation:** Extended query preprocessing to identify file name references and automatically read file content with proper fallback mechanisms.
+*   - [x] **Task 1.1.4: Integration Tests:** ✅ **COMPLETED**
     *   Write integration tests that simulate user queries involving listing directories and reading files, verifying the agent correctly uses the tools without explicit commands.
     *   Ensure existing `list_directory`, `read_file` tests still pass.
+    *   **✅ Implementation:** Created comprehensive test suite `test_contextual_awareness_milestone_1_1.py` with 11 passing tests covering all functionality.
 
 **User Verification Steps:**
 
@@ -93,18 +97,22 @@ To ensure consistency, quality, and maintainability, all development efforts wil
 
 **Tasks:**
 
-*   - [ ] **Task 1.2.1: Capture Shell Command History:**
+*   - [x] **Task 1.2.1: Capture Shell Command History:** ✅ **COMPLETED**
     *   Modify the `execute_shell_command` tool to record the command and its output in a new `session.state` key, e.g., `command_history`. Limit history size to prevent state bloat.
     *   **Implementation Note:** Use `state_manager_tool` with `action='update'` to append to a list.
-*   - [ ] **Task 1.2.2: Capture Error Log Context:**
+    *   **✅ Implementation:** Enhanced `execute_shell_command` tool to capture all command executions in `session.state['command_history']` with size limits (50 commands max).
+*   - [x] **Task 1.2.2: Capture Error Log Context:** ✅ **COMPLETED**
     *   Integrate a mechanism to capture and store recent error messages from command outputs or `browser_console_messages` in `session.state` (e.g., `recent_errors`).
     *   **Implementation Note:** Parse command outputs for common error indicators.
-*   - [ ] **Task 1.2.3: Agent Reasoning with Command History/Errors:**
+    *   **✅ Implementation:** Added sophisticated error pattern detection (`_detect_error_patterns`) that identifies 10+ common error types and stores them in `session.state['recent_errors']` (20 errors max).
+*   - [x] **Task 1.2.3: Agent Reasoning with Command History/Errors:** ✅ **COMPLETED**
     *   Develop a reasoning module that, when a new user query arrives, checks `command_history` and `recent_errors` for relevant context. For example, if a user asks "Why did that fail?", the agent should infer "that" refers to the last command that produced an error.
     *   **Implementation Note:** This might involve prompt engineering to include historical context or a small internal LLM call to interpret the current query in light of history.
-*   - [ ] **Task 1.2.4: Integration Tests:**
+    *   **✅ Implementation:** Enhanced both agents with `check_command_history_context()` function that detects 8+ query patterns referencing previous commands/errors and automatically includes relevant context.
+*   - [x] **Task 1.2.4: Integration Tests:** ✅ **COMPLETED**
     *   Write integration tests that run commands (some failing) and then query the agent about the failures, verifying it uses the historical context.
     *   Ensure existing tests are unaffected.
+    *   **✅ Implementation:** Created comprehensive test suite `test_contextual_awareness_milestone_1_2.py` with 13 passing tests covering command history capture, error detection, and agent reasoning.
 
 **User Verification Steps:**
 

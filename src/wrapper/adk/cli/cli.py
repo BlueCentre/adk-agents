@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 import logging
 from pathlib import Path
@@ -254,10 +255,17 @@ async def run_interactively(
 
     try:
         await runner.close()
+    except (asyncio.CancelledError, asyncio.TimeoutError) as e:
+        # Handle asyncio-specific cleanup errors gracefully
+        print(f"Warning: Error during MCP session cleanup for stdio_session: {e}")
+        # This is expected during cleanup, don't raise
     except Exception as e:
-        # Use ErrorHandler for MCP cleanup errors
-        if not ErrorHandler.handle_mcp_cleanup_error(e):
-            raise
+        # Use ErrorHandler for other MCP cleanup errors
+        if ErrorHandler.handle_mcp_cleanup_error(e):
+            # Error was handled, don't raise
+            return
+        # Unknown error, re-raise
+        raise
 
 
 async def run_interactively_with_tui(
@@ -457,10 +465,17 @@ async def run_interactively_with_tui(
 
     try:
         await runner.close()
+    except (asyncio.CancelledError, asyncio.TimeoutError) as e:
+        # Handle asyncio-specific cleanup errors gracefully
+        print(f"Warning: Error during MCP session cleanup for stdio_session: {e}")
+        # This is expected during cleanup, don't raise
     except Exception as e:
-        # Use ErrorHandler for MCP cleanup errors
-        if not ErrorHandler.handle_mcp_cleanup_error(e):
-            raise
+        # Use ErrorHandler for other MCP cleanup errors
+        if ErrorHandler.handle_mcp_cleanup_error(e):
+            # Error was handled, don't raise
+            return
+        # Unknown error, re-raise
+        raise
 
 
 async def run_cli(
