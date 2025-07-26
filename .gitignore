@@ -69,6 +69,7 @@ env/
 .adk/
 .agent/memory.json
 sessions.db
+*.session.json
 
 # IDE and editor files
 .vscode/

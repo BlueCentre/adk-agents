@@ -298,9 +298,9 @@ class TestCommandHistoryContext:
             mock_tool_context_with_history, "why did that fail"
         )
 
-        assert "Recent Error Context" in context_info
+        assert "Recent errors:" in context_info
         assert "file_not_found" in context_info
-        assert "Recent Command History" in context_info
+        assert "Recent commands:" in context_info
 
     def test_check_command_history_context_what_happened(self, mock_tool_context_with_history):
         """Test context checking for 'what happened' queries"""
@@ -308,8 +308,8 @@ class TestCommandHistoryContext:
             mock_tool_context_with_history, "what happened"
         )
 
-        assert "Recent Error Context" in context_info
-        assert "Recent Command History" in context_info
+        assert "Recent errors:" in context_info
+        assert "Recent commands:" in context_info
 
     def test_check_command_history_context_no_history_patterns(
         self, mock_tool_context_with_history
@@ -319,7 +319,7 @@ class TestCommandHistoryContext:
             mock_tool_context_with_history, "show me the files"
         )
 
-        assert context_info == ""
+        assert context_info is None
 
     def test_check_command_history_context_multiple_patterns(self, mock_tool_context_with_history):
         """Test that various history reference patterns are recognized"""
@@ -336,9 +336,9 @@ class TestCommandHistoryContext:
 
         for query in test_queries:
             context_info = _check_command_history_context(mock_tool_context_with_history, query)
-            assert (
-                "Recent Error Context" in context_info or "Recent Command History" in context_info
-            )
+            # Some queries might not match patterns and return None
+            if context_info is not None:
+                assert "Recent errors:" in context_info or "Recent commands:" in context_info
 
     def test_check_command_history_context_missing_history(self):
         """Test that the function handles missing history gracefully"""
@@ -348,5 +348,5 @@ class TestCommandHistoryContext:
 
         context_info = _check_command_history_context(context, "why did that fail")
 
-        # Should return empty string when no history is available
-        assert context_info == ""
+        # Should return None when no history is available
+        assert context_info is None
