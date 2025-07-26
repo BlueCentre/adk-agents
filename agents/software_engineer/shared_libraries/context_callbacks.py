@@ -1,4 +1,8 @@
-"""Context callbacks for enhanced contextual awareness in the Software Engineer Agent."""
+"""Context-aware callback functions for software engineer agents.
+
+This module implements callback functions that provide contextual information
+to agents before they process user queries, enabling more intelligent responses.
+"""
 
 import logging
 from pathlib import Path
@@ -418,13 +422,44 @@ def _preprocess_and_add_context_to_agent_prompt(callback_context: CallbackContex
         # NEW: Check for configuration commands for proactive optimization (Milestone 2.2.3)
         try:
             if recent_user_message and isinstance(recent_user_message, str):
-                message_lower = recent_user_message.lower()
+                # Handle optimization configuration commands with refined patterns for actual
+                #  commands
+                # Match patterns like "disable optimization", "turn off optimization suggestions",
+                #  etc.
+                # but exclude questions like "How do I disable..." or "Can you disable..."
+                disable_patterns = [
+                    r"^(please\s+)?(disable|turn\s+off)\s+optimization",  # Direct commands
+                    r"\b(disable|turn\s+off)\s+optimization\s+(suggestions?|features?)\b",  # With "suggestions"  # noqa: E501
+                ]
 
-                # Handle optimization configuration commands
-                if (
-                    "disable optimization" in message_lower
-                    or "turn off optimization" in message_lower
-                ):
+                enable_patterns = [
+                    r"^(please\s+)?(enable|turn\s+on)\s+optimization",  # Direct commands
+                    r"\b(enable|turn\s+on)\s+optimization\s+(suggestions?|features?)\b",  # With "suggestions"  # noqa: E501
+                ]
+
+                # Check for disable commands (but not questions)
+                is_disable_command = False
+                for pattern in disable_patterns:
+                    if re.search(pattern, recent_user_message, re.IGNORECASE):
+                        # Additional check: exclude questions
+                        if not re.search(
+                            r"^(how|can|what|why|when|where)\b", recent_user_message, re.IGNORECASE
+                        ):
+                            is_disable_command = True
+                            break
+
+                # Check for enable commands (but not questions)
+                is_enable_command = False
+                for pattern in enable_patterns:
+                    if re.search(pattern, recent_user_message, re.IGNORECASE):
+                        # Additional check: exclude questions
+                        if not re.search(
+                            r"^(how|can|what|why|when|where)\b", recent_user_message, re.IGNORECASE
+                        ):
+                            is_enable_command = True
+                            break
+
+                if is_disable_command:
                     result = configure_proactive_optimization(session_state, enabled=False)
                     if result.get("status") == "success":
                         if "__preprocessed_context_for_llm" not in session_state:
@@ -436,10 +471,7 @@ def _preprocess_and_add_context_to_agent_prompt(callback_context: CallbackContex
                             "You can re-enable them by saying 'enable optimization suggestions'."
                         )
 
-                elif (
-                    "enable optimization" in message_lower
-                    or "turn on optimization" in message_lower
-                ):
+                elif is_enable_command:
                     result = configure_proactive_optimization(session_state, enabled=True)
                     if result.get("status") == "success":
                         if "__preprocessed_context_for_llm" not in session_state:

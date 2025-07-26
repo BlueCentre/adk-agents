@@ -468,6 +468,37 @@ class TestCallbackSystemIntegration:
         if context_info:
             assert "optimization_config_change" not in context_info
 
+    def test_callback_false_positive_prevention(self, mock_callback_context):
+        """Test that regex prevents false positives in optimization commands."""
+        # This should NOT trigger optimization disable because it's talking about something else
+        mock_callback_context.state["current_user_message"] = (
+            "How do I disable optimization for just one function?"
+        )
+
+        _preprocess_and_add_context_to_agent_prompt(mock_callback_context)
+
+        context_info = mock_callback_context.state.get("__preprocessed_context_for_llm")
+        # Should not have optimization config changes for non-command messages
+        if context_info:
+            assert "optimization_config_change" not in context_info
+        # Optimization should still be enabled (not changed)
+        assert mock_callback_context.state.get("proactive_optimization_enabled", True) is True
+
+    def test_callback_exact_phrase_matching(self, mock_callback_context):
+        """Test that regex matches exact phrases correctly."""
+        # This SHOULD trigger optimization disable because it matches exactly
+        mock_callback_context.state["current_user_message"] = (
+            "Please disable optimization suggestions for me"
+        )
+
+        _preprocess_and_add_context_to_agent_prompt(mock_callback_context)
+
+        context_info = mock_callback_context.state.get("__preprocessed_context_for_llm")
+        assert context_info is not None
+        assert "optimization_config_change" in context_info
+        assert "have been disabled" in context_info["optimization_config_change"]
+        assert mock_callback_context.state["proactive_optimization_enabled"] is False
+
 
 class TestEndToEndOptimizationFlow:
     """End-to-end tests for the complete optimization suggestion workflow."""

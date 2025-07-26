@@ -75,7 +75,11 @@ class ProactiveOptimizer:
                 return False
 
             last_time = datetime.fromisoformat(last_analysis)
-            cooldown_threshold = datetime.now() - timedelta(minutes=ANALYSIS_COOLDOWN_MINUTES)
+            # Read cooldown from session state, fallback to default
+            cooldown_minutes = session_state.get(
+                "optimization_cooldown_minutes", ANALYSIS_COOLDOWN_MINUTES
+            )
+            cooldown_threshold = datetime.now() - timedelta(minutes=cooldown_minutes)
 
             # Fixed: Return True if last analysis was AFTER the threshold (within cooldown)
             return last_time > cooldown_threshold
@@ -163,6 +167,10 @@ class ProactiveOptimizer:
 
             prioritized_suggestions = []
 
+            # Get all fix suggestions once to avoid repeated calls in the loop.
+            fixes_result = suggest_fixes(tool_context)
+            suggested_fixes = fixes_result.get("suggested_fixes", [])
+
             # Process issues by severity priority
             for severity in self.analysis_severity_priority:
                 severity_result = get_issues_by_severity(tool_context, severity)
@@ -170,10 +178,6 @@ class ProactiveOptimizer:
 
                 if not issues:
                     continue
-
-                # Get fix suggestions for these issues
-                fixes_result = suggest_fixes(tool_context)
-                suggested_fixes = fixes_result.get("suggested_fixes", [])
 
                 # Match issues with their fixes
                 for issue in issues[:MAX_SUGGESTIONS_TO_DISPLAY]:  # Limit per severity
@@ -314,8 +318,6 @@ class ProactiveOptimizer:
 
             if cooldown_minutes is not None:
                 session_state["optimization_cooldown_minutes"] = cooldown_minutes
-                global ANALYSIS_COOLDOWN_MINUTES
-                ANALYSIS_COOLDOWN_MINUTES = cooldown_minutes
                 changes.append(f"Analysis cooldown set to {cooldown_minutes} minutes")
 
             return {
