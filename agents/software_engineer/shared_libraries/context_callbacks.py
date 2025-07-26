@@ -10,6 +10,7 @@ from google.adk.tools import ToolContext
 
 from .constants import DEPENDENCY_FILES
 from .proactive_error_detection import detect_and_suggest_error_fixes
+from .proactive_optimization import configure_proactive_optimization
 
 logger = logging.getLogger(__name__)
 
@@ -413,3 +414,43 @@ def _preprocess_and_add_context_to_agent_prompt(callback_context: CallbackContex
                 )
         except Exception as e:
             logger.error(f"Error in proactive error detection: {e}")
+
+        # NEW: Check for configuration commands for proactive optimization (Milestone 2.2.3)
+        try:
+            if recent_user_message and isinstance(recent_user_message, str):
+                message_lower = recent_user_message.lower()
+
+                # Handle optimization configuration commands
+                if (
+                    "disable optimization" in message_lower
+                    or "turn off optimization" in message_lower
+                ):
+                    result = configure_proactive_optimization(session_state, enabled=False)
+                    if result.get("status") == "success":
+                        if "__preprocessed_context_for_llm" not in session_state:
+                            session_state["__preprocessed_context_for_llm"] = {}
+                        session_state["__preprocessed_context_for_llm"][
+                            "optimization_config_change"
+                        ] = (
+                            "✅ Proactive optimization suggestions have been disabled. "
+                            "You can re-enable them by saying 'enable optimization suggestions'."
+                        )
+
+                elif (
+                    "enable optimization" in message_lower
+                    or "turn on optimization" in message_lower
+                ):
+                    result = configure_proactive_optimization(session_state, enabled=True)
+                    if result.get("status") == "success":
+                        if "__preprocessed_context_for_llm" not in session_state:
+                            session_state["__preprocessed_context_for_llm"] = {}
+                        session_state["__preprocessed_context_for_llm"][
+                            "optimization_config_change"
+                        ] = (
+                            "✅ Proactive optimization suggestions have been enabled. "
+                            "I'll analyze your code files when you edit them "
+                            "and suggest improvements."
+                        )
+
+        except Exception as e:
+            logger.error(f"Error in optimization configuration handling: {e}")
