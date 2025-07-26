@@ -100,6 +100,34 @@ class TestProactiveErrorDetectorUnit:
         analysis = detector.analyze_recent_errors(session_state)
         assert analysis is None
 
+    def test_analyze_recent_errors_malformed_timestamp(self, detector):
+        """Test analyzing errors with malformed timestamps continues processing."""
+        current_time = datetime.now()
+        session_state = {
+            "recent_errors": [
+                {
+                    "command": "good command",
+                    "error_type": "file_not_found",
+                    "details": "Good error",
+                    "stderr": "No such file or directory",
+                    "timestamp": (current_time - timedelta(minutes=1)).isoformat(),
+                },
+                {
+                    "command": "bad timestamp command",
+                    "error_type": "file_not_found",
+                    "details": "Bad timestamp error",
+                    "stderr": "No such file or directory",
+                    "timestamp": "invalid-timestamp-format",  # Malformed timestamp
+                },
+            ]
+        }
+
+        # Should still process the good error despite the malformed timestamp
+        analysis = detector.analyze_recent_errors(session_state)
+        assert analysis is not None
+        assert analysis["has_proactive_suggestions"] is True
+        assert analysis["error_count"] >= 1  # At least the good error
+
     def test_generate_error_suggestion_file_not_found(self, detector):
         """Test generating suggestion for file not found error."""
         error = {

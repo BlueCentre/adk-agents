@@ -7,111 +7,118 @@ by automatically detecting common errors and suggesting initial debugging steps.
 from datetime import datetime, timedelta
 import logging
 import re
-from typing import Optional
+from typing import ClassVar, Optional
 
 logger = logging.getLogger(__name__)
+
+# Configuration constants
+MAX_SUGGESTIONS_PER_ERROR = 3
+MAX_RECENT_SUGGESTIONS = 3
 
 
 class ProactiveErrorDetector:
     """Detects common errors and suggests initial debugging steps."""
 
+    # Class attribute - more memory efficient as it's shared across instances
+    error_fix_mappings: ClassVar[dict] = {
+        "file_not_found": {
+            "patterns": ["No such file or directory", "ENOENT"],
+            "suggestions": [
+                "Check if the file exists using `ls -la <filename>`",
+                "Verify the file path is correct - use `pwd` to check current directory",
+                "If creating a new file, ensure the parent directory exists",
+                "Check file permissions with `ls -la` in the containing directory",
+            ],
+            "priority": "high",
+        },
+        "permission_denied": {
+            "patterns": ["Permission denied", "EACCES"],
+            "suggestions": [
+                "Check file permissions with `ls -la <filename>`",
+                "Use `chmod` to modify permissions if needed (e.g., `chmod 755 <filename>`)",
+                "Verify you have write permissions to the directory",
+                "Try running with `sudo` if appropriate (use cautiously)",
+            ],
+            "priority": "high",
+        },
+        "command_not_found": {
+            "patterns": [
+                "command not found",
+                "not recognized as an internal or external command",
+            ],
+            "suggestions": [
+                "Check if the command is installed using `which <command>` or `type <command>`",
+                "Install the package (e.g., `apt install <pkg>` or `brew install <pkg>`)",
+                "Check if the command is in your PATH: `echo $PATH`",
+                "Verify the command spelling and syntax",
+            ],
+            "priority": "medium",
+        },
+        "connection_refused": {
+            "patterns": ["Connection refused", "connection refused"],
+            "suggestions": [
+                "Check if the target service is running",
+                "Verify the correct host and port are being used",
+                "Check firewall settings that might be blocking the connection",
+                "Test connectivity with `ping` or `telnet` to the target host",
+            ],
+            "priority": "medium",
+        },
+        "syntax_error": {
+            "patterns": ["Syntax error", "SyntaxError", "syntax error"],
+            "suggestions": [
+                "Check for missing brackets, parentheses, or quotes",
+                "Verify proper indentation (especially in Python)",
+                "Look for missing semicolons or commas where required",
+                "Use a linter or IDE to identify syntax issues",
+            ],
+            "priority": "high",
+        },
+        "python_import_error": {
+            "patterns": ["ImportError", "ModuleNotFoundError"],
+            "suggestions": [
+                "Install the missing module: `pip install <module_name>`",
+                "Check if you're in the correct virtual environment",
+                "Verify the module name spelling and case sensitivity",
+                "Check if the module is in your PYTHONPATH",
+            ],
+            "priority": "medium",
+        },
+        "timeout": {
+            "patterns": ["timeout", "timed out", "TimeoutError"],
+            "suggestions": [
+                "Check network connectivity if it's a network operation",
+                "Increase timeout value if appropriate",
+                "Verify the target service is responsive",
+                "Consider breaking down large operations into smaller chunks",
+            ],
+            "priority": "medium",
+        },
+        "process_killed": {
+            "patterns": ["killed", "Killed", "SIGKILL"],
+            "suggestions": [
+                "Check system memory usage: `free -h` or `top`",
+                "Look for out-of-memory issues in system logs: `dmesg | grep -i memory`",
+                "Consider reducing memory usage or adding more RAM",
+                "Check if the process was manually terminated",
+            ],
+            "priority": "high",
+        },
+        "generic_error": {
+            "patterns": ["error", "failed"],  # Simplified - re.IGNORECASE handles capitalization
+            "suggestions": [
+                "Check the full error message for specific details",
+                "Look at system logs for more context: `journalctl -xe`",
+                "Try running the command with verbose output (-v or --verbose)",
+                "Search for the specific error message in documentation or online",
+            ],
+            "priority": "low",
+        },
+    }
+
     def __init__(self):
-        """Initialize the error detector with predefined fix suggestions."""
-        self.error_fix_mappings = {
-            "file_not_found": {
-                "patterns": ["No such file or directory", "ENOENT"],
-                "suggestions": [
-                    "Check if the file exists using `ls -la <filename>`",
-                    "Verify the file path is correct - use `pwd` to check current directory",
-                    "If creating a new file, ensure the parent directory exists",
-                    "Check file permissions with `ls -la` in the containing directory",
-                ],
-                "priority": "high",
-            },
-            "permission_denied": {
-                "patterns": ["Permission denied", "EACCES"],
-                "suggestions": [
-                    "Check file permissions with `ls -la <filename>`",
-                    "Use `chmod` to modify permissions if needed (e.g., `chmod 755 <filename>`)",
-                    "Verify you have write permissions to the directory",
-                    "Try running with `sudo` if appropriate (use cautiously)",
-                ],
-                "priority": "high",
-            },
-            "command_not_found": {
-                "patterns": [
-                    "command not found",
-                    "not recognized as an internal or external command",
-                ],
-                "suggestions": [
-                    "Check if the command is installed using `which <command>` or `type <command>`",
-                    "Install the package (e.g., `apt install <pkg>` or `brew install <pkg>`)",
-                    "Check if the command is in your PATH: `echo $PATH`",
-                    "Verify the command spelling and syntax",
-                ],
-                "priority": "medium",
-            },
-            "connection_refused": {
-                "patterns": ["Connection refused", "connection refused"],
-                "suggestions": [
-                    "Check if the target service is running",
-                    "Verify the correct host and port are being used",
-                    "Check firewall settings that might be blocking the connection",
-                    "Test connectivity with `ping` or `telnet` to the target host",
-                ],
-                "priority": "medium",
-            },
-            "syntax_error": {
-                "patterns": ["Syntax error", "SyntaxError", "syntax error"],
-                "suggestions": [
-                    "Check for missing brackets, parentheses, or quotes",
-                    "Verify proper indentation (especially in Python)",
-                    "Look for missing semicolons or commas where required",
-                    "Use a linter or IDE to identify syntax issues",
-                ],
-                "priority": "high",
-            },
-            "python_import_error": {
-                "patterns": ["ImportError", "ModuleNotFoundError"],
-                "suggestions": [
-                    "Install the missing module: `pip install <module_name>`",
-                    "Check if you're in the correct virtual environment",
-                    "Verify the module name spelling and case sensitivity",
-                    "Check if the module is in your PYTHONPATH",
-                ],
-                "priority": "medium",
-            },
-            "timeout": {
-                "patterns": ["timeout", "timed out", "TimeoutError"],
-                "suggestions": [
-                    "Check network connectivity if it's a network operation",
-                    "Increase timeout value if appropriate",
-                    "Verify the target service is responsive",
-                    "Consider breaking down large operations into smaller chunks",
-                ],
-                "priority": "medium",
-            },
-            "process_killed": {
-                "patterns": ["killed", "Killed", "SIGKILL"],
-                "suggestions": [
-                    "Check system memory usage: `free -h` or `top`",
-                    "Look for out-of-memory issues in system logs: `dmesg | grep -i memory`",
-                    "Consider reducing memory usage or adding more RAM",
-                    "Check if the process was manually terminated",
-                ],
-                "priority": "high",
-            },
-            "generic_error": {
-                "patterns": ["error", "Error", "failed", "Failed"],
-                "suggestions": [
-                    "Check the full error message for specific details",
-                    "Look at system logs for more context: `journalctl -xe`",
-                    "Try running the command with verbose output (-v or --verbose)",
-                    "Search for the specific error message in documentation or online",
-                ],
-                "priority": "low",
-            },
-        }
+        """Initialize the error detector."""
+        # error_fix_mappings is now a class attribute
 
     def analyze_recent_errors(self, session_state: dict) -> Optional[dict]:
         """
@@ -136,9 +143,16 @@ class ProactiveErrorDetector:
 
             for error in reversed(recent_errors):  # Most recent first
                 try:
-                    error_time = datetime.fromisoformat(error.get("timestamp", ""))
-                    if error_time < recent_threshold:
-                        continue  # Skip older errors
+                    # Safer timestamp parsing with error handling
+                    timestamp_str = error.get("timestamp", "")
+                    if timestamp_str:
+                        try:
+                            error_time = datetime.fromisoformat(timestamp_str)
+                            if error_time < recent_threshold:
+                                continue  # Skip older errors
+                        except ValueError as e:
+                            logger.debug(f"Malformed timestamp '{timestamp_str}' for error: {e}")
+                            # Continue processing this error despite bad timestamp
 
                     suggestion = self._generate_error_suggestion(error)
                     if suggestion:
@@ -151,15 +165,15 @@ class ProactiveErrorDetector:
                             }
                         )
 
-                except (ValueError, KeyError) as e:
-                    logger.debug(f"Error parsing timestamp for error entry: {e}")
+                except (KeyError, TypeError) as e:
+                    logger.debug(f"Error processing error entry: {e}")
                     continue
 
             if actionable_errors:
                 return {
                     "has_proactive_suggestions": True,
                     "error_count": len(actionable_errors),
-                    "suggestions": actionable_errors[:3],  # Limit to top 3 most recent
+                    "suggestions": actionable_errors[:MAX_RECENT_SUGGESTIONS],  # Configurable limit
                     "generated_at": current_time.isoformat(),
                 }
 
@@ -210,6 +224,7 @@ class ProactiveErrorDetector:
         if not suggestion_info:
             combined_text = f"{error_details} {stderr}".lower()
             # Only use generic error suggestions for actual error conditions
+            # Simplified keyword check (matches the simplified patterns)
             if any(keyword in combined_text for keyword in ["error", "failed", "exception"]):
                 generic_info = self.error_fix_mappings.get("generic_error")
                 if generic_info:
@@ -262,7 +277,7 @@ class ProactiveErrorDetector:
                 output.append(f"   **Details:** {stderr_preview}...")
 
             output.append("   **Suggested fixes:**")
-            for fix in suggestion["suggestions"][:3]:  # Limit to top 3 suggestions
+            for fix in suggestion["suggestions"][:MAX_SUGGESTIONS_PER_ERROR]:  # Configurable limit
                 output.append(f"   • {fix}")
             output.append("")
 
