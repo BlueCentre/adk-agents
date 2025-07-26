@@ -8,6 +8,7 @@ intelligent suggestions for code quality improvements.
 from datetime import datetime, timedelta
 import logging
 from pathlib import Path
+import re
 from typing import Any, Optional
 
 from google.adk.tools import ToolContext
@@ -16,7 +17,9 @@ logger = logging.getLogger(__name__)
 
 # Configuration constants
 MAX_SUGGESTIONS_TO_DISPLAY = 5
+MAX_RECENT_SUGGESTIONS = 3
 ANALYSIS_COOLDOWN_MINUTES = 2  # Prevent too frequent analysis
+MAX_ANALYSIS_HISTORY_SIZE = 50  # Limit analysis history to prevent memory bloat
 
 
 class ProactiveOptimizer:
@@ -143,10 +146,10 @@ class ProactiveOptimizer:
 
             # Limit history size
             history = session_state["file_analysis_history"]
-            if len(history) > 50:  # Keep only last 50 analyzed files
+            if len(history) > MAX_ANALYSIS_HISTORY_SIZE:  # Keep only last N analyzed files
                 # Remove oldest entries
                 sorted_items = sorted(history.items(), key=lambda x: x[1])
-                for old_file, _ in sorted_items[:-50]:
+                for old_file, _ in sorted_items[:-MAX_ANALYSIS_HISTORY_SIZE]:
                     del history[old_file]
 
         except Exception as e:
@@ -236,16 +239,129 @@ class ProactiveOptimizer:
         severity = issue.get("severity", "").lower()
         message = issue.get("message", "")
         line = issue.get("line", "")
+        code = issue.get("code", "")
 
-        if "unused" in message.lower():
-            return f"Consider removing the unused code at line {line}"
-        if "complexity" in message.lower():
-            return f"Consider refactoring the complex code at line {line} into smaller functions"
-        if "style" in message.lower() or "format" in message.lower():
-            return f"Fix the code style issue at line {line}"
-        if severity in ["critical", "error"]:
-            return f"Fix the {severity} at line {line}: {message[:50]}..."
-        return f"Consider addressing the {severity} at line {line}"
+        # Enhanced specific suggestions for common patterns
+        message_lower = message.lower()
+
+        # Unused import patterns - provide exact removal suggestion
+        if "unused import" in message_lower:
+            # Try to extract the import name from the message
+            import_match = re.search(r"unused import ['\"]([^'\"]+)['\"]", message, re.IGNORECASE)
+            if import_match:
+                import_name = import_match.group(1)
+                return f"Remove the unused import '{import_name}' on line {line}"
+            return f"Remove the unused import statement on line {line}"
+
+        # Unused variable patterns - provide exact removal suggestion
+        if "unused variable" in message_lower:
+            var_match = re.search(r"unused variable ['\"]([^'\"]+)['\"]", message, re.IGNORECASE)
+            if var_match:
+                var_name = var_match.group(1)
+                return (
+                    f"Remove the unused variable '{var_name}' on line {line} or use it in your code"
+                )
+            return f"Remove the unused variable on line {line} or use it in your code"
+
+        # Undefined variable patterns - provide specific guidance
+        if "undefined variable" in message_lower or "undefined name" in message_lower:
+            var_match = re.search(
+                r"undefined (?:variable|name) ['\"]([^'\"]+)['\"]", message, re.IGNORECASE
+            )
+            if var_match:
+                var_name = var_match.group(1)
+                return (
+                    f"Define variable '{var_name}' before line {line} "
+                    f"or check for typos in the name"
+                )
+            return f"Define the variable before use on line {line} or check for typos"
+
+        # Line too long - provide specific guidance
+        if "line too long" in message_lower or code == "E501":
+            length_match = re.search(r"line too long \((\d+)/(\d+)\)", message, re.IGNORECASE)
+            if length_match:
+                current_len, max_len = length_match.groups()
+                chars_over = int(current_len) - int(max_len)
+                return (
+                    f"Shorten line {line} by {chars_over} characters "
+                    f"(currently {current_len}, max {max_len}). "
+                    f"Consider breaking it into multiple lines or variables."
+                )
+            return f"Break the long line at line {line} into multiple shorter lines"
+
+        # Import errors - provide specific guidance
+        if (
+            "import" in message_lower
+            and ("cannot import" in message_lower or "no module" in message_lower)
+        ) or ("no module named" in message_lower):
+            module_match = re.search(r"no module named ['\"]([^'\"]+)['\"]", message, re.IGNORECASE)
+            if module_match:
+                module_name = module_match.group(1)
+                return (
+                    f"Install the missing module '{module_name}' using pip or check the import path"
+                )
+            return (
+                f"Check the import statement on line {line} - the module may not be "
+                f"installed or the path may be incorrect"
+            )
+
+        # Indentation errors - provide specific guidance
+        if "indentation" in message_lower:
+            return (
+                f"Fix the indentation on line {line} to match the expected Python indentation level"
+            )
+
+        # Syntax errors - provide specific guidance
+        if "syntax error" in message_lower or "invalid syntax" in message_lower:
+            return (
+                f"Fix the syntax error on line {line} - check for missing colons, "
+                f"parentheses, or quotes"
+            )
+
+        # Complexity suggestions - enhanced guidance
+        if "complexity" in message_lower:
+            return (
+                f"Refactor the complex function at line {line} into smaller, more focused "
+                f"functions. Consider extracting logic into helper methods."
+            )
+
+        # Style issues - enhanced guidance
+        if "style" in message_lower or "format" in message_lower:
+            if "whitespace" in message_lower:
+                return f"Remove trailing whitespace on line {line}"
+            if "blank line" in message_lower:
+                return f"Adjust blank line spacing around line {line} according to PEP 8 guidelines"
+            return f"Fix the code style issue on line {line} to follow PEP 8 conventions"
+
+        # Security issues - enhanced guidance
+        if severity in ["critical", "error"] and any(
+            word in message_lower for word in ["security", "vulnerable", "unsafe"]
+        ):
+            return (
+                f"Address the security issue on line {line}: "
+                f"{message[:100]}{'...' if len(message) > 100 else ''}"
+            )
+
+        # Generic fallbacks based on severity
+        if severity == "critical":
+            return (
+                f"Critical issue on line {line}: "
+                f"{message[:60]}{'...' if len(message) > 60 else ''} "
+                f"- immediate attention required"
+            )
+        if severity == "error":
+            return (
+                f"Fix the error on line {line}: {message[:60]}{'...' if len(message) > 60 else ''}"
+            )
+        if severity == "warning":
+            return (
+                f"Address the warning on line {line}: "
+                f"{message[:60]}{'...' if len(message) > 60 else ''}"
+            )
+        return (
+            f"Consider addressing the issue on line {line}: "
+            f"{message[:60]}{'...' if len(message) > 60 else ''}"
+        )
 
     def format_optimization_suggestions(self, analysis_result: dict[str, Any]) -> str:
         """
@@ -275,7 +391,7 @@ class ProactiveOptimizer:
             fix = suggestion.get("suggested_fix", "")
 
             # Format severity with emoji
-            severity_icon = {"CRITICAL": "🚨", "ERROR": "❌", "WARNING": "⚠️", "INFO": "i"}.get(
+            severity_icon = {"CRITICAL": "🚨", "ERROR": "❌", "WARNING": "⚠️", "INFO": "💡"}.get(
                 severity, "•"
             )
 

@@ -231,6 +231,90 @@ class TestProactiveOptimizerUnit:
         assert session_state["proactive_optimization_enabled"] is False
         assert session_state["optimization_cooldown_minutes"] == 5
 
+    def test_enhanced_generic_fix_suggestions(self, optimizer):
+        """Test that enhanced generic fix suggestions provide specific actionable advice."""
+        # Test unused import suggestion
+        unused_import_issue = {
+            "line": 5,
+            "severity": "warning",
+            "message": "Unused import 'os'",
+            "code": "W0611",
+            "source": "pylint",
+        }
+        suggestion = optimizer._generate_generic_fix_suggestion(unused_import_issue)
+        assert "Remove the unused import 'os' on line 5" in suggestion
+
+        # Test unused variable suggestion
+        unused_var_issue = {
+            "line": 10,
+            "severity": "warning",
+            "message": "Unused variable 'temp_data'",
+            "code": "W0612",
+            "source": "pylint",
+        }
+        suggestion = optimizer._generate_generic_fix_suggestion(unused_var_issue)
+        assert "Remove the unused variable 'temp_data' on line 10" in suggestion
+        assert "or use it in your code" in suggestion
+
+        # Test line too long suggestion with specific details
+        line_too_long_issue = {
+            "line": 25,
+            "severity": "error",
+            "message": "Line too long (95/79)",
+            "code": "E501",
+            "source": "flake8",
+        }
+        suggestion = optimizer._generate_generic_fix_suggestion(line_too_long_issue)
+        assert "Shorten line 25 by 16 characters" in suggestion
+        assert "currently 95, max 79" in suggestion
+
+        # Test undefined variable suggestion
+        undefined_var_issue = {
+            "line": 15,
+            "severity": "error",
+            "message": "Undefined variable 'config_data'",
+            "code": "E0602",
+            "source": "pylint",
+        }
+        suggestion = optimizer._generate_generic_fix_suggestion(undefined_var_issue)
+        assert "Define variable 'config_data' before line 15" in suggestion
+        assert "check for typos" in suggestion
+
+        # Test import error suggestion with correct format
+        import_error_issue = {
+            "line": 2,
+            "severity": "error",
+            "message": "No module named 'nonexistent_module'",
+            "code": "E0401",
+            "source": "pylint",
+        }
+        suggestion = optimizer._generate_generic_fix_suggestion(import_error_issue)
+        assert "Install the missing module 'nonexistent_module'" in suggestion
+
+        # Test critical security issue
+        security_issue = {
+            "line": 30,
+            "severity": "critical",
+            "message": "Potential security vulnerability: SQL injection possible",
+            "code": "S608",
+            "source": "bandit",
+        }
+        suggestion = optimizer._generate_generic_fix_suggestion(security_issue)
+        assert "Address the security issue on line 30" in suggestion
+        assert "SQL injection" in suggestion
+
+        # Test syntax error suggestion
+        syntax_issue = {
+            "line": 8,
+            "severity": "error",
+            "message": "Invalid syntax",
+            "code": "E9999",
+            "source": "python",
+        }
+        suggestion = optimizer._generate_generic_fix_suggestion(syntax_issue)
+        assert "Fix the syntax error on line 8" in suggestion
+        assert "check for missing colons" in suggestion
+
 
 class TestProactiveOptimizationIntegration:
     """Integration tests for proactive optimization with real components."""
