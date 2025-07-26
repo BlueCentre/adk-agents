@@ -1,6 +1,9 @@
+"""Context callbacks for enhanced contextual awareness in the Software Engineer Agent."""
+
 import logging
 from pathlib import Path
 import re
+from typing import Any, Optional
 
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.tools import ToolContext
@@ -17,51 +20,111 @@ def _extract_target(match: re.Match) -> str:
     return groups[0] if groups else ""
 
 
-def _check_command_history_context(tool_context: ToolContext, query_lower: str) -> str:
-    """Check command history and errors for relevant context"""
-    context_info = ""
+def _check_command_history_context(tool_context: ToolContext, query_lower: str) -> Optional[str]:
+    """Check if the query refers to command history or recent errors"""
+    try:
+        session_state = tool_context.state
 
-    if not tool_context or not tool_context.state:
-        return context_info
+        # Patterns that indicate references to previous commands/errors
+        history_patterns = [
+            r"why.*fail",
+            r"what.*wrong",
+            r"that.*error",
+            r"last.*command",
+            r"previous.*command",
+            r"recent.*error",
+            r"what.*happened",
+            r"error.*message",
+        ]
 
-    # Check for queries referencing previous commands/errors
-    reference_patterns = [
-        r"why did (that|it) fail",
-        r"what(?:'s| is) wrong with (?:the )?(?:last|previous) command",
-        r"what happened",
-        r"(?:last|previous|recent) (?:command|error)",
-        r"that (?:didn't work|failed)",
-        r"fix (?:the|that) (?:error|problem)",
-        r"what was the output of",
-        r"(?:last|previous) (?:result|output)",
-    ]
+        # Check if query matches any pattern
+        for pattern in history_patterns:
+            if re.search(pattern, query_lower):
+                # Get recent command history
+                command_history = session_state.get("command_history", [])
+                recent_errors = session_state.get("recent_errors", [])
 
-    query_references_history = any(
-        re.search(pattern, query_lower) for pattern in reference_patterns
-    )
+                context_parts = []
 
-    if query_references_history:
-        # Get recent command history
-        command_history = tool_context.state.get("command_history", [])
-        recent_errors = tool_context.state.get("recent_errors", [])
+                # Add recent failed commands
+                if recent_errors:
+                    context_parts.append(f"Recent errors: {recent_errors[-3:]}")
 
-        if recent_errors:
-            # Add most recent error context
-            latest_error = recent_errors[-1]
-            context_info += "\n\nRecent Error Context:\n"
-            context_info += f"Command: {latest_error.get('command', 'Unknown')}\n"
-            context_info += f"Error Type: {latest_error['error_type']}\n"
-            context_info += f"Error Output: {latest_error.get('stderr', '')[:200]}...\n"
+                # Add recent commands
+                if command_history:
+                    recent_commands = command_history[-5:]  # Last 5 commands
+                    context_parts.append(f"Recent commands: {recent_commands}")
 
-        if command_history:
-            # Add recent command context (last 3 commands)
-            recent_commands = command_history[-3:]
-            context_info += "\n\nRecent Command History:\n"
-            for _i, cmd in enumerate(recent_commands, 1):
-                status = "✓" if cmd.get("success") else "✗"
-                context_info += f"{status} {cmd.get('command', 'Unknown')}\n"
+                if context_parts:
+                    return " | ".join(context_parts)
 
-    return context_info
+        return None
+
+    except Exception as e:
+        logger.error(f"Error checking command history context: {e}")
+        return None
+
+
+def _analyze_user_query_for_context(user_message: str) -> tuple[list[dict[str, Any]], str]:
+    """
+    Analyze user query to determine if contextual actions should be triggered.
+    Returns tuple of (actions_to_execute, query_lower)
+    """
+    query_lower = user_message.lower()
+    actions = []
+
+    try:
+        # Directory listing patterns
+        dir_patterns = [
+            (r"what.*in.*?([a-zA-Z_][a-zA-Z0-9_./\-]*)", "directory_reference"),
+            (r"list.*?([a-zA-Z_][a-zA-Z0-9_./\-]*)", "directory_reference"),
+            (
+                r"show.*?([a-zA-Z_][a-zA-Z0-9_./\-]*)\s+(?:dir|directory|folder)",
+                "directory_reference",
+            ),
+            (r"contents.*?of.*?([a-zA-Z_][a-zA-Z0-9_./\-]*)", "directory_reference"),
+            (r"files.*?in.*?([a-zA-Z_][a-zA-Z0-9_./\-]*)", "directory_reference"),
+        ]
+
+        # File reading patterns
+        file_patterns = [
+            (r"show.*?([a-zA-Z_][a-zA-Z0-9_./\-]*\.[\w]+)", "file_reference"),
+            (r"read.*?([a-zA-Z_][a-zA-Z0-9_./\-]*\.[\w]+)", "file_reference"),
+            (r"content.*?of.*?([a-zA-Z_][a-zA-Z0-9_./\-]*\.[\w]+)", "file_reference"),
+            (r"open.*?([a-zA-Z_][a-zA-Z0-9_./\-]*\.[\w]+)", "file_reference"),
+            (r"display.*?([a-zA-Z_][a-zA-Z0-9_./\-]*\.[\w]+)", "file_reference"),
+        ]
+
+        # Check for directory references
+        for pattern, _action_type in dir_patterns:
+            matches = re.findall(pattern, query_lower)
+            for match in matches:
+                target = match.strip() if isinstance(match, str) else match[0].strip()
+                if target and not target.startswith("http"):  # Avoid URLs
+                    actions.append({"type": "list_directory", "target": target})
+
+        # Check for file references
+        for pattern, _action_type in file_patterns:
+            matches = re.findall(pattern, query_lower)
+            for match in matches:
+                target = match.strip() if isinstance(match, str) else match[0].strip()
+                if target and not target.startswith("http"):  # Avoid URLs
+                    actions.append({"type": "read_file", "target": target})
+
+        # Remove duplicates
+        unique_actions = []
+        seen = set()
+        for action in actions:
+            key = (action["type"], action["target"])
+            if key not in seen:
+                unique_actions.append(action)
+                seen.add(key)
+
+        return unique_actions, query_lower
+
+    except Exception as e:
+        logger.error(f"Error analyzing user query for context: {e}")
+        return [], query_lower
 
 
 def _execute_contextual_actions(tool_context: ToolContext, actions: list[dict]) -> list[dict]:
@@ -101,111 +164,124 @@ def _execute_contextual_actions(tool_context: ToolContext, actions: list[dict]) 
                             results.append({"action": action, "result": result, "status": "error"})
                             continue
                     except ImportError:
-                        files = []
-                        directories = []
-                        for item in target_path.iterdir():
-                            if item.is_file():
-                                files.append(item.name)
-                            elif item.is_dir():
-                                directories.append(item.name)
-                        result = {"files": files, "directories": directories}
-
-                    results.append({"action": action, "result": result, "status": "success"})
+                        # Fallback implementation
+                        try:
+                            all_items = [p.name for p in target_path.iterdir()]
+                            files = [p.name for p in target_path.iterdir() if p.is_file()]
+                            directories = [p.name for p in target_path.iterdir() if p.is_dir()]
+                            result = {"files": files, "directories": directories}
+                        except Exception as fallback_e:
+                            result = f"Error listing directory: {fallback_e}"
+                            results.append({"action": action, "result": result, "status": "error"})
+                            continue
                 else:
-                    results.append(
-                        {
-                            "action": action,
-                            "result": f"Directory '{target_path}' not found",
-                            "status": "error",
-                        }
-                    )
+                    result = f"Directory not found: {target_path}"
+                    results.append({"action": action, "result": result, "status": "error"})
+                    continue
+
+                results.append({"action": action, "result": result, "status": "success"})
 
             elif action["type"] == "read_file":
                 target_path = Path(action["target"])
                 if not target_path.is_absolute():
                     target_path = current_dir / target_path
 
-                if target_path.exists():
+                if target_path.exists() and target_path.is_file():
                     try:
                         from ..tools.filesystem import read_file_content
 
                         tool_result = read_file_content(str(target_path))
                         if tool_result.get("status") == "success":
-                            result = tool_result["content"]  # Extract content from tool format
+                            result = tool_result["content"]
                         else:
-                            result = (
-                                f"Error reading file: {tool_result.get('message', 'Unknown error')}"
-                            )
+                            msg = tool_result.get("message", "Unknown error")
+                            result = f"Error reading file: {msg}"
                             results.append({"action": action, "result": result, "status": "error"})
                             continue
                     except ImportError:
-                        result = target_path.read_text(encoding="utf-8")
-
-                    results.append({"action": action, "result": result, "status": "success"})
+                        # Fallback implementation
+                        try:
+                            result = target_path.read_text(encoding="utf-8")
+                        except Exception as fallback_e:
+                            result = f"Error reading file: {fallback_e}"
+                            results.append({"action": action, "result": result, "status": "error"})
+                            continue
                 else:
-                    results.append(
-                        {
-                            "action": action,
-                            "result": f"File '{target_path}' not found",
-                            "status": "error",
-                        }
-                    )
+                    result = f"File not found: {target_path}"
+                    results.append({"action": action, "result": result, "status": "error"})
+                    continue
+
+                results.append({"action": action, "result": result, "status": "success"})
 
         except Exception as e:
-            results.append(
-                {
-                    "action": action,
-                    "result": f"Error executing {action['type']}: {e!s}",
-                    "status": "error",
-                }
-            )
+            logger.error(f"Error executing contextual action {action}: {e}")
+            results.append({"action": action, "result": f"Error: {e}", "status": "error"})
 
     return results
 
 
-def _analyze_user_query_for_context(user_query: str) -> tuple[list[dict], str]:
+def _should_update_project_context(session_state: dict) -> bool:
     """
-    Analyze user query to identify contextual actions needed.
+    Determine if project context should be updated based on various criteria.
+
+    Args:
+        session_state: The current session state
 
     Returns:
-        tuple: (actions_to_execute, command_history_context)
+        True if project context should be updated
     """
-    actions = []
-    query_lower = user_query.lower()
+    try:
+        # Always update if never done before
+        if "project_structure" not in session_state:
+            return True
 
-    # Directory listing patterns
-    directory_patterns = [
-        r"(?:what['\s]*s|what is|show me|list|see)\s+(?:in|inside|within)?\s*"
-        r"(?:the\s+)?(?:[`\"']?)([^`\"'\s\?]+?)(?:[`\"']?)\s*(?:directory|folder|dir)?",
-        r"(?:list|show)\s+(?:contents?\s+of\s+)?(?:the\s+)?(?:[`\"']?)([^`\"'\s\?]+?)(?:[`\"']?)",
-        r"(?:contents?\s+of|files?\s+in)\s+(?:the\s+)?(?:[`\"']?)([^`\"'\s\?]+?)(?:[`\"']?)",
-    ]
+        # Check if current directory changed
+        current_dir = session_state.get("current_directory", str(Path.cwd()))
+        last_updated_dir = session_state.get("project_context_updated")
+        if last_updated_dir != current_dir:
+            return True
 
-    # File reading patterns
-    file_patterns = [
-        r"(?:show me|read|open|view|display|what['\s]*s in)\s+(?:the\s+)?"
-        r"(?:file\s+)?(?:[`\"']?)([^`\"'\s\?]+?\.[a-z0-9]+)(?:[`\"']?)",
-        r"(?:contents?\s+of|what['\s]*s in)\s+(?:the\s+)?"
-        r"(?:file\s+)?(?:[`\"']?)([^`\"'\s\?]+?\.[a-z0-9]+)(?:[`\"']?)",
-    ]
+        # Check if we have no dependencies but dependency files might exist
+        dependencies = session_state.get("project_dependencies", {})
+        if not dependencies.get("dependency_files_found"):
+            # Check if any dependency files exist in current directory
+            current_path = Path(current_dir)
+            dependency_files = [
+                "pyproject.toml",
+                "package.json",
+                "requirements.txt",
+                "Cargo.toml",
+                "go.mod",
+            ]
+            for dep_file in dependency_files:
+                if (current_path / dep_file).exists():
+                    return True
 
-    # Check for directory references
-    for pattern in directory_patterns:
-        matches = re.finditer(pattern, query_lower)
-        for match in matches:
-            target = _extract_target(match)
-            if target and len(target) > 1:  # Avoid single character matches
-                actions.append({"type": "list_directory", "target": target})
+        return False
 
-    # Check for file references
-    for pattern in file_patterns:
-        matches = re.finditer(pattern, query_lower)
-        for match in matches:
-            target = _extract_target(match)
-            if target and len(target) > 1:  # Avoid single character matches
-                actions.append({"type": "read_file", "target": target})
+    except Exception as e:
+        logger.debug(f"Error checking if project context should update: {e}")
+        return False
 
-    return actions, query_lower
+
+def _update_project_context_if_needed(session_state: dict) -> None:
+    """
+    Update project context in session state if needed.
+
+    Args:
+        session_state: The session state to update
+    """
+    try:
+        if _should_update_project_context(session_state):
+            from ..tools.project_context import update_project_context_in_session
+
+            current_dir = session_state.get("current_directory", str(Path.cwd()))
+            summary = update_project_context_in_session(session_state, current_dir)
+
+            logger.info(f"Updated project context: {summary}")
+
+    except Exception as e:
+        logger.error(f"Error updating project context: {e}")
 
 
 def _preprocess_and_add_context_to_agent_prompt(callback_context: CallbackContext = None):
@@ -216,6 +292,8 @@ def _preprocess_and_add_context_to_agent_prompt(callback_context: CallbackContex
 
     This callback now actively analyzes recent user messages and executes contextual
     actions like directory listing and file reading when appropriate.
+
+    Enhanced with project structure mapping and dependency inference capabilities.
     """
     if not callback_context:
         logger.warning(
@@ -235,6 +313,9 @@ def _preprocess_and_add_context_to_agent_prompt(callback_context: CallbackContex
             session_state["command_history"] = []
         if "recent_errors" not in session_state:
             session_state["recent_errors"] = []
+
+        # NEW: Update project context if needed (Task 1.3.1 & 1.3.2)
+        _update_project_context_if_needed(session_state)
 
         # NEW: Try to analyze recent user messages for contextual actions
         try:
@@ -262,6 +343,24 @@ def _preprocess_and_add_context_to_agent_prompt(callback_context: CallbackContex
 
                 # Analyze the user query for contextual actions
                 actions, query_lower = _analyze_user_query_for_context(recent_user_message)
+
+                # Check for project-related queries that might need updated context
+                project_query_patterns = [
+                    "project structure",
+                    "dependencies",
+                    "what.*dependencies",
+                    "project.*files",
+                    "architecture",
+                    "codebase structure",
+                ]
+
+                force_project_update = any(
+                    re.search(pattern, query_lower) for pattern in project_query_patterns
+                )
+
+                if force_project_update:
+                    logger.info("Detected project-related query, forcing context update")
+                    _update_project_context_if_needed(session_state)
 
                 if actions:
                     logger.info(
@@ -295,28 +394,6 @@ def _preprocess_and_add_context_to_agent_prompt(callback_context: CallbackContex
                         "[_preprocess_and_add_context_to_agent_prompt] "
                         f"Executed {len(actions)} contextual actions with {len(results)} results"
                     )
-                else:
-                    logger.debug(
-                        "[_preprocess_and_add_context_to_agent_prompt] "
-                        "No contextual actions identified in user query"
-                    )
-            else:
-                logger.debug(
-                    "[_preprocess_and_add_context_to_agent_prompt] "
-                    "No recent user message found for contextual analysis"
-                )
 
         except Exception as e:
-            logger.error(
-                f"[_preprocess_and_add_context_to_agent_prompt] Error in contextual analysis: {e}",
-                exc_info=True,
-            )
-
-        logger.info(
-            "[_preprocess_and_add_context_to_agent_prompt] Contextual state processing completed."
-        )
-    else:
-        logger.warning(
-            "[_preprocess_and_add_context_to_agent_prompt] "
-            "No session state available in callback context."
-        )
+            logger.error(f"Error in contextual preprocessing: {e}")
