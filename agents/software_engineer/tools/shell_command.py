@@ -1,6 +1,8 @@
-"""Simple shell command execution tool for the Software Engineer Agent."""
+"""Enhanced shell command execution tool with command history and error tracking."""
 
+from datetime import datetime
 import logging
+import re
 import subprocess
 from typing import Optional
 
@@ -8,6 +10,10 @@ from google.adk.tools import FunctionTool, ToolContext
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
+
+# Maximum number of commands to keep in history
+MAX_COMMAND_HISTORY = 50
+MAX_ERROR_HISTORY = 20
 
 
 class ExecuteShellCommandInput(BaseModel):
@@ -30,13 +36,136 @@ class ExecuteShellCommandOutput(BaseModel):
     working_directory: Optional[str] = Field(None, description="The working directory used")
 
 
-def execute_shell_command(args: dict, tool_context: ToolContext) -> ExecuteShellCommandOutput:  # noqa: ARG001
+def _detect_error_patterns(stderr: str, stdout: str, exit_code: int) -> Optional[dict]:
     """
-    Execute a shell command and return the result.
+    Detect common error patterns in command output.
+
+    Args:
+        stderr: Standard error output
+        stdout: Standard output
+        exit_code: Command exit code
+
+    Returns:
+        Dict with error information if error detected, None otherwise
+    """
+    if exit_code == 0:
+        return None
+
+    # Common error patterns to detect
+    error_patterns = [
+        (r"No such file or directory", "file_not_found"),
+        (r"Permission denied", "permission_denied"),
+        (r"command not found", "command_not_found"),
+        (r"Connection refused", "connection_refused"),
+        (r"Syntax error", "syntax_error"),
+        (r"ImportError|ModuleNotFoundError", "python_import_error"),
+        (r"ENOENT", "file_not_found"),
+        (r"EACCES", "permission_denied"),
+        (r"timeout|timed out", "timeout"),
+        (r"killed", "process_killed"),
+    ]
+
+    combined_output = f"{stderr}\n{stdout}".lower()
+
+    for pattern, error_type in error_patterns:
+        if re.search(pattern, combined_output, re.IGNORECASE):
+            return {
+                "error_type": error_type,
+                "pattern_matched": pattern,
+                "stderr": stderr,
+                "stdout": stdout,
+                "exit_code": exit_code,
+            }
+
+    # Generic error if no specific pattern matched
+    return {
+        "error_type": "generic_error",
+        "pattern_matched": "non_zero_exit_code",
+        "stderr": stderr,
+        "stdout": stdout,
+        "exit_code": exit_code,
+    }
+
+
+def _store_command_history(tool_context: ToolContext, command_info: dict):
+    """
+    Store command execution information in session state.
+
+    Args:
+        tool_context: ADK tool context
+        command_info: Command execution details
+    """
+    if not tool_context or not tool_context.state:
+        return
+
+    try:
+        # Get existing command history or initialize empty list
+        command_history = tool_context.state.get("command_history", [])
+
+        # Add current command with timestamp
+        command_entry = {
+            **command_info,
+            "timestamp": datetime.now().isoformat(),
+        }
+
+        command_history.append(command_entry)
+
+        # Limit history size to prevent memory bloat
+        if len(command_history) > MAX_COMMAND_HISTORY:
+            command_history = command_history[-MAX_COMMAND_HISTORY:]
+
+        # Store back in session state
+        tool_context.state["command_history"] = command_history
+
+        logger.debug(f"Stored command in history: {command_info['command'][:50]}...")
+
+    except Exception as e:
+        logger.error(f"Failed to store command history: {e!s}")
+
+
+def _store_error_context(tool_context: ToolContext, error_info: dict):
+    """
+    Store error information in session state for later analysis.
+
+    Args:
+        tool_context: ADK tool context
+        error_info: Error details including type and context
+    """
+    if not tool_context or not tool_context.state:
+        return
+
+    try:
+        # Get existing error history or initialize empty list
+        recent_errors = tool_context.state.get("recent_errors", [])
+
+        # Add current error with timestamp
+        error_entry = {
+            **error_info,
+            "timestamp": datetime.now().isoformat(),
+        }
+
+        recent_errors.append(error_entry)
+
+        # Limit error history size
+        if len(recent_errors) > MAX_ERROR_HISTORY:
+            recent_errors = recent_errors[-MAX_ERROR_HISTORY:]
+
+        # Store back in session state
+        tool_context.state["recent_errors"] = recent_errors
+
+        logger.debug(f"Stored error in history: {error_info['error_type']}")
+
+    except Exception as e:
+        logger.error(f"Failed to store error context: {e!s}")
+
+
+def execute_shell_command(args: dict, tool_context: ToolContext) -> ExecuteShellCommandOutput:
+    """
+    Execute a shell command and return the result with enhanced history tracking.
 
     Args:
         args: Dictionary containing command and working_directory
-        tool_context: The ADK tool context
+        tool_context: The ADK tool context (provides access to session state)
 
     Returns:
         ExecuteShellCommandOutput containing command results
@@ -45,7 +174,7 @@ def execute_shell_command(args: dict, tool_context: ToolContext) -> ExecuteShell
     working_directory = args.get("working_directory")
 
     if not command:
-        return ExecuteShellCommandOutput(
+        output = ExecuteShellCommandOutput(
             command="",
             exit_code=-1,
             stdout="",
@@ -53,6 +182,18 @@ def execute_shell_command(args: dict, tool_context: ToolContext) -> ExecuteShell
             success=False,
             working_directory=working_directory,
         )
+
+        # Store command history even for invalid commands
+        command_info = {
+            "command": "",
+            "working_directory": working_directory,
+            "exit_code": -1,
+            "success": False,
+            "error_reason": "no_command_provided",
+        }
+        _store_command_history(tool_context, command_info)
+
+        return output
 
     try:
         logger.info(f"Executing command: {command}")
@@ -68,7 +209,7 @@ def execute_shell_command(args: dict, tool_context: ToolContext) -> ExecuteShell
             timeout=60,  # 60 second timeout
         )
 
-        return ExecuteShellCommandOutput(
+        output = ExecuteShellCommandOutput(
             command=command,
             exit_code=result.returncode,
             stdout=result.stdout,
@@ -77,10 +218,32 @@ def execute_shell_command(args: dict, tool_context: ToolContext) -> ExecuteShell
             working_directory=working_directory,
         )
 
+        # Store command execution in history
+        command_info = {
+            "command": command,
+            "working_directory": working_directory,
+            "exit_code": result.returncode,
+            "success": result.returncode == 0,
+            "stdout_length": len(result.stdout),
+            "stderr_length": len(result.stderr),
+        }
+        _store_command_history(tool_context, command_info)
+
+        # Detect and store error information if command failed
+        if result.returncode != 0:
+            error_info = _detect_error_patterns(result.stderr, result.stdout, result.returncode)
+            if error_info:
+                error_info["command"] = command
+                error_info["working_directory"] = working_directory
+                _store_error_context(tool_context, error_info)
+
+        return output
+
     except subprocess.TimeoutExpired:
         error_msg = f"Command timed out after 60 seconds: {command}"
         logger.error(error_msg)
-        return ExecuteShellCommandOutput(
+
+        output = ExecuteShellCommandOutput(
             command=command,
             exit_code=-1,
             stdout="",
@@ -89,10 +252,34 @@ def execute_shell_command(args: dict, tool_context: ToolContext) -> ExecuteShell
             working_directory=working_directory,
         )
 
+        # Store timeout error in history and error context
+        command_info = {
+            "command": command,
+            "working_directory": working_directory,
+            "exit_code": -1,
+            "success": False,
+            "error_reason": "timeout",
+        }
+        _store_command_history(tool_context, command_info)
+
+        error_info = {
+            "error_type": "timeout",
+            "pattern_matched": "subprocess_timeout",
+            "command": command,
+            "working_directory": working_directory,
+            "stderr": error_msg,
+            "stdout": "",
+            "exit_code": -1,
+        }
+        _store_error_context(tool_context, error_info)
+
+        return output
+
     except Exception as e:
         error_msg = f"Error executing command '{command}': {e!s}"
         logger.error(error_msg)
-        return ExecuteShellCommandOutput(
+
+        output = ExecuteShellCommandOutput(
             command=command,
             exit_code=-1,
             stdout="",
@@ -100,6 +287,29 @@ def execute_shell_command(args: dict, tool_context: ToolContext) -> ExecuteShell
             success=False,
             working_directory=working_directory,
         )
+
+        # Store exception error in history and error context
+        command_info = {
+            "command": command,
+            "working_directory": working_directory,
+            "exit_code": -1,
+            "success": False,
+            "error_reason": "exception",
+        }
+        _store_command_history(tool_context, command_info)
+
+        error_info = {
+            "error_type": "exception",
+            "pattern_matched": "python_exception",
+            "command": command,
+            "working_directory": working_directory,
+            "stderr": error_msg,
+            "stdout": "",
+            "exit_code": -1,
+        }
+        _store_error_context(tool_context, error_info)
+
+        return output
 
 
 # Create the tool using FunctionTool wrapper
