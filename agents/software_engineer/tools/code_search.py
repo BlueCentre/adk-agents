@@ -342,11 +342,11 @@ def _calculate_relevance_score(
                 depth = len(Path(file_path).parts)
                 if depth <= 3:  # Shallow files get boost
                     score += 0.05
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Could not check file existence or depth for {file_path}: {e}")
 
         # Penalize deeply nested files more aggressively
-        depth_count = file_path.count("/")
+        depth_count = len(Path(file_path).parts)
         if depth_count > 3:
             score -= 0.11 * (depth_count - 3)  # -0.11 for each level beyond 3
 

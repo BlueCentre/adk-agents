@@ -1,8 +1,13 @@
 """Project context loading for the Software Engineer Agent."""
 
+from datetime import datetime
+import fnmatch
 import logging
 from pathlib import Path
+import re
 from typing import Any, Optional
+
+from ..shared_libraries.constants import DEFAULT_IGNORE_PATTERNS
 
 logger = logging.getLogger(__name__)
 
@@ -76,27 +81,7 @@ def map_project_structure(
         Dictionary containing the project structure with metadata
     """
     if ignore_patterns is None:
-        ignore_patterns = [
-            "/.git/",
-            "/node_modules/",
-            "/__pycache__/",
-            "/.pytest_cache/",
-            "/venv/",
-            "/.venv/",
-            "/env/",
-            "/.env/",
-            "/.mypy_cache/",
-            "/htmlcov/",
-            "/.coverage",
-            "/dist/",
-            "/build/",
-            "*.pyc",
-            "*.pyo",
-            "*.egg-info/",
-            ".DS_Store",
-            "/.idea/",
-            "/.vscode/",
-        ]
+        ignore_patterns = DEFAULT_IGNORE_PATTERNS
 
     try:
         root = Path(root_path).resolve()
@@ -111,21 +96,38 @@ def map_project_structure(
             "file_types": {},
             "directory_tree": {},
             "key_files": [],
-            "generated_at": str(Path.cwd()),  # Timestamp-like
+            "generated_at": datetime.now().isoformat(),  # Actual timestamp
         }
 
         def _should_ignore(path: Path) -> bool:
-            """Check if path should be ignored based on patterns"""
+            """Check if path should be ignored based on patterns using robust pattern matching"""
+            path_name = path.name
             path_str = str(path)
+
             for pattern in ignore_patterns:
-                if pattern.startswith("*") and path_str.endswith(pattern[1:]):
-                    return True
-                if pattern.endswith("/") and (
-                    pattern[1:-1] in path_str or path_str.endswith(pattern[:-1])
-                ):
-                    return True
-                if pattern in path_str:
-                    return True
+                # Handle directory patterns (ending with /)
+                if pattern.endswith("/"):
+                    dir_pattern = pattern[:-1]
+                    if path.is_dir() and (
+                        fnmatch.fnmatch(path_name, dir_pattern)
+                        or fnmatch.fnmatch(path_str, f"*/{dir_pattern}")
+                    ):
+                        return True
+                # Handle file and directory patterns
+                else:
+                    # Check exact name match and path patterns
+                    if (
+                        fnmatch.fnmatch(path_name, pattern)
+                        or fnmatch.fnmatch(path_str, f"*/{pattern}")
+                        or fnmatch.fnmatch(path_str, pattern)
+                    ):
+                        return True
+                    # For directories, also check if any parent path component matches
+                    if path.is_dir():
+                        parts = path.parts
+                        for part in parts:
+                            if fnmatch.fnmatch(part, pattern):
+                                return True
             return False
 
         def _map_directory(dir_path: Path, current_depth: int = 0) -> dict[str, Any]:
@@ -325,21 +327,37 @@ def infer_project_dependencies(project_path: str) -> dict[str, Any]:
             try:
                 content = go_mod_file.read_text()
                 deps = []
-                in_require = False
-                for line in content.split("\n"):
-                    line = line.strip()
-                    if line.startswith("require"):
-                        in_require = True
-                        continue
-                    if line == ")":
-                        in_require = False
-                        continue
-                    if in_require and line and not line.startswith("//"):
-                        # Extract module name from "module version" format
-                        parts = line.split()
-                        if parts:
-                            deps.append(parts[0])
-                dependencies["go"] = deps
+
+                # Use regex to robustly find all require blocks and dependencies
+                # Handle both single-line and multi-line require blocks
+                require_patterns = [
+                    r"require\s+([^\s]+)\s+([^\s]+)",  # Single line: require module version
+                    r"require\s*\(\s*([^)]+)\)",  # Multi-line: require ( ... )
+                ]
+
+                for pattern in require_patterns:
+                    matches = re.finditer(pattern, content, re.MULTILINE | re.DOTALL)
+                    for match in matches:
+                        if pattern.endswith(r"([^\s]+)\s+([^\s]+)"):
+                            # Single-line require
+                            module_name = match.group(1)
+                            if module_name and not module_name.startswith("//"):
+                                deps.append(module_name)
+                        else:
+                            # Multi-line require block
+                            block_content = match.group(1)
+                            # Extract all module names from the block
+                            module_matches = re.finditer(
+                                r"^\s*([^\s]+)\s+[^\s]+", block_content, re.MULTILINE
+                            )
+                            for module_match in module_matches:
+                                line = module_match.group(0).strip()
+                                if not line.startswith("//"):
+                                    module_name = module_match.group(1)
+                                    if module_name:
+                                        deps.append(module_name)
+
+                dependencies["go"] = list(set(deps))  # Remove duplicates
             except Exception as e:
                 logger.debug(f"Error parsing go.mod: {e}")
 

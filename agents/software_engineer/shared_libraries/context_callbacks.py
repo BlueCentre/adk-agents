@@ -8,6 +8,8 @@ from typing import Any, Optional
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.tools import ToolContext
 
+from .constants import DEPENDENCY_FILES
+
 logger = logging.getLogger(__name__)
 
 
@@ -246,14 +248,7 @@ def _should_update_project_context(session_state: dict) -> bool:
         if not dependencies.get("dependency_files_found"):
             # Check if any dependency files exist in current directory
             current_path = Path(current_dir)
-            dependency_files = [
-                "pyproject.toml",
-                "package.json",
-                "requirements.txt",
-                "Cargo.toml",
-                "go.mod",
-            ]
-            for dep_file in dependency_files:
+            for dep_file in DEPENDENCY_FILES:
                 if (current_path / dep_file).exists():
                     return True
 
