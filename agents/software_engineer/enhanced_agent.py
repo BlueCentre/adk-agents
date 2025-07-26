@@ -128,7 +128,7 @@ def create_enhanced_sub_agents():
 
 
 def state_manager_tool(
-    tool_context: ToolContext, action: str, key: str = "", value: str = ""
+    tool_context: ToolContext, action: str, key: str, value: str
 ) -> dict[str, Any]:
     """
     Enhanced state management tool with advanced session tracking.
