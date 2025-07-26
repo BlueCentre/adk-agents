@@ -376,15 +376,11 @@ def _preprocess_and_add_context_to_agent_prompt(callback_context: CallbackContex
                     # Check for command history context
                     history_context = _check_command_history_context(mock_tool_context, query_lower)
 
-                    # NEW: Proactive Error Detection (Milestone 2.1)
-                    proactive_suggestions = detect_and_suggest_error_fixes(session_state)
-
                     # Store results in session state for LLM access
                     contextual_info = {
                         "actions_executed": len(actions),
                         "results": results,
                         "command_history_context": history_context,
-                        "proactive_error_suggestions": proactive_suggestions,
                         "timestamp": str(Path.cwd()),  # Use a timestamp-like field
                     }
 
