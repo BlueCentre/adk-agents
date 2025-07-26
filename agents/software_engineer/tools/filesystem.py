@@ -161,7 +161,24 @@ def edit_file_content(
             f.write(content)
         message = f"Successfully wrote content to '{filepath}'."
         logger.info(message)
-        return {"status": "success", "message": message}
+
+        # NEW: Trigger proactive optimization analysis after successful file edit (Milestone 2.2)
+        try:
+            from ..shared_libraries.proactive_optimization import detect_and_suggest_optimizations
+
+            optimization_suggestions = detect_and_suggest_optimizations(filepath, tool_context)
+
+            result = {"status": "success", "message": message}
+            if optimization_suggestions:
+                result["optimization_suggestions"] = optimization_suggestions
+                logger.info(f"Generated optimization suggestions for {filepath}")
+
+            return result
+
+        except Exception as e:
+            logger.debug(f"Error generating optimization suggestions: {e}")
+            # Don't fail the file write if optimization analysis fails
+            return {"status": "success", "message": message}
     except PermissionError:
         message = f"Permission denied when trying to write to file '{filepath}'."
         logger.error(message)

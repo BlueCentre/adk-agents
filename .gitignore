@@ -68,6 +68,7 @@ env/
 .server-memory.json
 .adk/
 .agent/memory.json
+.sandbox/
 sessions.db
 *.session.json
 
