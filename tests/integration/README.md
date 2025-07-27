@@ -178,7 +178,7 @@ The root-level `conftest.py` provides shared fixtures for:
 - Test environment preparation
 
 ### Shared Utilities  
-For reusable test utilities and helpers, see the main `tests/` directory structure.
+For reusable test utilities and helpers, see the `tests/fixtures/` directory.
 
 ## Related Documentation
 
