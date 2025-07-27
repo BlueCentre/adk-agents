@@ -64,7 +64,7 @@ class WorkflowGuidance:
 
 _workflow_guidance = WorkflowGuidance()
 
-def suggest_next_step(session_state: dict) -> Optional[str]:
+def suggest_next_step(session_state: Optional[dict]) -> Optional[str]:
     """
     Suggest the next logical action based on the current state.
 
