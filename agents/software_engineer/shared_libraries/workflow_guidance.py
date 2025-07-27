@@ -35,7 +35,7 @@ class WorkflowGuidance:
         Returns:
             A dictionary with the suggestion, or None if no suggestion.
         """
-        if not session_state.get("proactive_suggestions_enabled", True):
+        if not session_state or not session_state.get("proactive_suggestions_enabled", True):
             return None
 
         last_action = session_state.get("last_action")
