@@ -479,7 +479,7 @@ def create_enhanced_software_engineer_agent() -> Agent:
             after_tool_callback=[
                 telemetry_callbacks["after_tool"],
                 optimization_callbacks["after_tool"],
-                lambda tool_context, tool_output: print(suggest_next_step(tool_context.state)),
+                lambda tool_context, tool_output: (suggestion := suggest_next_step(tool_context.state)) and logger.info(suggestion),
             ],
             output_key="enhanced_software_engineer",
         )
