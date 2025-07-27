@@ -1,5 +1,6 @@
 """Enhanced Software Engineer Agent with ADK Workflow Patterns."""
 
+from collections import deque
 from datetime import datetime
 import logging
 import re
@@ -50,7 +51,7 @@ def _log_workflow_suggestion(tool, args, tool_context, tool_response):  # noqa: 
 
         # Store suggestion for user presentation (Milestone 2.3)
         if "workflow_suggestions" not in tool_context.state:
-            tool_context.state["workflow_suggestions"] = []
+            tool_context.state["workflow_suggestions"] = deque(maxlen=3)
 
         tool_context.state["workflow_suggestions"].append(
             {
@@ -61,11 +62,7 @@ def _log_workflow_suggestion(tool, args, tool_context, tool_response):  # noqa: 
             }
         )
 
-        # Limit to last 3 suggestions to prevent state bloat
-        if len(tool_context.state["workflow_suggestions"]) > 3:
-            tool_context.state["workflow_suggestions"] = tool_context.state["workflow_suggestions"][
-                -3:
-            ]
+        # Deque automatically maintains maxlen=3, discarding oldest items
 
 
 def _proactive_code_quality_analysis(tool, args, tool_context, tool_response):
