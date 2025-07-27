@@ -87,7 +87,7 @@ To ensure consistency, quality, and maintainability, all development efforts wil
 *   - [x] **Task 1.1.4: Integration Tests:** ✅ **COMPLETED**
     *   Write integration tests that simulate user queries involving listing directories and reading files, verifying the agent correctly uses the tools without explicit commands.
     *   Ensure existing `list_directory`, `read_file` tests still pass.
-    *   **✅ Implementation:** Created comprehensive test suite `test_contextual_awareness_milestone_1_1.py` with 11 passing tests covering all functionality.
+    *   **✅ Implementation:** Created comprehensive test suite `test_contextual_awareness_basic_integration.py` with 11 passing tests covering all functionality.
 
 **User Verification Steps:**
 
@@ -118,7 +118,7 @@ To ensure consistency, quality, and maintainability, all development efforts wil
 *   - [x] **Task 1.2.4: Integration Tests:** ✅ **COMPLETED**
     *   Write integration tests that run commands (some failing) and then query the agent about the failures, verifying it uses the historical context.
     *   Ensure existing tests are unaffected.
-    *   **✅ Implementation:** Created comprehensive test suite `test_contextual_awareness_milestone_1_2.py` with 13 passing tests covering command history capture, error detection, and agent reasoning.
+    *   **✅ Implementation:** Created comprehensive test suite `test_contextual_awareness_shell_integration.py` with 13 passing tests covering command history capture, error detection, and agent reasoning.
 
 **User Verification Steps:**
 
@@ -150,7 +150,7 @@ To ensure consistency, quality, and maintainability, all development efforts wil
     *   Create a mock project structure with a `package.json` or `requirements.txt`.
     *   Write integration tests where the agent is asked about dependencies or to find a file related to a specific dependency, verifying its contextual search.
     *   Ensure existing `ripgrep_code_search` tests are unchanged.
-    *   **✅ Implementation:** Created comprehensive test suite `test_contextual_awareness_milestone_1_3.py` with 20 integration tests covering all functionality. All tests passing with 98.5% pass rate.
+    *   **✅ Implementation:** Created comprehensive test suite `test_contextual_awareness_advanced_integration.py` with 20 integration tests covering all functionality. All tests passing with 98.5% pass rate.
 
 **User Verification Steps:**
 
