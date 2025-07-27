@@ -20,6 +20,7 @@ from .shared_libraries.callbacks import (
 from .shared_libraries.context_callbacks import (
     _preprocess_and_add_context_to_agent_prompt,
 )
+from .shared_libraries.workflow_guidance import suggest_next_step
 
 # Import sub-agent prompts and tools to create separate instances
 from .tools.setup import load_all_tools_and_toolsets
@@ -159,6 +160,7 @@ def state_manager_tool(
         "user_preferences": {},
         "workflow_state": "initialized",
         "error_recovery_context": {},
+        "proactive_suggestions_enabled": True,
     }
 
     for std_key, default_value in standard_keys.items():
@@ -477,6 +479,7 @@ def create_enhanced_software_engineer_agent() -> Agent:
             after_tool_callback=[
                 telemetry_callbacks["after_tool"],
                 optimization_callbacks["after_tool"],
+                lambda tool_context, tool_output: print(suggest_next_step(tool_context.state)),
             ],
             output_key="enhanced_software_engineer",
         )
