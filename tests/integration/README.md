@@ -56,7 +56,7 @@ Tests focused on performance validation, load testing, and stress testing:
 #### **`evaluation_tests/`** - ADK Evaluation Framework
 Behavioral testing using evaluation scenarios for real-world validation:
 - Contains `.evalset.json` files with evaluation scenarios
-- See `test_adk_evaluation_patterns.py` (root level) for evaluation test execution
+- See `tests/integration/test_adk_evaluation_patterns.py` for evaluation test execution
 
 ## Naming Conventions
 
