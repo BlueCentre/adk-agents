@@ -2,7 +2,7 @@
 
 import pytest
 
-from agents.software_engineer.shared_libraries.workflow_guidance import WorkflowGuidance
+from agents.software_engineer.shared_libraries.workflow_guidance import ActionType, WorkflowGuidance
 
 
 @pytest.mark.integration
@@ -22,14 +22,20 @@ class TestMilestone23EndToEnd:
         print("   ✅ Task 2.3.1: Basic workflow patterns defined and loaded")
 
         # Task 2.3.2: Suggest Next Actions with workflow_selector_tool integration ✅
-        test_state = {"last_action": "edit_file", "proactive_suggestions_enabled": True}
+        test_state = {
+            "last_action": ActionType.EDIT_FILE.value,
+            "proactive_suggestions_enabled": True,
+        }
         suggestion_dict = guidance.suggest_next_step(test_state)
         assert suggestion_dict is not None
         assert "workflow_type" in suggestion_dict  # Integration with workflow_selector_tool
         print("   ✅ Task 2.3.2: Next action suggestions with workflow integration")
 
         # Task 2.3.3: User Opt-In/Out for Proactive Suggestions ✅
-        test_state_disabled = {"last_action": "edit_file", "proactive_suggestions_enabled": False}
+        test_state_disabled = {
+            "last_action": ActionType.EDIT_FILE.value,
+            "proactive_suggestions_enabled": False,
+        }
         suggestion_disabled = guidance.suggest_next_step(test_state_disabled)
         assert suggestion_disabled is None
         print("   ✅ Task 2.3.3: User opt-in/out mechanism functional")

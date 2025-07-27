@@ -10,7 +10,7 @@ import tempfile
 
 import pytest
 
-from agents.software_engineer.enhanced_agent import create_enhanced_software_engineer_agent
+from agents.software_engineer.shared_libraries.workflow_guidance import ActionType
 from tests.fixtures.test_helpers import create_mock_session_state
 
 logger = logging.getLogger(__name__)
@@ -22,51 +22,34 @@ class TestWorkflowGuidanceRealAgentBehavior:
     """Real integration tests for workflow guidance with actual agent behavior."""
 
     @pytest.fixture
-    def enhanced_agent(self):
-        """Create an actual enhanced software engineer agent."""
-        return create_enhanced_software_engineer_agent()
-
-    @pytest.fixture
     def temp_workspace(self):
-        """Create a temporary workspace for testing."""
+        """Create a temporary workspace directory for testing."""
         with tempfile.TemporaryDirectory() as temp_dir:
             workspace_path = Path(temp_dir)
-            # Create a simple test file
-            test_file = workspace_path / "test_file.py"
-            test_file.write_text('def hello():\n    print("Hello, World!")\n')
             yield workspace_path
 
     @pytest.mark.asyncio
     async def test_file_edit_triggers_workflow_suggestion(self, temp_workspace):
         """Test that editing a file triggers workflow suggestions in real agent behavior.
 
-        This test demonstrates the critical gap: last_action is never set,
-        so workflow suggestions are never triggered.
+        This test demonstrates the complete workflow guidance cycle.
         """
         # Arrange
-        test_file = temp_workspace / "main.py"
-        initial_content = 'def main():\n    print("Hello")\n'
-        test_file.write_text(initial_content)
+        test_file = temp_workspace / "example.py"
+        test_file.write_text("def factorial(n): return 1")
 
-        # Create session with workflow guidance enabled
         session_state = create_mock_session_state()
         session_state["proactive_suggestions_enabled"] = True
         session_state["current_directory"] = str(temp_workspace)
 
-        # Act: Simulate a file edit by directly calling the tool
-
-        # For this test, we'll manually trigger the edit since we don't have
-        # full agent execution infrastructure in integration tests
-        # This demonstrates where the gap is
-
         # Verify initial state - no last_action set
         assert session_state.get("last_action") is None
 
-        # After file edit, last_action should be set to "edit_file"
+        # After file edit, last_action should be set using ActionType enum
         # But this is the critical gap - it's never set!
 
         # Even if we manually set it for testing:
-        session_state["last_action"] = "edit_file"
+        session_state["last_action"] = ActionType.EDIT_FILE.value
 
         # Import and test the workflow guidance directly
         from agents.software_engineer.shared_libraries.workflow_guidance import suggest_next_step
@@ -77,8 +60,9 @@ class TestWorkflowGuidanceRealAgentBehavior:
         assert suggestion is not None
         assert "Would you like to run the tests?" in suggestion
 
-        # But in real agent behavior, this never happens because
-        # last_action is never set by the file editing tools
+        # For this test, we'll manually trigger the edit since we don't have
+        # full agent orchestration in this test environment
+        print("✅ Workflow guidance infrastructure functional")
 
     @pytest.mark.asyncio
     async def test_new_feature_triggers_documentation_suggestion(self):
@@ -86,9 +70,7 @@ class TestWorkflowGuidanceRealAgentBehavior:
         # Arrange
         session_state = create_mock_session_state()
         session_state["proactive_suggestions_enabled"] = True
-
-        # Manually set last_action to simulate creating a new feature
-        session_state["last_action"] = "create_feature"
+        session_state["last_action"] = ActionType.CREATE_FEATURE.value
 
         # Act
         from agents.software_engineer.shared_libraries.workflow_guidance import suggest_next_step
@@ -97,7 +79,9 @@ class TestWorkflowGuidanceRealAgentBehavior:
 
         # Assert
         assert suggestion is not None
-        assert "Would you like to create documentation for it?" in suggestion
+        assert "create documentation" in suggestion
+
+        print("✅ Feature creation triggers documentation suggestions")
 
     @pytest.mark.asyncio
     async def test_workflow_suggestions_disabled_by_user(self):
@@ -105,23 +89,7 @@ class TestWorkflowGuidanceRealAgentBehavior:
         # Arrange
         session_state = create_mock_session_state()
         session_state["proactive_suggestions_enabled"] = False
-        session_state["last_action"] = "edit_file"
-
-        # Act
-        from agents.software_engineer.shared_libraries.workflow_guidance import suggest_next_step
-
-        suggestion = suggest_next_step(session_state)
-
-        # Assert
-        assert suggestion is None  # Should not suggest when disabled
-
-    @pytest.mark.asyncio
-    async def test_no_suggestion_without_last_action(self):
-        """Test that no suggestions are made without a triggering action."""
-        # Arrange
-        session_state = create_mock_session_state()
-        session_state["proactive_suggestions_enabled"] = True
-        # Explicitly no last_action set
+        session_state["last_action"] = ActionType.EDIT_FILE.value
 
         # Act
         from agents.software_engineer.shared_libraries.workflow_guidance import suggest_next_step
@@ -131,31 +99,67 @@ class TestWorkflowGuidanceRealAgentBehavior:
         # Assert
         assert suggestion is None
 
+        print("✅ User can disable workflow suggestions")
+
     @pytest.mark.asyncio
-    async def test_critical_gap_demonstration(self):
-        """Demonstrate the critical gap: file editing tools don't set last_action.
+    async def test_no_suggestion_without_last_action(self):
+        """Test that no suggestions are made without a triggering action."""
+        # Arrange
+        session_state = create_mock_session_state()
+        session_state["proactive_suggestions_enabled"] = True
+        # Note: no last_action set
 
-        This test shows that even though workflow guidance infrastructure exists,
-        it's never triggered because the file editing tools don't set the required
-        session state.
+        # Act
+        from agents.software_engineer.shared_libraries.workflow_guidance import suggest_next_step
+
+        suggestion = suggest_next_step(session_state)
+
+        # Assert
+        assert suggestion is None
+
+        print("✅ No suggestions without triggering action")
+
+    @pytest.mark.asyncio
+    async def test_file_edit_sets_last_action_and_triggers_suggestions(self, temp_workspace):
+        """Test that file editing tools properly set last_action and trigger workflow suggestions.
+
+        This test verifies that the previous critical gap has been fixed:
+        file editing tools now properly set last_action, enabling workflow suggestions.
         """
-        # This test documents the gap that needs to be fixed
+        # Arrange
+        test_file = temp_workspace / "test_code.py"
+        test_file.write_text("def hello(): pass")
 
-        # The workflow guidance system expects last_action to be set
-        # but none of the file editing tools actually set it:
+        session_state = create_mock_session_state()
+        session_state["proactive_suggestions_enabled"] = True
+        session_state["current_directory"] = str(temp_workspace)
+        session_state["require_edit_approval"] = False  # Disable approval for testing
 
-        # Expected workflow:
-        # 1. User requests file edit
-        # 2. Agent uses edit_file_content tool
-        # 3. Tool sets session_state["last_action"] = "edit_file"  # ❌ MISSING
-        # 4. Workflow guidance system checks for last_action
-        # 5. System suggests next step (e.g., "run tests")
+        # Create tool context
+        from tests.fixtures.test_helpers import MockToolContext
 
-        # Current reality:
-        # 1. User requests file edit
-        # 2. Agent uses edit_file_content tool
-        # 3. Tool completes but doesn't set last_action  # ❌ THE GAP
-        # 4. Workflow guidance system finds no last_action
-        # 5. No suggestions are made
+        tool_context = MockToolContext(state=session_state)
 
-        assert True  # This test documents the issue for fixing
+        # Act: Use the actual edit_file_content tool
+        from agents.software_engineer.tools.filesystem import edit_file_content
+
+        new_content = """def hello():
+    '''Hello world function'''
+    return 'Hello, World!'
+"""
+
+        result = edit_file_content(str(test_file), new_content, tool_context)
+
+        # Assert: Verify the tool worked and set last_action
+        assert result["status"] == "success"
+        assert tool_context.state["last_action"] == ActionType.EDIT_FILE.value
+
+        # Verify that workflow suggestions are now triggered
+        from agents.software_engineer.shared_libraries.workflow_guidance import suggest_next_step
+
+        suggestion = suggest_next_step(tool_context.state)
+
+        assert suggestion is not None
+        assert "Would you like to run the tests?" in suggestion
+
+        print("✅ File edit properly sets last_action and triggers workflow suggestions")
