@@ -15,6 +15,7 @@ class TestWorkflowGuidance(unittest.TestCase):
             "proactive_suggestions_enabled": True,
         }
         suggestion = suggest_next_step(session_state)
+        self.assertIsNotNone(suggestion)
         self.assertIn("Would you like to run the tests?", suggestion)
 
     def test_suggest_next_step_after_new_feature(self):
