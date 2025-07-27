@@ -5,6 +5,8 @@ from typing import Any
 
 from google.adk.tools import FunctionTool, ToolContext
 
+from agents.software_engineer.shared_libraries.workflow_guidance import ActionType
+
 logger = logging.getLogger(__name__)
 
 # Consider adding a WORKSPACE_ROOT validation here for security
@@ -161,6 +163,10 @@ def edit_file_content(
             f.write(content)
         message = f"Successfully wrote content to '{filepath}'."
         logger.info(message)
+
+        # Set last_action for workflow guidance (Milestone 2.3)
+        tool_context.state["last_action"] = ActionType.EDIT_FILE.value
+        logger.debug(f"Set last_action={ActionType.EDIT_FILE.value} for workflow guidance")
 
         # Return simple success result - optimization analysis will be handled by callback system
         return {"status": "success", "message": message}

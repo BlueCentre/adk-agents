@@ -1,5 +1,6 @@
 """Enhanced Software Engineer Agent with ADK Workflow Patterns."""
 
+from collections import deque
 from datetime import datetime
 import logging
 import re
@@ -36,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 
 def _log_workflow_suggestion(tool, args, tool_context, tool_response):  # noqa: ARG001
-    """Log workflow suggestions after tool execution.
+    """Generate and store workflow suggestions after tool execution for user presentation.
 
     Args:
         tool: The executed tool (unused but required by callback signature)
@@ -47,6 +48,21 @@ def _log_workflow_suggestion(tool, args, tool_context, tool_response):  # noqa: 
     suggestion = suggest_next_step(tool_context.state)
     if suggestion:
         logger.info(suggestion)
+
+        # Store suggestion for user presentation (Milestone 2.3)
+        if "workflow_suggestions" not in tool_context.state:
+            tool_context.state["workflow_suggestions"] = deque(maxlen=3)
+
+        tool_context.state["workflow_suggestions"].append(
+            {
+                "suggestion": suggestion,
+                "timestamp": datetime.now().isoformat(),
+                "trigger_action": tool_context.state.get("last_action"),
+                "presented": False,
+            }
+        )
+
+        # Deque automatically maintains maxlen=3, discarding oldest items
 
 
 def _proactive_code_quality_analysis(tool, args, tool_context, tool_response):
