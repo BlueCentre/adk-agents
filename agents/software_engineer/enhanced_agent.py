@@ -130,7 +130,7 @@ def _preemptive_smooth_testing_detection(tool, args, tool_context, callback_cont
             is_milestone_test = (
                 "test.py" in filepath.lower()
                 or ".sandbox" in filepath.lower()
-                or ("def my_func" in content and "x = 1" in content and "return 2" in content)
+                or re.search(r"def\s+my_func\s*\(\s*\)\s*:\s*x\s*=\s*1\s*;\s*return\s+2", content)
                 or ("milestone" in content.lower() and "test" in content.lower())
             )
 
