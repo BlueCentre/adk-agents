@@ -131,6 +131,21 @@ class IntegrationTestRunner:
             )
         )
 
+        # Phase 2: Real Agent Behavior Tests
+        self.test_suites.append(
+            TestSuite(
+                name="Real Agent Behavior Tests",
+                description="Tests verifying actual agent behavior vs mocking",
+                tests=[
+                    "tests/integration/test_workflow_guidance_real_agent_behavior.py::TestWorkflowGuidanceRealAgentBehavior::test_critical_gap_demonstration",
+                    "tests/integration/test_workflow_guidance_real_agent_behavior.py::TestWorkflowGuidanceRealAgentBehavior::test_file_edit_triggers_workflow_suggestion",
+                    "tests/integration/test_real_agent_contextual_behavior.py::TestRealAgentContextualBehavior::test_agent_uses_preprocessed_context",
+                    "tests/integration/test_real_agent_contextual_behavior.py::TestRealAgentContextualBehavior::test_multi_agent_delegation_real_behavior",
+                    "tests/integration/test_real_agent_contextual_behavior.py::TestRealAgentContextualBehavior::test_end_to_end_contextual_workflow",
+                ],
+            )
+        )
+
         # Phase 1.5: Core ADK Pattern Tests
         self.test_suites.append(
             TestSuite(

@@ -94,12 +94,27 @@ class WorkflowGuidance:
         if not last_action:
             return None
 
+        base_suggestion = None
         if last_action == ActionType.EDIT_FILE.value:
-            return self.workflow_patterns.get("code_change")
-        if last_action == ActionType.CREATE_FEATURE.value:
-            return self.workflow_patterns.get("new_feature")
+            base_suggestion = self.workflow_patterns.get("code_change")
+        elif last_action == ActionType.CREATE_FEATURE.value:
+            base_suggestion = self.workflow_patterns.get("new_feature")
 
-        return None
+        if not base_suggestion:
+            return None
+
+        # Enhanced suggestion with workflow integration (Milestone 2.3 Task 2.3.2)
+        enhanced_suggestion = base_suggestion.copy()
+
+        # Add workflow selector integration hints
+        if last_action == ActionType.EDIT_FILE.value:
+            enhanced_suggestion["workflow_type"] = "testing_workflow"
+            enhanced_suggestion["task_description"] = "Run tests after code modification"
+        elif last_action == ActionType.CREATE_FEATURE.value:
+            enhanced_suggestion["workflow_type"] = "documentation_workflow"
+            enhanced_suggestion["task_description"] = "Create documentation for new feature"
+
+        return enhanced_suggestion
 
     def format_suggestion(self, suggestion: dict) -> str:
         """

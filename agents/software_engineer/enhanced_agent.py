@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 
 def _log_workflow_suggestion(tool, args, tool_context, tool_response):  # noqa: ARG001
-    """Log workflow suggestions after tool execution.
+    """Generate and store workflow suggestions after tool execution for user presentation.
 
     Args:
         tool: The executed tool (unused but required by callback signature)
@@ -47,6 +47,25 @@ def _log_workflow_suggestion(tool, args, tool_context, tool_response):  # noqa: 
     suggestion = suggest_next_step(tool_context.state)
     if suggestion:
         logger.info(suggestion)
+
+        # Store suggestion for user presentation (Milestone 2.3)
+        if "workflow_suggestions" not in tool_context.state:
+            tool_context.state["workflow_suggestions"] = []
+
+        tool_context.state["workflow_suggestions"].append(
+            {
+                "suggestion": suggestion,
+                "timestamp": datetime.now().isoformat(),
+                "trigger_action": tool_context.state.get("last_action"),
+                "presented": False,
+            }
+        )
+
+        # Limit to last 3 suggestions to prevent state bloat
+        if len(tool_context.state["workflow_suggestions"]) > 3:
+            tool_context.state["workflow_suggestions"] = tool_context.state["workflow_suggestions"][
+                -3:
+            ]
 
 
 def _proactive_code_quality_analysis(tool, args, tool_context, tool_response):

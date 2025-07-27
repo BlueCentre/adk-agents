@@ -162,6 +162,10 @@ def edit_file_content(
         message = f"Successfully wrote content to '{filepath}'."
         logger.info(message)
 
+        # Set last_action for workflow guidance (Milestone 2.3)
+        tool_context.state["last_action"] = "edit_file"
+        logger.debug("Set last_action=edit_file for workflow guidance")
+
         # Return simple success result - optimization analysis will be handled by callback system
         return {"status": "success", "message": message}
     except PermissionError:
