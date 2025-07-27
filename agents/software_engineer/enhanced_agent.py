@@ -20,6 +20,7 @@ from .shared_libraries.callbacks import (
 from .shared_libraries.context_callbacks import (
     _preprocess_and_add_context_to_agent_prompt,
 )
+from .shared_libraries.workflow_guidance import suggest_next_step
 
 # Import sub-agent prompts and tools to create separate instances
 from .tools.setup import load_all_tools_and_toolsets
@@ -30,6 +31,20 @@ logging.basicConfig(level=logging.ERROR)
 
 # logging.getLogger("LiteLLM").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
+
+
+def _log_workflow_suggestion(tool, args, tool_context, tool_response):  # noqa: ARG001
+    """Log workflow suggestions after tool execution.
+
+    Args:
+        tool: The executed tool (unused but required by callback signature)
+        args: The arguments passed to the tool (unused but required by callback signature)
+        tool_context: The context of the executed tool
+        tool_response: The response from the tool (unused but required by callback signature)
+    """
+    suggestion = suggest_next_step(tool_context.state)
+    if suggestion:
+        logger.info(suggestion)
 
 
 def add_retry_capabilities_to_agent(agent, retry_handler):
@@ -159,6 +174,7 @@ def state_manager_tool(
         "user_preferences": {},
         "workflow_state": "initialized",
         "error_recovery_context": {},
+        "proactive_suggestions_enabled": True,
     }
 
     for std_key, default_value in standard_keys.items():
@@ -477,6 +493,7 @@ def create_enhanced_software_engineer_agent() -> Agent:
             after_tool_callback=[
                 telemetry_callbacks["after_tool"],
                 optimization_callbacks["after_tool"],
+                _log_workflow_suggestion,
             ],
             output_key="enhanced_software_engineer",
         )
