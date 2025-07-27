@@ -33,6 +33,20 @@ logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger(__name__)
 
 
+def _log_workflow_suggestion(tool, args, tool_context, tool_response):  # noqa: ARG001
+    """Log workflow suggestions after tool execution.
+
+    Args:
+        tool: The executed tool (unused but required by callback signature)
+        args: The arguments passed to the tool (unused but required by callback signature)
+        tool_context: The context of the executed tool
+        tool_response: The response from the tool (unused but required by callback signature)
+    """
+    suggestion = suggest_next_step(tool_context.state)
+    if suggestion:
+        logger.info(suggestion)
+
+
 def add_retry_capabilities_to_agent(agent, retry_handler):
     """Add retry capabilities to an agent by wrapping the model's generate_content_async method."""
     if not retry_handler:
@@ -479,7 +493,7 @@ def create_enhanced_software_engineer_agent() -> Agent:
             after_tool_callback=[
                 telemetry_callbacks["after_tool"],
                 optimization_callbacks["after_tool"],
-                lambda tool_context, tool_output: (suggestion := suggest_next_step(tool_context.state)) and logger.info(suggestion),
+                _log_workflow_suggestion,
             ],
             output_key="enhanced_software_engineer",
         )

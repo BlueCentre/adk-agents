@@ -1,0 +1,10 @@
+# Workflow patterns configuration for development guidance
+# This file defines the workflow patterns used by the WorkflowGuidance system
+
+code_change:
+  next_step: "run_tests"
+  suggestion: "It looks like you've modified a file. Would you like to run the tests?"
+
+new_feature:
+  next_step: "create_documentation"
+  suggestion: "You've created a new feature. Would you like to create documentation for it?" 
