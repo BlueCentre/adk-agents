@@ -162,23 +162,8 @@ def edit_file_content(
         message = f"Successfully wrote content to '{filepath}'."
         logger.info(message)
 
-        # NEW: Trigger proactive optimization analysis after successful file edit (Milestone 2.2)
-        try:
-            from ..shared_libraries.proactive_optimization import detect_and_suggest_optimizations
-
-            optimization_suggestions = detect_and_suggest_optimizations(filepath, tool_context)
-
-            result = {"status": "success", "message": message}
-            if optimization_suggestions:
-                result["optimization_suggestions"] = optimization_suggestions
-                logger.info(f"Generated optimization suggestions for {filepath}")
-
-            return result
-
-        except Exception as e:
-            logger.debug(f"Error generating optimization suggestions: {e}")
-            # Don't fail the file write if optimization analysis fails
-            return {"status": "success", "message": message}
+        # Return simple success result - optimization analysis will be handled by callback system
+        return {"status": "success", "message": message}
     except PermissionError:
         message = f"Permission denied when trying to write to file '{filepath}'."
         logger.error(message)
@@ -198,14 +183,75 @@ def configure_edit_approval(require_approval: bool, tool_context: ToolContext) -
         require_approval: Set to True to require approval (default), False to allow direct edits.
 
     Returns:
-        A dictionary confirming the setting change:
-        - {'status': 'success', 'message': 'Confirmation message'}
+        dict: Configuration status and current setting.
     """
-    logger.info(f"Setting 'require_edit_approval' state to: {require_approval}")
-    tool_context.state["require_edit_approval"] = require_approval
-    message = f"File edit approval requirement set to: {require_approval} for this session."
-    logger.info(message)
-    return {"status": "success", "message": message}
+    try:
+        tool_context.state["require_edit_approval"] = require_approval
+        status = "enabled" if require_approval else "disabled"
+        message = f"File edit approval has been {status} for this session."
+
+        logger.info(f"Edit approval setting changed: require_approval={require_approval}")
+
+        return {
+            "status": "success",
+            "message": message,
+            "require_approval": require_approval,
+            "session_setting": tool_context.state.get("require_edit_approval", True),
+        }
+    except Exception as e:
+        error_message = f"Failed to configure edit approval: {e}"
+        logger.error(error_message)
+        return {
+            "status": "error",
+            "message": error_message,
+            "require_approval": tool_context.state.get("require_edit_approval", True),
+        }
+
+
+def enable_smooth_testing_mode(tool_context: ToolContext) -> dict[str, Any]:
+    """
+    Enable smooth testing mode by disabling approval requirements and optimizing settings.
+    This makes the agent more proactive and reduces friction for testing scenarios.
+
+    Args:
+        tool_context: ADK tool context
+
+    Returns:
+        dict: Configuration status
+    """
+    try:
+        # Disable approval requirements for smoother testing
+        tool_context.state["require_edit_approval"] = False
+
+        # Enable smooth testing mode flag
+        tool_context.state["smooth_testing_enabled"] = True
+
+        # Ensure proactive optimization is enabled
+        tool_context.state["proactive_optimization_enabled"] = True
+        tool_context.state["proactive_suggestions_enabled"] = True
+
+        # Reduce cooldown for more responsive suggestions
+        tool_context.state["optimization_cooldown_minutes"] = 0
+
+        logger.info("Enabled smooth testing mode - approvals disabled, proactive analysis enabled")
+
+        return {
+            "status": "success",
+            "message": (
+                "Smooth testing mode enabled. I'll be more proactive and "
+                "won't require approvals for file operations."
+            ),
+            "settings": {
+                "require_edit_approval": False,
+                "smooth_testing_enabled": True,
+                "proactive_optimization_enabled": True,
+                "optimization_cooldown_minutes": 0,
+            },
+        }
+    except Exception as e:
+        error_message = f"Failed to enable smooth testing mode: {e}"
+        logger.error(error_message)
+        return {"status": "error", "message": error_message}
 
 
 # Wrap functions with FunctionTool

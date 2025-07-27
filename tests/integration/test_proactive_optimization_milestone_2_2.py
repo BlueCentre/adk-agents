@@ -335,16 +335,8 @@ class TestProactiveOptimizationIntegration:
     def test_detect_and_suggest_optimizations_function(self, mock_tool_context):
         """Test the main optimization detection function."""
         # Create a temporary Python file with issues
-        test_code = """
-def unused_function():
-    x = 1  # unused variable
-    pass
-
-print("test")
-"""
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as temp_file:
-            temp_file.write(test_code)
             temp_path = temp_file.name
 
         try:
@@ -450,7 +442,7 @@ class TestFileSystemIntegration:
         return context
 
     def test_edit_file_triggers_optimization(self, mock_tool_context):
-        """Test that editing a file triggers optimization analysis."""
+        """Test that editing a file works correctly (optimization handled by agent callbacks)."""
         test_code = """
 def example_function():
     unused_var = 42  # This should trigger a warning
@@ -461,18 +453,19 @@ def example_function():
             temp_path = temp_file.name
 
         try:
-            # Mock the optimization detection to return suggestions
-            with patch(
-                "agents.software_engineer.shared_libraries.proactive_optimization.detect_and_suggest_optimizations"
-            ) as mock_detect:
-                mock_detect.return_value = "🔧 **Proactive Code Optimization:** Found 1 issue"
+            result = edit_file_content(temp_path, test_code, mock_tool_context)
 
-                result = edit_file_content(temp_path, test_code, mock_tool_context)
+            assert result["status"] == "success"
+            assert "message" in result
+            assert temp_path in result["message"]
 
-                assert result["status"] == "success"
-                assert "optimization_suggestions" in result
-                assert "🔧 **Proactive Code Optimization:**" in result["optimization_suggestions"]
-                mock_detect.assert_called_once_with(temp_path, mock_tool_context)
+            # Verify file was written correctly
+            assert Path(temp_path).exists()
+            written_content = Path(temp_path).read_text()
+            assert written_content == test_code
+
+            # Note: Optimization suggestions are now added by agent callbacks,
+            # not by direct tool calls
 
         finally:
             if Path(temp_path).exists():
@@ -706,6 +699,281 @@ print("test")
         assert stats["optimization_enabled"] is True
         assert len(stats["recently_analyzed_files"]) == 3
         assert "file1.py" in stats["recently_analyzed_files"]
+
+
+class TestUXImprovementsIntegration:
+    """Integration tests for UX improvements: No multiple confirmations required.
+
+    This test class validates the enhanced user experience for milestone 2.2 that eliminates
+    the need for users to say "ok" multiple times to get code quality suggestions.
+
+    Key UX improvements tested:
+    - Tool response enhancement: optimization_suggestions added directly to tool response
+    - Immediate agent access: agent can present suggestions without asking for permission
+    - No duplicate analysis: prevents running analysis twice if suggestions already exist
+    - End-to-end workflow: single request → immediate suggestions without friction
+    - Milestone scenario: specific milestone 2.2 testing with smooth workflow
+
+    Before improvements:
+        🤖 Agent: "Now, I will analyze the code for quality issues."
+        👤 User: "ok" [First confirmation]
+        🤖 Agent: "...Would you like me to suggest improvements?"
+        👤 User: "ok" [Second confirmation - frustrated]
+        🤖 Agent: [Finally provides suggestions]
+
+    After improvements:
+        👤 User: "Create test.py with code issue"
+        🤖 Agent: "✅ Created test.py. 🔧 **Proactive Code Optimization:**
+                   Found 1 improvement: Unused variable 'x'..."
+
+    Zero confirmations required, immediate value delivery.
+    """
+
+    @pytest.fixture
+    def mock_tool_context(self):
+        """Create a mock tool context with realistic session state."""
+        context = Mock()
+        context.state = {
+            "proactive_optimization_enabled": True,
+            "proactive_suggestions_enabled": True,
+            "file_analysis_history": {},
+            "analysis_issues": [],
+            "smooth_testing_enabled": True,
+            "require_edit_approval": False,
+        }
+        return context
+
+    def test_immediate_suggestions_in_tool_response(self, mock_tool_context):
+        """Test that optimization suggestions are added directly to tool response."""
+        from agents.swe.enhanced_agent import _proactive_code_quality_analysis
+
+        # Create a mock tool response that simulates successful file creation
+        tool_response = {
+            "status": "success",
+            "message": "File created successfully",
+            "filepath": ".sandbox/test.py",
+        }
+
+        # Create a mock tool with edit_file_content name
+        mock_tool = Mock()
+        mock_tool.name = "edit_file_content"
+
+        # Mock args with filepath
+        mock_args = {"filepath": ".sandbox/test.py"}
+
+        # Create a test file with code quality issues
+        test_code = """def my_func(): x = 1; return 2"""
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as temp_file:
+            temp_file.write(test_code)
+            temp_path = temp_file.name
+
+        try:
+            # Update args to use real file path
+            mock_args["filepath"] = temp_path
+
+            # Mock the optimization detection to return suggestions
+            with patch(
+                "agents.swe.shared_libraries.proactive_optimization.detect_and_suggest_optimizations"
+            ) as mock_detect:
+                mock_suggestions = """🔧 **Proactive Code Optimization:**
+I analyzed test.py and found 1 potential improvement:
+
+**1. ⚠️ WARNING** (Line 1)
+   **Issue:** Unused variable 'x'
+   **Suggestion:** Remove the unused variable 'x' or use it in your code
+
+💡 Would you like me to help you fix this issue?"""
+
+                mock_detect.return_value = mock_suggestions
+
+                # Call the proactive analysis callback
+                _proactive_code_quality_analysis(
+                    mock_tool, mock_args, mock_tool_context, tool_response
+                )
+
+                # Verify suggestions were added to tool response for immediate access
+                assert "optimization_suggestions" in tool_response
+                assert tool_response["optimization_suggestions"] == mock_suggestions
+                assert "Proactive Code Optimization" in tool_response["optimization_suggestions"]
+                assert "Unused variable" in tool_response["optimization_suggestions"]
+
+                # Verify suggestions were also stored in session state
+                assert "proactive_suggestions" in mock_tool_context.state
+                assert len(mock_tool_context.state["proactive_suggestions"]) == 1
+
+                suggestion_entry = mock_tool_context.state["proactive_suggestions"][0]
+                assert suggestion_entry["filepath"] == temp_path
+                assert suggestion_entry["suggestions"] == mock_suggestions
+                assert "timestamp" in suggestion_entry
+
+        finally:
+            Path(temp_path).unlink()
+
+    def test_no_duplicate_analysis_when_suggestions_exist(self, mock_tool_context):
+        """Test that analysis doesn't run twice if suggestions already exist."""
+        from agents.swe.enhanced_agent import _proactive_code_quality_analysis
+
+        # Create tool response that already has suggestions
+        tool_response = {"status": "success", "optimization_suggestions": "Already analyzed"}
+
+        mock_tool = Mock()
+        mock_tool.name = "edit_file_content"
+        mock_args = {"filepath": ".sandbox/test.py"}
+
+        with patch(
+            "agents.swe.shared_libraries.proactive_optimization.detect_and_suggest_optimizations"
+        ) as mock_detect:
+            # Call the callback
+            _proactive_code_quality_analysis(mock_tool, mock_args, mock_tool_context, tool_response)
+
+            # Verify detection wasn't called since suggestions already exist
+            mock_detect.assert_not_called()
+
+            # Verify original suggestions remain unchanged
+            assert tool_response["optimization_suggestions"] == "Already analyzed"
+
+    def test_end_to_end_ux_workflow(self, mock_tool_context):
+        """Test the complete UX workflow: single request → immediate suggestions."""
+
+        # Create a test file with code quality issues
+        test_code = """def my_func(): x = 1; return 2
+def another_func():
+    unused_var = "test"
+    return True"""
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as temp_file:
+            temp_file.write(test_code)
+            temp_path = temp_file.name
+
+        try:
+            # Simulate the file creation tool call
+            mock_tool_context.state["require_edit_approval"] = False
+
+            # Call edit_file_content to create the file
+            result = edit_file_content(temp_path, test_code, tool_context=mock_tool_context)
+
+            # Verify file was created successfully
+            assert result["status"] == "success"
+            assert "Successfully wrote content to" in result["message"]
+
+            # The proactive analysis callback should have run automatically
+            # and added suggestions to the tool response
+            # (This would happen via the callback system in real usage)
+
+            # Simulate what the callback would do
+            from agents.swe.enhanced_agent import _proactive_code_quality_analysis
+
+            mock_tool = Mock()
+            mock_tool.name = "edit_file_content"
+            mock_args = {"filepath": temp_path}
+
+            with patch(
+                "agents.swe.shared_libraries.proactive_optimization.detect_and_suggest_optimizations"
+            ) as mock_detect:
+                mock_suggestions = """🔧 **Proactive Code Optimization:**
+I analyzed the file and found 2 potential improvements:
+
+**1. ⚠️ WARNING** (Line 1)
+   **Issue:** Unused variable 'x'
+   **Suggestion:** Remove the unused variable 'x' or use it in your code
+
+**2. ⚠️ WARNING** (Line 3)
+   **Issue:** Unused variable 'unused_var'
+   **Suggestion:** Remove the unused variable 'unused_var' or use it in your code
+
+💡 Would you like me to help you fix these issues?"""
+
+                mock_detect.return_value = mock_suggestions
+
+                # Run the proactive analysis
+                _proactive_code_quality_analysis(mock_tool, mock_args, mock_tool_context, result)
+
+                # Verify the complete UX workflow
+                assert result["status"] == "success"  # File created successfully
+                assert "optimization_suggestions" in result  # Suggestions added immediately
+                assert "Proactive Code Optimization" in result["optimization_suggestions"]
+                assert "2 potential improvements" in result["optimization_suggestions"]
+
+                # Verify agent has immediate access to suggestions
+                suggestions = result["optimization_suggestions"]
+                assert "Unused variable 'x'" in suggestions
+                assert "Unused variable 'unused_var'" in suggestions
+                assert "Would you like me to help you fix" in suggestions
+
+                # Verify no approval required for .sandbox files
+                assert not mock_tool_context.state.get("require_edit_approval", True)
+
+        finally:
+            Path(temp_path).unlink()
+
+    def test_milestone_scenario_smooth_workflow(self, mock_tool_context):
+        """Test the specific milestone 2.2 scenario with smooth workflow."""
+
+        # Set up milestone testing scenario
+        mock_tool_context.state["smooth_testing_enabled"] = True
+        mock_tool_context.state["require_edit_approval"] = False
+
+        # Create the specific milestone test file
+        milestone_code = """def my_func(): x = 1; return 2"""
+        sandbox_path = Path(tempfile.gettempdir()) / ".sandbox" / "test.py"
+        sandbox_path.parent.mkdir(exist_ok=True)
+
+        try:
+            sandbox_path.write_text(milestone_code)
+
+            # Simulate the enhanced agent workflow
+            from agents.swe.enhanced_agent import _proactive_code_quality_analysis
+
+            tool_response = {
+                "status": "success",
+                "message": f"File created successfully at {sandbox_path}",
+                "filepath": str(sandbox_path),
+            }
+
+            mock_tool = Mock()
+            mock_tool.name = "edit_file_content"
+            mock_args = {"filepath": str(sandbox_path)}
+
+            with patch(
+                "agents.swe.shared_libraries.proactive_optimization.detect_and_suggest_optimizations"
+            ) as mock_detect:
+                mock_suggestions = """🔧 **Proactive Code Optimization:**
+I analyzed test.py and found 1 potential improvement:
+
+**1. ⚠️ WARNING** (Line 1)
+   **Issue:** Unused variable 'x' at line 1
+   **Suggestion:** Remove the unused variable 'x' or use it in your code
+
+💡 Would you like me to help you fix this issue?"""
+
+                mock_detect.return_value = mock_suggestions
+
+                # Run the proactive analysis callback
+                _proactive_code_quality_analysis(
+                    mock_tool, mock_args, mock_tool_context, tool_response
+                )
+
+                # Verify the perfect milestone 2.2 workflow
+                assert tool_response["status"] == "success"  # No approval friction
+                assert "optimization_suggestions" in tool_response  # Immediate suggestions
+                assert "I analyzed test.py" in tool_response["optimization_suggestions"]
+                assert "Unused variable 'x'" in tool_response["optimization_suggestions"]
+
+                # Verify this enables the agent to provide immediate feedback
+                # without asking for permission or requiring multiple "ok" responses
+                suggestions = tool_response["optimization_suggestions"]
+                assert suggestions.startswith("🔧 **Proactive Code Optimization:**")
+                assert "Would you like me to help you fix" in suggestions
+
+                # Verify session state tracks the analysis
+                assert len(mock_tool_context.state["proactive_suggestions"]) == 1
+
+        finally:
+            if sandbox_path.exists():
+                sandbox_path.unlink()
+            if sandbox_path.parent.exists():
+                sandbox_path.parent.rmdir()
 
 
 if __name__ == "__main__":

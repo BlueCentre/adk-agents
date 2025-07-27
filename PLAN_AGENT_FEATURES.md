@@ -222,7 +222,7 @@ To ensure consistency, quality, and maintainability, all development efforts wil
 
 **User Verification Steps:**
 
-1.  Create a simple Python file (`test.py`) with a recognized code quality issue (e.g., `def my_func(): x = 1; return 2`).
+1.  Create a simple Python file (`test.py`) with a recognized code quality issue (e.g., `def my_func(): x = 1; return 2`) in .sandbox/.
 2.  Modify the file (or have the agent modify it slightly).
 3.  Observe if the agent proactively suggests a fix for the unused variable or other detected issues.
 4.  Ask the agent: "Do you have any suggestions for my code?"
