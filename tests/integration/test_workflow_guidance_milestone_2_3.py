@@ -25,6 +25,7 @@ class TestWorkflowGuidance(unittest.TestCase):
             "proactive_suggestions_enabled": True,
         }
         suggestion = suggest_next_step(session_state)
+        self.assertIsNotNone(suggestion)
         self.assertIn("Would you like to create documentation for it?", suggestion)
 
     def test_no_suggestion_when_disabled(self):
