@@ -27,6 +27,7 @@ from .shared_libraries.workflow_guidance import suggest_next_step
 
 # Import sub-agent prompts and tools to create separate instances
 from .tools.setup import load_all_tools_and_toolsets
+from .workflows.human_in_loop_workflows import human_in_the_loop_approval
 
 # Ignore all warnings
 warnings.filterwarnings("ignore")
@@ -34,6 +35,28 @@ logging.basicConfig(level=logging.ERROR)
 
 # logging.getLogger("LiteLLM").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
+
+
+def _handle_pending_approval(tool, args, tool_context, tool_response):
+    """Handle pending approval status from a tool."""
+    if isinstance(tool_response, dict) and tool_response.get("status") == "pending_approval":
+        approved = human_in_the_loop_approval(
+            tool_context=tool_context,
+            proposal=tool_response,
+            user_input_handler=input,  # Use standard input for now
+            display_handler=print,  # Use standard print for now
+        )
+
+        if approved:
+            # Re-run the tool with force_edit enabled
+            tool_context.state["force_edit"] = True
+            # It's assumed the tool is a FunctionTool and can be called directly
+            tool_response = tool(tool_context=tool_context, **args)
+            tool_context.state["force_edit"] = False  # Reset the flag
+        else:
+            tool_response["message"] = "File edit rejected by user."
+
+    return tool_response
 
 
 def _log_workflow_suggestion(tool, args, tool_context, tool_response):  # noqa: ARG001
@@ -628,6 +651,7 @@ def create_enhanced_software_engineer_agent() -> Agent:
                 _preemptive_smooth_testing_detection,  # Pre-detect milestone scenarios
             ],
             after_tool_callback=[
+                _handle_pending_approval,
                 telemetry_callbacks["after_tool"],
                 optimization_callbacks["after_tool"],
                 _proactive_code_quality_analysis,  # Proactive analysis after tool execution

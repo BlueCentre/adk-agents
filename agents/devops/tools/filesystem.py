@@ -154,12 +154,13 @@ def edit_file_content(filepath: str, content: str, tool_context: ToolContext) ->
     # "status": "error", "error_type": "SecurityViolation",
     # "message": message, "filepath": filepath}
 
-    # TODO: Remove this once we have a proper approval mechanism
-    needs_approval = tool_context.state.get(
-        "require_edit_approval", False
-    )  # MODIFIED LINE: Default to False
+    # Default to requiring approval unless explicitly told otherwise.
+    # The 'force_edit' flag can be used for internal, non-user-facing automation
+    # where pre-approval is implicitly granted.
+    require_approval = tool_context.state.get("require_edit_approval", True)
+    force_edit = tool_context.state.get("force_edit", False)
 
-    if needs_approval:
+    if require_approval and not force_edit:
         logger.info(f"Approval required for file edit: {filepath}. Returning pending status.")
         return {
             "status": "pending_approval",
@@ -169,8 +170,13 @@ def edit_file_content(filepath: str, content: str, tool_context: ToolContext) ->
             "filepath": filepath,
         }
 
-    # Proceed with write only if approval is not required
-    logger.info(f"Approval not required. Proceeding with write to file: {filepath}")
+    # Proceed with write if approval is not required or has been forced
+    if force_edit:
+        logger.info(
+            f"Approval bypassed due to 'force_edit' flag. Proceeding with write to file: {filepath}"
+        )
+    else:
+        logger.info(f"Approval not required. Proceeding with write to file: {filepath}")
     try:
         # Ensure the directory exists
         dir_path = Path(filepath).parent

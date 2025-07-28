@@ -58,7 +58,9 @@ class MockContextManager:
         }
         # More realistic token count approximation by summing words from relevant fields
         words = 0
-        words += sum(len(str(turn.get("user_message", "")).split()) for turn in self.conversation_history)
+        words += sum(
+            len(str(turn.get("user_message", "")).split()) for turn in self.conversation_history
+        )
         words += sum(len(str(snippet.get("content", "")).split()) for snippet in self.code_snippets)
         words += sum(len(str(result.get("result", "")).split()) for result in self.tool_results)
         token_count = words * 1.3
