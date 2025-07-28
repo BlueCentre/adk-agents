@@ -4,7 +4,7 @@ Fixtures for context management integration tests.
 
 import pytest
 
-from tests.integration.conftest import (
+from tests.shared.mocks import (
     MockContextManager,
     MockCrossTurnCorrelator,
     MockIntelligentSummarizer,

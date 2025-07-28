@@ -5,10 +5,12 @@ Fixtures for agent integration tests.
 import pytest
 
 from tests.integration.conftest import (
+    create_mock_agent_pool,
+)
+from tests.shared.mocks import (
     MockDevOpsAgent,
     MockSoftwareEngineerAgent,
     MockSWEAgent,
-    create_mock_agent_pool,
 )
 
 

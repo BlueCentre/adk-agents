@@ -4,7 +4,7 @@ Fixtures for performance integration tests.
 
 import pytest
 
-from tests.integration.conftest import MockPerformanceMonitor, MockResourceMonitor
+from tests.shared.mocks import MockPerformanceMonitor, MockResourceMonitor
 
 
 # Performance monitoring fixtures

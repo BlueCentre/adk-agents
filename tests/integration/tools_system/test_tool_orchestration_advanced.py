@@ -39,7 +39,7 @@ import logging
 from agents.devops.components.context_management import ContextManager
 
 # Test utilities
-from tests.fixtures.test_helpers import (
+from tests.shared.helpers import (
     create_mock_llm_client,
 )
 

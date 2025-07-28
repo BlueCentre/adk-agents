@@ -8,7 +8,7 @@ import pytest
 
 # Note: For now, we'll use the minimal versions from test_helpers
 # to avoid importing the full devops_agent with its dependencies
-from tests.fixtures.test_helpers import (
+from tests.shared.helpers import (
     MetricsCollector,
     MockCallbackContext,
     MockInvocationContext,

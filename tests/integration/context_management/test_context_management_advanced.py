@@ -39,7 +39,7 @@ from agents.devops.tools.rag_components.indexing import (
 from agents.devops.tools.rag_components.retriever import retrieve_relevant_chunks
 
 # Test utilities
-from tests.fixtures.test_helpers import (
+from tests.shared.helpers import (
     create_mock_llm_client,
     create_test_workspace,
 )

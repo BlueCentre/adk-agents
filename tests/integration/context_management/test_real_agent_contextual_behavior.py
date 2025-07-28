@@ -12,7 +12,7 @@ import tempfile
 import pytest
 
 from agents.software_engineer.enhanced_agent import create_enhanced_software_engineer_agent
-from tests.fixtures.test_helpers import create_mock_session_state
+from tests.shared.helpers import create_mock_session_state
 
 logger = logging.getLogger(__name__)
 

@@ -23,7 +23,7 @@ from agents.software_engineer.shared_libraries.callbacks import (
 )
 
 # Test utilities
-from tests.fixtures.test_helpers import (
+from tests.shared.helpers import (
     MockInvocationContext,
     MockLlmRequest,
     MockLlmResponse,

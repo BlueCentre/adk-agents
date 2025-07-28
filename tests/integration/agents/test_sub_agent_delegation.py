@@ -26,7 +26,7 @@ from agents.software_engineer.tools import (
 )
 
 # Test utilities
-from tests.fixtures.test_helpers import (
+from tests.shared.helpers import (
     create_mock_llm_client,
     create_mock_session_state,
     create_test_workspace,
