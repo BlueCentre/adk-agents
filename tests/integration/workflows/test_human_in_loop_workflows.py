@@ -64,7 +64,7 @@ async def test_edit_file_with_approval():
         response_text = " ".join(
             result.content.parts[0].text
             for result in results
-            if result.content and result.content.parts
+            if result.content and result.content.parts and result.content.parts[0].text is not None
         )
 
         # The agent should indicate something about the file operation
@@ -130,7 +130,7 @@ async def test_edit_file_with_rejection():
         response_text = " ".join(
             result.content.parts[0].text
             for result in results
-            if result.content and result.content.parts
+            if result.content and result.content.parts and result.content.parts[0].text is not None
         )
 
         # The agent should provide a meaningful response about the file operation
@@ -201,7 +201,9 @@ async def test_edit_file_with_approval_and_write_to_disk():
             response_text = " ".join(
                 result.content.parts[0].text
                 for result in results
-                if result.content and result.content.parts
+                if result.content
+                and result.content.parts
+                and result.content.parts[0].text is not None
             )
 
             # The agent should provide some response about the file operation
