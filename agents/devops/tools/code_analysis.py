@@ -388,7 +388,7 @@ def _analyze_code(file_path: str, tool_context: ToolContext) -> dict[str, Any]:
             )
 
         # Store analysis issues in state for other tools to use
-        tool_context.state["analysis_issues"] = [issue.dict() for issue in result.issues]
+        tool_context.state["analysis_issues"] = [issue.model_dump() for issue in result.issues]
 
         # Generate summary statistics
         issue_counts = {
@@ -399,7 +399,7 @@ def _analyze_code(file_path: str, tool_context: ToolContext) -> dict[str, Any]:
         }
         result.metrics["issue_summary"] = issue_counts
 
-        return result.dict()
+        return result.model_dump()
     except Exception as e:
         return {"error": f"Error analyzing file: {e!s}", "status": "Failed"}
 

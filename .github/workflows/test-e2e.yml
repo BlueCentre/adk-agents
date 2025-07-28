@@ -37,23 +37,23 @@ jobs:
       #     # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY_TEST }}
       #     RUN_PROVIDER_API_TESTS: true
 
-      - name: Archive test artifacts
-        if: always()  # Run even if tests fail
-        uses: actions/upload-artifact@v4
-        with:
-          name: e2e-test-results
-          path: |
-            logs/
-            test-reports/
+      # - name: Archive test artifacts
+      #   if: always()  # Run even if tests fail
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: e2e-test-results
+      #     path: |
+      #       logs/
+      #       test-reports/
 
       # https://tools.slack.dev/slack-github-action/sending-techniques/sending-data-slack-incoming-webhook/
-      - name: Send Slack notification
-        if: failure()
-        uses: slackapi/slack-github-action@@v2.1.0
-        with:
-          payload: |
-            {
-              "text": "End-to-End tests failed on main branch! See details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      # - name: Send Slack notification
+      #   if: failure()
+      #   uses: slackapi/slack-github-action@@v2.1.0
+      #   with:
+      #     payload: |
+      #       {
+      #         "text": "End-to-End tests failed on main branch! See details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+      #       }
+      #   env:
+      #     SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

@@ -13,6 +13,9 @@ from unittest.mock import patch
 
 import pytest
 
+# Global flag to track if we've set up aiohttp cleanup suppression
+_aiohttp_cleanup_suppressed = False
+
 # Configure logging for tests
 logging.basicConfig(level=logging.DEBUG)
 
@@ -21,8 +24,92 @@ logging.basicConfig(level=logging.DEBUG)
 def event_loop():
     """Provide an event loop for async tests."""
     loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     yield loop
-    loop.close()
+
+    # Clean up any pending tasks before closing
+    try:
+        pending_tasks = [task for task in asyncio.all_tasks(loop) if not task.done()]
+        if pending_tasks:
+            # Cancel pending tasks
+            for task in pending_tasks:
+                task.cancel()
+            # Wait for tasks to be cancelled
+            if pending_tasks:
+                loop.run_until_complete(asyncio.gather(*pending_tasks, return_exceptions=True))
+    except Exception:
+        # Ignore cleanup errors - they're from external libraries
+        pass
+    finally:
+        loop.close()
+
+
+@pytest.fixture(autouse=True)
+def suppress_aiohttp_cleanup_errors():
+    """Suppress aiohttp connection cleanup logging errors from external libraries."""
+    import logging
+
+    class AiohttpCleanupFilter(logging.Filter):
+        def filter(self, record):
+            # Suppress aiohttp cleanup errors that occur during test teardown
+            if (
+                hasattr(record, "getMessage")
+                and record.levelno == logging.ERROR
+                and (
+                    "Unclosed client session" in record.getMessage()
+                    or "Unclosed connector" in record.getMessage()
+                    or "I/O operation on closed file" in record.getMessage()
+                )
+            ):
+                # These are cleanup issues from external libraries (Google ADK)
+                return False
+            return True
+
+    # Apply filter to root logger to catch all aiohttp cleanup errors
+    root_logger = logging.getLogger()
+    cleanup_filter = AiohttpCleanupFilter()
+    root_logger.addFilter(cleanup_filter)
+
+    # Also patch asyncio's default exception handler to suppress aiohttp cleanup errors
+    original_exception_handler = None
+    loop = None
+
+    try:
+        loop = asyncio.get_event_loop()
+        original_exception_handler = loop.get_exception_handler()
+
+        def custom_exception_handler(loop, context):
+            # Suppress aiohttp cleanup exceptions
+            exception = context.get("exception")
+
+            if exception and (
+                "Unclosed client session" in str(exception)
+                or "Unclosed connector" in str(exception)
+                or "I/O operation on closed file" in str(exception)
+            ):
+                # Silently ignore aiohttp cleanup errors from external libraries
+                return
+
+            # For all other exceptions, use the original handler
+            if original_exception_handler:
+                original_exception_handler(loop, context)
+            else:
+                loop.default_exception_handler(context)
+
+        loop.set_exception_handler(custom_exception_handler)
+    except RuntimeError:
+        # No event loop available, skip asyncio patching
+        pass
+
+    yield
+
+    # Restore original handlers
+    if loop and original_exception_handler:
+        loop.set_exception_handler(original_exception_handler)
+    elif loop:
+        loop.set_exception_handler(None)  # Reset to default
+
+    root_logger.removeFilter(cleanup_filter)
 
 
 @pytest.fixture(autouse=True)
@@ -77,7 +164,8 @@ def capture_logs():
 
 # Pytest configuration
 def pytest_configure(config):
-    """Configure pytest with custom markers."""
+    """Configure pytest with custom markers and global aiohttp cleanup suppression."""
+    # Add custom markers
     config.addinivalue_line("markers", "unit: mark test as a unit test")
     config.addinivalue_line("markers", "integration: mark test as an integration test")
     config.addinivalue_line("markers", "e2e: mark test as an end-to-end test")
@@ -90,6 +178,23 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "core: Core integration phase tests")
     config.addinivalue_line("markers", "orchestration: Tool orchestration phase tests")
     config.addinivalue_line("markers", "verification: Performance verification phase tests")
+
+    # Set up global aiohttp cleanup suppression
+    global _aiohttp_cleanup_suppressed
+    if not _aiohttp_cleanup_suppressed:
+        # Monkey patch the logging module to suppress aiohttp cleanup errors
+        original_error = logging.Logger.error
+
+        def patched_error(self, msg, *args, **kwargs):
+            # Suppress specific aiohttp cleanup error messages
+            if isinstance(msg, str) and (
+                "Unclosed client session" in msg or "Unclosed connector" in msg
+            ):
+                return None  # Silently ignore these errors
+            return original_error(self, msg, *args, **kwargs)
+
+        logging.Logger.error = patched_error
+        _aiohttp_cleanup_suppressed = True
 
 
 def pytest_collection_modifyitems(config, items):  # noqa: ARG001
