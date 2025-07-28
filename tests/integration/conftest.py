@@ -365,22 +365,6 @@ pytestmark = [
 ]
 
 
-def pytest_unconfigure(config):  # noqa: ARG001
-    """Cleanup after integration tests."""
-    # Clean up environment variables
-    env_vars = [
-        "DEVOPS_AGENT_TESTING",
-        "DEVOPS_AGENT_LOG_LEVEL",
-        "DEVOPS_AGENT_INTEGRATION_TEST",
-    ]
-
-    for var in env_vars:
-        if var in os.environ:
-            del os.environ[var]
-
-    logger.info("Integration test environment cleaned up")
-
-
 # Event loop fixture for async tests
 @pytest.fixture(scope="function")
 def event_loop():

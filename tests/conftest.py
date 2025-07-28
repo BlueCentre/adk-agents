@@ -8,6 +8,7 @@ used across all test modules.
 import asyncio
 import logging
 import os
+import time
 from unittest.mock import patch
 
 import pytest
@@ -148,9 +149,45 @@ def pytest_runtest_teardown(item, nextitem):  # noqa: ARG001
     """Teardown hook called after each test."""
     # Log test completion
     logging.getLogger("test").info(f"Completed test: {item.name}")
+    if hasattr(item, "_integration_test_start_time"):
+        execution_time = time.time() - item._integration_test_start_time
+
+        # Log slow tests
+        if execution_time > 5.0:
+            logging.warning(f"Slow test detected: {item.name} took {execution_time:.2f}s")
+
+        # Store execution time for reporting
+        if not hasattr(item, "_integration_test_metrics"):
+            item._integration_test_metrics = {}
+        item._integration_test_metrics["execution_time"] = execution_time
+
+
+def pytest_unconfigure(config):  # noqa: ARG001
+    """Cleanup after integration tests."""
+    # Clean up environment variables
+    env_vars = [
+        "DEVOPS_AGENT_TESTING",
+        "DEVOPS_AGENT_LOG_LEVEL",
+        "DEVOPS_AGENT_INTEGRATION_TEST",
+    ]
+
+    for var in env_vars:
+        if var in os.environ:
+            del os.environ[var]
+
+    logging.getLogger("test").info("Integration test environment cleaned up")
 
 
 def pytest_exception_interact(node, call, report):  # noqa: ARG001
     """Hook called when an exception occurs during test execution."""
     if report.failed:
         logging.getLogger("test").error(f"Test {node.name} failed with: {report.longrepr}")
+
+
+# Test execution hooks
+def pytest_runtest_call(item):
+    """Called to execute the test."""
+    start_time = time.time()
+
+    # Store start time for later use
+    item._integration_test_start_time = start_time
