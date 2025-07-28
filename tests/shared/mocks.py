@@ -56,8 +56,12 @@ class MockContextManager:
             "code_snippets": self.code_snippets,
             "tool_results": self.tool_results,
         }
-        # Simple token count approximation
-        token_count = sum(len(str(v).split()) for v in context_dict.values()) * 1.3
+        # More realistic token count approximation by summing words from relevant fields
+        words = 0
+        words += sum(len(str(turn.get("user_message", "")).split()) for turn in self.conversation_history)
+        words += sum(len(str(snippet.get("content", "")).split()) for snippet in self.code_snippets)
+        words += sum(len(str(result.get("result", "")).split()) for result in self.tool_results)
+        token_count = words * 1.3
         return context_dict, int(token_count)
 
     def clear_context(self):
