@@ -25,10 +25,10 @@ from .shared_libraries.context_callbacks import (
 )
 from .shared_libraries.workflow_guidance import suggest_next_step
 from .tools.setup import load_all_tools_and_toolsets
-from .workflows import (
-    create_human_approval_workflow,
+from .workflows.human_in_loop_workflows import (
+    generate_proposal_presentation,
+    human_in_the_loop_approval,
 )
-from .workflows.human_in_loop_workflows import human_in_the_loop_approval
 
 # Import sub-agent prompts and tools to create separate instances
 # from .tools.setup import load_all_tools_and_toolsets
@@ -633,7 +633,7 @@ def _execute_human_approval_workflow(
     task_description: str,
     proposal_data: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
-    """Execute the human approval workflow."""
+    """Execute the human approval workflow using shared utilities."""
     # Set up the proposal in session state if provided
     if proposal_data:
         tool_context.state["pending_proposal"] = proposal_data
@@ -646,15 +646,9 @@ def _execute_human_approval_workflow(
             "details": "This action requires human approval before proceeding.",
         }
 
-    # Create and run the human approval workflow
-    approval_workflow = create_human_approval_workflow()
-
-    # For now, we'll simulate the approval process since we can't run async workflows
-    # directly in tools
-    # In a real implementation, this would trigger the async workflow
     proposal = tool_context.state.get("pending_proposal", {})
 
-    # Use the existing human_in_the_loop_approval function
+    # Use default display and input handlers if not provided
     def default_display_handler(message: str) -> None:
         print(message)
 
@@ -665,11 +659,11 @@ def _execute_human_approval_workflow(
     display_handler = proposal.get("display_handler", default_display_handler)
     input_handler = proposal.get("user_input_handler", default_input_handler)
 
-    # Display the proposal
-    presentation = approval_workflow._generate_proposal_presentation(proposal)
+    # Generate and display the proposal presentation using shared utility
+    presentation = generate_proposal_presentation(proposal)
     display_handler(presentation)
 
-    # Get approval
+    # Get approval using the standard approval function
     approved = human_in_the_loop_approval(
         tool_context=tool_context,
         proposal=proposal,
@@ -677,7 +671,7 @@ def _execute_human_approval_workflow(
         display_handler=display_handler,
     )
 
-    # Update state
+    # Update workflow state
     tool_context.state["last_approval_outcome"] = "approved" if approved else "rejected"
     tool_context.state["workflow_state"] = "approval_completed"
 

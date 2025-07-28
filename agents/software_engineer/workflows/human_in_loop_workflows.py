@@ -14,6 +14,67 @@ from .. import config as agent_config
 logger = logging.getLogger(__name__)
 
 
+def approve_proposal_with_user_input(
+    state_dict: dict[str, Any],
+    proposal: dict[str, Any],
+    user_input_handler: Callable[[str], str],
+    display_handler: Callable[[str], None],
+) -> bool:
+    """
+    Generic approval function that works with any state dictionary.
+
+    This function presents a proposal to the user, asks for their approval,
+    and records the outcome in the provided state dictionary.
+
+    Args:
+        state_dict: Dictionary for storing state (can be from ToolContext or InvocationContext)
+        proposal: Dictionary containing the details of the proposed action
+        user_input_handler: Function to get user input
+        display_handler: Function to display messages to user
+
+    Returns:
+        bool: True if approved, False if rejected
+    """
+    logger.info(f"Initiating approval workflow for proposal: {proposal}")
+
+    # --- Present the proposal to the user ---
+    display_handler("--- PROPOSED CHANGE ---")
+    if "proposed_filepath" in proposal:
+        display_handler(f"File: {proposal['proposed_filepath']}")
+    if "proposed_content" in proposal:
+        # For long content, consider showing a diff or a summary
+        display_handler("Content:")
+        display_handler(proposal["proposed_content"])
+    if "message" in proposal:
+        display_handler(f"Message: {proposal['message']}")
+    display_handler("-----------------------")
+
+    # --- Get user approval ---
+    while True:
+        response = user_input_handler("Approve this change? (yes/no): ").lower().strip()
+        if response in ["yes", "y"]:
+            approved = True
+            break
+        if response in ["no", "n"]:
+            approved = False
+            break
+        display_handler("Invalid input. Please enter 'yes' or 'no'.")
+
+    # --- Record the audit trail ---
+    audit_log = state_dict.get("approval_audit_trail", [])
+    audit_entry = {
+        "timestamp": time.time(),
+        "proposal": proposal,
+        "outcome": "approved" if approved else "rejected",
+    }
+    audit_log.append(audit_entry)
+    state_dict["approval_audit_trail"] = audit_log
+
+    logger.info(f"Approval workflow completed. Outcome: {'Approved' if approved else 'Rejected'}")
+
+    return approved
+
+
 def human_in_the_loop_approval(
     tool_context: ToolContext,
     proposal: dict[str, Any],
@@ -44,44 +105,12 @@ def human_in_the_loop_approval(
     Returns:
         bool: True if the action is approved by the user, False otherwise.
     """
-    logger.info(f"Initiating human approval workflow for proposal: {proposal}")
-
-    # --- Present the proposal to the user ---
-    display_handler("--- PROPOSED CHANGE ---")
-    if "proposed_filepath" in proposal:
-        display_handler(f"File: {proposal['proposed_filepath']}")
-    if "proposed_content" in proposal:
-        # For long content, consider showing a diff or a summary
-        display_handler("Content:")
-        display_handler(proposal["proposed_content"])
-    if "message" in proposal:
-        display_handler(f"Message: {proposal['message']}")
-    display_handler("-----------------------")
-
-    # --- Get user approval ---
-    while True:
-        response = user_input_handler("Approve this change? (yes/no): ").lower().strip()
-        if response in ["yes", "y"]:
-            approved = True
-            break
-        if response in ["no", "n"]:
-            approved = False
-            break
-        display_handler("Invalid input. Please enter 'yes' or 'no'.")
-
-    # --- Record the audit trail ---
-    audit_log = tool_context.state.get("approval_audit_trail", [])
-    audit_entry = {
-        "timestamp": time.time(),
-        "proposal": proposal,
-        "outcome": "approved" if approved else "rejected",
-    }
-    audit_log.append(audit_entry)
-    tool_context.state["approval_audit_trail"] = audit_log
-
-    logger.info(f"Approval workflow completed. Outcome: {'Approved' if approved else 'Rejected'}")
-
-    return approved
+    return approve_proposal_with_user_input(
+        state_dict=tool_context.state,
+        proposal=proposal,
+        user_input_handler=user_input_handler,
+        display_handler=display_handler,
+    )
 
 
 class HumanApprovalWorkflow(LlmAgent):
@@ -165,145 +194,12 @@ class HumanApprovalWorkflow(LlmAgent):
 
     def _generate_proposal_presentation(self, proposal: dict[str, Any]) -> str:
         """Generate a standardized presentation for the proposal."""
-        proposal_type = proposal.get("type", "unknown")
-
-        if proposal_type == "file_edit":
-            return self._present_file_edit_proposal(proposal)
-        if proposal_type == "deployment":
-            return self._present_deployment_proposal(proposal)
-        if proposal_type == "architecture_change":
-            return self._present_architecture_proposal(proposal)
-        if proposal_type == "security_operation":
-            return self._present_security_proposal(proposal)
-        if proposal_type == "multi_step_plan":
-            return self._present_multi_step_proposal(proposal)
-        return self._present_generic_proposal(proposal)
-
-    def _present_file_edit_proposal(self, proposal: dict[str, Any]) -> str:
-        """Present a file edit proposal with diff and impact analysis."""
-        presentation = ["# 📝 File Edit Proposal", ""]
-
-        if "proposed_filepath" in proposal:
-            presentation.extend([f"**File:** `{proposal['proposed_filepath']}`", ""])
-
-        if "diff" in proposal:
-            presentation.extend(["**Proposed Changes:**", "```diff", proposal["diff"], "```", ""])
-        elif "proposed_content" in proposal:
-            presentation.extend(
-                [
-                    "**New Content:**",
-                    "```",
-                    proposal["proposed_content"][:500]
-                    + ("..." if len(proposal["proposed_content"]) > 500 else ""),
-                    "```",
-                    "",
-                ]
-            )
-
-        if "impact_analysis" in proposal:
-            presentation.extend(["**Impact Analysis:**", proposal["impact_analysis"], ""])
-
-        return "\n".join(presentation)
-
-    def _present_deployment_proposal(self, proposal: dict[str, Any]) -> str:
-        """Present a deployment proposal with steps and rollback plan."""
-        presentation = ["# 🚀 Deployment Proposal", ""]
-
-        if "environment" in proposal:
-            presentation.extend([f"**Target Environment:** {proposal['environment']}", ""])
-
-        if "deployment_steps" in proposal:
-            presentation.extend(["**Deployment Steps:**", ""])
-            for i, step in enumerate(proposal["deployment_steps"], 1):
-                presentation.append(f"{i}. {step}")
-            presentation.append("")
-
-        if "rollback_plan" in proposal:
-            presentation.extend(["**Rollback Plan:**", proposal["rollback_plan"], ""])
-
-        if "risks" in proposal:
-            presentation.extend(["**⚠️ Identified Risks:**", ""])
-            for risk in proposal["risks"]:
-                presentation.append(f"- {risk}")
-            presentation.append("")
-
-        return "\n".join(presentation)
-
-    def _present_architecture_proposal(self, proposal: dict[str, Any]) -> str:
-        """Present an architecture change proposal."""
-        presentation = ["# 🏗️ Architecture Change Proposal", ""]
-
-        if "change_description" in proposal:
-            presentation.extend(["**Proposed Change:**", proposal["change_description"], ""])
-
-        if "affected_components" in proposal:
-            presentation.extend(["**Affected Components:**", ""])
-            for component in proposal["affected_components"]:
-                presentation.append(f"- {component}")
-            presentation.append("")
-
-        if "trade_offs" in proposal:
-            presentation.extend(["**Trade-offs:**", proposal["trade_offs"], ""])
-
-        return "\n".join(presentation)
-
-    def _present_security_proposal(self, proposal: dict[str, Any]) -> str:
-        """Present a security operation proposal."""
-        presentation = ["# 🔒 Security Operation Proposal", ""]
-
-        if "operation_type" in proposal:
-            presentation.extend([f"**Operation Type:** {proposal['operation_type']}", ""])
-
-        if "security_implications" in proposal:
-            presentation.extend(
-                ["**🚨 Security Implications:**", proposal["security_implications"], ""]
-            )
-
-        if "access_changes" in proposal:
-            presentation.extend(["**Access Changes:**", ""])
-            for change in proposal["access_changes"]:
-                presentation.append(f"- {change}")
-            presentation.append("")
-
-        return "\n".join(presentation)
-
-    def _present_multi_step_proposal(self, proposal: dict[str, Any]) -> str:
-        """Present a multi-step plan proposal."""
-        presentation = ["# 📋 Multi-Step Plan Proposal", ""]
-
-        if "plan_description" in proposal:
-            presentation.extend(["**Plan Overview:**", proposal["plan_description"], ""])
-
-        if "steps" in proposal:
-            presentation.extend(["**Execution Steps:**", ""])
-            for i, step in enumerate(proposal["steps"], 1):
-                presentation.append(f"{i}. {step}")
-            presentation.append("")
-
-        if "estimated_duration" in proposal:
-            presentation.extend([f"**Estimated Duration:** {proposal['estimated_duration']}", ""])
-
-        return "\n".join(presentation)
-
-    def _present_generic_proposal(self, proposal: dict[str, Any]) -> str:
-        """Present a generic proposal format."""
-        presentation = ["# 📄 Action Proposal", ""]
-
-        if "title" in proposal:
-            presentation.extend([f"**Title:** {proposal['title']}", ""])
-
-        if "description" in proposal:
-            presentation.extend(["**Description:**", proposal["description"], ""])
-
-        if "details" in proposal:
-            presentation.extend(["**Details:**", proposal["details"], ""])
-
-        return "\n".join(presentation)
+        return generate_proposal_presentation(proposal)
 
     def _handle_user_approval(
         self, context: InvocationContext, proposal: dict[str, Any], presentation: str
     ) -> bool:
-        """Handle the user approval process using the existing approval function."""
+        """Handle the user approval process using the generic approval function."""
 
         # Use default display and input handlers if not provided
         def default_display_handler(message: str) -> None:
@@ -326,9 +222,9 @@ class HumanApprovalWorkflow(LlmAgent):
             "presentation": presentation,
         }
 
-        # Use the existing approval function
-        return human_in_the_loop_approval(
-            tool_context=context,
+        # Use the generic approval function that works with any state dictionary
+        return approve_proposal_with_user_input(
+            state_dict=context.state,
             proposal=formatted_proposal,
             user_input_handler=input_handler,
             display_handler=display_handler,
@@ -354,6 +250,161 @@ class HumanApprovalWorkflow(LlmAgent):
             context.state["workflow_next_step"] = "handle_rejection"
 
         logger.info(f"Approval workflow completed: {'Approved' if approved else 'Rejected'}")
+
+
+def generate_proposal_presentation(proposal: dict[str, Any]) -> str:
+    """
+    Generate a standardized presentation for a proposal.
+
+    This is a stateless utility function that can be used by both workflows
+    and tools to generate consistent proposal presentations.
+
+    Args:
+        proposal: Dictionary containing proposal details
+
+    Returns:
+        str: Formatted presentation string
+    """
+    proposal_type = proposal.get("type", "unknown")
+
+    if proposal_type == "file_edit":
+        return _present_file_edit_proposal(proposal)
+    if proposal_type == "deployment":
+        return _present_deployment_proposal(proposal)
+    if proposal_type == "architecture_change":
+        return _present_architecture_proposal(proposal)
+    if proposal_type == "security_operation":
+        return _present_security_proposal(proposal)
+    if proposal_type == "multi_step_plan":
+        return _present_multi_step_proposal(proposal)
+    return _present_generic_proposal(proposal)
+
+
+def _present_file_edit_proposal(proposal: dict[str, Any]) -> str:
+    """Present a file edit proposal with diff and impact analysis."""
+    presentation = ["# 📝 File Edit Proposal", ""]
+
+    if "proposed_filepath" in proposal:
+        presentation.extend([f"**File:** `{proposal['proposed_filepath']}`", ""])
+
+    if "diff" in proposal:
+        presentation.extend(["**Proposed Changes:**", "```diff", proposal["diff"], "```", ""])
+    elif "proposed_content" in proposal:
+        presentation.extend(
+            [
+                "**New Content:**",
+                "```",
+                proposal["proposed_content"][:500]
+                + ("..." if len(proposal["proposed_content"]) > 500 else ""),
+                "```",
+                "",
+            ]
+        )
+
+    if "impact_analysis" in proposal:
+        presentation.extend(["**Impact Analysis:**", proposal["impact_analysis"], ""])
+
+    return "\n".join(presentation)
+
+
+def _present_deployment_proposal(proposal: dict[str, Any]) -> str:
+    """Present a deployment proposal with steps and rollback plan."""
+    presentation = ["# 🚀 Deployment Proposal", ""]
+
+    if "environment" in proposal:
+        presentation.extend([f"**Target Environment:** {proposal['environment']}", ""])
+
+    if "deployment_steps" in proposal:
+        presentation.extend(["**Deployment Steps:**", ""])
+        for i, step in enumerate(proposal["deployment_steps"], 1):
+            presentation.append(f"{i}. {step}")
+        presentation.append("")
+
+    if "rollback_plan" in proposal:
+        presentation.extend(["**Rollback Plan:**", proposal["rollback_plan"], ""])
+
+    if "risks" in proposal:
+        presentation.extend(["**⚠️ Identified Risks:**", ""])
+        for risk in proposal["risks"]:
+            presentation.append(f"- {risk}")
+        presentation.append("")
+
+    return "\n".join(presentation)
+
+
+def _present_architecture_proposal(proposal: dict[str, Any]) -> str:
+    """Present an architecture change proposal."""
+    presentation = ["# 🏗️ Architecture Change Proposal", ""]
+
+    if "change_description" in proposal:
+        presentation.extend(["**Proposed Change:**", proposal["change_description"], ""])
+
+    if "affected_components" in proposal:
+        presentation.extend(["**Affected Components:**", ""])
+        for component in proposal["affected_components"]:
+            presentation.append(f"- {component}")
+        presentation.append("")
+
+    if "trade_offs" in proposal:
+        presentation.extend(["**Trade-offs:**", proposal["trade_offs"], ""])
+
+    return "\n".join(presentation)
+
+
+def _present_security_proposal(proposal: dict[str, Any]) -> str:
+    """Present a security operation proposal."""
+    presentation = ["# 🔒 Security Operation Proposal", ""]
+
+    if "operation_type" in proposal:
+        presentation.extend([f"**Operation Type:** {proposal['operation_type']}", ""])
+
+    if "security_implications" in proposal:
+        presentation.extend(
+            ["**🚨 Security Implications:**", proposal["security_implications"], ""]
+        )
+
+    if "access_changes" in proposal:
+        presentation.extend(["**Access Changes:**", ""])
+        for change in proposal["access_changes"]:
+            presentation.append(f"- {change}")
+        presentation.append("")
+
+    return "\n".join(presentation)
+
+
+def _present_multi_step_proposal(proposal: dict[str, Any]) -> str:
+    """Present a multi-step plan proposal."""
+    presentation = ["# 📋 Multi-Step Plan Proposal", ""]
+
+    if "plan_description" in proposal:
+        presentation.extend(["**Plan Overview:**", proposal["plan_description"], ""])
+
+    if "steps" in proposal:
+        presentation.extend(["**Execution Steps:**", ""])
+        for i, step in enumerate(proposal["steps"], 1):
+            presentation.append(f"{i}. {step}")
+        presentation.append("")
+
+    if "estimated_duration" in proposal:
+        presentation.extend([f"**Estimated Duration:** {proposal['estimated_duration']}", ""])
+
+    return "\n".join(presentation)
+
+
+def _present_generic_proposal(proposal: dict[str, Any]) -> str:
+    """Present a generic proposal format."""
+    presentation = ["# 📄 Action Proposal", ""]
+
+    if "title" in proposal:
+        presentation.extend([f"**Title:** {proposal['title']}", ""])
+
+    if "description" in proposal:
+        presentation.extend(["**Description:**", proposal["description"], ""])
+
+    if "details" in proposal:
+        presentation.extend(["**Details:**", proposal["details"], ""])
+
+    return "\n".join(presentation)
 
 
 def create_file_edit_proposal(

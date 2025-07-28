@@ -9,6 +9,7 @@ from .human_in_loop_workflows import (
     create_human_approval_workflow,
     create_multi_step_proposal,
     create_security_proposal,
+    generate_proposal_presentation,
     human_in_the_loop_approval,
     setup_approval_proposal,
 )
@@ -28,6 +29,7 @@ __all__ = [
     "create_multi_step_proposal",
     "create_parallel_analysis_workflow",
     "create_security_proposal",
+    "generate_proposal_presentation",
     "human_in_the_loop_approval",
     "setup_approval_proposal",
 ]
