@@ -90,7 +90,7 @@ We welcome contributions to improve the test suite. Please follow these guidelin
     *   Test classes should be named `Test<ComponentName>`.
     *   Test functions must be named `test_*`.
 3.  **Use Fixtures for Setup**: Use `pytest` fixtures for any setup and teardown logic. Global fixtures are in `tests/conftest.py`, while directory-specific fixtures can be placed in a local `conftest.py`.
-4.  **Leverage Shared Utilities**: Reusable test helpers and utilities are located in the `tests/utils/` directory. Use them to avoid code duplication.
+4.  **Leverage Shared Utilities**: Reusable test helpers and utilities are located in the `tests/shared/` directory. Use them to avoid code duplication.
 5.  **Write Clear Assertions**: Ensure your tests have clear and specific assertions. Use `pytest`'s `assert` statement.
 6.  **Mock External Dependencies**: For unit tests, mock all external dependencies, such as API calls, database connections, and file system operations.
 
