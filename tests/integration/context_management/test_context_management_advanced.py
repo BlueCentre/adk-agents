@@ -827,7 +827,8 @@ class TestAuthManager:
         }
 
     @pytest.mark.skipif(
-        not os.getenv("GOOGLE_API_KEY"), reason="Google API key required for RAG tests"
+        not os.getenv("GOOGLE_API_KEY") or os.getenv("GOOGLE_API_KEY") == "test_api_key",
+        reason="Google API key required for RAG tests",
     )
     def test_end_to_end_rag_workflow(self, sample_code_files):
         """Test complete RAG workflow from indexing to retrieval."""

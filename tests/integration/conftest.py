@@ -37,7 +37,13 @@ logger = logging.getLogger(__name__)
 
 # Simple mock classes for integration testing
 class MockContextManager:
-    """Mock context manager for testing."""
+    """
+    Mock context manager for testing.
+
+    This class simulates the behavior of the real context manager, allowing for
+    the addition of code snippets, tool results, and conversation history. It
+    also provides a basic implementation of context assembly and token counting.
+    """
 
     def __init__(self, model_name="test-model", max_llm_token_limit=100000, llm_client=None):
         self.model_name = model_name
@@ -90,7 +96,13 @@ class MockContextManager:
 
 
 class MockSmartPrioritizer:
-    """Mock smart prioritizer for testing."""
+    """
+    Mock smart prioritizer for testing.
+
+    This class simulates the behavior of the smart prioritizer, which is
+    responsible for ranking code snippets based on their relevance to the
+    current context.
+    """
 
     def prioritize_code_snippets(self, snippets, _context, _current_turn=1):
         # Simple prioritization - just add relevance scores
@@ -100,28 +112,50 @@ class MockSmartPrioritizer:
 
 
 class MockCrossTurnCorrelator:
-    """Mock cross-turn correlator for testing."""
+    """
+    Mock cross-turn correlator for testing.
+
+    This class simulates the behavior of the cross-turn correlator, which is
+    responsible for identifying relationships between different turns in a
+    conversation.
+    """
 
     def correlate_turns(self, turns):
         return [{"turn": turn, "correlation_score": 0.5} for turn in turns]
 
 
 class MockIntelligentSummarizer:
-    """Mock intelligent summarizer for testing."""
+    """
+    Mock intelligent summarizer for testing.
+
+    This class simulates the behavior of the intelligent summarizer, which is
+    responsible for creating concise summaries of content.
+    """
 
     def summarize_content(self, _content, _max_tokens=500):
         return {"summary": "Test summary", "token_count": 100}
 
 
 class MockRAGSystem:
-    """Mock RAG system for testing."""
+    """
+    Mock RAG system for testing.
+
+    This class simulates the behavior of the RAG (Retrieval-Augmented
+    Generation) system, which is responsible for retrieving relevant documents
+    from a knowledge base.
+    """
 
     def query(self, _query, top_k=5):
         return [{"content": f"RAG result {i}", "score": 0.9 - i * 0.1} for i in range(top_k)]
 
 
 class MockAgent:
-    """Base mock agent for testing."""
+    """
+    Base mock agent for testing.
+
+    This class provides a base implementation for mock agents, including a
+    `process_message` method that returns a mock response.
+    """
 
     def __init__(self, context_manager=None, llm_client=None):
         self.context_manager = context_manager
@@ -133,7 +167,12 @@ class MockAgent:
 
 
 class MockDevOpsAgent(MockAgent):
-    """Mock DevOps agent for testing."""
+    """
+    Mock DevOps agent for testing.
+
+    This class extends the base mock agent to simulate the behavior of a
+    DevOps agent.
+    """
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -141,7 +180,12 @@ class MockDevOpsAgent(MockAgent):
 
 
 class MockSoftwareEngineerAgent(MockAgent):
-    """Mock Software Engineer agent for testing."""
+    """
+    Mock Software Engineer agent for testing.
+
+    This class extends the base mock agent to simulate the behavior of a
+    Software Engineer agent.
+    """
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -149,7 +193,12 @@ class MockSoftwareEngineerAgent(MockAgent):
 
 
 class MockSWEAgent(MockAgent):
-    """Mock SWE agent for testing."""
+    """
+    Mock SWE agent for testing.
+
+    This class extends the base mock agent to simulate the behavior of a
+    SWE (Software Engineer) agent.
+    """
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -157,14 +206,24 @@ class MockSWEAgent(MockAgent):
 
 
 class MockWorkflowEngine:
-    """Mock workflow engine for testing."""
+    """
+    Mock workflow engine for testing.
+
+    This class simulates the behavior of the workflow engine, which is
+    responsible for executing workflows of different types.
+    """
 
     async def execute_workflow(self, workflow_type, agents, config=None):  # noqa: ARG002
         return {"workflow_type": workflow_type, "agents": len(agents), "success": True}
 
 
 class MockToolOrchestrator:
-    """Mock tool orchestrator for testing."""
+    """
+    Mock tool orchestrator for testing.
+
+    This class simulates the behavior of the tool orchestrator, which is
+    responsible for executing tools and managing their dependencies.
+    """
 
     async def execute_tool(self, tool_name, args, dependencies=None, tool_id=None):  # noqa: ARG002
         return MagicMock(
@@ -176,7 +235,12 @@ class MockToolOrchestrator:
 
 
 class MockPerformanceMonitor:
-    """Mock performance monitor for testing."""
+    """
+    Mock performance monitor for testing.
+
+    This class simulates the behavior of the performance monitor, which is
+    responsible for collecting and reporting performance metrics.
+    """
 
     def __init__(self):
         self.metrics = []
@@ -200,7 +264,12 @@ class MockPerformanceMonitor:
 
 
 class MockResourceMonitor:
-    """Mock resource monitor for testing."""
+    """
+    Mock resource monitor for testing.
+
+    This class simulates the behavior of the resource monitor, which is
+    responsible for monitoring system resources such as memory and CPU usage.
+    """
 
     def get_memory_usage(self):
         return 100.0  # MB
@@ -296,44 +365,6 @@ pytestmark = [
 ]
 
 
-# Pytest configuration
-def pytest_configure(config):
-    """Configure pytest for integration tests."""
-    # Register custom markers
-    config.addinivalue_line("markers", "integration: Integration test")
-    config.addinivalue_line("markers", "performance: Performance test")
-    config.addinivalue_line("markers", "slow: Slow test (>5 seconds)")
-    config.addinivalue_line("markers", "stress: Stress test")
-    config.addinivalue_line("markers", "load: Load test")
-    config.addinivalue_line("markers", "foundation: Foundation phase tests")
-    config.addinivalue_line("markers", "core: Core integration phase tests")
-    config.addinivalue_line("markers", "orchestration: Tool orchestration phase tests")
-    config.addinivalue_line("markers", "verification: Performance verification phase tests")
-
-    # Set environment variables for integration testing
-    os.environ["DEVOPS_AGENT_TESTING"] = "true"
-    os.environ["DEVOPS_AGENT_LOG_LEVEL"] = "DEBUG"
-    os.environ["DEVOPS_AGENT_INTEGRATION_TEST"] = "true"
-
-    logger.info("Integration test environment configured")
-
-
-def pytest_unconfigure(config):  # noqa: ARG001
-    """Cleanup after integration tests."""
-    # Clean up environment variables
-    env_vars = [
-        "DEVOPS_AGENT_TESTING",
-        "DEVOPS_AGENT_LOG_LEVEL",
-        "DEVOPS_AGENT_INTEGRATION_TEST",
-    ]
-
-    for var in env_vars:
-        if var in os.environ:
-            del os.environ[var]
-
-    logger.info("Integration test environment cleaned up")
-
-
 # Event loop fixture for async tests
 @pytest.fixture(scope="function")
 def event_loop():
@@ -387,103 +418,6 @@ def mock_llm_client():
 def mock_session_state():
     """Create mock session state for multi-agent testing."""
     return create_mock_session_state()
-
-
-# Context management fixtures
-@pytest.fixture(scope="function")
-def mock_context_manager(mock_llm_client):
-    """Create mock context manager with realistic behavior."""
-    return MockContextManager(
-        model_name="test-model", max_llm_token_limit=100000, llm_client=mock_llm_client
-    )
-
-
-@pytest.fixture(scope="function")
-def mock_smart_prioritizer():
-    """Create mock smart prioritizer for testing."""
-    return MockSmartPrioritizer()
-
-
-@pytest.fixture(scope="function")
-def mock_cross_turn_correlator():
-    """Create mock cross-turn correlator for testing."""
-    return MockCrossTurnCorrelator()
-
-
-@pytest.fixture(scope="function")
-def mock_intelligent_summarizer():
-    """Create mock intelligent summarizer for testing."""
-    return MockIntelligentSummarizer()
-
-
-@pytest.fixture(scope="function")
-def mock_rag_system():
-    """Create mock RAG system for testing."""
-    return MockRAGSystem()
-
-
-# Agent fixtures
-@pytest.fixture(scope="function")
-def mock_devops_agent(mock_context_manager, mock_llm_client):
-    """Create mock DevOps agent for testing."""
-    return MockDevOpsAgent(context_manager=mock_context_manager, llm_client=mock_llm_client)
-
-
-@pytest.fixture(scope="function")
-def mock_software_engineer_agent(mock_context_manager, mock_llm_client):
-    """Create mock Software Engineer agent for testing."""
-    return MockSoftwareEngineerAgent(
-        context_manager=mock_context_manager, llm_client=mock_llm_client
-    )
-
-
-@pytest.fixture(scope="function")
-def mock_swe_agent(mock_context_manager, mock_llm_client):
-    """Create mock SWE agent for testing."""
-    return MockSWEAgent(context_manager=mock_context_manager, llm_client=mock_llm_client)
-
-
-@pytest.fixture(scope="function")
-def mock_agent_pool(mock_devops_agent, mock_software_engineer_agent, mock_swe_agent):
-    """Create pool of mock agents for testing."""
-    return create_mock_agent_pool([mock_devops_agent, mock_software_engineer_agent, mock_swe_agent])
-
-
-# Workflow orchestration fixtures
-@pytest.fixture(scope="function")
-def mock_workflow_engine():
-    """Create mock workflow engine for testing."""
-    return MockWorkflowEngine()
-
-
-@pytest.fixture(scope="function")
-def mock_tool_orchestrator():
-    """Create mock tool orchestrator for testing."""
-    return MockToolOrchestrator()
-
-
-@pytest.fixture(scope="function")
-def workflow_configs():
-    """Create test workflow configurations."""
-    return {
-        "sequential": create_mock_workflow_config("sequential"),
-        "parallel": create_mock_workflow_config("parallel"),
-        "iterative": create_mock_workflow_config("iterative"),
-        "human_in_loop": create_mock_workflow_config("human_in_loop"),
-    }
-
-
-# Performance monitoring fixtures
-@pytest.fixture(scope="function")
-def mock_performance_monitor():
-    """Create mock performance monitor for testing."""
-    return MockPerformanceMonitor()
-
-
-@pytest.fixture(scope="function")
-def mock_resource_monitor():
-    """Create mock resource monitor for testing."""
-    return MockResourceMonitor()
 
 
 # Test data fixtures
@@ -803,45 +737,3 @@ def setup_integration_test_session():
 
     with Path.open(reports_dir / "session_info.json", "w") as f:
         json.dump(session_info, f, indent=2)
-
-
-# Skip conditions for different environments
-def pytest_runtest_setup(item):
-    """Setup for each test run."""
-    # Skip performance tests on slow systems
-    if "performance" in item.keywords:
-        if os.environ.get("SKIP_PERFORMANCE_TESTS", "false").lower() == "true":
-            pytest.skip("Performance tests skipped on slow systems")
-
-    # Skip stress tests unless explicitly requested
-    if "stress" in item.keywords:
-        if os.environ.get("RUN_STRESS_TESTS", "false").lower() != "true":
-            pytest.skip("Stress tests skipped unless explicitly requested")
-
-    # Skip load tests unless explicitly requested
-    if "load" in item.keywords and os.environ.get("RUN_LOAD_TESTS", "false").lower() != "true":
-        pytest.skip("Load tests skipped unless explicitly requested")
-
-
-# Test execution hooks
-def pytest_runtest_call(item):
-    """Called to execute the test."""
-    start_time = time.time()
-
-    # Store start time for later use
-    item._integration_test_start_time = start_time
-
-
-def pytest_runtest_teardown(item):
-    """Teardown after each test."""
-    if hasattr(item, "_integration_test_start_time"):
-        execution_time = time.time() - item._integration_test_start_time
-
-        # Log slow tests
-        if execution_time > 5.0:
-            logger.warning(f"Slow test detected: {item.name} took {execution_time:.2f}s")
-
-        # Store execution time for reporting
-        if not hasattr(item, "_integration_test_metrics"):
-            item._integration_test_metrics = {}
-        item._integration_test_metrics["execution_time"] = execution_time
