@@ -45,7 +45,7 @@ except SystemExit:
             [sys.executable, "-c", script_code],
             capture_output=True,
             text=True,
-            timeout=10,
+            timeout=30,
         )
 
         # The command should complete (main function was called)

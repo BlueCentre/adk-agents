@@ -86,7 +86,7 @@ def example_3_direct_selective_loading():
     # Load specific tools by name
     tools = load_selective_tools_and_toolsets(
         included_tools=[
-            "read_file_tool",
+            "read_file_content_tool",
             "codebase_search_tool",
             "google_search_grounding",
         ],

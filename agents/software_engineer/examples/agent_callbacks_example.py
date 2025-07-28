@@ -105,7 +105,7 @@ def simulate_agent_session():
     # Mock tool
     class MockTool:
         def __init__(self):
-            self.name = "read_file_tool"
+            self.name = "read_file_content_tool"
 
     # Mock tool context
     class MockToolContext:

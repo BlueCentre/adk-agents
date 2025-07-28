@@ -44,7 +44,11 @@ class EnvironmentType(Enum):
 # Tool category definitions with enhanced metadata
 TOOL_CATEGORIES = {
     "filesystem": {
-        "tools": ["read_file_tool", "list_dir_tool", "edit_file_tool"],
+        "tools": [
+            "read_file_content_tool",
+            "list_directory_contents_tool",
+            "edit_file_content_tool",
+        ],
         "description": "File system operations (read, write, list)",
         "security_risk": "medium",
         "required_permissions": ["file_read", "file_write"],
@@ -386,8 +390,8 @@ def apply_security_policy(config: dict[str, Any], security_level: SecurityLevel)
     if not policy["allow_file_write"]:
         if "excluded_tools" not in modified_config:
             modified_config["excluded_tools"] = []
-        if "edit_file_tool" not in modified_config["excluded_tools"]:
-            modified_config["excluded_tools"].append("edit_file_tool")
+        if "edit_file_content_tool" not in modified_config["excluded_tools"]:
+            modified_config["excluded_tools"].append("edit_file_content_tool")
 
     return modified_config
 

@@ -13,7 +13,7 @@ Leverage the available tools **cleverly and proactively** to analyze configurati
     *   Also check for common linters/formatters for config files (e.g., `yamllint`, `dockerfile_lint`). Find these linters using `check_command_exists_tool`.
 
 2.  **Analyze Existing Configuration & Code:**
-    *   Use `list_dir_tool` to locate relevant configuration files (e.g., `.github/workflows/`, `Jenkinsfile`, `.gitlab-ci.yml`, `Dockerfile`, `terraform/`, `kubernetes/`, `docker-compose.yml`, `Makefile`, build files).
+    *   Use `list_directory_contents_tool` to locate relevant configuration files (e.g., `.github/workflows/`, `Jenkinsfile`, `.gitlab-ci.yml`, `Dockerfile`, `terraform/`, `kubernetes/`, `docker-compose.yml`, `Makefile`, build files).
     *   Use `read_file_content` to meticulously examine these files and related application code.
     *   Use `codebase_search` to find build commands, dependencies, service definitions, or other code snippets relevant to the DevOps task.
 

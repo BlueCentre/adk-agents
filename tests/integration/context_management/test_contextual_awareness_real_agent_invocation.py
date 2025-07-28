@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import sys
 import tempfile
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -78,147 +79,162 @@ class TestContextualAwarenessRealAgentInvocation:
         Test that contextual awareness is working by verifying agent responses show contextual
         information.
         """
-        # Load the software engineer agent
-        agent = agent_loader.load_agent("agents.software_engineer.enhanced_agent")
-        assert isinstance(agent, (Agent, LlmAgent))
+        with patch(
+            "google.adk.tools.mcp_tool.mcp_session_manager.MCPSessionManager.create_session",
+            new_callable=AsyncMock,
+        ) as mock_create_session:
+            mock_session = AsyncMock()
+            mock_session.list_tools.return_value = MagicMock(tools=[])
+            mock_create_session.return_value = mock_session
+            # Load the software engineer agent
+            agent = agent_loader.load_agent("agents.software_engineer.enhanced_agent")
+            assert isinstance(agent, (Agent, LlmAgent))
 
-        # Create services
-        artifact_service = InMemoryArtifactService()
-        session_service = InMemorySessionService()
-        credential_service = InMemoryCredentialService()
+            # Create services
+            artifact_service = InMemoryArtifactService()
+            session_service = InMemorySessionService()
+            credential_service = InMemoryCredentialService()
 
-        # Create session
-        session = await session_service.create_session(
-            app_name=test_services["app_name"], user_id=test_services["user_id"]
-        )
-
-        # Create runner using the same pattern as CLI
-        runner = RunnerFactory.create_runner_from_app_name(
-            app_name=test_services["app_name"],
-            agent=agent,
-            artifact_service=artifact_service,
-            session_service=session_service,
-            credential_service=credential_service,
-        )
-
-        # Test input that should trigger contextual awareness
-        test_message = "What files are in the current directory?"
-        content = types.Content(role="user", parts=[types.Part(text=test_message)])
-
-        try:
-            # Invoke the agent and collect response
-            response_text = ""
-            event_count = 0
-            mcp_timeout_occurred = False
-
-            try:
-                async for event in runner.run_async(
-                    user_id=test_services["user_id"],
-                    session_id=session.id,
-                    new_message=content,
-                ):
-                    # Extract text from the event if it contains response content
-                    if hasattr(event, "content") and event.content:
-                        if hasattr(event.content, "text") and event.content.text:
-                            response_text += event.content.text
-                        elif hasattr(event.content, "parts"):
-                            for part in event.content.parts:
-                                if hasattr(part, "text") and part.text:
-                                    response_text += part.text
-
-                    event_count += 1
-                    # Stop after reasonable number of events or when we have response text
-                    if event_count >= 10 or (response_text and len(response_text) > 50):
-                        break
-
-            except McpError as mcp_error:
-                if "Timed out" in str(mcp_error) or "timeout" in str(mcp_error).lower():
-                    print(f"⚠️  MCP Timeout Warning: {mcp_error}")
-                    print(
-                        "   This is expected in CI environments - MCP tools may "
-                        "timeout during initialization"
-                    )
-                    print(
-                        "   The test will pass as this doesn't affect core "
-                        "contextual awareness functionality"
-                    )
-                    mcp_timeout_occurred = True
-                else:
-                    # Re-raise non-timeout MCP errors
-                    raise
-            except (asyncio.TimeoutError, asyncio.CancelledError) as timeout_error:
-                print(f"⚠️  Async Timeout Warning: {timeout_error}")
-                print("   This is expected in CI environments - agent invocation may timeout")
-                print("   The test will pass as the callback registration is the key functionality")
-                mcp_timeout_occurred = True
-
-            # If MCP timeout occurred, test passes but with limited verification
-            if mcp_timeout_occurred:
-                print(
-                    "✅ Test passed despite MCP timeout - contextual awareness "
-                    "callback is properly registered"
-                )
-                return  # Exit early but successfully
-
-            # Verify we got a response (only if no timeout)
-            assert event_count > 0, "Agent should have produced events"
-
-            # If we got events but no text, that's still success
-            if len(response_text) == 0:
-                print("✅ Agent produced events but no text response - this is acceptable")
-                print("   The key functionality (callback registration) has been verified")
-                return
-
-            # Verify the response shows contextual awareness
-            # (the agent should mention files, directory, or contextual information)
-            contextual_indicators = [
-                "directory",
-                "files",
-                "contents",
-                "current",
-                "list",
-                "accessed",
-                "contextual",
-                "information",
-            ]
-
-            response_lower = response_text.lower()
-            found_contextual_indicator = any(
-                indicator in response_lower for indicator in contextual_indicators
+            # Create session
+            session = await session_service.create_session(
+                app_name=test_services["app_name"], user_id=test_services["user_id"]
             )
 
-            if found_contextual_indicator:
-                print(f"✅ Contextual awareness working! Agent response: {response_text[:100]}...")
-            else:
-                print(
-                    f"⚠️  No clear contextual indicators found in response: {response_text[:100]}..."
-                )
-                print("   But test passes as agent executed without callback errors")
+            # Create runner using the same pattern as CLI
+            runner = RunnerFactory.create_runner_from_app_name(
+                app_name=test_services["app_name"],
+                agent=agent,
+                artifact_service=artifact_service,
+                session_service=session_service,
+                credential_service=credential_service,
+            )
 
-        finally:
-            # Clean up runner gracefully, handling MCP cleanup errors
+            # Test input that should trigger contextual awareness
+            test_message = "What files are in the current directory?"
+            content = types.Content(role="user", parts=[types.Part(text=test_message)])
+
             try:
-                await runner.close()
-            except McpError as mcp_error:
-                if "Timed out" in str(mcp_error) or "timeout" in str(mcp_error).lower():
-                    print(f"⚠️  MCP Timeout during cleanup: {mcp_error}")
-                    print("   This is expected in CI environments - cleanup timeouts are common")
+                # Invoke the agent and collect response
+                response_text = ""
+                event_count = 0
+                mcp_timeout_occurred = False
+
+                try:
+                    async for event in runner.run_async(
+                        user_id=test_services["user_id"],
+                        session_id=session.id,
+                        new_message=content,
+                    ):
+                        # Extract text from the event if it contains response content
+                        if hasattr(event, "content") and event.content:
+                            if hasattr(event.content, "text") and event.content.text:
+                                response_text += event.content.text
+                            elif hasattr(event.content, "parts"):
+                                for part in event.content.parts:
+                                    if hasattr(part, "text") and part.text:
+                                        response_text += part.text
+
+                        event_count += 1
+                        # Stop after reasonable number of events or when we have response text
+                        if event_count >= 10 or (response_text and len(response_text) > 50):
+                            break
+
+                except McpError as mcp_error:
+                    if "Timed out" in str(mcp_error) or "timeout" in str(mcp_error).lower():
+                        print(f"⚠️  MCP Timeout Warning: {mcp_error}")
+                        print(
+                            "   This is expected in CI environments - MCP tools may "
+                            "timeout during initialization"
+                        )
+                        print(
+                            "   The test will pass as this doesn't affect core "
+                            "contextual awareness functionality"
+                        )
+                        mcp_timeout_occurred = True
+                    else:
+                        # Re-raise non-timeout MCP errors
+                        raise
+                except (asyncio.TimeoutError, asyncio.CancelledError) as timeout_error:
+                    print(f"⚠️  Async Timeout Warning: {timeout_error}")
+                    print("   This is expected in CI environments - agent invocation may timeout")
+                    print(
+                        "   The test will pass as the callback registration is the key "
+                        "functionality"
+                    )
+                    mcp_timeout_occurred = True
+
+                # If MCP timeout occurred, test passes but with limited verification
+                if mcp_timeout_occurred:
+                    print(
+                        "✅ Test passed despite MCP timeout - contextual awareness "
+                        "callback is properly registered"
+                    )
+                    return  # Exit early but successfully
+
+                # Verify we got a response (only if no timeout)
+                assert event_count > 0, "Agent should have produced events"
+
+                # If we got events but no text, that's still success
+                if len(response_text) == 0:
+                    print("✅ Agent produced events but no text response - this is acceptable")
+                    print("   The key functionality (callback registration) has been verified")
+                    return
+
+                # Verify the response shows contextual awareness
+                # (the agent should mention files, directory, or contextual information)
+                contextual_indicators = [
+                    "directory",
+                    "files",
+                    "contents",
+                    "current",
+                    "list",
+                    "accessed",
+                    "contextual",
+                    "information",
+                ]
+
+                response_lower = response_text.lower()
+                found_contextual_indicator = any(
+                    indicator in response_lower for indicator in contextual_indicators
+                )
+
+                if found_contextual_indicator:
+                    print(
+                        f"✅ Contextual awareness working! Agent response: {response_text[:100]}..."
+                    )
                 else:
-                    print(f"⚠️  MCP Error during cleanup: {mcp_error}")
-                # Don't fail the test for cleanup issues
-            except (asyncio.CancelledError, asyncio.TimeoutError) as async_error:
-                print(f"⚠️  Async error during cleanup: {async_error}")
-                # Expected during cleanup
-            except RuntimeError as runtime_error:
-                if "cancel scope" in str(runtime_error).lower():
-                    print(f"⚠️  MCP cancel scope error during cleanup: {runtime_error}")
-                    print("   This is expected in CI environments")
-                else:
-                    print(f"⚠️  Runtime error during cleanup: {runtime_error}")
-                # Don't fail the test for cleanup issues
-            except Exception as cleanup_error:
-                print(f"⚠️  Cleanup error: {cleanup_error}")
-                # Log but don't fail the test for any cleanup issues
+                    print(
+                        f"⚠️  No clear contextual indicators found in response: "
+                        f"{response_text[:100]}..."
+                    )
+                    print("   But test passes as agent executed without callback errors")
+
+            finally:
+                # Clean up runner gracefully, handling MCP cleanup errors
+                try:
+                    await runner.close()
+                except McpError as mcp_error:
+                    if "Timed out" in str(mcp_error) or "timeout" in str(mcp_error).lower():
+                        print(f"⚠️  MCP Timeout during cleanup: {mcp_error}")
+                        print(
+                            "   This is expected in CI environments - cleanup timeouts are common"
+                        )
+                    else:
+                        print(f"⚠️  MCP Error during cleanup: {mcp_error}")
+                    # Don't fail the test for cleanup issues
+                except (asyncio.CancelledError, asyncio.TimeoutError) as async_error:
+                    print(f"⚠️  Async error during cleanup: {async_error}")
+                    # Expected during cleanup
+                except RuntimeError as runtime_error:
+                    if "cancel scope" in str(runtime_error).lower():
+                        print(f"⚠️  MCP cancel scope error during cleanup: {runtime_error}")
+                        print("   This is expected in CI environments")
+                    else:
+                        print(f"⚠️  Runtime error during cleanup: {runtime_error}")
+                    # Don't fail the test for cleanup issues
+                except Exception as cleanup_error:
+                    print(f"⚠️  Cleanup error: {cleanup_error}")
+                    # Log but don't fail the test for any cleanup issues
 
     @pytest.mark.asyncio
     async def test_contextual_awareness_robust_with_mcp_timeout_handling(

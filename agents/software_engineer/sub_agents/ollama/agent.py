@@ -4,7 +4,11 @@ from google.adk.agents import Agent
 from google.adk.models.lite_llm import LiteLlm
 
 # Import tools from the parent tools module
-from ...tools.filesystem import edit_file_tool, list_dir_tool, read_file_tool
+from ...tools.filesystem import (
+    edit_file_content_tool,
+    list_directory_contents_tool,
+    read_file_content_tool,
+)
 from ...tools.shell_command import execute_shell_command_tool
 from . import prompt
 
@@ -37,9 +41,9 @@ def create_ollama_agent(name_suffix=""):
         description="Agent that runs local ollama models in sandboxed environment",
         instruction=prompt.OLLAMA_AGENT_INSTR,
         tools=[
-            read_file_tool,
-            list_dir_tool,
-            edit_file_tool,
+            read_file_content_tool,
+            list_directory_contents_tool,
+            edit_file_content_tool,
             # codebase_search_tool,
             execute_shell_command_tool,
         ],

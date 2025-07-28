@@ -6,7 +6,7 @@ from . import code_search, filesystem, shell_command, system_info
 from .code_search import codebase_search_tool
 
 # Export filesystem tools
-from .filesystem import edit_file_tool, list_dir_tool, read_file_tool
+from .filesystem import edit_file_content_tool, list_directory_contents_tool, read_file_content_tool
 
 # Export selective tool loading functions
 # Export load all tools and toolsets
@@ -44,12 +44,12 @@ __all__ = [
     "codebase_search_tool",
     "create_sub_agent_mcp_config",
     "create_sub_agent_tool_profiles",
-    "edit_file_tool",
+    "edit_file_content_tool",
     # Shell Command Tools
     "execute_shell_command_tool",
     "get_sub_agent_mcp_config",
     "list_available_mcp_servers",
-    "list_dir_tool",
+    "list_directory_contents_tool",
     # Load all tools and toolsets
     "load_all_tools_and_toolsets",
     # Selective tool loading
@@ -59,7 +59,7 @@ __all__ = [
     "load_sub_agent_mcp_tools",
     "load_tools_for_sub_agent",
     # Filesystem Tools
-    "read_file_tool",
+    "read_file_content_tool",
     # System Info Tools
     # "get_os_info_tool",
 ]

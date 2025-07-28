@@ -5,28 +5,38 @@ on:
     branches: [ main ]
 
 jobs:
-  # lint:
-  #   name: Lint Code
-  #   runs-on: ubuntu-latest
+  lint:
+    name: Lint Code
+    runs-on: ubuntu-latest
 
-  #   steps:
-  #   - uses: actions/checkout@v4
-  #     with:
-  #       fetch-depth: 0  # Needed for PR comments
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Needed for PR comments
   
-  #   - name: Install UV and setup Python
-  #     uses: astral-sh/setup-uv@v5
-  #     with:
-  #       python-version: '3.11'
-  #       enable-cache: true
-  #       cache-dependency-glob: "pyproject.toml uv.toml"
+    - name: Install UV and setup Python
+      uses: astral-sh/setup-uv@v5
+      with:
+        python-version: '3.11'
+        enable-cache: true
+        cache-dependency-glob: "pyproject.toml"
         
-  #   - name: Install dependencies
-  #     run: uv sync --all-extras --dev
+    - name: Install dependencies
+      run: uv sync --all-extras --dev
         
-  #   - name: Run linting
-  #     run: uv run ruff check . --output-format=github
+    - name: Run linting
+      run: uv run ruff check . --output-format=github
 
+    - name: Send Slack notification
+      if: failure()
+      uses: slackapi/slack-github-action@@v2.1.0
+      with:
+        payload: |
+          {
+            "text": "Linting failed on main branch! See details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          }
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
   test:
     name: Tests with Coverage
     runs-on: ubuntu-latest
@@ -44,9 +54,8 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
         enable-cache: true
-        cache-dependency-glob: "pyproject.toml uv.toml"
+        cache-dependency-glob: "pyproject.toml"
 
-    # Install dependencies using uv
     - name: Install dependencies
       run: uv sync --all-extras --dev
 
@@ -56,6 +65,20 @@ jobs:
         --cov=src \
         --cov-config=pyproject.toml \
         --cov-report=xml --cov-report=term --junitxml=test-results.xml
+      env:
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+    # https://tools.slack.dev/slack-github-action/sending-techniques/sending-data-slack-incoming-webhook/
+    - name: Send Slack notification
+      if: failure()
+      uses: slackapi/slack-github-action@@v2.1.0
+      with:
+        payload: |
+          {
+            "text": "Tests with coverage failed on main branch! See details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          }
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
     - name: Upload test results
       uses: actions/upload-artifact@v4
@@ -65,7 +88,7 @@ jobs:
         path: |
           test-results.xml
           coverage.xml
-          
+
     - name: Generate Coverage Report
       run: |
         # Use a multi-line Python script instead of one-liners to avoid f-string backslash issues
@@ -101,7 +124,21 @@ jobs:
 
         # Run the script
         uv run python generate_coverage.py
-        
+      env:
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+    # https://tools.slack.dev/slack-github-action/sending-techniques/sending-data-slack-incoming-webhook/
+    - name: Send Slack notification
+      if: failure()
+      uses: slackapi/slack-github-action@@v2.1.0
+      with:
+        payload: |
+          {
+            "text": "Coverage report failed on main branch! See details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          }
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
     - name: Upload coverage HTML report
       uses: actions/upload-artifact@v4
       with:

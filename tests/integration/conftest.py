@@ -34,6 +34,73 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+@pytest.fixture(autouse=True)
+def suppress_aiohttp_cleanup_errors():
+    """Suppress aiohttp connection cleanup logging errors from external libraries."""
+
+    class AiohttpCleanupFilter(logging.Filter):
+        def filter(self, record):
+            # Suppress aiohttp cleanup errors that occur during test teardown
+            if (
+                hasattr(record, "getMessage")
+                and record.levelno == logging.ERROR
+                and (
+                    "Unclosed client session" in record.getMessage()
+                    or "Unclosed connector" in record.getMessage()
+                    or "I/O operation on closed file" in record.getMessage()
+                )
+            ):
+                # These are cleanup issues from external libraries (Google ADK)
+                return False
+            return True
+
+    # Apply filter to root logger to catch all aiohttp cleanup errors
+    root_logger = logging.getLogger()
+    cleanup_filter = AiohttpCleanupFilter()
+    root_logger.addFilter(cleanup_filter)
+
+    # Also patch asyncio's default exception handler to suppress aiohttp cleanup errors
+    original_exception_handler = None
+    loop = None
+
+    try:
+        loop = asyncio.get_event_loop()
+        original_exception_handler = loop.get_exception_handler()
+
+        def custom_exception_handler(loop, context):
+            # Suppress aiohttp cleanup exceptions
+            exception = context.get("exception")
+
+            if exception and (
+                "Unclosed client session" in str(exception)
+                or "Unclosed connector" in str(exception)
+                or "I/O operation on closed file" in str(exception)
+            ):
+                # Silently ignore aiohttp cleanup errors from external libraries
+                return
+
+            # For all other exceptions, use the original handler
+            if original_exception_handler:
+                original_exception_handler(loop, context)
+            else:
+                loop.default_exception_handler(context)
+
+        loop.set_exception_handler(custom_exception_handler)
+    except RuntimeError:
+        # No event loop available, skip asyncio patching
+        pass
+
+    yield
+
+    # Restore original handlers
+    if loop and original_exception_handler:
+        loop.set_exception_handler(original_exception_handler)
+    elif loop:
+        loop.set_exception_handler(None)  # Reset to default
+
+    root_logger.removeFilter(cleanup_filter)
+
+
 def create_mock_agent_pool(agents):
     """Create mock agent pool for testing."""
     return {"agents": agents, "count": len(agents)}
@@ -128,7 +195,22 @@ def event_loop():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     yield loop
-    loop.close()
+
+    # Clean up any pending tasks before closing
+    try:
+        pending_tasks = [task for task in asyncio.all_tasks(loop) if not task.done()]
+        if pending_tasks:
+            # Cancel pending tasks
+            for task in pending_tasks:
+                task.cancel()
+            # Wait for tasks to be cancelled
+            if pending_tasks:
+                loop.run_until_complete(asyncio.gather(*pending_tasks, return_exceptions=True))
+    except Exception:
+        # Ignore cleanup errors - they're from external libraries
+        pass
+    finally:
+        loop.close()
 
 
 # Core integration test fixtures

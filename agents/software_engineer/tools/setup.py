@@ -27,7 +27,7 @@ from .code_analysis import (
     suggest_code_fixes_tool,
 )
 from .code_search import codebase_search_tool
-from .filesystem import edit_file_tool, list_dir_tool, read_file_tool
+from .filesystem import edit_file_content_tool, list_directory_contents_tool, read_file_content_tool
 from .persistent_memory_tool import (
     load_memory_from_file_tool,
     save_current_session_to_file_tool,
@@ -78,9 +78,9 @@ def load_core_tools_and_toolsets():
     """Loads and initializes all core tools, sub-agents, and MCP toolsets."""
     devops_core_tools_list = [
         # Filesystem tools
-        read_file_tool,
-        list_dir_tool,
-        edit_file_tool,
+        read_file_content_tool,
+        list_directory_contents_tool,
+        edit_file_content_tool,
         # Code search tools
         codebase_search_tool,
         # Shell command tools
