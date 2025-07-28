@@ -50,9 +50,11 @@ def _handle_pending_approval(tool, args, tool_context, tool_response):
         if approved:
             # Re-run the tool with force_edit enabled
             tool_context.state["force_edit"] = True
-            # It's assumed the tool is a FunctionTool and can be called directly
-            tool_response = tool(tool_context=tool_context, **args)
-            tool_context.state["force_edit"] = False  # Reset the flag
+            try:
+                # It's assumed the tool is a FunctionTool and can be called directly
+                tool_response = tool(tool_context=tool_context, **args)
+            finally:
+                tool_context.state["force_edit"] = False  # Reset the flag
         else:
             tool_response["message"] = "File edit rejected by user."
 
