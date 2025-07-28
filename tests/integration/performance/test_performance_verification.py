@@ -22,7 +22,7 @@ from agents.devops.components.context_management import ContextManager
 from agents.devops.components.context_management.cross_turn_correlation import CrossTurnCorrelator
 
 # Test utilities
-from tests.fixtures.test_helpers import (
+from tests.shared.helpers import (
     create_mock_llm_client,
     create_performance_test_data,
 )

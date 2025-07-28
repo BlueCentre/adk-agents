@@ -5,9 +5,11 @@ Fixtures for workflows integration tests.
 import pytest
 
 from tests.integration.conftest import (
+    create_mock_workflow_config,
+)
+from tests.shared.mocks import (
     MockToolOrchestrator,
     MockWorkflowEngine,
-    create_mock_workflow_config,
 )
 
 

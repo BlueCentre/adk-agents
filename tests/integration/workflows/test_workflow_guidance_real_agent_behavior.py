@@ -11,7 +11,7 @@ import tempfile
 import pytest
 
 from agents.software_engineer.shared_libraries.workflow_guidance import ActionType
-from tests.fixtures.test_helpers import create_mock_session_state
+from tests.shared.helpers import create_mock_session_state
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +136,7 @@ class TestWorkflowGuidanceRealAgentBehavior:
         session_state["require_edit_approval"] = False  # Disable approval for testing
 
         # Create tool context
-        from tests.fixtures.test_helpers import MockToolContext
+        from tests.shared.helpers import MockToolContext
 
         tool_context = MockToolContext(state=session_state)
 

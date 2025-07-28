@@ -23,7 +23,7 @@ import pytest
 from agents.software_engineer.shared_libraries.callbacks import create_retry_callbacks
 
 # Test utilities
-from tests.fixtures.test_helpers import (
+from tests.shared.helpers import (
     MockCallbackContext,
     MockLlmRequest,
     MockLlmResponse,
