@@ -2,262 +2,105 @@
 
 This directory contains the comprehensive test suite for the DevOps Agent project, organized into a clear hierarchy for maintainability and ease of use.
 
+## Test Suite Overview
+
+The test suite is designed to ensure the reliability, correctness, and performance of the DevOps Agent. It is divided into several categories, each serving a specific purpose.
+
+- **Unit Tests (`unit/`)**: These tests focus on individual components in isolation, ensuring that each function, method, and class behaves as expected. They are fast, lightweight, and form the foundation of our testing strategy.
+- **Integration Tests (`integration/`)**: These tests verify the interactions between different components of the agent, ensuring they work together correctly. They cover workflows, agent lifecycles, and interactions with external systems (in a mocked or real environment).
+- **End-to-End (E2E) Tests (`e2e/`)**: E2E tests validate complete user workflows from start to finish, simulating real-world scenarios as closely as possible.
+- **Performance Tests (`performance/`)**: These tests measure the agent's performance characteristics, including response time, resource usage, and scalability under load.
+
 ## 📁 Directory Structure
 
 ```
 tests/
 ├── __init__.py                 # Test package initialization
-├── conftest.py                 # Pytest configuration and shared fixtures
+├── conftest.py                 # Pytest configuration and global fixtures
 ├── pytest.ini                 # Pytest settings and configuration
 ├── README.md                   # This file - test suite documentation
 ├── unit/                       # Unit tests for individual components
-│   ├── __init__.py
-│   ├── test_state_management.py    # StateManager and TurnState tests
-│   └── test_retry_logic.py         # Error classification and retry tests
+│   └── ...
 ├── integration/                # Integration tests for component interactions
-│   ├── __init__.py
-│   └── test_agent_lifecycle.py     # Complete agent execution flow tests
+│   └── ...
 ├── e2e/                        # End-to-end tests for complete workflows
-│   └── __init__.py
-└── fixtures/                   # Test data and utilities
+│   └── ...
+├── performance/                # Performance and load tests
+│   └── ...
+└── shared/                     # Shared test utilities and helpers
     ├── __init__.py
-    ├── test_helpers.py             # Common test utilities and fixtures
-    ├── mock_data.py                # Sample data for testing (future)
-    ├── mock_tools.py               # Mock tool implementations (future)
-    └── mock_llm.py                 # Mock LLM client for testing (future)
+    └── ...
 ```
 
 ## 🧪 Test Categories
 
-### Unit Tests (`unit/`)
-Test individual components and functions in isolation:
+## How to Run Tests
 
-- **`test_state_management.py`**: Comprehensive tests for StateManager, TurnState, and related classes
-  - Basic functionality and lifecycle
-  - Error handling and validation
-  - Concurrent access protection
-  - State transitions and validation
-
-- **`test_retry_logic.py`**: Tests for error classification and retry mechanisms
-  - Error classification (retryable vs non-retryable)
-  - Context optimization strategies
-  - Exponential backoff with jitter
-  - Circuit breaker mechanisms
-
-### Integration Tests (`integration/`)
-Test interactions between different components:
-
-- **`test_agent_lifecycle.py`**: Complete agent execution flow tests
-  - Complete conversation turns
-  - Tool execution flow
-  - State persistence across turns
-  - Error recovery mechanisms
-  - Performance characteristics
-
-### End-to-End Tests (`e2e/`)
-Test complete workflows and user scenarios (future expansion):
-
-- Conversation flows
-- Error recovery workflows
-- Performance testing
-- Real-world scenarios
-
-### Test Fixtures (`fixtures/`)
-Shared utilities and mock objects:
-
-- **`test_helpers.py`**: Common utilities, mock classes, and helper functions
-  - Mock objects for all major components
-  - Sample data generators
-  - Assertion helpers for validation
-  - Performance measurement utilities
-
-## 🚀 Quick Start
-
-### Running Tests
-
+### Running All Tests
+To run the entire test suite, use the following command from the project root:
 ```bash
-# From the project root directory
-
-# Run all tests
 uv run pytest
+```
 
-# Run specific test categories
-uv run pytest -m unit          # Unit tests only
-uv run pytest -m integration   # Integration tests only
+### Running Specific Test Types
+You can run tests for a specific category by targeting the respective directory:
+```bash
+# Run all unit tests
+uv run pytest tests/unit/
 
-# Run specific test files
+# Run all integration tests
+uv run pytest tests/integration/
+
+# Run all end-to-end tests
+uv run pytest tests/e2e/
+```
+
+### Running a Specific File or Test
+To run a specific test file or a single test function:
+```bash
+# Run a single test file
 uv run pytest tests/unit/test_state_management.py
-uv run pytest tests/integration/test_agent_lifecycle.py
 
-# Run with verbose output
-uv run pytest -v
+# Run a specific test class
+uv run pytest tests/unit/test_state_management.py::TestStateManager
 
-# Run with coverage
-uv run pytest --cov=devops --cov-report=html
+# Run a single test method
+uv run pytest tests/unit/test_state_management.py::TestStateManager::test_basic_functionality
 ```
 
-### Test Structure Verification
-
+### Code Coverage
+To generate a code coverage report, use the `--cov` flag. The report will be saved in an `htmlcov/` directory.
 ```bash
-# Verify test structure is working by running a simple test
-uv run pytest tests/unit/test_state_management.py::test_basic_functionality -v
+# Generate a coverage report for the `src` directory
+uv run pytest --cov=src --cov-report=html
+
+# View the report
+open htmlcov/index.html
 ```
 
-## 🔧 Configuration
+## Contributing to the Test Suite
 
-### Pytest Configuration (`pytest.ini`)
-- Test discovery patterns
-- Custom markers for categorization
-- Async test support
-- Timeout protection
-- Warning filters
+We welcome contributions to improve the test suite. Please follow these guidelines to ensure consistency and quality.
 
-### Shared Fixtures (`conftest.py`)
-- `state_manager`: Fresh StateManager instance
-- `populated_state_manager`: StateManager with sample data
-- `mock_agent`: Mock DevOps agent for testing
-- `mock_llm_request/response`: Mock LLM interactions
-- `test_metrics`: Performance metrics collection
+### Writing New Tests
 
-## 📊 Current Test Coverage
+1.  **Choose the Right Location**: Place your test file in the appropriate directory (`unit`, `integration`, `e2e`, `performance`) based on its purpose.
+2.  **Follow Naming Conventions**:
+    *   Test files must be named `test_*.py`.
+    *   Test classes should be named `Test<ComponentName>`.
+    *   Test functions must be named `test_*`.
+3.  **Use Fixtures for Setup**: Use `pytest` fixtures for any setup and teardown logic. Global fixtures are in `tests/conftest.py`, while directory-specific fixtures can be placed in a local `conftest.py`.
+4.  **Leverage Shared Utilities**: Reusable test helpers and utilities are located in the `tests/shared/` directory. Use them to avoid code duplication.
+5.  **Write Clear Assertions**: Ensure your tests have clear and specific assertions. Use `pytest`'s `assert` statement.
+6.  **Mock External Dependencies**: For unit tests, mock all external dependencies, such as API calls, database connections, and file system operations.
 
-### Implemented Tests
+### Best Practices
 
-✅ **State Management** (Comprehensive)
-- 15+ test cases covering StateManager and TurnState
-- Error handling and validation
-- Concurrent access protection
-- Legacy state format compatibility
-
-✅ **Retry Logic** (Comprehensive)  
-- 10+ test cases for error classification
-- Context optimization strategies
-- Retry mechanism testing
-- Performance characteristics
-
-✅ **Agent Lifecycle** (Integration)
-- 8+ test cases for complete workflows
-- Tool execution integration
-- Error recovery testing
-- Performance benchmarks
-
-### Test Metrics
-- **Total Test Cases**: 35+ across all categories
-- **Coverage Goal**: >90% for critical components
-- **Test Types**: Unit (60%), Integration (30%), E2E (10%)
-
-## 🛠️ Writing New Tests
-
-### Unit Test Template
-
-```python
-import pytest
-from tests.fixtures.test_helpers import StateManager, TurnPhase
-
-class TestNewFeature:
-    def setup_method(self):
-        self.state_manager = StateManager()
-    
-    def test_new_functionality(self):
-        # Arrange
-        turn = self.state_manager.start_new_turn("Test message")
-        
-        # Act
-        result = self.state_manager.some_new_method()
-        
-        # Assert
-        assert result is not None
-        assert turn.phase == TurnPhase.PROCESSING_USER_INPUT
-```
-
-### Integration Test Template
-
-```python
-import pytest
-from tests.fixtures.test_helpers import MockCallbackContext, create_sample_legacy_state
-
-class TestNewIntegration:
-    @pytest.mark.asyncio
-    async def test_component_interaction(self):
-        # Setup
-        context = MockCallbackContext(create_sample_legacy_state())
-        
-        # Test interaction
-        result = await some_async_operation(context)
-        
-        # Verify
-        assert result is not None
-```
-
-## 📈 Best Practices
-
-1. **Test Organization**: Keep tests organized by component and functionality
-2. **Descriptive Names**: Use clear, descriptive test names
-3. **AAA Pattern**: Follow Arrange, Act, Assert structure
-4. **Mock External Dependencies**: Use mocks for LLM calls, file operations
-5. **Test Error Conditions**: Include tests for error scenarios
-6. **Use Fixtures**: Leverage shared fixtures for common setup
-7. **Add Markers**: Use pytest markers for categorization
-
-## 🐛 Debugging Tests
-
-### Common Issues
-- **Import Errors**: Ensure proper path setup for devops_agent imports
-- **Async Test Failures**: Use `@pytest.mark.asyncio` for async tests
-- **State Pollution**: Use fresh fixtures to avoid interdependencies
-- **Mock Issues**: Verify mocks are properly configured
-
-### Debugging Commands
-```bash
-# Run with debugger
-uv run pytest --pdb
-
-# Detailed logging
-uv run pytest --log-cli-level=DEBUG
-
-# Single test with max verbosity
-uv run pytest -vvv --tb=long tests/path/to/test.py::test_function
-```
-
-## 🔄 Continuous Integration
-
-The test suite is designed for CI/CD integration:
-
-```yaml
-# Example GitHub Actions workflow
-name: Tests
-on: [push, pull_request]
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Install uv
-        run: pip install uv
-      - name: Install dependencies
-        run: uv sync --dev
-      - name: Run tests
-        run: uv run pytest --cov=devops
-```
-
-## 📚 Additional Resources
-
-- **Main Testing Guide**: [../docs/TESTING.md](../docs/TESTING.md)
-- **Pytest Documentation**: https://docs.pytest.org/
-- **Pytest-asyncio**: https://pytest-asyncio.readthedocs.io/
-
-## 🤝 Contributing
-
-When adding new tests:
-
-1. **Choose the Right Category**: Unit, Integration, or E2E
-2. **Follow Naming Conventions**: `test_*.py` files, `Test*` classes, `test_*` methods
-3. **Add Appropriate Markers**: Use `@pytest.mark.unit`, `@pytest.mark.integration`, etc.
-4. **Update Documentation**: Add test descriptions to this README
-5. **Run Full Suite**: Ensure all tests pass before submitting
+*   **Keep Tests Independent**: Tests should not depend on the state left by other tests. Each test should be able to run in isolation.
+*   **Test One Thing at a Time**: Each test function should verify a single piece of functionality.
+*   **Arrange, Act, Assert**: Structure your tests using the Arrange-Act-Assert pattern for clarity.
+*   **Update Documentation**: If you add a new test file or a significant number of tests, update the relevant `README.md` to reflect the changes.
 
 ---
 
-**Last Updated**: December 24, 2024  
-**Test Structure Version**: 1.0  
-**Total Test Files**: 4 (2 unit, 1 integration, 1 fixtures) 
+**Last Updated**: July 27, 2024
