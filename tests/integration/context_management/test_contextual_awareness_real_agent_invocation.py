@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import sys
 import tempfile
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -156,7 +157,10 @@ class TestContextualAwarenessRealAgentInvocation:
                 except (asyncio.TimeoutError, asyncio.CancelledError) as timeout_error:
                     print(f"⚠️  Async Timeout Warning: {timeout_error}")
                     print("   This is expected in CI environments - agent invocation may timeout")
-                    print("   The test will pass as the callback registration is the key functionality")
+                    print(
+                        "   The test will pass as the callback registration is the key "
+                        "functionality"
+                    )
                     mcp_timeout_occurred = True
 
                 # If MCP timeout occurred, test passes but with limited verification
@@ -195,10 +199,13 @@ class TestContextualAwarenessRealAgentInvocation:
                 )
 
                 if found_contextual_indicator:
-                    print(f"✅ Contextual awareness working! Agent response: {response_text[:100]}...")
+                    print(
+                        f"✅ Contextual awareness working! Agent response: {response_text[:100]}..."
+                    )
                 else:
                     print(
-                        f"⚠️  No clear contextual indicators found in response: {response_text[:100]}..."
+                        f"⚠️  No clear contextual indicators found in response: "
+                        f"{response_text[:100]}..."
                     )
                     print("   But test passes as agent executed without callback errors")
 
@@ -209,7 +216,9 @@ class TestContextualAwarenessRealAgentInvocation:
                 except McpError as mcp_error:
                     if "Timed out" in str(mcp_error) or "timeout" in str(mcp_error).lower():
                         print(f"⚠️  MCP Timeout during cleanup: {mcp_error}")
-                        print("   This is expected in CI environments - cleanup timeouts are common")
+                        print(
+                            "   This is expected in CI environments - cleanup timeouts are common"
+                        )
                     else:
                         print(f"⚠️  MCP Error during cleanup: {mcp_error}")
                     # Don't fail the test for cleanup issues

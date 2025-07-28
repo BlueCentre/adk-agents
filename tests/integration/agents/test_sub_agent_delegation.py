@@ -316,7 +316,7 @@ class TestSubAgentDelegation:
         locked_config = apply_security_policy(base_config, SecurityLevel.LOCKED_DOWN)
         assert "shell_command" in locked_config.get("excluded_categories", [])
         assert locked_config.get("include_mcp_tools") is False
-        assert "edit_file_tool" in locked_config.get("excluded_tools", [])
+        assert "edit_file_content_tool" in locked_config.get("excluded_tools", [])
 
         # Test profile metadata
         debugging_profile = get_tool_profile("debugging")

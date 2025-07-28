@@ -4,7 +4,11 @@ from google.adk.agents import LlmAgent
 
 from ... import config as agent_config
 from ...tools.code_search import codebase_search_tool
-from ...tools.filesystem import edit_file_tool, list_dir_tool, read_file_tool
+from ...tools.filesystem import (
+    edit_file_content_tool,
+    list_directory_contents_tool,
+    read_file_content_tool,
+)
 from ...tools.shell_command import execute_shell_command_tool
 from . import prompt
 
@@ -27,9 +31,9 @@ def create_design_pattern_agent(name_prefix: str = "") -> LlmAgent:
         description="Agent specialized in applying design patterns and architectural principles",
         instruction=prompt.DESIGN_PATTERN_AGENT_INSTR,
         tools=[
-            read_file_tool,
-            list_dir_tool,
-            edit_file_tool,
+            read_file_content_tool,
+            list_directory_contents_tool,
+            edit_file_content_tool,
             codebase_search_tool,
             execute_shell_command_tool,
             # google_search_grounding,

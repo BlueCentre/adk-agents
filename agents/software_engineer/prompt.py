@@ -98,8 +98,8 @@ Handle directly when:
 - **Final Synthesis**: Combining results from multiple sub-agents
 
 **Core Tools for Direct Handling:**
-- `read_file_tool`: Examine project files for understanding
-- `list_dir_tool`: Understand project structure
+- `read_file_content_tool`: Examine project files for understanding
+- `list_directory_contents_tool`: Understand project structure
 - `codebase_search_tool`: Find relevant code patterns and context
 - `execute_shell_command_tool`: Run basic commands for validation
 

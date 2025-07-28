@@ -73,7 +73,7 @@ def list_directory_contents(directory_path: str) -> dict[str, Any]:
             'SecurityViolation' (if implemented).
     """
     logger.info(f"Attempting to list directory: {directory_path}")
-    # Add path validation/sandboxing here
+    # Add path validation/sandboxing here before listing
     # Example:
     # abs_path = os.path.abspath(directory_path)
     # if not abs_path.startswith(WORKSPACE_ROOT):
@@ -81,17 +81,19 @@ def list_directory_contents(directory_path: str) -> dict[str, Any]:
     #     logger.error(message)
     #     return {"status": "error", "error_type": "SecurityViolation", "message": message}
     try:
-        if not Path(directory_path).is_dir():
-            message = f"The specified path '{directory_path}' is not a valid directory."
-            logger.warning(message)
+        dir_path = Path(directory_path)
+        if not dir_path.exists():
+            message = f"Directory not found at path '{directory_path}'."
+            logger.error(message)
+            return {"status": "error", "error_type": "FileNotFound", "message": message}
+        if not dir_path.is_dir():
+            message = f"Path '{directory_path}' exists but is not a directory."
+            logger.error(message)
             return {"status": "error", "error_type": "NotADirectory", "message": message}
-        contents = [str(p.name) for p in Path(directory_path).iterdir()]
+
+        contents = [item.name for item in dir_path.iterdir()]
         logger.info(f"Successfully listed directory: {directory_path}")
         return {"status": "success", "contents": contents}
-    except FileNotFoundError:
-        message = f"Directory not found at path '{directory_path}'."
-        logger.error(message)
-        return {"status": "error", "error_type": "FileNotFound", "message": message}
     except PermissionError:
         message = f"Permission denied when trying to list directory '{directory_path}'."
         logger.error(message)
@@ -124,11 +126,14 @@ def edit_file_content(
 
     Returns:
         A dictionary with:
-        - {'status': 'pending_approval', 'proposed_filepath': str, 'proposed_content': str, 'message': str} if approval is required.
-        - {'status': 'success', 'message': 'Success message'} on successful write (when approval not required).
-        - {'status': 'error', 'error_type': str, 'message': str} on failure during write or validation.
+        - {'status': 'pending_approval', 'proposed_filepath': str, 'proposed_content': str,
+          'message': str} if approval is required.
+        - {'status': 'success', 'message': 'Success message'} on successful write
+          (when approval not required).
+        - {'status': 'error', 'error_type': str, 'message': str} on failure during write
+          or validation.
           Possible error_types: 'PermissionDenied', 'IOError', 'SecurityViolation' (if implemented).
-    """  # noqa: E501
+    """
     logger.info(f"Checking approval requirement for writing to file: {filepath}")
 
     # Add path validation/sandboxing here FIRST
@@ -152,7 +157,6 @@ def edit_file_content(
             "proposed_filepath": filepath,
             "proposed_content": content,
             "message": f"Approval required to write to '{filepath}'. User confirmation needed.",
-            "filepath": filepath,
         }
 
     # Proceed with write if approval is not required or has been forced
@@ -270,10 +274,18 @@ def enable_smooth_testing_mode(tool_context: ToolContext) -> dict[str, Any]:
         return {"status": "error", "message": error_message}
 
 
-# Wrap functions with FunctionTool
-# Note: The return type for the tool schema remains the base function's
-#       return type hint (Dict[str, Any])
-read_file_tool = FunctionTool(read_file_content)
-list_dir_tool = FunctionTool(list_directory_contents)
-edit_file_tool = FunctionTool(edit_file_content)
-configure_approval_tool = FunctionTool(configure_edit_approval)
+# FunctionTool definitions
+read_file_content_tool = FunctionTool(read_file_content)
+list_directory_contents_tool = FunctionTool(list_directory_contents)
+edit_file_content_tool = FunctionTool(edit_file_content)
+configure_edit_approval_tool = FunctionTool(configure_edit_approval)
+enable_smooth_testing_mode_tool = FunctionTool(enable_smooth_testing_mode)
+
+# Export the tools
+__all__ = [
+    "configure_edit_approval_tool",
+    "edit_file_content_tool",
+    "enable_smooth_testing_mode_tool",
+    "list_directory_contents_tool",
+    "read_file_content_tool",
+]
