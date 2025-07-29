@@ -1,17 +1,14 @@
 import unittest
-from unittest.mock import MagicMock
 
 from agents.software_engineer.workflows.human_in_loop_workflows import (
     _present_file_edit_proposal,
-    human_in_the_loop_approval,
+    generate_diff_for_proposal,
 )
 
 
 class TestHumanInTheLoopWorkflowsDiff(unittest.TestCase):
     def test_file_edit_proposal_with_diff(self):
         # Arrange
-        tool_context = MagicMock()
-        tool_context.state = {}
         old_content = "Hello, world!"
         new_content = "Hello, beautiful world!"
         proposal = {
@@ -20,12 +17,10 @@ class TestHumanInTheLoopWorkflowsDiff(unittest.TestCase):
             "old_content": old_content,
             "proposed_content": new_content,
         }
-        user_input_handler = MagicMock(return_value="yes")
-        display_handler = MagicMock()
 
         # Act
-        human_in_the_loop_approval(tool_context, proposal, user_input_handler, display_handler)
-        presentation = _present_file_edit_proposal(proposal)
+        proposal_with_diff = generate_diff_for_proposal(proposal)
+        presentation = _present_file_edit_proposal(proposal_with_diff)
 
         # Assert
         self.assertIn("```diff", presentation)
