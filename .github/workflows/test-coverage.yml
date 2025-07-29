@@ -55,7 +55,7 @@ jobs:
     # https://tools.slack.dev/slack-github-action/sending-techniques/sending-data-slack-incoming-webhook/
     - name: Send Slack notification
       if: failure()
-      uses: slackapi/slack-github-action@@v2.1.0
+      uses: slackapi/slack-github-action@v2.1.0
       with:
         payload: |
           {
@@ -84,7 +84,7 @@ jobs:
     # https://tools.slack.dev/slack-github-action/sending-techniques/sending-data-slack-incoming-webhook/
     - name: Send Slack notification
       if: failure()
-      uses: slackapi/slack-github-action@@v2.1.0
+      uses: slackapi/slack-github-action@v2.1.0
       with:
         payload: |
           {
