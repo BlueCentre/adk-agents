@@ -30,8 +30,6 @@ on:
 jobs:
   test-and-coverage:
     runs-on: ubuntu-latest
-    secrets:
-      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
