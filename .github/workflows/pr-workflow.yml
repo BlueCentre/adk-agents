@@ -8,22 +8,26 @@ jobs:
   lint:
     name: Lint Code
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.11']
 
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
       with:
         fetch-depth: 0  # Needed for PR comments
-  
-    - name: Install UV and setup Python
+
+    - name: Install UV and setup Python ${{ matrix.python-version }}
       uses: astral-sh/setup-uv@v5
       with:
-        python-version: '3.11'
+        python-version: ${{ matrix.python-version }}
         enable-cache: true
         cache-dependency-glob: "pyproject.toml"
-        
+
     - name: Install dependencies
       run: uv sync --all-extras --dev
-        
+
     - name: Run linting
       run: uv run ruff check . --output-format=github
 
@@ -37,6 +41,7 @@ jobs:
           }
       env:
         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
   test:
     name: Tests with Coverage
     runs-on: ubuntu-latest
@@ -45,7 +50,8 @@ jobs:
         python-version: ['3.11']
 
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
       with:
         fetch-depth: 0  # Needed for PR comments
 
@@ -80,6 +86,14 @@ jobs:
       env:
         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
+  report:
+    name: Report Coverage
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.11']
+
+    steps:
     - name: Upload test results
       uses: actions/upload-artifact@v4
       if: always()  # Upload test results even if tests fail
