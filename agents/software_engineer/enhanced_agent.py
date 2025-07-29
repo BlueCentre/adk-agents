@@ -57,7 +57,7 @@ def _handle_pending_approval(tool, args, tool_context, tool_response):
             tool_context.state["force_edit"] = True
             try:
                 # Access the underlying function via the func attribute for FunctionTool
-                if hasattr(tool, "func"):
+                if isinstance(tool, FunctionTool):
                     tool_response = tool.func(tool_context=tool_context, **args)
                 else:
                     # Fallback for other tool types - call directly
