@@ -2,111 +2,116 @@ name: Test Coverage
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
     inputs:
       modules:
-        description: 'Specific module to test (e.g., agents.devops, src.wrapper.adk)'
+        description: "Specific module to test (e.g., agents.devops, src.wrapper.adk)"
         required: false
-        default: 'all'
+        default: "all"
         type: string
 
 jobs:
   coverage-analysis:
-    name: Analysis
+    name: Coverage Analysis
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.11']
-
+        python-version: ["3.11"]
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Install UV and setup Python ${{ matrix.python-version }}
-      uses: astral-sh/setup-uv@v5
-      with:
-        python-version: ${{ matrix.python-version }}
-        enable-cache: true
-        cache-dependency-glob: "pyproject.toml uv.toml"
+      - uses: actions/checkout@v4
 
-    - name: Install dependencies
-      run: uv sync --all-extras --dev
-      
-    - name: Run tests with coverage
-      run: |
-        if [[ "${{ github.event.inputs.modules }}" == "agents.devops" ]]; then
-          echo "Running tests for agents.devops module only (disabled)"
-          uv run pytest tests/ --cov=agents.devops --cov-report=xml --cov-report=term --cov-fail-under=80
-        elif [[ "${{ github.event.inputs.modules }}" == "src.wrapper.adk" ]]; then
-          echo "Running tests for src.wrapper.adk module only"
-          uv run pytest tests/ --cov=src --cov-report=xml --cov-report=term --cov-fail-under=80
-        else
-          echo "Running tests for all modules with coverage"
+      - name: Install UV and setup Python ${{ matrix.python-version }}
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml uv.toml"
+
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Run tests with coverage
+        run: |
+          if [[ "${{ github.event.inputs.modules }}" == "agents.devops" ]]; then
+            echo "Running tests for agents.devops module only"
+            uv run pytest tests/ --cov=agents.devops --cov-report=xml --cov-report=term --cov-fail-under=80
+          elif [[ "${{ github.event.inputs.modules }}" == "src.wrapper.adk" ]]; then
+            echo "Running tests for src.wrapper.adk module only"
+            uv run pytest tests/ --cov=src --cov-report=xml --cov-report=term --cov-fail-under=80
+          else
+            echo "Running tests for all modules with coverage"
+            uv run pytest tests/ \
+            --cov=src \
+            --cov-config=pyproject.toml \
+            --cov-report=xml --cov-report=term --junitxml=test-results.xml
+          fi
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+      # https://tools.slack.dev/slack-github-action/sending-techniques/sending-data-slack-incoming-webhook/
+      - name: Send Slack notification
+        if: failure()
+        uses: slackapi/slack-github-action@v2.1.1
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: webhook-trigger
+          payload: |
+            {
+              "text": "Coverage analysis tests failed on main branch! See details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always() # Upload test results even if tests fail
+        with:
+          name: coverage-report
+          path: |
+            coverage.xml
+            test-results.xml
+
+      - name: Generate detailed coverage report
+        run: |
+          # Generate HTML coverage report for detailed analysis
           uv run pytest tests/ \
           --cov=src \
-          --cov-report=xml --cov-report=term \
-          --junitxml=test-results.xml
-        fi
-      env:
-        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          --cov-config=pyproject.toml \
+          --cov-report=html
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
-    # https://tools.slack.dev/slack-github-action/sending-techniques/sending-data-slack-incoming-webhook/
-    - name: Send Slack notification
-      if: failure()
-      uses: slackapi/slack-github-action@v2.1.0
-      with:
-        payload: |
-          {
-            "text": "Coverage analysis tests failed on main branch! See details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          }
-      env:
-        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      # https://tools.slack.dev/slack-github-action/sending-techniques/sending-data-slack-incoming-webhook/
+      - name: Send Slack notification
+        if: failure()
+        uses: slackapi/slack-github-action@v2.1.1
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: webhook-trigger
+          payload: |
+            {
+              "text": "Coverage report failed on main branch! See details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
-    - name: Upload coverage report
-      uses: actions/upload-artifact@v4
-      with:
-        name: coverage-report
-        path: |
-          coverage.xml
-          test-results.xml
-
-    - name: Generate detailed coverage report
-      run: |
-        # Generate HTML coverage report for detailed analysis
-        uv run pytest tests/ \
-        --cov=src \
-        --cov-report=html
-      env:
-        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-
-    # https://tools.slack.dev/slack-github-action/sending-techniques/sending-data-slack-incoming-webhook/
-    - name: Send Slack notification
-      if: failure()
-      uses: slackapi/slack-github-action@v2.1.0
-      with:
-        payload: |
-          {
-            "text": "Coverage report failed on main branch! See details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          }
-      env:
-        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-
-    - name: Upload HTML coverage report
-      uses: actions/upload-artifact@v4
-      with:
-        name: coverage-html-report
-        path: htmlcov/
+      - name: Upload HTML coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-html-report
+          path: htmlcov/
 
   coverage-report:
-    name: SonarQube
+    name: Report SonarQube
     needs: coverage-analysis
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+          fetch-depth: 0 # Shallow clones should be disabled for a better relevancy of analysis
 
       - name: Download coverage report
         uses: actions/download-artifact@v4
