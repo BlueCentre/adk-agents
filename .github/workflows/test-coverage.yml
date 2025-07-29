@@ -1,4 +1,4 @@
-name: Trunk Workflow
+name: Test Coverage
 
 on:
   push:
@@ -36,7 +36,7 @@ jobs:
       - name: Run tests with coverage
         run: |
           if [[ "${{ github.event.inputs.modules }}" == "agents.devops" ]]; then
-            echo "Running tests for agents.devops module only (disabled)"
+            echo "Running tests for agents.devops module only"
             uv run pytest tests/ --cov=agents.devops --cov-report=xml --cov-report=term --cov-fail-under=80
           elif [[ "${{ github.event.inputs.modules }}" == "src.wrapper.adk" ]]; then
             echo "Running tests for src.wrapper.adk module only"
@@ -45,8 +45,8 @@ jobs:
             echo "Running tests for all modules with coverage"
             uv run pytest tests/ \
             --cov=src \
-            --cov-report=xml --cov-report=term \
-            --junitxml=test-results.xml
+            --cov-config=pyproject.toml \
+            --cov-report=xml --cov-report=term --junitxml=test-results.xml
           fi
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -67,6 +67,7 @@ jobs:
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
+        if: always() # Upload test results even if tests fail
         with:
           name: coverage-report
           path: |
@@ -78,6 +79,7 @@ jobs:
           # Generate HTML coverage report for detailed analysis
           uv run pytest tests/ \
           --cov=src \
+          --cov-config=pyproject.toml \
           --cov-report=html
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
