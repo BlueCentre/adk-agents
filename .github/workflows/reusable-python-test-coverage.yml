@@ -1,0 +1,102 @@
+name: Reusable Python Test & Coverage
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        required: true
+        type: string
+      modules:
+        description: "Specific module to test (e.g., agents.devops, src.wrapper.adk) or 'all'"
+        required: false
+        default: "all"
+        type: string
+      checkout-fetch-depth:
+        description: "Fetch depth for checkout action"
+        required: false
+        default: 1
+        type: number
+      run-api-tests:
+        description: "Whether to run API tests that require GEMINI_API_KEY"
+        required: false
+        default: false
+        type: boolean
+    secrets:
+      SLACK_WEBHOOK_URL:
+        required: false
+      GEMINI_API_KEY:
+        required: false
+
+jobs:
+  test-and-coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: ${{ inputs.checkout-fetch-depth }}
+
+      - name: Install UV and setup Python ${{ inputs.python-version }}
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml uv.toml"
+
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Run tests with coverage
+        run: |
+          # Base pytest command
+          PYTEST_CMD="uv run pytest tests/"
+
+          # Add coverage options
+          if [[ "${{ inputs.modules }}" == "agents.devops" ]]; then
+            PYTEST_CMD+=" --cov=agents.devops --cov-fail-under=80"
+          elif [[ "${{ inputs.modules }}" == "src.wrapper.adk" ]]; then
+            PYTEST_CMD+=" --cov=src --cov-config=pyproject.toml --cov-fail-under=80"
+          else
+            PYTEST_CMD+=" --cov=src --cov-config=pyproject.toml"
+          fi
+
+          # Add output formats for coverage and test results
+          PYTEST_CMD+=" --cov-report=xml --cov-report=term --cov-report=html --junitxml=test-results.xml"
+
+          # Execute the command
+          echo "Running: $PYTEST_CMD"
+          $PYTEST_CMD
+        env:
+          # Only provide GEMINI_API_KEY if run-api-tests is true
+          # This assumes API tests are conditionally run based on this env var
+          # If not, further refinement might be needed.
+          GEMINI_API_KEY: ${{ inputs.run-api-tests && secrets.GEMINI_API_KEY || '' }}
+
+      - name: Upload test results and coverage XML
+        uses: actions/upload-artifact@v4
+        if: always() # Upload artifacts even if tests fail
+        with:
+          name: test-and-coverage-reports
+          path: |
+            test-results.xml
+            coverage.xml
+
+      - name: Upload coverage HTML report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-html-report
+          path: htmlcov/
+
+      - name: Send Slack notification on failure
+        if: failure() && secrets.SLACK_WEBHOOK_URL != ''
+        uses: slackapi/slack-github-action@v2.1.1
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: webhook-trigger
+          payload: |
+            {
+              "text": "Tests and Coverage failed! See details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
