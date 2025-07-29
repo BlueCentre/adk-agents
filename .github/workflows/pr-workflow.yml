@@ -32,8 +32,10 @@ jobs:
 
     - name: Send Slack notification
       if: failure()
-      uses: slackapi/slack-github-action@v2.1.0
+      uses: slackapi/slack-github-action@v2.1.1
       with:
+        webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+        webhook-type: webhook-trigger
         payload: |
           {
             "text": "Linting failed on main branch! See details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
@@ -75,8 +77,10 @@ jobs:
     # https://tools.slack.dev/slack-github-action/sending-techniques/sending-data-slack-incoming-webhook/
     - name: Send Slack notification
       if: failure()
-      uses: slackapi/slack-github-action@v2.1.0
+      uses: slackapi/slack-github-action@v2.1.1
       with:
+        webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+        webhook-type: webhook-trigger
         payload: |
           {
             "text": "Tests with coverage failed on main branch! See details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
@@ -141,8 +145,10 @@ jobs:
     # https://tools.slack.dev/slack-github-action/sending-techniques/sending-data-slack-incoming-webhook/
     - name: Send Slack notification
       if: failure()
-      uses: slackapi/slack-github-action@v2.1.0
+      uses: slackapi/slack-github-action@v2.1.1
       with:
+        webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+        webhook-type: webhook-trigger
         payload: |
           {
             "text": "Coverage report failed on main branch! See details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
