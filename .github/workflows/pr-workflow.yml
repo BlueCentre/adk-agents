@@ -95,6 +95,11 @@ jobs:
       matrix:
         python-version: ['3.11']
     steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Needed for PR comments
+
     - name: Install UV and setup Python ${{ matrix.python-version }}
       uses: astral-sh/setup-uv@v5
       with:
