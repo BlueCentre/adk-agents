@@ -56,8 +56,12 @@ def _handle_pending_approval(tool, args, tool_context, tool_response):
             # Re-run the tool with force_edit enabled
             tool_context.state["force_edit"] = True
             try:
-                # It's assumed the tool is a FunctionTool and can be called directly
-                tool_response = tool(tool_context=tool_context, **args)
+                # Access the underlying function via the func attribute for FunctionTool
+                if hasattr(tool, "func"):
+                    tool_response = tool.func(tool_context=tool_context, **args)
+                else:
+                    # Fallback for other tool types - call directly
+                    tool_response = tool(tool_context=tool_context, **args)
             finally:
                 tool_context.state["force_edit"] = False  # Reset the flag
         else:
