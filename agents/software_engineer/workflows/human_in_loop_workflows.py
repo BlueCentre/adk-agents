@@ -295,7 +295,7 @@ def _present_file_edit_proposal(proposal: dict[str, Any]) -> str:
     if "proposed_filepath" in proposal:
         presentation.extend([f"**File:** `{proposal['proposed_filepath']}`", ""])
 
-    if proposal.get("diff"):
+    if "diff" in proposal:
         presentation.extend(["**Proposed Changes:**", "```diff", proposal["diff"], "```", ""])
     elif "proposed_content" in proposal:
         presentation.extend(
