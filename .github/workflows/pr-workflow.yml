@@ -84,7 +84,7 @@ jobs:
           edit-mode: replace
 
       - name: Consolidate Slack Notification (Final Status)
-        if: ${{ github.event.pull_request.head.sha == github.sha && secrets.SLACK_WEBHOOK_URL != '' }} # Only notify for the last commit on the PR
+        if: ${{ github.event.pull_request.head.sha == github.sha && env.SLACK_WEBHOOK_URL != '' }} # Only notify for the last commit on the PR
         uses: slackapi/slack-github-action@v2.1.1
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}

@@ -89,7 +89,7 @@ jobs:
           path: htmlcov/
 
       - name: Send Slack notification on failure
-        if: failure() && secrets.SLACK_WEBHOOK_URL != ''
+        if: failure() && inputs.SLACK_WEBHOOK_URL != ''
         uses: slackapi/slack-github-action@v2.1.1
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
