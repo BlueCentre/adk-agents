@@ -26,6 +26,7 @@ from .shared_libraries.context_callbacks import (
 from .shared_libraries.workflow_guidance import suggest_next_step
 from .tools.setup import load_all_tools_and_toolsets
 from .workflows.human_in_loop_workflows import (
+    generate_diff_for_proposal,
     generate_proposal_presentation,
     human_in_the_loop_approval,
 )
@@ -45,9 +46,10 @@ logger = logging.getLogger(__name__)
 def _handle_pending_approval(tool, args, tool_context, tool_response):
     """Handle pending approval status from a tool."""
     if isinstance(tool_response, dict) and tool_response.get("status") == "pending_approval":
+        proposal = generate_diff_for_proposal(tool_response)
         approved = human_in_the_loop_approval(
             tool_context=tool_context,
-            proposal=tool_response,
+            proposal=proposal,
             user_input_handler=input,  # Use standard input for now
             display_handler=print,  # Use standard print for now
         )
@@ -668,6 +670,7 @@ def _execute_human_approval_workflow(
     display_handler(presentation)
 
     # Get approval using the standard approval function
+    proposal = generate_diff_for_proposal(proposal)
     approved = human_in_the_loop_approval(
         tool_context=tool_context,
         proposal=proposal,
