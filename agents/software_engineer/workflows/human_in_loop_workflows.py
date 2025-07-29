@@ -10,6 +10,7 @@ from google.adk.tools import ToolContext
 from google.genai import types as genai_types
 
 from .. import config as agent_config
+from ..shared_libraries.diff_utils import generate_unified_diff
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +106,13 @@ def human_in_the_loop_approval(
     Returns:
         bool: True if the action is approved by the user, False otherwise.
     """
+    if proposal.get("type") == "file_edit":
+        old_content = proposal.get("old_content", "")
+        new_content = proposal.get("proposed_content", "")
+        filepath = proposal.get("proposed_filepath", "file")
+        diff = generate_unified_diff(old_content, new_content, filepath, filepath)
+        proposal["diff"] = diff
+
     return approve_proposal_with_user_input(
         state_dict=tool_context.state,
         proposal=proposal,
@@ -287,7 +295,7 @@ def _present_file_edit_proposal(proposal: dict[str, Any]) -> str:
     if "proposed_filepath" in proposal:
         presentation.extend([f"**File:** `{proposal['proposed_filepath']}`", ""])
 
-    if "diff" in proposal:
+    if proposal.get("diff"):
         presentation.extend(["**Proposed Changes:**", "```diff", proposal["diff"], "```", ""])
     elif "proposed_content" in proposal:
         presentation.extend(
