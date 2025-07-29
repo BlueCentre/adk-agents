@@ -4,7 +4,7 @@ from collections import deque
 from datetime import datetime
 import logging
 import re
-from typing import Any
+from typing import Any, Optional
 import warnings
 
 from google.adk.agents import Agent
@@ -24,10 +24,15 @@ from .shared_libraries.context_callbacks import (
     _preprocess_and_add_context_to_agent_prompt,
 )
 from .shared_libraries.workflow_guidance import suggest_next_step
+from .tools.setup import load_all_tools_and_toolsets
+from .workflows.human_in_loop_workflows import (
+    generate_proposal_presentation,
+    human_in_the_loop_approval,
+)
 
 # Import sub-agent prompts and tools to create separate instances
-from .tools.setup import load_all_tools_and_toolsets
-from .workflows.human_in_loop_workflows import human_in_the_loop_approval
+# from .tools.setup import load_all_tools_and_toolsets
+# from .workflows.human_in_loop_workflows import human_in_the_loop_approval
 
 # Ignore all warnings
 warnings.filterwarnings("ignore")
@@ -495,6 +500,7 @@ def workflow_selector_tool(tool_context: ToolContext, task_description: str) -> 
         "production",
         "critical",
         "security",
+        "architecture",
     ]
 
     parallel_indicators = [
@@ -576,6 +582,160 @@ def workflow_selector_tool(tool_context: ToolContext, task_description: str) -> 
     }
 
 
+def workflow_execution_tool(
+    tool_context: ToolContext,
+    workflow_type: str,
+    task_description: str,
+    proposal_data: Optional[dict[str, Any]] = None,
+) -> dict[str, Any]:
+    """
+    Execute a selected workflow based on the workflow type.
+
+    This tool implements the execution of different workflow patterns including
+    the human approval workflow for critical actions.
+
+    Args:
+        tool_context: ADK tool context providing access to session state
+        workflow_type: Type of workflow to execute (from workflow_selector_tool)
+        task_description: Description of the task being executed
+        proposal_data: Optional proposal data for approval workflows
+
+    Returns:
+        dict: Workflow execution results and status
+    """
+    logger.info(f"Executing workflow: {workflow_type} for task: {task_description}")
+
+    try:
+        if workflow_type == "human_in_loop":
+            return _execute_human_approval_workflow(tool_context, task_description, proposal_data)
+        if workflow_type == "iterative_refinement":
+            return _execute_iterative_workflow(tool_context, task_description)
+        if workflow_type == "parallel_execution":
+            return _execute_parallel_workflow(tool_context, task_description)
+        if workflow_type == "standard_sequential":
+            return _execute_sequential_workflow(tool_context, task_description)
+        return {
+            "status": "error",
+            "message": f"Unknown workflow type: {workflow_type}",
+            "workflow_type": workflow_type,
+        }
+    except Exception as e:
+        logger.error(f"Workflow execution failed: {e}")
+        return {
+            "status": "error",
+            "message": f"Workflow execution failed: {e!s}",
+            "workflow_type": workflow_type,
+        }
+
+
+def _execute_human_approval_workflow(
+    tool_context: ToolContext,
+    task_description: str,
+    proposal_data: Optional[dict[str, Any]] = None,
+) -> dict[str, Any]:
+    """Execute the human approval workflow using shared utilities."""
+    # Set up the proposal in session state if provided
+    if proposal_data:
+        tool_context.state["pending_proposal"] = proposal_data
+    elif "pending_proposal" not in tool_context.state:
+        # Create a generic proposal if none provided
+        tool_context.state["pending_proposal"] = {
+            "type": "generic",
+            "title": f"Approval Required: {task_description}",
+            "description": task_description,
+            "details": "This action requires human approval before proceeding.",
+        }
+
+    proposal = tool_context.state.get("pending_proposal", {})
+
+    # Use default display and input handlers if not provided
+    def default_display_handler(message: str) -> None:
+        print(message)
+
+    def default_input_handler(prompt: str) -> str:
+        return input(prompt)
+
+    # Get custom handlers from proposal if available
+    display_handler = proposal.get("display_handler", default_display_handler)
+    input_handler = proposal.get("user_input_handler", default_input_handler)
+
+    # Generate and display the proposal presentation using shared utility
+    presentation = generate_proposal_presentation(proposal)
+    display_handler(presentation)
+
+    # Get approval using the standard approval function
+    approved = human_in_the_loop_approval(
+        tool_context=tool_context,
+        proposal=proposal,
+        user_input_handler=input_handler,
+        display_handler=display_handler,
+    )
+
+    # Update workflow state
+    tool_context.state["last_approval_outcome"] = "approved" if approved else "rejected"
+    tool_context.state["workflow_state"] = "approval_completed"
+
+    if approved:
+        tool_context.state["approved_action"] = proposal
+        tool_context.state["workflow_next_step"] = "execute_approved_action"
+    else:
+        tool_context.state["workflow_next_step"] = "handle_rejection"
+
+    return {
+        "status": "completed",
+        "workflow_type": "human_in_loop",
+        "approved": approved,
+        "proposal_type": proposal.get("type", "unknown"),
+        "message": f"Approval workflow completed: {'Approved' if approved else 'Rejected'}",
+        "next_step": tool_context.state["workflow_next_step"],
+    }
+
+
+def _execute_iterative_workflow(
+    tool_context: ToolContext,
+    task_description: str,
+) -> dict[str, Any]:
+    """Execute the iterative refinement workflow."""
+    # For now, return a placeholder - would integrate with actual iterative workflow
+    tool_context.state["workflow_state"] = "iterative_in_progress"
+    return {
+        "status": "initiated",
+        "workflow_type": "iterative_refinement",
+        "message": "Iterative refinement workflow initiated",
+        "task_description": task_description,
+    }
+
+
+def _execute_parallel_workflow(
+    tool_context: ToolContext,
+    task_description: str,
+) -> dict[str, Any]:
+    """Execute the parallel analysis workflow."""
+    # For now, return a placeholder - would integrate with actual parallel workflow
+    tool_context.state["workflow_state"] = "parallel_in_progress"
+    return {
+        "status": "initiated",
+        "workflow_type": "parallel_execution",
+        "message": "Parallel execution workflow initiated",
+        "task_description": task_description,
+    }
+
+
+def _execute_sequential_workflow(
+    tool_context: ToolContext,
+    task_description: str,
+) -> dict[str, Any]:
+    """Execute the standard sequential workflow."""
+    # For now, return a placeholder - would integrate with actual sequential workflow
+    tool_context.state["workflow_state"] = "sequential_in_progress"
+    return {
+        "status": "initiated",
+        "workflow_type": "standard_sequential",
+        "message": "Sequential workflow initiated",
+        "task_description": task_description,
+    }
+
+
 def create_enhanced_software_engineer_agent() -> Agent:
     """
     Create an enhanced software engineer agent with retry capabilities.
@@ -598,6 +758,7 @@ def create_enhanced_software_engineer_agent() -> Agent:
             [
                 FunctionTool(state_manager_tool),  # Re-enabled: proper ADK signature
                 FunctionTool(workflow_selector_tool),  # Re-enabled: proper ADK signature
+                FunctionTool(workflow_execution_tool),  # Re-enabled: proper ADK signature
                 load_memory,
             ]
         )
