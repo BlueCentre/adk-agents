@@ -95,6 +95,13 @@ jobs:
       matrix:
         python-version: ['3.11']
     steps:
+    - name: Install UV and setup Python ${{ matrix.python-version }}
+      uses: astral-sh/setup-uv@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+        enable-cache: true
+        cache-dependency-glob: "pyproject.toml"
+
     - name: Upload test results
       uses: actions/upload-artifact@v4
       if: always()  # Upload test results even if tests fail
