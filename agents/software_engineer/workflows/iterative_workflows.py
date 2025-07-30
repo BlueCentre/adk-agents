@@ -993,31 +993,151 @@ Return only the revised code without additional explanation.
         return revision_header + revised_code
 
     def _apply_error_handling_improvements(self, code: str, feedback: dict) -> str:
-        """Apply error handling improvements with context awareness."""
+        """Apply error handling improvements with context awareness using AST parsing."""
+        import ast
+
         feedback.get("feedback_text", "").lower()
 
         # Check if code already has try-catch
         if "try:" in code:
-            # Enhance existing error handling
-            return code.replace(
-                "except Exception as e:",
-                "except ValueError as e:\n    logger.error(f'Value error: {e}')\n    raise\n"
-                "except Exception as e:",
-            )
-        # Add comprehensive error handling
+            # Enhance existing error handling by improving exception specificity
+            enhanced_code = code
+            if "except Exception as e:" in enhanced_code:
+                replacement = (
+                    "except ValueError as e:\n    logger.error(f'Value error: {e}')\n    "
+                    "raise\nexcept Exception as e:"
+                )
+                enhanced_code = enhanced_code.replace(
+                    "except Exception as e:",
+                    replacement,
+                    1,  # Replace only the first occurrence
+                )
+            return enhanced_code
+
+        # Add comprehensive error handling using AST parsing for proper structure
+        try:
+            # Parse the code to understand its structure
+            tree = ast.parse(code)
+
+            # If the code contains function definitions, wrap only the function body
+            if any(isinstance(node, ast.FunctionDef) for node in tree.body):
+                return self._wrap_function_bodies_with_error_handling(code)
+            # For non-function code, wrap the entire code block
+            return self._wrap_code_block_with_error_handling(code)
+
+        except SyntaxError:
+            # If AST parsing fails, fall back to simple wrapping with proper indentation detection
+            return self._wrap_code_block_with_error_handling(code)
+
+    def _wrap_function_bodies_with_error_handling(self, code: str) -> str:
+        """Wrap function bodies with error handling, preserving original indentation."""
+        import re
+
+        try:
+            lines = code.split("\n")
+            result_lines = []
+            i = 0
+
+            while i < len(lines):
+                line = lines[i]
+
+                # Check if this line starts a function definition
+                if re.match(r"^(\s*)def\s+\w+\s*\(", line):
+                    base_indent = len(line) - len(line.lstrip())
+                    function_indent = " " * (base_indent + 4)
+
+                    # Add the function definition line
+                    result_lines.append(line)
+                    i += 1
+
+                    # Skip docstring and comments
+                    while i < len(lines) and (
+                        not lines[i].strip() or lines[i].strip().startswith(('"""', "'''", "#"))
+                    ):
+                        result_lines.append(lines[i])
+                        i += 1
+
+                    # Add try block start
+                    result_lines.append(f"{function_indent}try:")
+
+                    # Process function body with additional indentation
+                    while i < len(lines):
+                        current_line = lines[i]
+
+                        # Check if we've reached the end of the function
+                        # (next function or class, or unindented line)
+                        if (
+                            current_line.strip()
+                            and len(current_line) - len(current_line.lstrip()) <= base_indent
+                            and not current_line.lstrip().startswith(("#", '"""', "'''"))
+                        ):
+                            break
+
+                        # Add the line with additional indentation for try block
+                        if current_line.strip():
+                            result_lines.append(f"    {current_line}")
+                        else:
+                            result_lines.append(current_line)
+                        i += 1
+
+                    # Add except blocks
+                    result_lines.extend(
+                        [
+                            f"{function_indent}except ValueError as e:",
+                            f"{function_indent}    print(f'Invalid input value: {{e}}')",
+                            f"{function_indent}    raise",
+                            f"{function_indent}except TypeError as e:",
+                            f"{function_indent}    print(f'Type error: {{e}}')",
+                            f"{function_indent}    raise",
+                            f"{function_indent}except Exception as e:",
+                            f"{function_indent}    print(f'Unexpected error: {{e}}')",
+                            f"{function_indent}    raise",
+                        ]
+                    )
+                else:
+                    result_lines.append(line)
+                    i += 1
+
+            return "\n".join(result_lines)
+
+        except Exception:
+            # Fallback to simple wrapping
+            return self._wrap_code_block_with_error_handling(code)
+
+    def _wrap_code_block_with_error_handling(self, code: str) -> str:
+        """Wrap entire code block with error handling, detecting proper indentation."""
         lines = code.split("\n")
-        indented_code = "\n".join("    " + line if line.strip() else line for line in lines)
-        return f"""try:
+
+        # Detect the base indentation level of the code
+        non_empty_lines = [line for line in lines if line.strip()]
+        if not non_empty_lines:
+            return code
+
+        # Find minimum indentation (excluding empty lines)
+        min_indent = min(len(line) - len(line.lstrip()) for line in non_empty_lines)
+        base_indent = " " * min_indent
+
+        # Add try-except wrapper with proper indentation
+        indented_lines = []
+        for line in lines:
+            if line.strip():  # Non-empty line
+                indented_lines.append(f"    {line}")
+            else:  # Empty line
+                indented_lines.append(line)
+
+        indented_code = "\n".join(indented_lines)
+
+        return f"""{base_indent}try:
 {indented_code}
-except ValueError as e:
-    print(f"Invalid input value: {{e}}")
-    raise
-except TypeError as e:
-    print(f"Type error: {{e}}")
-    raise
-except Exception as e:
-    print(f"Unexpected error: {{e}}")
-    raise"""
+{base_indent}except ValueError as e:
+{base_indent}    print(f"Invalid input value: {{e}}")
+{base_indent}    raise
+{base_indent}except TypeError as e:
+{base_indent}    print(f"Type error: {{e}}")
+{base_indent}    raise
+{base_indent}except Exception as e:
+{base_indent}    print(f"Unexpected error: {{e}}")
+{base_indent}    raise"""
 
     def _apply_efficiency_improvements(self, code: str, feedback: dict) -> str:
         """Apply efficiency improvements with context awareness."""
@@ -1271,6 +1391,9 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
         quality_issues = []
         quality_score = 100
 
+        # Get project root directory for proper context
+        project_root = self._get_project_root()
+
         # Create a temporary file for the code
         tmp_file_path = None
         try:
@@ -1280,15 +1403,15 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
             # File is now properly closed
 
             # Run ruff for linting
-            ruff_issues = self._run_ruff_analysis(tmp_file_path)
+            ruff_issues = self._run_ruff_analysis(tmp_file_path, cwd=project_root)
             quality_issues.extend(ruff_issues)
 
             # Run mypy for type checking (if possible)
-            mypy_issues = self._run_mypy_analysis(tmp_file_path)
+            mypy_issues = self._run_mypy_analysis(tmp_file_path, cwd=project_root)
             quality_issues.extend(mypy_issues)
 
             # Run bandit for security analysis
-            bandit_issues = self._run_bandit_analysis(tmp_file_path)
+            bandit_issues = self._run_bandit_analysis(tmp_file_path, cwd=project_root)
             quality_issues.extend(bandit_issues)
 
         finally:
@@ -1334,18 +1457,52 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
             },
         }
 
-    def _run_ruff_analysis(self, file_path: str) -> list[dict]:
+    def _get_project_root(self) -> str:
+        """Get the project root directory for proper subprocess execution context."""
+        from pathlib import Path
+
+        # Try to find project root by looking for common project indicators
+        current_path = Path(__file__).resolve()
+
+        # Look for project markers (pyproject.toml, setup.py, .git, etc.)
+        project_markers = ["pyproject.toml", "setup.py", ".git", "poetry.lock", "requirements.txt"]
+
+        for parent in [current_path, *list(current_path.parents)]:
+            for marker in project_markers:
+                if (parent / marker).exists():
+                    return str(parent)
+
+        # Fallback to current working directory
+        return str(Path.cwd())
+
+    def _run_ruff_analysis(self, file_path: str, cwd: str | None = None) -> list[dict]:
         """Run ruff linter on the code file."""
         import json
+        import os
+        from pathlib import Path
         import subprocess
 
         try:
+            # Prepare environment with proper PYTHONPATH
+            env = os.environ.copy()
+            if cwd:
+                # Add source directories to PYTHONPATH for local imports
+                cwd_path = Path(cwd)
+                src_paths = [str(cwd_path / "src"), str(cwd_path / "agents"), cwd]
+                pythonpath = os.pathsep.join([p for p in src_paths if Path(p).exists()])
+                if env.get("PYTHONPATH"):
+                    env["PYTHONPATH"] = f"{pythonpath}{os.pathsep}{env['PYTHONPATH']}"
+                else:
+                    env["PYTHONPATH"] = pythonpath
+
             # Run ruff with JSON output
             result = subprocess.run(
                 ["uv", "run", "ruff", "check", file_path, "--output-format=json"],
                 capture_output=True,
                 text=True,
                 timeout=30,
+                cwd=cwd,
+                env=env,
             )
 
             if result.stdout:
@@ -1386,17 +1543,33 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
 
         return []
 
-    def _run_mypy_analysis(self, file_path: str) -> list[dict]:
+    def _run_mypy_analysis(self, file_path: str, cwd: str | None = None) -> list[dict]:
         """Run mypy type checker on the code file."""
+        import os
+        from pathlib import Path
         import subprocess
 
         try:
+            # Prepare environment with proper PYTHONPATH
+            env = os.environ.copy()
+            if cwd:
+                # Add source directories to PYTHONPATH for local imports
+                cwd_path = Path(cwd)
+                src_paths = [str(cwd_path / "src"), str(cwd_path / "agents"), cwd]
+                pythonpath = os.pathsep.join([p for p in src_paths if Path(p).exists()])
+                if env.get("PYTHONPATH"):
+                    env["PYTHONPATH"] = f"{pythonpath}{os.pathsep}{env['PYTHONPATH']}"
+                else:
+                    env["PYTHONPATH"] = pythonpath
+
             # Run mypy with structured output
             result = subprocess.run(
                 ["uv", "run", "mypy", file_path, "--show-error-codes"],
                 capture_output=True,
                 text=True,
                 timeout=30,
+                cwd=cwd,
+                env=env,
             )
 
             issues = []
@@ -1440,18 +1613,34 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
 
         return []
 
-    def _run_bandit_analysis(self, file_path: str) -> list[dict]:
+    def _run_bandit_analysis(self, file_path: str, cwd: str | None = None) -> list[dict]:
         """Run bandit security analysis on the code file."""
         import json
+        import os
+        from pathlib import Path
         import subprocess
 
         try:
+            # Prepare environment with proper PYTHONPATH
+            env = os.environ.copy()
+            if cwd:
+                # Add source directories to PYTHONPATH for local imports
+                cwd_path = Path(cwd)
+                src_paths = [str(cwd_path / "src"), str(cwd_path / "agents"), cwd]
+                pythonpath = os.pathsep.join([p for p in src_paths if Path(p).exists()])
+                if env.get("PYTHONPATH"):
+                    env["PYTHONPATH"] = f"{pythonpath}{os.pathsep}{env['PYTHONPATH']}"
+                else:
+                    env["PYTHONPATH"] = pythonpath
+
             # Run bandit with JSON output
             result = subprocess.run(
                 ["uv", "run", "bandit", "-f", "json", file_path],
                 capture_output=True,
                 text=True,
                 timeout=30,
+                cwd=cwd,
+                env=env,
             )
 
             if result.stdout:
@@ -1595,6 +1784,9 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
         from pathlib import Path
         import tempfile
 
+        # Get project root directory for proper context
+        project_root = self._get_project_root()
+
         # Use TemporaryDirectory context manager for better resource management
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_dir_path = Path(temp_dir)
@@ -1609,13 +1801,15 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
 
             try:
                 # Run pytest to check if the code has testable functions
-                test_results = self._run_pytest_analysis(tmp_file_path, code)
+                test_results = self._run_pytest_analysis(tmp_file_path, code, cwd=project_root)
 
                 # Generate test suggestions based on actual code analysis
                 test_suggestions = self._generate_real_test_suggestions(code, tmp_file_path)
 
                 # Run coverage analysis if possible
-                coverage_results = self._analyze_test_coverage(tmp_file_path, code)
+                coverage_results = self._analyze_test_coverage(
+                    tmp_file_path, code, cwd=project_root
+                )
 
                 return {
                     "tests_run": test_results.get("tests_run", 0),
@@ -1639,8 +1833,10 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
                     pass
         # The temporary directory and its contents are automatically cleaned up here
 
-    def _run_pytest_analysis(self, file_path: str, code: str) -> dict:
+    def _run_pytest_analysis(self, file_path: str, code: str, cwd: str | None = None) -> dict:
         """Run pytest to analyze test execution possibilities."""
+        import os
+        from pathlib import Path
         import subprocess
 
         try:
@@ -1648,12 +1844,26 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
             has_tests = self._contains_test_functions(code)
 
             if has_tests:
+                # Prepare environment with proper PYTHONPATH
+                env = os.environ.copy()
+                if cwd:
+                    # Add source directories to PYTHONPATH for local imports
+                    cwd_path = Path(cwd)
+                    src_paths = [str(cwd_path / "src"), str(cwd_path / "agents"), cwd]
+                    pythonpath = os.pathsep.join([p for p in src_paths if Path(p).exists()])
+                    if env.get("PYTHONPATH"):
+                        env["PYTHONPATH"] = f"{pythonpath}{os.pathsep}{env['PYTHONPATH']}"
+                    else:
+                        env["PYTHONPATH"] = pythonpath
+
                 # Run pytest on the file
                 result = subprocess.run(
                     ["uv", "run", "pytest", file_path, "-v", "--tb=short"],
                     capture_output=True,
                     text=True,
                     timeout=30,
+                    cwd=cwd,
+                    env=env,
                 )
 
                 # Parse pytest output
@@ -1770,23 +1980,44 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
 
         return suggestions[:10]  # Limit to 10 suggestions
 
-    def _analyze_test_coverage(self, file_path: str, code: str) -> dict:
+    def _analyze_test_coverage(self, file_path: str, code: str, cwd: str | None = None) -> dict:
         """Analyze potential test coverage."""
+        import os
+        from pathlib import Path
         import subprocess
 
         try:
+            # Prepare environment with proper PYTHONPATH
+            env = os.environ.copy()
+            if cwd:
+                # Add source directories to PYTHONPATH for local imports
+                cwd_path = Path(cwd)
+                src_paths = [str(cwd_path / "src"), str(cwd_path / "agents"), cwd]
+                pythonpath = os.pathsep.join([p for p in src_paths if Path(p).exists()])
+                if env.get("PYTHONPATH"):
+                    env["PYTHONPATH"] = f"{pythonpath}{os.pathsep}{env['PYTHONPATH']}"
+                else:
+                    env["PYTHONPATH"] = pythonpath
+
             # Try to run coverage analysis (basic approach)
             result = subprocess.run(
                 ["uv", "run", "coverage", "run", "--source=.", file_path],
                 capture_output=True,
                 text=True,
                 timeout=30,
+                cwd=cwd,
+                env=env,
             )
 
             if result.returncode == 0:
                 # Get coverage report
                 coverage_result = subprocess.run(
-                    ["uv", "run", "coverage", "report"], capture_output=True, text=True, timeout=15
+                    ["uv", "run", "coverage", "report"],
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                    cwd=cwd,
+                    env=env,
                 )
 
                 # Parse coverage percentage (simplified)
