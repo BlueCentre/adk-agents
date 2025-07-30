@@ -1,6 +1,7 @@
 # code_agent/agent/software_engineer/software_engineer/tools/filesystem_tools.py
 import logging
 from pathlib import Path
+import re
 from typing import Any
 
 from google.adk.tools import FunctionTool, ToolContext
@@ -244,6 +245,64 @@ def edit_file_content(
         return {"status": "error", "error_type": "IOError", "message": message}
 
 
+def replace_content_regex(
+    filepath: str,
+    pattern: str,
+    replacement: str,
+    tool_context: ToolContext,
+    count: int = 0,  # 0 means all occurrences
+) -> dict[str, Any]:
+    logger.info(f"Attempting regex replacement in file: {filepath}")
+
+    try:
+        # Step 1: Read the file content
+        read_result = read_file_content(filepath)
+        if read_result["status"] == "error":
+            return read_result  # Propagate file read errors
+
+        original_content = read_result["content"]
+
+        # Step 2: Apply regex replacement
+        try:
+            compiled_pattern = re.compile(pattern)
+        except re.error as e:
+            message = f"Invalid regex pattern provided: {pattern} - {e}"
+            logger.error(message)
+            return {"status": "error", "error_type": "InvalidRegex", "message": message}
+
+        new_content = compiled_pattern.sub(replacement, original_content, count)
+
+        if new_content == original_content:
+            message = f"No changes made to file {filepath}: pattern not found or content identical."
+            logger.info(message)
+            return {"status": "success", "message": message, "changes_made": False}
+
+        # Step 3: Propose/write using edit_file_content logic
+        # Re-use the existing edit_file_content for the actual write and approval flow
+        # This simplifies the implementation and ensures consistency with approval/feedback.
+        tool_context.state["skip_realtime_validation"] = (
+            True  # Temporarily skip validation to avoid recursive calls within validation
+        )
+        edit_result = edit_file_content(filepath, new_content, tool_context)
+        del tool_context.state["skip_realtime_validation"]  # Clean up
+
+        if edit_result["status"] == "pending_approval":
+            edit_result["message"] = (
+                f"Proposed regex replacement for {filepath}. " + edit_result["message"]
+            )
+        elif edit_result["status"] == "success":
+            edit_result["message"] = (
+                f"Successfully applied regex replacement to {filepath}. " + edit_result["message"]
+            )
+
+        return edit_result
+
+    except Exception as e:
+        message = f"An unexpected error occurred during regex replacement in file {filepath}: {e}"
+        logger.error(message, exc_info=True)
+        return {"status": "error", "error_type": "IOError", "message": message}
+
+
 def configure_edit_approval(require_approval: bool, tool_context: ToolContext) -> dict[str, Any]:
     """
     Configures whether file edits require user approval for the current session.
@@ -330,6 +389,7 @@ list_directory_contents_tool = FunctionTool(list_directory_contents)
 edit_file_content_tool = FunctionTool(edit_file_content)
 configure_edit_approval_tool = FunctionTool(configure_edit_approval)
 enable_smooth_testing_mode_tool = FunctionTool(enable_smooth_testing_mode)
+replace_content_regex_tool = FunctionTool(replace_content_regex)
 
 # Export the tools
 __all__ = [
@@ -338,4 +398,5 @@ __all__ = [
     "enable_smooth_testing_mode_tool",
     "list_directory_contents_tool",
     "read_file_content_tool",
+    "replace_content_regex_tool",  # Added this line
 ]
