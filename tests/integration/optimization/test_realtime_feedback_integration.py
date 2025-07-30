@@ -7,7 +7,7 @@ editing workflow.
 
 from pathlib import Path
 import tempfile
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from google.adk.tools import ToolContext
 import pytest
@@ -320,16 +320,17 @@ class TestCriticalIssuesHandler:
             {"can_auto_fix": True, "auto_fixed_code": "def test():  # Fixed colon"}
         )
 
-        with patch("agents.software_engineer.tools.filesystem.edit_file_content") as mock_edit:
-            mock_edit.return_value = {"status": "success", "message": "File written"}
+        result = handle_critical_issues_feedback(
+            auto_fixable_response, self.tool_context, "auto_fix"
+        )
 
-            result = handle_critical_issues_feedback(
-                auto_fixable_response, self.tool_context, "auto_fix"
-            )
-
-            assert result["status"] == "auto_fixed_and_applied"
-            assert "✅" in result["message"]
-            mock_edit.assert_called_once()
+        # Now expects action description instead of direct execution
+        assert result["status"] == "auto_fix_ready"
+        assert result["action"] == "apply_auto_fix"
+        assert result["filepath"] == "test.py"
+        assert result["fixed_content"] == "def test():  # Fixed colon"
+        assert result["skip_validation"] is True
+        assert "✅" in result["message"]
 
     def test_configure_realtime_feedback_tool(self):
         """Test the configuration tool for real-time feedback."""

@@ -226,6 +226,7 @@ class RealtimeFeedbackEngine:
     def run_lightweight_ruff_check(self, code: str, _file_path: str) -> list[SyntaxIssue]:
         """Run lightweight ruff check if available."""
         issues = []
+        temp_path = None
 
         try:
             # Create temporary file for ruff analysis
@@ -276,11 +277,12 @@ class RealtimeFeedbackEngine:
                     # Fallback to text parsing or ignore
                     pass
 
-            # Clean up temp file
-            Path(temp_path).unlink(missing_ok=True)
-
         except (FileNotFoundError, subprocess.TimeoutExpired, Exception) as e:
             logger.debug(f"Ruff check failed or unavailable: {e}")
+        finally:
+            # Ensure temporary file is always cleaned up
+            if temp_path:
+                Path(temp_path).unlink(missing_ok=True)
 
         return issues
 
@@ -432,38 +434,21 @@ def handle_critical_issues_feedback(
 
         # Process user choice
         if user_choice == "auto_fix" and can_auto_fix and auto_fixed_code:
-            logger.info(f"Applying automatic fixes to {filepath}")
+            logger.info(f"Preparing automatic fixes for {filepath}")
 
-            # Recursively call edit_file_content with fixed code (skip validation this time)
-            tool_context.state["skip_realtime_validation"] = True
-            try:
-                from ..tools.filesystem import edit_file_content
+            # Return action description instead of directly calling edit_file_content
+            # This breaks the circular dependency - the caller will handle the actual file edit
+            return {
+                "status": "auto_fix_ready",
+                "message": f"✅ Automatic fixes prepared for '{filepath}'",
+                "action": "apply_auto_fix",
+                "filepath": filepath,
+                "fixed_content": auto_fixed_code,
+                "applied_fixes": "Trailing whitespace removed, semicolons added, etc.",
+                "skip_validation": True,  # Skip validation when applying the fix
+            }
 
-                result = edit_file_content(filepath, auto_fixed_code, tool_context)
-
-                if result.get("status") == "success":
-                    return {
-                        "status": "auto_fixed_and_applied",
-                        "message": (
-                            f"✅ Automatically fixed issues and applied changes to '{filepath}'"
-                        ),
-                        "applied_fixes": "Trailing whitespace removed, semicolons added, etc.",
-                        "final_content": auto_fixed_code,
-                    }
-                return {
-                    "status": "auto_fix_failed",
-                    "message": (
-                        f"❌ Auto-fix succeeded but file write failed: "
-                        f"{result.get('message', 'Unknown error')}"
-                    ),
-                    "original_issue": critical_issues_response.get("feedback", ""),
-                    "write_error": result,
-                }
-            finally:
-                # Re-enable validation for future operations
-                tool_context.state.pop("skip_realtime_validation", None)
-
-        elif user_choice == "manual":
+        if user_choice == "manual":
             return {
                 "status": "manual_fix_requested",
                 "message": "Please manually fix the issues and try again:",
@@ -476,29 +461,25 @@ def handle_critical_issues_feedback(
                 ],
             }
 
-        elif user_choice == "ignore" and tool_context.state.get(
+        if user_choice == "ignore" and tool_context.state.get(
             "allow_ignore_critical_issues", False
         ):
             logger.warning(f"User chose to ignore critical issues in {filepath}")
 
-            # Force the edit despite critical issues
-            tool_context.state["skip_realtime_validation"] = True
-            try:
-                from ..tools.filesystem import edit_file_content
+            # Return action description instead of directly calling edit_file_content
+            # This breaks the circular dependency - the caller will handle the actual file edit
+            return {
+                "status": "ignore_issues_ready",
+                "message": f"⚠️ Preparing to write '{filepath}' despite critical issues",
+                "action": "force_edit",
+                "filepath": filepath,
+                "content": content,
+                "warning": "Code may not function correctly due to syntax errors",
+                "ignored_feedback": critical_issues_response.get("feedback", ""),
+                "skip_validation": True,  # Skip validation when forcing the edit
+            }
 
-                result = edit_file_content(filepath, content, tool_context)
-                return {
-                    "status": "critical_issues_ignored",
-                    "message": (
-                        f"⚠️ File written despite critical issues: {result.get('message', '')}"
-                    ),
-                    "warning": "Code may not function correctly due to syntax errors",
-                    "ignored_feedback": critical_issues_response.get("feedback", ""),
-                }
-            finally:
-                tool_context.state.pop("skip_realtime_validation", None)
-
-        elif user_choice == "retry":
+        if user_choice == "retry":
             return {
                 "status": "retry_requested",
                 "message": "Please provide the corrected code and try again.",
@@ -506,14 +487,13 @@ def handle_critical_issues_feedback(
                 "filepath": filepath,
             }
 
-        else:
-            return {
-                "status": "invalid_choice",
-                "message": (
-                    f"Invalid choice '{user_choice}'. Available options: auto_fix, manual, retry"
-                ),
-                "feedback": critical_issues_response.get("feedback", ""),
-            }
+        return {
+            "status": "invalid_choice",
+            "message": (
+                f"Invalid choice '{user_choice}'. Available options: auto_fix, manual, retry"
+            ),
+            "feedback": critical_issues_response.get("feedback", ""),
+        }
 
     except Exception as e:
         logger.error(f"Error handling critical issues feedback: {e}")

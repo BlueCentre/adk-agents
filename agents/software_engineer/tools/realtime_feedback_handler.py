@@ -50,6 +50,66 @@ def handle_critical_issues(
             critical_issues_response, tool_context, user_choice
         )
 
+        # Handle new action-based returns that require follow-up file operations
+        if result.get("status") == "auto_fix_ready":
+            # Apply the automatic fix by calling edit_file_content
+            filepath = result.get("filepath")
+            fixed_content = result.get("fixed_content")
+
+            if filepath and fixed_content:
+                # Set skip validation flag to avoid circular validation
+                tool_context.state["skip_realtime_validation"] = True
+                try:
+                    from ..tools.filesystem import edit_file_content
+
+                    edit_result = edit_file_content(filepath, fixed_content, tool_context)
+
+                    if edit_result.get("status") == "success":
+                        return {
+                            "status": "auto_fixed_and_applied",
+                            "message": (
+                                f"✅ Automatically fixed issues and applied changes to '{filepath}'"
+                            ),
+                            "applied_fixes": result.get("applied_fixes", ""),
+                            "final_content": fixed_content,
+                        }
+                    return {
+                        "status": "auto_fix_failed",
+                        "message": (
+                            f"❌ Auto-fix succeeded but file write failed: "
+                            f"{edit_result.get('message', 'Unknown error')}"
+                        ),
+                        "original_issue": critical_issues_response.get("feedback", ""),
+                        "write_error": edit_result,
+                    }
+                finally:
+                    # Re-enable validation for future operations
+                    tool_context.state.pop("skip_realtime_validation", None)
+
+        elif result.get("status") == "ignore_issues_ready":
+            # Force the edit despite critical issues
+            filepath = result.get("filepath")
+            content = result.get("content")
+
+            if filepath and content:
+                # Set skip validation flag to avoid validation during forced edit
+                tool_context.state["skip_realtime_validation"] = True
+                try:
+                    from ..tools.filesystem import edit_file_content
+
+                    edit_result = edit_file_content(filepath, content, tool_context)
+                    return {
+                        "status": "critical_issues_ignored",
+                        "message": (
+                            f"⚠️ File written despite critical issues: "
+                            f"{edit_result.get('message', '')}"
+                        ),
+                        "warning": result.get("warning", ""),
+                        "ignored_feedback": result.get("ignored_feedback", ""),
+                    }
+                finally:
+                    tool_context.state.pop("skip_realtime_validation", None)
+
         logger.info(
             f"Handled critical issues with choice '{user_choice}': "
             f"{result.get('status', 'unknown')}"

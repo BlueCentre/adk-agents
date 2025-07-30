@@ -153,6 +153,7 @@ def edit_file_content(
     # Run real-time validation before approval (unless disabled or internal operations)
     realtime_feedback_enabled = tool_context.state.get("realtime_feedback_enabled", True)
     skip_validation = tool_context.state.get("skip_realtime_validation", False)
+    validation_result = None
 
     if realtime_feedback_enabled and not skip_validation:
         logger.info(f"Running real-time validation for: {filepath}")
@@ -191,14 +192,8 @@ def edit_file_content(
 
         # Include real-time feedback in approval request if available
         realtime_feedback = ""
-        if realtime_feedback_enabled and not skip_validation:
-            try:
-                from ..shared_libraries.realtime_feedback import validate_code_before_approval
-
-                validation_result = validate_code_before_approval(content, filepath, tool_context)
-                realtime_feedback = validation_result.get("formatted_feedback", "")
-            except Exception as e:
-                logger.debug(f"Failed to get real-time feedback for approval: {e}")
+        if validation_result:
+            realtime_feedback = validation_result.get("formatted_feedback", "")
 
         approval_response = {
             "status": "pending_approval",
