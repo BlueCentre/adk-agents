@@ -46,78 +46,56 @@ def mock_logger():
 # --- Test ConsoleErrorDisplay ---
 
 
-def test_console_error_display_error_normal_mode():
+@pytest.mark.parametrize(
+    "method_name, message, expected_color",
+    [
+        ("display_error", "Test Error", "red"),
+        ("display_warning", "Test Warning", "yellow"),
+        ("display_info", "Test Info", "green"),
+    ],
+)
+def test_console_error_display_normal_mode(method_name, message, expected_color):
     mock_console = MagicMock(spec=MockConsole)
     mock_cli = MockCli()
     display = ConsoleErrorDisplay(console=mock_console, cli=mock_cli, fallback_mode=False)
-    display.display_error("Test Error")
-    mock_cli.console.print.assert_called_once_with("[red]Test Error[/red]")
+    getattr(display, method_name)(message)
+    mock_cli.console.print.assert_called_once_with(
+        f"[{expected_color}]{message}[/{expected_color}]"
+    )
 
 
-def test_console_error_display_warning_normal_mode():
-    mock_console = MagicMock(spec=MockConsole)
-    mock_cli = MockCli()
-    display = ConsoleErrorDisplay(console=mock_console, cli=mock_cli, fallback_mode=False)
-    display.display_warning("Test Warning")
-    mock_cli.console.print.assert_called_once_with("[yellow]Test Warning[/yellow]")
-
-
-def test_console_error_display_info_normal_mode():
-    mock_console = MagicMock(spec=MockConsole)
-    mock_cli = MockCli()
-    display = ConsoleErrorDisplay(console=mock_console, cli=mock_cli, fallback_mode=False)
-    display.display_info("Test Info")
-    mock_cli.console.print.assert_called_once_with("[green]Test Info[/green]")
-
-
-def test_console_error_display_error_fallback_mode():
+@pytest.mark.parametrize(
+    "method_name, message, expected_color",
+    [
+        ("display_error", "Fallback Error", "red"),
+        ("display_warning", "Fallback Warning", "yellow"),
+        ("display_info", "Fallback Info", "blue"),
+    ],
+)
+def test_console_error_display_fallback_mode(method_name, message, expected_color):
     mock_console = MagicMock(spec=MockConsole)
     display = ConsoleErrorDisplay(console=mock_console, fallback_mode=True)
-    display.display_error("Fallback Error")
-    mock_console.print.assert_called_once_with("[red]Fallback Error[/red]")
-
-
-def test_console_error_display_warning_fallback_mode():
-    mock_console = MagicMock(spec=MockConsole)
-    display = ConsoleErrorDisplay(console=mock_console, fallback_mode=True)
-    display.display_warning("Fallback Warning")
-    mock_console.print.assert_called_once_with("[yellow]Fallback Warning[/yellow]")
-
-
-def test_console_error_display_info_fallback_mode():
-    mock_console = MagicMock(spec=MockConsole)
-    display = ConsoleErrorDisplay(console=mock_console, fallback_mode=True)
-    display.display_info("Fallback Info")
-    mock_console.print.assert_called_once_with("[blue]Fallback Info[/blue]")
+    getattr(display, method_name)(message)
+    mock_console.print.assert_called_once_with(f"[{expected_color}]{message}[/{expected_color}]")
 
 
 # --- Test TUIErrorDisplay ---
 
 
-def test_tui_error_display_error():
+@pytest.mark.parametrize(
+    "method_name, message, expected_style",
+    [
+        ("display_error", "TUI Error", "error"),
+        ("display_warning", "TUI Warning", "warning"),
+        ("display_info", "TUI Info", "info"),
+    ],
+)
+def test_tui_error_display(method_name, message, expected_style):
     mock_tui_app = MagicMock(spec=MockTUIApp)
     display = TUIErrorDisplay(tui_app=mock_tui_app)
-    display.display_error("TUI Error")
+    getattr(display, method_name)(message)
     mock_tui_app.add_output.assert_called_once_with(
-        "TUI Error", author="System", rich_format=True, style="error"
-    )
-
-
-def test_tui_error_display_warning():
-    mock_tui_app = MagicMock(spec=MockTUIApp)
-    display = TUIErrorDisplay(tui_app=mock_tui_app)
-    display.display_warning("TUI Warning")
-    mock_tui_app.add_output.assert_called_once_with(
-        "TUI Warning", author="System", rich_format=True, style="warning"
-    )
-
-
-def test_tui_error_display_info():
-    mock_tui_app = MagicMock(spec=MockTUIApp)
-    display = TUIErrorDisplay(tui_app=mock_tui_app)
-    display.display_info("TUI Info")
-    mock_tui_app.add_output.assert_called_once_with(
-        "TUI Info", author="System", rich_format=True, style="info"
+        message, author="System", rich_format=True, style=expected_style
     )
 
 
