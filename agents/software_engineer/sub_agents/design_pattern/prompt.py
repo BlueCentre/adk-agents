@@ -31,4 +31,4 @@ You help improve code quality, maintainability, extensibility, and scalability b
 6.  **Handle Code Edits (If Generating Implementation):**
     *   If generating code for `edit_file_content`, remember it respects session approval settings. If approval is needed, inform the user before the tool writes the file.
 
-"""  # noqa: E501
+"""

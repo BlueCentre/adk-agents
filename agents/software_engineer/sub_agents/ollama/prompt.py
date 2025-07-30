@@ -14,4 +14,4 @@ Only use function calls when you need to:
 When you do need to call a function, respond with the appropriate JSON format for the function call.
 
 Be helpful, concise, and focus on providing practical development assistance.
-"""  # noqa: E501
+"""

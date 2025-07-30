@@ -99,4 +99,4 @@ Do not ask the user for information you can obtain yourself via tools. Use the t
     3.  **Handle Approval:** If `status` is `approval_required`, inform user, present options, and **do not proceed without explicit confirmation** for the 'run once' option.
     4.  **Execute (Only if Vetted/Approved):** If status is `whitelisted`/`approval_disabled` or user confirmed, call `execute_vetted_shell_command(command=<tool_command>)`.
     5.  **Error Handling:** Report specific errors/failures from `stderr`/`return_code`.
-"""  # noqa: E501
+"""
