@@ -4,6 +4,9 @@ Integration Tests for Code Refinement Workflow (Milestone 4.2)
 This module contains integration tests for the code refinement workflow
 implemented in Milestone 4.2, which supports iterative code improvement
 based on user feedback with integrated quality analysis and testing.
+
+This version includes tests that use the actual create_code_refinement_loop agent
+instead of just simulating the workflow logic.
 """
 
 import asyncio
@@ -12,6 +15,9 @@ import time
 from typing import Any, Optional
 
 import pytest
+
+# Import the real agent for testing
+from agents.software_engineer.workflows.iterative_workflows import create_code_refinement_loop
 
 
 @dataclass
@@ -52,6 +58,30 @@ class TestCodeRefinementWorkflow:
             "testing_results": {},
             "integrated_feedback": {},
         }
+
+    @pytest.mark.asyncio
+    async def test_real_code_refinement_agent_creation(self):
+        """Test that the real code refinement agent can be created and has correct structure."""
+        # Act
+        refinement_agent = create_code_refinement_loop()
+
+        # Assert
+        assert refinement_agent is not None
+        assert refinement_agent.name == "code_refinement_loop"
+        assert refinement_agent.max_iterations == 5
+        assert len(refinement_agent.sub_agents) == 5
+
+        # Verify the sub-agents are present and correctly named
+        expected_sub_agents = [
+            "code_refinement_init_agent",
+            "code_refinement_feedback_collector",
+            "code_refinement_reviser",
+            "code_quality_testing_integrator",
+            "code_refinement_satisfaction_checker",
+        ]
+
+        for i, expected_name in enumerate(expected_sub_agents):
+            assert refinement_agent.sub_agents[i].name == expected_name
 
     @pytest.mark.asyncio
     async def test_code_refinement_factorial_example(self, mock_session_state):

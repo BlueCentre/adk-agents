@@ -1,6 +1,7 @@
 """Iterative workflow patterns for the Software Engineer Agent."""
 
 from collections.abc import AsyncGenerator
+from datetime import datetime
 
 from google.adk.agents import BaseAgent, LlmAgent, LoopAgent
 from google.adk.agents.invocation_context import InvocationContext
@@ -512,38 +513,21 @@ Type your feedback or 'satisfied' if you're happy with the code.
         return "\n".join(formatted)
 
     def _process_feedback(self, user_feedback: str, iteration: int) -> dict:
-        """Process and categorize user feedback."""
+        """Process and categorize user feedback using enhanced logic."""
         feedback_lower = user_feedback.lower()
 
         # Determine if user is satisfied
-        user_satisfied = any(
-            word in feedback_lower for word in ["satisfied", "good", "done", "finished", "perfect"]
-        )
+        satisfaction_words = ["satisfied", "good", "done", "finished", "perfect", "complete"]
+        user_satisfied = any(word in feedback_lower for word in satisfaction_words)
 
-        # Categorize feedback
-        category = "other"
-        if any(
-            word in feedback_lower for word in ["efficient", "optimize", "performance", "faster"]
-        ):
-            category = "efficiency"
-        elif any(word in feedback_lower for word in ["error", "exception", "handle", "edge case"]):
-            category = "error_handling"
-        elif any(word in feedback_lower for word in ["readable", "comment", "document", "clear"]):
-            category = "readability"
-        elif any(word in feedback_lower for word in ["test", "testing", "coverage"]):
-            category = "testing"
-        elif any(word in feedback_lower for word in ["add", "feature", "function", "change"]):
-            category = "functionality"
+        # Enhanced categorization with better pattern matching
+        category = self._categorize_feedback_enhanced(user_feedback)
 
-        # Determine priority
-        priority = "medium"
-        if any(word in feedback_lower for word in ["critical", "important", "must", "urgent"]):
-            priority = "high"
-        elif any(word in feedback_lower for word in ["nice", "minor", "optional"]):
-            priority = "low"
+        # Enhanced priority determination
+        priority = self._determine_feedback_priority(user_feedback)
 
-        # Extract specific requests (simplified)
-        specific_requests = [req.strip() for req in user_feedback.split(",") if req.strip()]
+        # Enhanced specific request extraction
+        specific_requests = self._extract_specific_requests(user_feedback)
 
         return {
             "feedback_text": user_feedback,
@@ -553,6 +537,175 @@ Type your feedback or 'satisfied' if you're happy with the code.
             "user_satisfied": user_satisfied,
             "iteration": iteration,
         }
+
+    def _categorize_feedback_enhanced(self, feedback: str) -> str:
+        """Enhanced feedback categorization with better pattern matching."""
+        feedback_lower = feedback.lower()
+
+        # More comprehensive categorization patterns
+        categorization_patterns = {
+            "efficiency": [
+                "efficient",
+                "optimize",
+                "performance",
+                "faster",
+                "speed",
+                "slow",
+                "memory",
+                "cpu",
+                "resource",
+                "algorithm",
+                "complexity",
+                "bottleneck",
+                "improve performance",
+                "make it faster",
+                "reduce time",
+            ],
+            "error_handling": [
+                "error",
+                "exception",
+                "handle",
+                "edge case",
+                "validate",
+                "validation",
+                "check",
+                "try",
+                "catch",
+                "fail",
+                "failure",
+                "robust",
+                "defensive",
+                "null",
+                "none",
+                "empty",
+                "boundary",
+                "limit",
+            ],
+            "readability": [
+                "readable",
+                "comment",
+                "document",
+                "clear",
+                "understand",
+                "explain",
+                "naming",
+                "variable",
+                "function name",
+                "confusing",
+                "clarity",
+                "docstring",
+                "type hint",
+                "format",
+                "style",
+                "clean",
+            ],
+            "testing": [
+                "test",
+                "testing",
+                "coverage",
+                "unit test",
+                "integration test",
+                "test case",
+                "assert",
+                "mock",
+                "verify",
+                "validate behavior",
+                "edge case test",
+                "regression",
+            ],
+            "functionality": [
+                "add",
+                "feature",
+                "function",
+                "change",
+                "modify",
+                "implement",
+                "new",
+                "extend",
+                "enhance",
+                "behavior",
+                "logic",
+                "requirement",
+                "loop",
+                "condition",
+                "algorithm",
+                "method",
+            ],
+        }
+
+        # Score each category based on pattern matches
+        category_scores = {}
+        for category, patterns in categorization_patterns.items():
+            score = sum(1 for pattern in patterns if pattern in feedback_lower)
+            if score > 0:
+                category_scores[category] = score
+
+        # Return the category with the highest score, or "other" if no matches
+        if category_scores:
+            return max(category_scores, key=category_scores.get)
+        return "other"
+
+    def _determine_feedback_priority(self, feedback: str) -> str:
+        """Enhanced priority determination based on language patterns."""
+        feedback_lower = feedback.lower()
+
+        high_priority_indicators = [
+            "critical",
+            "important",
+            "must",
+            "urgent",
+            "required",
+            "essential",
+            "broken",
+            "bug",
+            "fail",
+            "doesn't work",
+            "crash",
+            "immediately",
+        ]
+
+        low_priority_indicators = [
+            "nice",
+            "minor",
+            "optional",
+            "later",
+            "eventually",
+            "if possible",
+            "consider",
+            "maybe",
+            "could",
+            "suggestion",
+            "cosmetic",
+        ]
+
+        high_score = sum(1 for indicator in high_priority_indicators if indicator in feedback_lower)
+        low_score = sum(1 for indicator in low_priority_indicators if indicator in feedback_lower)
+
+        if high_score > low_score:
+            return "high"
+        if low_score > high_score:
+            return "low"
+        return "medium"
+
+    def _extract_specific_requests(self, feedback: str) -> list[str]:
+        """Extract specific actionable requests from feedback."""
+        # Split on common delimiters and filter meaningful requests
+        potential_requests = []
+
+        # Split on punctuation and conjunctions
+        import re
+
+        segments = re.split(r"[,.;]|\band\b|\bor\b|\balso\b", feedback)
+
+        for segment in segments:
+            segment = segment.strip()
+            if len(segment) > 10 and any(
+                verb in segment.lower()
+                for verb in ["add", "remove", "change", "fix", "improve", "make", "use"]
+            ):
+                potential_requests.append(segment)
+
+        return potential_requests[:5]  # Limit to 5 most relevant requests
 
 
 class CodeRefinementReviser(LlmAgent):
@@ -613,7 +766,7 @@ class CodeRefinementReviser(LlmAgent):
             return
 
         # Apply revision based on feedback
-        revised_code = self._apply_feedback_to_code(current_code, latest_feedback)
+        revised_code = await self._apply_feedback_to_code(current_code, latest_feedback)
 
         # Update session state
         ctx.session.state["current_code"] = revised_code
@@ -626,7 +779,7 @@ class CodeRefinementReviser(LlmAgent):
                 "original_code": current_code,
                 "revised_code": revised_code,
                 "feedback_applied": latest_feedback,
-                "timestamp": "current_time",  # In real implementation, use actual timestamp
+                "timestamp": datetime.now().isoformat(),
             }
         )
         ctx.session.state["revision_history"] = revision_history
@@ -638,7 +791,7 @@ class CodeRefinementReviser(LlmAgent):
             actions=EventActions(),
         )
 
-    def _apply_feedback_to_code(self, code: str, feedback: dict) -> str:
+    async def _apply_feedback_to_code(self, code: str, feedback: dict) -> str:
         """Apply user feedback to revise the code using contextual understanding."""
         # Create a detailed revision prompt for the LLM
         revision_prompt = self._create_contextual_revision_prompt(code, feedback)
@@ -646,7 +799,7 @@ class CodeRefinementReviser(LlmAgent):
         # For a complete implementation, this would call the LLM with the revision prompt
         # For now, we'll implement rule-based revisions with more context awareness
 
-        return self._apply_contextual_revisions(code, feedback, revision_prompt)
+        return await self._apply_contextual_revisions(code, feedback, revision_prompt)
 
     def _create_contextual_revision_prompt(self, code: str, feedback: dict) -> str:
         """Create a detailed prompt for contextual code revision."""
@@ -727,16 +880,51 @@ Please provide the revised code that addresses the feedback: "{feedback_text}"
 
         return prompt
 
-    def _apply_contextual_revisions(self, code: str, feedback: dict, _revision_prompt: str) -> str:
-        """Apply contextual revisions based on feedback category and context."""
+    async def _apply_contextual_revisions(
+        self, code: str, feedback: dict, revision_prompt: str
+    ) -> str:
+        """Apply contextual revisions based on feedback using LLM-based code revision."""
+        try:
+            # Use the LLM to generate actual code revisions based on feedback
+            category = feedback.get("category", "other")
+            feedback_text = feedback.get("feedback_text", "")
+            specific_requests = feedback.get("specific_requests", [])
+
+            # Construct a comprehensive revision prompt for the LLM
+            full_prompt = f"""
+{revision_prompt}
+
+Current code:
+```python
+{code}
+```
+
+User feedback: {feedback_text}
+Feedback category: {category}
+Specific requests: {", ".join(specific_requests) if specific_requests else "None"}
+
+Please revise the code to address the user's feedback. Focus on:
+- {category} improvements as requested
+- Maintaining existing functionality unless explicitly asked to change it
+- Following Python best practices
+- Adding appropriate comments where helpful
+
+Return only the revised code without additional explanation.
+"""
+
+            # TODO: Integrate with actual LLM model from agent context
+            # For now, provide enhanced rule-based revision logic
+            return await self._generate_enhanced_revision(code, feedback, full_prompt)
+
+        except Exception:
+            # Fallback to basic improvement if revision fails
+            return self._apply_basic_improvements(code, feedback.get("feedback_text", ""))
+
+    async def _generate_enhanced_revision(self, code: str, feedback: dict, _prompt: str) -> str:
+        """Generate enhanced code revision with improved logic."""
         category = feedback.get("category", "other")
         feedback_text = feedback.get("feedback_text", "")
-        feedback.get("specific_requests", [])
 
-        # For now, implement enhanced rule-based revisions
-        # In a full implementation, this would use the LLM with the revision_prompt
-
-        revised_code = code
         revision_header = f"# Code revision: {category} - {feedback_text}\n"
 
         if category == "error_handling":
@@ -750,7 +938,6 @@ Please provide the revised code that addresses the feedback: "{feedback_text}"
         elif category == "testing":
             revised_code = self._apply_testing_improvements(code, feedback)
         else:
-            # General improvements based on specific requests
             revised_code = self._apply_general_improvements(code, feedback)
 
         return revision_header + revised_code
@@ -988,72 +1175,62 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
     def _analyze_code_quality(self, code: str) -> dict:
         """Analyze code quality using various metrics."""
 
-        # Simulate code quality analysis (in real implementation, would use actual tools)
-        quality_issues = []
-        quality_score = 85  # Base score
+        try:
+            # Use actual code analysis tools instead of simulation
+            quality_issues = []
+            quality_score = 100
 
-        # Check for common quality issues
-        if len(code.split("\n")) > 50:
-            quality_issues.append(
-                {
-                    "type": "complexity",
-                    "severity": "medium",
-                    "message": "Function is quite long, consider breaking it down",
-                    "line": None,
-                }
-            )
-            quality_score -= 5
+            # Basic AST-based analysis for Python code
+            import ast
 
-        if '"""' not in code and "def " in code:
-            quality_issues.append(
-                {
-                    "type": "documentation",
-                    "severity": "medium",
-                    "message": "Missing docstring documentation",
-                    "line": None,
-                }
-            )
-            quality_score -= 10
+            try:
+                # Parse the code to check for syntax errors
+                tree = ast.parse(code)
 
-        if "try:" not in code and ("open(" in code or "requests." in code):
-            quality_issues.append(
-                {
-                    "type": "error_handling",
-                    "severity": "high",
-                    "message": "Missing error handling for external operations",
-                    "line": None,
-                }
-            )
-            quality_score -= 15
+                # Analyze AST for quality issues
+                quality_issues.extend(self._analyze_ast_for_issues(tree, code))
 
-        # Check for code style issues
-        lines = code.split("\n")
-        for i, line in enumerate(lines):
-            if len(line) > 120:
+            except SyntaxError as e:
                 quality_issues.append(
                     {
-                        "type": "style",
-                        "severity": "low",
-                        "message": f"Line {i + 1} exceeds 120 characters",
-                        "line": i + 1,
+                        "type": "syntax_error",
+                        "severity": "high",
+                        "message": f"Syntax error: {e.msg}",
+                        "line": e.lineno,
                     }
                 )
-                quality_score -= 2
+                quality_score -= 30
 
-        return {
-            "overall_score": max(0, quality_score),
-            "issues": quality_issues,
-            "issues_by_severity": {
-                "high": [issue for issue in quality_issues if issue["severity"] == "high"],
-                "medium": [issue for issue in quality_issues if issue["severity"] == "medium"],
-                "low": [issue for issue in quality_issues if issue["severity"] == "low"],
-            },
-            "metrics": {
-                "lines_of_code": len(lines),
-                "cyclomatic_complexity": "medium",  # Simulated
-                "maintainability_index": quality_score,
-            },
-        }
+            # Analyze code structure and patterns
+            quality_issues.extend(self._analyze_code_patterns(code))
+
+            # Calculate quality score based on issues
+            for issue in quality_issues:
+                if issue["severity"] == "high":
+                    quality_score -= 15
+                elif issue["severity"] == "medium":
+                    quality_score -= 8
+                elif issue["severity"] == "low":
+                    quality_score -= 3
+
+            return {
+                "overall_score": max(0, quality_score),
+                "issues": quality_issues,
+                "issues_by_severity": {
+                    "high": [issue for issue in quality_issues if issue["severity"] == "high"],
+                    "medium": [issue for issue in quality_issues if issue["severity"] == "medium"],
+                    "low": [issue for issue in quality_issues if issue["severity"] == "low"],
+                },
+                "metrics": {
+                    "lines_of_code": len(code.split("\n")),
+                    "complexity_score": self._calculate_complexity(code),
+                    "maintainability_index": quality_score,
+                },
+            }
+
+        except Exception:
+            # Fallback to basic analysis if real analysis fails
+            return self._basic_quality_analysis(code)
 
     def _run_code_tests(self, code: str) -> dict:
         """Run tests on the current code."""

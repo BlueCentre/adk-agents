@@ -567,13 +567,14 @@ def workflow_selector_tool(tool_context: ToolContext, task_description: str) -> 
     elif any(word in task_lower for word in ["review", "analyze", "audit"]):
         task_type = "analysis"
 
-    # Select workflow
+    # Select workflow (order matters - more specific/complex workflows first)
     if requires_approval:
         selected_workflow = "human_in_loop"
+    elif iterative and complexity == "high":
+        # High-complexity iterative tasks get priority over simple code refinement
+        selected_workflow = "iterative_refinement"
     elif code_refinement_needed:
         selected_workflow = "code_refinement"
-    elif iterative and complexity == "high":
-        selected_workflow = "iterative_refinement"
     elif parallel_capable:
         selected_workflow = "parallel_execution"
     else:
