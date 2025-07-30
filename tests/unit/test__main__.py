@@ -171,12 +171,15 @@ class TestMainModuleErrorHandling:
         # This test ensures that if the import fails, we get a proper ImportError
         # rather than silent failure
 
+        # First import the module to ensure it's in sys.modules
+        import importlib
+
+        import src.wrapper.adk.cli.__main__ as main_module
+
         with patch.dict("sys.modules", {"src.wrapper.adk.cli.cli_tools_click": None}):
             with pytest.raises((ImportError, AttributeError)):
                 # Force re-import which should fail
-                import importlib
-
-                importlib.reload(sys.modules["src.wrapper.adk.cli.__main__"])
+                importlib.reload(main_module)
 
     @patch("src.wrapper.adk.cli.__main__.main")
     def test_main_execution_with_exception(self, mock_main):
