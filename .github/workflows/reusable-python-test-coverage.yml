@@ -49,7 +49,7 @@ jobs:
       - name: Run tests with coverage
         run: |
           # Base pytest command
-          PYTEST_CMD="uv run pytest tests/"
+          PYTEST_CMD="uv run pytest tests/ -n auto --verbose"
 
           # Add coverage options
           if [[ "${{ inputs.modules }}" == "agents.devops" ]]; then
@@ -57,11 +57,11 @@ jobs:
           elif [[ "${{ inputs.modules }}" == "src.wrapper.adk" ]]; then
             PYTEST_CMD+=" --cov=src --cov-config=pyproject.toml --cov-fail-under=80"
           else
-            PYTEST_CMD+=" --cov=src --cov-config=pyproject.toml -n auto -v"
+            PYTEST_CMD+=" --cov=src --cov-config=pyproject.toml"
           fi
 
           # Add output formats for coverage and test results
-          PYTEST_CMD+=" --cov-report=xml --cov-report=term --cov-report=html --junitxml=test-results.xml -n auto -v"
+          PYTEST_CMD+=" --cov-report=xml --cov-report=term --cov-report=html --junitxml=test-results.xml"
 
           # Execute the command
           echo "Running: $PYTEST_CMD"
