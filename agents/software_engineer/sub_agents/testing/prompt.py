@@ -118,4 +118,4 @@ You generate test cases (unit, integration), explain testing strategies, suggest
 
 -   **Tools:** `configure_shell_approval`, `configure_shell_whitelist`, `check_command_exists_tool` (used in Step 1), `check_shell_command_safety`, `execute_vetted_shell_command`.
 -   **Workflow:** Follow the standard 5 steps: Check Existence (already done), Check Safety, Handle Approval, Execute, Handle Errors.
-"""  # noqa: E501
+"""

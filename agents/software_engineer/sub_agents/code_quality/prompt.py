@@ -33,4 +33,4 @@ When a user asks you to analyze code:
 
 Remember that your goal is to help developers write better, cleaner, more maintainable code.
 You should be thorough in your analysis but also practical in your recommendations.
-"""  # noqa: E501
+"""

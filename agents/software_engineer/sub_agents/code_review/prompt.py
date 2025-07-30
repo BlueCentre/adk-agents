@@ -126,4 +126,4 @@ Your review must identify potential bugs, security vulnerabilities, performance 
     3.  **Handle Approval:** If `status` is `approval_required`, inform user, present options (run once, whitelist, disable approval), and **do not proceed without explicit confirmation** for the 'run once' option.
     4.  **Execute (Only if Vetted/Approved):** If status is `whitelisted`/`approval_disabled` or user confirmed, call `execute_vetted_shell_command(command=<tool_command>)`.
     5.  **Error Handling:** Report specific errors if execution fails.
-"""  # noqa: E501
+"""
