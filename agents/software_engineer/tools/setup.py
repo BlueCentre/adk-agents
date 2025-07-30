@@ -32,6 +32,11 @@ from .persistent_memory_tool import (
     load_memory_from_file_tool,
     save_current_session_to_file_tool,
 )
+from .realtime_feedback_handler import (
+    configure_realtime_feedback_tool,
+    get_feedback_options_tool,
+    handle_critical_issues_tool,
+)
 from .shell_command import execute_shell_command_tool
 from .system_info import get_os_info_tool
 
@@ -94,6 +99,10 @@ def load_core_tools_and_toolsets():
         # Memory tools
         load_memory_from_file_tool,
         save_current_session_to_file_tool,
+        # Real-time feedback tools (Milestone 4.1)
+        handle_critical_issues_tool,
+        get_feedback_options_tool,
+        configure_realtime_feedback_tool,
         # Note: RAG tools (index_directory_tool, retrieve_code_context_tool, purge_rag_index_tool)
         # are not available in the SWE agent yet
     ]
@@ -675,6 +684,9 @@ def load_selective_tools_and_toolsets(
             "_analyze_code",
             "get_issues_by_severity",
             "suggest_fixes",
+            "handle_critical_issues",
+            "get_feedback_options",
+            "configure_realtime_feedback",
         ],
         "code_search": [
             "ripgrep_code_search",

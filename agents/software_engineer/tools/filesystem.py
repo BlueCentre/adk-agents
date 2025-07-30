@@ -114,6 +114,9 @@ def edit_file_content(
     Creates the file if it does not exist (including parent directories).
     Overwrites the file if it already exists (only if approval is not required or already granted).
 
+    Implements Milestone 4.1: Real-time Syntax and Basic Style Feedback by validating code
+    before approval and providing immediate feedback on issues.
+
     Checks the 'require_edit_approval' flag in session state (defaults to True).
     If True, returns a 'pending_approval' status without writing.
     If False, writes the file and returns 'success' or 'error'.
@@ -127,7 +130,9 @@ def edit_file_content(
     Returns:
         A dictionary with:
         - {'status': 'pending_approval', 'proposed_filepath': str, 'proposed_content': str,
-          'message': str} if approval is required.
+          'message': str, 'realtime_feedback': str} if approval is required.
+        - {'status': 'critical_issues', 'feedback': str, 'can_auto_fix': bool,
+          'auto_fixed_code': str} if critical syntax errors are found.
         - {'status': 'success', 'message': 'Success message'} on successful write
           (when approval not required).
         - {'status': 'error', 'error_type': str, 'message': str} on failure during write
@@ -144,6 +149,38 @@ def edit_file_content(
     #     logger.error(message)
     #     return {"status": "error", "error_type": "SecurityViolation", "message": message}
 
+    # Milestone 4.1: Real-time Syntax and Style Feedback
+    # Run real-time validation before approval (unless disabled or internal operations)
+    realtime_feedback_enabled = tool_context.state.get("realtime_feedback_enabled", True)
+    skip_validation = tool_context.state.get("skip_realtime_validation", False)
+    validation_result = None
+
+    if realtime_feedback_enabled and not skip_validation:
+        logger.info(f"Running real-time validation for: {filepath}")
+        try:
+            from ..shared_libraries.realtime_feedback import validate_code_before_approval
+
+            validation_result = validate_code_before_approval(content, filepath, tool_context)
+
+            # If there are critical issues, return feedback immediately
+            if validation_result.get("has_critical_issues", False):
+                logger.info(f"Critical syntax issues found in {filepath}, blocking edit")
+                return {
+                    "status": "critical_issues",
+                    "feedback": validation_result.get(
+                        "formatted_feedback", "Critical issues found"
+                    ),
+                    "can_auto_fix": validation_result.get("can_auto_fix", False),
+                    "auto_fixed_code": validation_result.get("auto_fixed_code"),
+                    "proposed_filepath": filepath,
+                    "proposed_content": content,
+                    "message": "Critical syntax issues must be resolved before proceeding",
+                }
+
+        except Exception as e:
+            logger.warning(f"Real-time validation failed for {filepath}: {e}")
+            # Continue with normal flow if validation fails
+
     # Default to requiring approval unless explicitly told otherwise.
     # The 'force_edit' flag can be used for internal, non-user-facing automation
     # where pre-approval is implicitly granted.
@@ -152,12 +189,25 @@ def edit_file_content(
 
     if require_approval and not force_edit:
         logger.info(f"Approval required for file edit: {filepath}. Returning pending status.")
-        return {
+
+        # Include real-time feedback in approval request if available
+        realtime_feedback = ""
+        if validation_result:
+            realtime_feedback = validation_result.get("formatted_feedback", "")
+
+        approval_response = {
             "status": "pending_approval",
             "proposed_filepath": filepath,
             "proposed_content": content,
             "message": f"Approval required to write to '{filepath}'. User confirmation needed.",
         }
+
+        # Add real-time feedback if available
+        if realtime_feedback:
+            approval_response["realtime_feedback"] = realtime_feedback
+            approval_response["message"] += f"\n\n{realtime_feedback}"
+
+        return approval_response
 
     # Proceed with write if approval is not required or has been forced
     if force_edit:
