@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 
+from freezegun import freeze_time
 import pytest
 
 from agents.software_engineer.shared_libraries.proactive_error_detection import (
@@ -18,33 +19,38 @@ class TestProactiveErrorDetectorUnit:
     @pytest.fixture
     def sample_session_state_with_errors(self):
         """Create sample session state with recent errors."""
-        current_time = datetime.now()
-        return {
-            "recent_errors": [
-                {
-                    "command": "cat nonexistent.txt",
-                    "error_type": "file_not_found",
-                    "details": "No such file or directory: nonexistent.txt",
-                    "stderr": "cat: nonexistent.txt: No such file or directory",
-                    "timestamp": (current_time - timedelta(minutes=2)).isoformat(),
-                },
-                {
-                    "command": "python missing_module.py",
-                    "error_type": "python_import_error",
-                    "details": "ModuleNotFoundError: No module named 'requests'",
-                    "stderr": "ModuleNotFoundError: No module named 'requests'",
-                    "timestamp": (current_time - timedelta(minutes=1)).isoformat(),
-                },
-                {
-                    "command": "chmod 777 /root/secret",
-                    "error_type": "permission_denied",
-                    "details": "Permission denied",
-                    "stderr": "chmod: changing permissions of '/root/secret': Permission denied",
-                    "timestamp": (current_time - timedelta(minutes=3)).isoformat(),
-                },
-            ]
-        }
+        # Using a fixed time for deterministic tests
+        with freeze_time("2023-01-01 12:00:00"):
+            current_time = datetime.now()
+            return {
+                "recent_errors": [
+                    {
+                        "command": "cat nonexistent.txt",
+                        "error_type": "file_not_found",
+                        "details": "No such file or directory: nonexistent.txt",
+                        "stderr": "cat: nonexistent.txt: No such file or directory",
+                        "timestamp": (current_time - timedelta(minutes=2)).isoformat(),
+                    },
+                    {
+                        "command": "python missing_module.py",
+                        "error_type": "python_import_error",
+                        "details": "ModuleNotFoundError: No module named 'requests'",
+                        "stderr": "ModuleNotFoundError: No module named 'requests'",
+                        "timestamp": (current_time - timedelta(minutes=1)).isoformat(),
+                    },
+                    {
+                        "command": "chmod 777 /root/secret",
+                        "error_type": "permission_denied",
+                        "details": "Permission denied",
+                        "stderr": (
+                            "chmod: changing permissions of '/root/secret': Permission denied"
+                        ),
+                        "timestamp": (current_time - timedelta(minutes=3)).isoformat(),
+                    },
+                ]
+            }
 
+    @freeze_time("2023-01-01 12:00:00")
     def test_analyze_recent_errors_with_valid_errors(
         self, detector, sample_session_state_with_errors
     ):
@@ -53,7 +59,7 @@ class TestProactiveErrorDetectorUnit:
 
         assert analysis is not None
         assert analysis["has_proactive_suggestions"] is True
-        assert analysis["error_count"] >= 2  # Should find recent errors within 5 minutes
+        assert analysis["error_count"] == 3  # All 3 errors are recent and should be detected
         assert len(analysis["suggestions"]) <= 3  # Limited to top 3
         assert "generated_at" in analysis
 
@@ -64,6 +70,7 @@ class TestProactiveErrorDetectorUnit:
 
         assert analysis is None
 
+    @freeze_time("2023-01-01 12:00:00")
     def test_analyze_recent_errors_old_errors_only(self, detector):
         """Test analyzing when only old errors exist (older than 5 minutes)."""
         old_time = datetime.now() - timedelta(minutes=10)
@@ -82,6 +89,7 @@ class TestProactiveErrorDetectorUnit:
         analysis = detector.analyze_recent_errors(session_state)
         assert analysis is None
 
+    @freeze_time("2023-01-01 12:00:00")
     def test_analyze_recent_errors_malformed_timestamp(self, detector):
         """Test analyzing errors with malformed timestamps continues processing."""
         current_time = datetime.now()
@@ -104,11 +112,13 @@ class TestProactiveErrorDetectorUnit:
             ]
         }
 
-        # Should still process the good error despite the malformed timestamp
+        # Should still process both errors despite the malformed timestamp
         analysis = detector.analyze_recent_errors(session_state)
         assert analysis is not None
         assert analysis["has_proactive_suggestions"] is True
-        assert analysis["error_count"] >= 1  # At least the good error
+        assert (
+            analysis["error_count"] == 2
+        )  # Both errors should be processed (malformed timestamp doesn't filter out)
 
     def test_generate_error_suggestion_file_not_found(self, detector):
         """Test generating suggestion for file not found error."""

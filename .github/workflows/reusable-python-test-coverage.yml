@@ -57,11 +57,11 @@ jobs:
           elif [[ "${{ inputs.modules }}" == "src.wrapper.adk" ]]; then
             PYTEST_CMD+=" --cov=src --cov-config=pyproject.toml --cov-fail-under=80"
           else
-            PYTEST_CMD+=" --cov=src --cov-config=pyproject.toml"
+            PYTEST_CMD+=" --cov=src --cov-config=pyproject.toml -n auto"
           fi
 
           # Add output formats for coverage and test results
-          PYTEST_CMD+=" --cov-report=xml --cov-report=term --cov-report=html --junitxml=test-results.xml"
+          PYTEST_CMD+=" --cov-report=xml --cov-report=term --cov-report=html --junitxml=test-results.xml -n auto"
 
           # Execute the command
           echo "Running: $PYTEST_CMD"

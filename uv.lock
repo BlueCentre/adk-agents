@@ -69,6 +69,7 @@ extensions = [
 ]
 test = [
     { name = "anthropic" },
+    { name = "freezegun" },
     { name = "langchain-community" },
     { name = "langgraph" },
     { name = "litellm" },
@@ -99,6 +100,7 @@ requires-dist = [
     { name = "chromadb", specifier = ">=1.0.12" },
     { name = "docker", marker = "extra == 'extensions'", specifier = ">=7.0.0" },
     { name = "flit", marker = "extra == 'dev'", specifier = ">=3.10.0" },
+    { name = "freezegun", marker = "extra == 'test'", specifier = ">=1.5.0" },
     { name = "furo", marker = "extra == 'docs'" },
     { name = "google-adk", git = "https://github.com/BlueCentre/adk-python.git?rev=feat%2Frich-click" },
     { name = "google-cloud-aiplatform", extras = ["evaluation"], marker = "extra == 'eval'", specifier = ">=1.87.0" },
@@ -1179,6 +1181,18 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/69/59/b6fc2188dfc7ea4f936cd12b49d707f66a1cb7a1d2c16172963534db741b/flit_core-3.12.0.tar.gz", hash = "sha256:18f63100d6f94385c6ed57a72073443e1a71a4acb4339491615d0f16d6ff01b2", size = 53690, upload-time = "2025-03-25T08:03:23.969Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f2/65/b6ba90634c984a4fcc02c7e3afe523fef500c4980fec67cc27536ee50acf/flit_core-3.12.0-py3-none-any.whl", hash = "sha256:e7a0304069ea895172e3c7bb703292e992c5d1555dd1233ab7b5621b5b69e62c", size = 45594, upload-time = "2025-03-25T08:03:20.772Z" },
+]
+
+[[package]]
+name = "freezegun"
+version = "1.5.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "python-dateutil" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e0/1a/99a52c2df5d1b9b20ca1b253beb1ea412cb263d9cc670edd5a52595b7083/freezegun-1.5.3.tar.gz", hash = "sha256:d7c6204e33a50affd7c7aa284f4f92e04e96f72d63313b89ceaaf60d9c64bc5e", size = 35484, upload-time = "2025-07-12T18:39:40.592Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ab/fe/fda2d2dccda9b5eac3a7d00dea11efcbb776b00c4f1b471e0c3a26c9c751/freezegun-1.5.3-py3-none-any.whl", hash = "sha256:1ce20ee4be61349ba52c3af64f5eaba8d08ff51acfcf1b3ea671f03e54c818f1", size = 19062, upload-time = "2025-07-12T18:39:39.333Z" },
 ]
 
 [[package]]

@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 import logging
-import time
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -129,9 +129,10 @@ class TestRetryHandlerLogic:
         assert result == expected_result
         assert call_count == 1
 
-    @pytest.mark.skip(reason="Skipping flaky test: test_retry_handler_success_after_failure")
     @pytest.mark.asyncio
-    async def test_retry_handler_success_after_failure(self):
+    @patch("random.random", return_value=0.5)
+    @patch("asyncio.sleep", new_callable=AsyncMock)
+    async def test_retry_handler_success_after_failure(self, mock_sleep, _mock_random):
         """Test retry handler when function fails once then succeeds."""
         agent_name = "retry_success_agent"
         retry_callbacks = create_retry_callbacks(agent_name, max_retries=2, base_delay=0.01)
@@ -148,16 +149,16 @@ class TestRetryHandlerLogic:
                 raise ValueError("No message in response")
             return expected_result
 
-        start_time = time.time()
         result = await retry_handler(failing_then_success_function)
-        end_time = time.time()
 
         # Verify eventual success
         assert result == expected_result
         assert call_count == 2
 
-        # Verify delay was applied (should be > 0.01s due to retry delay + jitter)
-        assert end_time - start_time > 0.01
+        # Verify that sleep was called once with the correct delay (jitter is now deterministic)
+        # With random.random() mocked to 0.5, jitter_multiplier = 1.0
+        # Delay should be (backoff_multiplier=0) * base_delay * (1.0) = 0.01 * 1.0 = 0.01
+        mock_sleep.assert_called_once_with(0.01)
 
     @pytest.mark.asyncio
     async def test_retry_handler_exhaustion(self):
