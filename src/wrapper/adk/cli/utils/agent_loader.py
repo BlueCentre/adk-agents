@@ -81,9 +81,8 @@ class AgentLoader:
             return []
 
         agent_modules = []
-        for item in Path(base_path).iterdir():
-            item_path = base_path / item
-            item_name = item.name  # Get the string name from the Path object
+        for item_path in Path(base_path).iterdir():
+            item_name = item_path.name  # Get the string name from the Path object
             if item_path.is_dir() and not item_name.startswith(".") and item_name != "__pycache__":
                 # This is a package, so the module name is the directory name
                 agent_modules.append(item_name)
