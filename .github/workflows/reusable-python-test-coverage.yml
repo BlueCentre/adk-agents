@@ -49,7 +49,7 @@ jobs:
       - name: Run tests with coverage
         run: |
           # Base pytest command
-          PYTEST_CMD="uv run pytest tests/ -n auto --verbose"
+          PYTEST_CMD="uv run pytest tests/ -n auto --timeout=120 --verbose"
 
           # Add coverage options
           if [[ "${{ inputs.modules }}" == "agents.devops" ]]; then
