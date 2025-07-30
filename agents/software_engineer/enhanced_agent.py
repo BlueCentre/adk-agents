@@ -526,6 +526,18 @@ def workflow_selector_tool(tool_context: ToolContext, task_description: str) -> 
         "iterative",
     ]
 
+    code_refinement_indicators = [
+        "refine code",
+        "improve code",
+        "code refinement",
+        "iterative code",
+        "feedback-driven",
+        "user feedback",
+        "collaborative coding",
+        "refine my code",
+        "improve this code",
+    ]
+
     # Analyze task characteristics
     task_lower = task_description.lower()
 
@@ -540,6 +552,9 @@ def workflow_selector_tool(tool_context: ToolContext, task_description: str) -> 
     requires_approval = any(indicator in task_lower for indicator in approval_indicators)
     parallel_capable = any(indicator in task_lower for indicator in parallel_indicators)
     iterative = any(indicator in task_lower for indicator in iterative_indicators)
+    code_refinement_needed = any(
+        indicator in task_lower for indicator in code_refinement_indicators
+    )
 
     # Determine task type
     task_type = "general"
@@ -555,6 +570,8 @@ def workflow_selector_tool(tool_context: ToolContext, task_description: str) -> 
     # Select workflow
     if requires_approval:
         selected_workflow = "human_in_loop"
+    elif code_refinement_needed:
+        selected_workflow = "code_refinement"
     elif iterative and complexity == "high":
         selected_workflow = "iterative_refinement"
     elif parallel_capable:
@@ -571,6 +588,7 @@ def workflow_selector_tool(tool_context: ToolContext, task_description: str) -> 
             "requires_approval": requires_approval,
             "parallel_capable": parallel_capable,
             "iterative": iterative,
+            "code_refinement_needed": code_refinement_needed,
         }
 
     return {
@@ -581,6 +599,7 @@ def workflow_selector_tool(tool_context: ToolContext, task_description: str) -> 
             "requires_approval": requires_approval,
             "parallel_capable": parallel_capable,
             "iterative": iterative,
+            "code_refinement_needed": code_refinement_needed,
         },
         "recommendation_reason": (
             f"Selected {selected_workflow} based on task complexity and requirements",
@@ -614,6 +633,8 @@ def workflow_execution_tool(
     try:
         if workflow_type == "human_in_loop":
             return _execute_human_approval_workflow(tool_context, task_description, proposal_data)
+        if workflow_type == "code_refinement":
+            return _execute_code_refinement_workflow(tool_context, task_description)
         if workflow_type == "iterative_refinement":
             return _execute_iterative_workflow(tool_context, task_description)
         if workflow_type == "parallel_execution":
@@ -695,6 +716,37 @@ def _execute_human_approval_workflow(
         "proposal_type": proposal.get("type", "unknown"),
         "message": f"Approval workflow completed: {'Approved' if approved else 'Rejected'}",
         "next_step": tool_context.state["workflow_next_step"],
+    }
+
+
+def _execute_code_refinement_workflow(
+    tool_context: ToolContext,
+    task_description: str,
+) -> dict[str, Any]:
+    """Execute the code refinement workflow."""
+    # Initialize code refinement workflow state
+    tool_context.state["workflow_state"] = "code_refinement_in_progress"
+    tool_context.state["iteration_state"] = {
+        "current_iteration": 0,
+        "max_iterations": 5,
+        "should_stop": False,
+        "reason": "Starting code refinement workflow",
+    }
+    tool_context.state["refinement_feedback"] = []
+    tool_context.state["revision_history"] = []
+
+    return {
+        "status": "initiated",
+        "workflow_type": "code_refinement",
+        "message": "Code refinement workflow initiated - ready for user feedback",
+        "task_description": task_description,
+        "next_steps": [
+            "Present initial code for review",
+            "Collect user feedback",
+            "Apply revisions based on feedback",
+            "Run quality checks",
+            "Repeat until user satisfaction",
+        ],
     }
 
 
