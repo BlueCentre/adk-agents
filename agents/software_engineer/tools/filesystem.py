@@ -280,11 +280,11 @@ def replace_content_regex(
         # Step 3: Propose/write using edit_file_content logic
         # Re-use the existing edit_file_content for the actual write and approval flow
         # This simplifies the implementation and ensures consistency with approval/feedback.
-        tool_context.state["skip_realtime_validation"] = (
-            True  # Temporarily skip validation to avoid recursive calls within validation
-        )
-        edit_result = edit_file_content(filepath, new_content, tool_context)
-        del tool_context.state["skip_realtime_validation"]  # Clean up
+        tool_context.state["skip_realtime_validation"] = True
+        try:
+            edit_result = edit_file_content(filepath, new_content, tool_context)
+        finally:
+            del tool_context.state["skip_realtime_validation"]  # Clean up
 
         if edit_result["status"] == "pending_approval":
             edit_result["message"] = (
