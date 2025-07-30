@@ -2,6 +2,7 @@
 
 from collections.abc import AsyncGenerator
 from datetime import datetime
+import logging
 
 from google.adk.agents import BaseAgent, LlmAgent, LoopAgent
 from google.adk.agents.invocation_context import InvocationContext
@@ -12,6 +13,8 @@ from ..sub_agents.code_quality.agent import code_quality_agent
 from ..sub_agents.code_review.agent import code_review_agent
 from ..sub_agents.debugging.agent import debugging_agent
 from ..sub_agents.testing.agent import testing_agent
+
+logger = logging.getLogger(__name__)
 
 
 class IterativeQualityChecker(LlmAgent):
@@ -916,7 +919,11 @@ Return only the revised code without additional explanation.
             # For now, provide enhanced rule-based revision logic
             return await self._generate_enhanced_revision(code, feedback, full_prompt)
 
-        except Exception:
+        except Exception as e:
+            # Log the specific exception for debugging
+            logger.warning(
+                f"LLM-based code revision failed: {e}. Falling back to basic improvements."
+            )
             # Fallback to basic improvement if revision fails
             return self._apply_basic_improvements(code, feedback.get("feedback_text", ""))
 
@@ -1191,11 +1198,13 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
         quality_score = 100
 
         # Create a temporary file for the code
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as tmp_file:
-            tmp_file.write(code)
-            tmp_file_path = tmp_file.name
-
+        tmp_file_path = None
         try:
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as tmp_file:
+                tmp_file.write(code)
+                tmp_file_path = tmp_file.name
+            # File is now properly closed
+
             # Run ruff for linting
             ruff_issues = self._run_ruff_analysis(tmp_file_path)
             quality_issues.extend(ruff_issues)
@@ -1209,11 +1218,13 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
             quality_issues.extend(bandit_issues)
 
         finally:
-            # Clean up temporary file
-            try:
-                Path(tmp_file_path).unlink()
-            except OSError:
-                pass
+            # Clean up temporary file - file is guaranteed to be closed
+            if tmp_file_path:
+                try:
+                    Path(tmp_file_path).unlink()
+                except OSError:
+                    # File already deleted or other issue
+                    pass
 
         # Calculate quality score based on issues
         for issue in quality_issues:
@@ -1289,13 +1300,14 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
 
                 return issues
 
+        except FileNotFoundError:
+            logger.warning("ruff not found in the environment. Skipping ruff analysis.")
         except (
             subprocess.TimeoutExpired,
             subprocess.CalledProcessError,
             json.JSONDecodeError,
-            FileNotFoundError,
         ):
-            # If ruff is not available or fails, return empty list
+            # If ruff execution fails, return empty list
             pass
 
         return []
@@ -1347,8 +1359,10 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
 
             return issues
 
-        except (subprocess.TimeoutExpired, subprocess.CalledProcessError, FileNotFoundError):
-            # If mypy is not available or fails, return empty list
+        except FileNotFoundError:
+            logger.warning("mypy not found in the environment. Skipping mypy analysis.")
+        except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
+            # If mypy execution fails, return empty list
             pass
 
         return []
@@ -1390,13 +1404,14 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
 
                 return issues
 
+        except FileNotFoundError:
+            logger.warning("bandit not found in the environment. Skipping bandit analysis.")
         except (
             subprocess.TimeoutExpired,
             subprocess.CalledProcessError,
             json.JSONDecodeError,
-            FileNotFoundError,
         ):
-            # If bandit is not available or fails, return empty list
+            # If bandit execution fails, return empty list
             pass
 
         return []
@@ -1415,12 +1430,20 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
         from pathlib import Path
         import tempfile
 
-        # Create a temporary file for the code
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as tmp_file:
-            tmp_file.write(code)
-            tmp_file_path = tmp_file.name
+        # Create a temporary file within the project structure to resolve imports
+        # Find project root or create temp directory within current working directory
+        project_root = Path.cwd()
+        temp_test_dir = project_root / "temp_tests"
+        temp_test_dir.mkdir(exist_ok=True)
 
+        # Create a temporary file within the temp test directory
+        tmp_file_path = None
         try:
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".py", dir=temp_test_dir, delete=False
+            ) as tmp_file:
+                tmp_file.write(code)
+                tmp_file_path = tmp_file.name
             # Run pytest to check if the code has testable functions
             test_results = self._run_pytest_analysis(tmp_file_path, code)
 
@@ -1445,11 +1468,19 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
             }
 
         finally:
-            # Clean up temporary file
-            try:
-                Path(tmp_file_path).unlink()
-            except OSError:
-                pass
+            # Clean up temporary file and directory
+            if tmp_file_path:
+                try:
+                    Path(tmp_file_path).unlink()
+                    # Try to remove the temp directory if it's empty
+                    try:
+                        temp_test_dir.rmdir()
+                    except OSError:
+                        # Directory not empty or other issue, leave it
+                        pass
+                except OSError:
+                    # File already deleted or other issue
+                    pass
 
     def _run_pytest_analysis(self, file_path: str, code: str) -> dict:
         """Run pytest to analyze test execution possibilities."""
