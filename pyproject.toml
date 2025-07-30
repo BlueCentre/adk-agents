@@ -96,6 +96,7 @@ test = [
   "pytest-asyncio>=0.25.0",
   "pytest-mock>=3.14.0",
   "pytest-xdist>=3.6.1",
+  "pytest-timeout>=2.3.1", # For setting timeouts on tests
   "pytest>=8.3.4",
   # go/keep-sorted end
 ]
@@ -165,6 +166,14 @@ known_third_party = ["google.adk"]
 testpaths = ["tests"]
 asyncio_default_fixture_loop_scope = "function"
 asyncio_mode = "auto"
+addopts = "-n 0"
+
+timeout = 300  # Default timeout for all tests in seconds (5 minutes)
+timeout_method = "thread"  # Use thread to prevent deadlocks for I/O operations
+timeout_func_only = false  # Apply timeout to fixtures and setup/teardown as well
+
+# You can also use markers for specific tests, e.g.:
+# @pytest.mark.timeout(600)  # For a specific test to have a 10-minute timeout
 
 [tool.mypy]
 python_version = "3.9"

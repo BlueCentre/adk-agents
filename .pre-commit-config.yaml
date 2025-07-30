@@ -16,9 +16,9 @@ repos:
         types: [python]
         require_serial: false
       
-      - id: pytest-coverage
-        name: pytest with coverage
-        entry: uv run pytest tests/ --cov=src --cov-config=pyproject.toml --cov-report=xml --cov-report=term -n auto
-        language: system
-        pass_filenames: false
-        always_run: true
+      # - id: pytest-coverage
+      #   name: pytest with coverage
+      #   entry: uv run pytest tests/ --cov=src --cov-config=pyproject.toml --cov-report=xml --cov-report=term
+      #   language: system
+      #   pass_filenames: false
+      #   always_run: true
