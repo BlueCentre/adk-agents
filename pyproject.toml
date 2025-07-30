@@ -87,6 +87,7 @@ eval = [
 test = [
   # go/keep-sorted start
   "anthropic>=0.43.0",               # For anthropic model tests
+  "freezegun>=1.5.0",                # For mocking datetime in tests
   "langchain-community>=0.3.17",
   "langgraph>=0.2.60",               # For LangGraphAgent
   "litellm>=1.71.2",                 # For LiteLLM tests
