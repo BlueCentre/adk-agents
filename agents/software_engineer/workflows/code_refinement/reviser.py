@@ -612,7 +612,8 @@ Please provide the revised code that addresses the feedback: "{feedback_text}"
 
             return "\n".join(result_lines)
 
-        except Exception:
+        except Exception as e:
+            logger.warning(f"AST-based function body wrapping failed: {e}, falling back to simple wrapping.")
             # Fallback to simple wrapping
             return self._wrap_code_block_with_error_handling(code)
 
