@@ -120,7 +120,13 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
             if cwd:
                 # Add source directories to PYTHONPATH for local imports
                 cwd_path = Path(cwd)
-                src_paths = [str(cwd_path / "src"), str(cwd_path / "agents"), cwd]
+                # Use configurable source paths instead of hardcoded directories
+                src_paths = []
+                for path_str in agent_config.SOURCE_PATHS:
+                    if path_str.strip() == ".":
+                        src_paths.append(cwd)
+                    else:
+                        src_paths.append(str(cwd_path / path_str.strip()))
                 pythonpath = os.pathsep.join([p for p in src_paths if Path(p).exists()])
                 if env.get("PYTHONPATH"):
                     env["PYTHONPATH"] = f"{pythonpath}{os.pathsep}{env['PYTHONPATH']}"
@@ -893,7 +899,13 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
                 if cwd:
                     # Add source directories to PYTHONPATH for local imports
                     cwd_path = Path(cwd)
-                    src_paths = [str(cwd_path / "src"), str(cwd_path / "agents"), cwd]
+                    # Use configurable source paths instead of hardcoded directories
+                    src_paths = []
+                    for path_str in agent_config.SOURCE_PATHS:
+                        if path_str.strip() == ".":
+                            src_paths.append(cwd)
+                        else:
+                            src_paths.append(str(cwd_path / path_str.strip()))
                     pythonpath = os.pathsep.join([p for p in src_paths if Path(p).exists()])
                     if env.get("PYTHONPATH"):
                         env["PYTHONPATH"] = f"{pythonpath}{os.pathsep}{env['PYTHONPATH']}"

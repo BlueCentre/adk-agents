@@ -211,6 +211,11 @@ REFINEMENT_QUALITY_SCORE_THRESHOLD = int(os.getenv("REFINEMENT_QUALITY_SCORE_THR
 # Coverage threshold percentage (minimum coverage to pass)
 REFINEMENT_COVERAGE_THRESHOLD = int(os.getenv("REFINEMENT_COVERAGE_THRESHOLD", "80"))
 
+# Source paths for PYTHONPATH construction (comma-separated list)
+# Default includes common Python project structures
+DEFAULT_SOURCE_PATHS = "src,agents,."
+SOURCE_PATHS = os.getenv("SOURCE_PATHS", DEFAULT_SOURCE_PATHS).split(",")
+
 # --- Context Management Configuration ---
 # Parameters for tuning the context manager's behavior
 CONTEXT_TARGET_RECENT_TURNS = 15
