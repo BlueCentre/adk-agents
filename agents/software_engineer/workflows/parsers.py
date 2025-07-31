@@ -142,7 +142,7 @@ class MypyOutputParser(ToolOutputParser):
 class PytestOutputParser(ToolOutputParser):
     """Parser for pytest test runner output."""
 
-    def parse(self, stdout: str, stderr: str = "") -> dict:
+    def parse(self, stdout: str, stderr: str = "") -> list[dict]:
         """Parse pytest output to extract test results."""
         tests_run = 0
         tests_passed = 0
