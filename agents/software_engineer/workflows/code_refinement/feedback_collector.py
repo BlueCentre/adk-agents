@@ -343,6 +343,32 @@ Type your feedback or 'satisfied' if you're happy with the code.
         # If no keywords match, return the first candidate or 'other'
         return candidate_categories[0] if candidate_categories else "other"
 
+    async def _process_feedback(self, user_feedback: str, iteration: int) -> dict:
+        """Process and categorize user feedback using enhanced logic."""
+        feedback_lower = user_feedback.lower()
+
+        # Determine if user is satisfied
+        satisfaction_words = ["satisfied", "good", "done", "finished", "perfect", "complete"]
+        user_satisfied = any(word in feedback_lower for word in satisfaction_words)
+
+        # Enhanced categorization with better pattern matching
+        category = await self._categorize_feedback_enhanced(user_feedback)
+
+        # Enhanced priority determination
+        priority = self._determine_feedback_priority(user_feedback)
+
+        # Enhanced specific request extraction
+        specific_requests = self._extract_specific_requests(user_feedback)
+
+        return {
+            "feedback_text": user_feedback,
+            "category": category,
+            "priority": priority,
+            "specific_requests": specific_requests,
+            "user_satisfied": user_satisfied,
+            "iteration": iteration,
+        }
+
     def _create_categorization_prompt(self, feedback: str, candidate_categories: list[str]) -> str:
         """Create a structured prompt for LLM-based feedback categorization."""
         categories_str = "\n".join([f"- {cat}" for cat in candidate_categories])
@@ -364,41 +390,6 @@ INSTRUCTIONS:
 4. If the feedback doesn't clearly fit any category, choose the closest match
 
 CATEGORY:"""
-
-    def _parse_llm_categorization_response(
-        self, response_text: str, candidate_categories: list[str]
-    ) -> str | None:
-        """Parse and validate LLM categorization response."""
-        # Clean the response text
-        cleaned_response = response_text.strip().lower()
-
-        # Try direct match first
-        for category in candidate_categories:
-            if category.lower() == cleaned_response:
-                return category
-
-        # Try partial match (in case LLM adds extra text)
-        for category in candidate_categories:
-            if category.lower() in cleaned_response:
-                return category
-
-        # Try fuzzy matching for common variations
-        category_variations = {
-            "error_handling": ["error", "exception", "handling", "try", "catch"],
-            "efficiency": ["performance", "speed", "optimization", "memory", "time"],
-            "readability": ["readable", "clarity", "clean", "documentation", "comments"],
-            "testing": ["test", "testing", "coverage", "assert", "verification"],
-            "functionality": ["feature", "function", "behavior", "logic", "implementation"],
-        }
-
-        for category in candidate_categories:
-            variations = category_variations.get(category, [])
-            for variation in variations:
-                if variation in cleaned_response:
-                    return category
-
-        # No valid category found
-        return None
 
     def _determine_feedback_priority(self, feedback: str) -> str:
         """Enhanced priority determination based on language patterns."""
@@ -473,28 +464,37 @@ CATEGORY:"""
 
         return "\n".join(formatted)
 
-    async def _process_feedback(self, user_feedback: str, iteration: int) -> dict:
-        """Process and categorize user feedback using enhanced logic."""
-        feedback_lower = user_feedback.lower()
+    def _parse_llm_categorization_response(
+        self, response_text: str, candidate_categories: list[str]
+    ) -> str | None:
+        """Parse and validate LLM categorization response."""
+        # Clean the response text
+        cleaned_response = response_text.strip().lower()
 
-        # Determine if user is satisfied
-        satisfaction_words = ["satisfied", "good", "done", "finished", "perfect", "complete"]
-        user_satisfied = any(word in feedback_lower for word in satisfaction_words)
+        # Try direct match first
+        for category in candidate_categories:
+            if category.lower() == cleaned_response:
+                return category
 
-        # Enhanced categorization with better pattern matching
-        category = await self._categorize_feedback_enhanced(user_feedback)
+        # Try partial match (in case LLM adds extra text)
+        for category in candidate_categories:
+            if category.lower() in cleaned_response:
+                return category
 
-        # Enhanced priority determination
-        priority = self._determine_feedback_priority(user_feedback)
-
-        # Enhanced specific request extraction
-        specific_requests = self._extract_specific_requests(user_feedback)
-
-        return {
-            "feedback_text": user_feedback,
-            "category": category,
-            "priority": priority,
-            "specific_requests": specific_requests,
-            "user_satisfied": user_satisfied,
-            "iteration": iteration,
+        # Try fuzzy matching for common variations
+        category_variations = {
+            "error_handling": ["error", "exception", "handling", "try", "catch"],
+            "efficiency": ["performance", "speed", "optimization", "memory", "time"],
+            "readability": ["readable", "clarity", "clean", "documentation", "comments"],
+            "testing": ["test", "testing", "coverage", "assert", "verification"],
+            "functionality": ["feature", "function", "behavior", "logic", "implementation"],
         }
+
+        for category in candidate_categories:
+            variations = category_variations.get(category, [])
+            for variation in variations:
+                if variation in cleaned_response:
+                    return category
+
+        # No valid category found
+        return None

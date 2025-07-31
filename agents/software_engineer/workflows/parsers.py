@@ -143,37 +143,37 @@ class PytestOutputParser:
     """Parser for pytest test runner output."""
 
     def parse(self, stdout: str, stderr: str = "") -> dict:
-        """Parse pytest output to extract test results."""
-        tests_run = 0
-        tests_passed = 0
-        tests_failed = 0
+        """Parse pytest output to extract comprehensive test results."""
 
-        # Parse the pytest summary line
-        summary_pattern = r"(\d+) passed"
-        passed_match = re.search(summary_pattern, stdout)
-        if passed_match:
-            tests_passed = int(passed_match.group(1))
-            tests_run += tests_passed
+        def get_count(status: str, text: str) -> int:
+            """Searches for patterns like '1 passed', '2 failed', etc."""
+            match = re.search(rf"(\d+)\s+{status}", text)
+            return int(match.group(1)) if match else 0
 
-        failed_pattern = r"(\d+) failed"
-        failed_match = re.search(failed_pattern, stdout)
-        if failed_match:
-            tests_failed = int(failed_match.group(1))
-            tests_run += tests_failed
+        full_output = stdout + "\n" + stderr
 
-        # Look for error patterns
-        error_pattern = r"(\d+) error"
-        error_match = re.search(error_pattern, stdout)
-        if error_match:
-            test_errors = int(error_match.group(1))
-            tests_failed += test_errors
-            tests_run += test_errors
+        # Extract counts for all relevant pytest statuses
+        tests_passed = get_count("passed", full_output)
+        tests_failed = get_count("failed", full_output)
+        test_errors = get_count("error", full_output)
+        tests_skipped = get_count("skipped", full_output)
+        tests_xfailed = get_count("xfailed", full_output)
+        tests_xpassed = get_count("xpassed", full_output)
+
+        # Consolidate failures and errors into a single 'failed' count
+        total_failed = tests_failed + test_errors
+
+        # Calculate total tests run by summing all outcomes
+        tests_run = tests_passed + total_failed + tests_skipped + tests_xfailed + tests_xpassed
 
         return {
             "tests_run": tests_run,
             "tests_passed": tests_passed,
-            "tests_failed": tests_failed,
-            "output": stdout + stderr,
+            "tests_failed": total_failed,
+            "tests_skipped": tests_skipped,
+            "tests_xfailed": tests_xfailed,
+            "tests_xpassed": tests_xpassed,
+            "output": full_output,
             "pytest_available": True,
         }
 

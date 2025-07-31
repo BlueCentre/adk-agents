@@ -52,54 +52,6 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
             output_key="quality_testing_integration",
         )
 
-    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
-        """Run integrated code quality analysis and testing."""
-
-        # Get current code and revision state
-        current_code = ctx.session.state.get("current_code", "")
-        ctx.session.state.get("revision_history", [])
-        iteration_state = ctx.session.state.get("iteration_state", {})
-        current_iteration = iteration_state.get("current_iteration", 0)
-
-        if not current_code:
-            yield Event(
-                author=self.name,
-                content=genai_types.Content(
-                    parts=[
-                        genai_types.Part(text="No code available for quality analysis and testing")
-                    ]
-                ),
-                actions=EventActions(),
-            )
-            return
-
-        # Run code quality analysis
-        quality_results = await self._analyze_code_quality(current_code)
-
-        # Run testing if applicable
-        testing_results = await self._run_code_tests(current_code)
-
-        # Integrate results and generate feedback
-        integrated_feedback = self._integrate_quality_and_testing_feedback(
-            quality_results, testing_results, current_iteration
-        )
-
-        # Update session state
-        ctx.session.state["quality_analysis_results"] = quality_results
-        ctx.session.state["testing_results"] = testing_results
-        ctx.session.state["integrated_feedback"] = integrated_feedback
-
-        # Generate comprehensive feedback message
-        feedback_message = self._generate_comprehensive_feedback_message(
-            quality_results, testing_results, integrated_feedback
-        )
-
-        yield Event(
-            author=self.name,
-            content=genai_types.Content(parts=[genai_types.Part(text=feedback_message)]),
-            actions=EventActions(),
-        )
-
     async def _analyze_code_quality(self, code: str) -> dict:
         """Analyze code quality using various metrics."""
 
@@ -194,6 +146,375 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
             "tool_available": False,
             "message": "Test coverage could not be determined as the coverage tool failed to run.",
         }
+
+    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
+        """Run integrated code quality analysis and testing."""
+
+        # Get current code and revision state
+        current_code = ctx.session.state.get("current_code", "")
+        ctx.session.state.get("revision_history", [])
+        iteration_state = ctx.session.state.get("iteration_state", {})
+        current_iteration = iteration_state.get("current_iteration", 0)
+
+        if not current_code:
+            yield Event(
+                author=self.name,
+                content=genai_types.Content(
+                    parts=[
+                        genai_types.Part(text="No code available for quality analysis and testing")
+                    ]
+                ),
+                actions=EventActions(),
+            )
+            return
+
+        # Run code quality analysis
+        quality_results = await self._analyze_code_quality(current_code)
+
+        # Run testing if applicable
+        testing_results = await self._run_code_tests(current_code)
+
+        # Integrate results and generate feedback
+        integrated_feedback = self._integrate_quality_and_testing_feedback(
+            quality_results, testing_results, current_iteration
+        )
+
+        # Update session state
+        ctx.session.state["quality_analysis_results"] = quality_results
+        ctx.session.state["testing_results"] = testing_results
+        ctx.session.state["integrated_feedback"] = integrated_feedback
+
+        # Generate comprehensive feedback message
+        feedback_message = self._generate_comprehensive_feedback_message(
+            quality_results, testing_results, integrated_feedback
+        )
+
+        yield Event(
+            author=self.name,
+            content=genai_types.Content(parts=[genai_types.Part(text=feedback_message)]),
+            actions=EventActions(),
+        )
+
+    async def _run_bandit_analysis(self, file_path: str, cwd: str | None = None) -> list[dict]:
+        """Run bandit security analysis on the code file using uv's environment management."""
+        try:
+            # Use uv run without manual PYTHONPATH manipulation
+            # uv automatically manages the Python environment and paths
+            process = await asyncio.create_subprocess_exec(
+                "uv",
+                "run",
+                "bandit",
+                "-f",
+                "json",
+                file_path,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=cwd or self._get_project_root(),
+            )
+
+            try:
+                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30)
+                stdout = stdout.decode("utf-8") if stdout else ""
+                stderr = stderr.decode("utf-8") if stderr else ""
+
+                # Use dedicated parser for robust output handling
+                parser = BanditOutputParser()
+                return parser.parse(stdout, stderr)
+            except asyncio.TimeoutError:
+                process.kill()
+                await process.wait()
+                raise subprocess.TimeoutExpired(["uv", "run", "bandit"], 30) from None
+
+        except FileNotFoundError:
+            logger.warning("bandit not found in the environment. Skipping bandit analysis.")
+        except subprocess.TimeoutExpired as e:
+            logger.warning(f"bandit analysis timed out: {e}")
+            raise
+
+        return []
+
+    async def _run_code_tests(self, code: str) -> dict:
+        """Run actual tests on the current code."""
+        try:
+            # Use actual test execution tools
+            return await self._run_external_test_tools(code)
+        except Exception:
+            # Fallback to basic test analysis if external tools fail
+            return self._basic_test_analysis(code)
+
+    async def _run_external_quality_tools(self, code: str) -> dict:
+        """Run actual external code quality tools on the code."""
+        quality_issues = []
+        quality_score = 100
+
+        # Get project root directory for proper context
+        project_root = self._get_project_root()
+
+        # Use TemporaryDirectory for robust cross-platform temporary file handling
+        # This avoids Windows file locking issues with NamedTemporaryFile(delete=True)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_dir_path = Path(temp_dir)
+
+            # Create a temporary file within the temporary directory
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".py", dir=temp_dir_path, delete=False
+            ) as tmp_file:
+                tmp_file.write(code)
+                tmp_file_path = tmp_file.name
+            # File is now properly closed before analysis tools access it
+
+            # Run ruff for linting
+            ruff_issues = await self._run_ruff_analysis(tmp_file_path, cwd=project_root)
+            quality_issues.extend(ruff_issues)
+
+            # Run mypy for type checking (if possible)
+            mypy_issues = await self._run_mypy_analysis(tmp_file_path, cwd=project_root)
+            quality_issues.extend(mypy_issues)
+
+            # Run bandit for security analysis
+            bandit_issues = await self._run_bandit_analysis(tmp_file_path, cwd=project_root)
+            quality_issues.extend(bandit_issues)
+
+        # Calculate quality score based on issues
+        for issue in quality_issues:
+            if issue["severity"] == "high":
+                quality_score -= 15
+            elif issue["severity"] == "medium":
+                quality_score -= 8
+            elif issue["severity"] == "low":
+                quality_score -= 3
+
+        return {
+            "overall_score": max(0, quality_score),
+            "issues": quality_issues,
+            "issues_by_severity": {
+                "high": [issue for issue in quality_issues if issue["severity"] == "high"],
+                "medium": [issue for issue in quality_issues if issue["severity"] == "medium"],
+                "low": [issue for issue in quality_issues if issue["severity"] == "low"],
+            },
+            "metrics": {
+                "lines_of_code": len(code.split("\n")),
+                "tool_results": {
+                    "ruff_issues_count": len(
+                        [i for i in quality_issues if i.get("tool") == "ruff"]
+                    ),
+                    "mypy_issues_count": len(
+                        [i for i in quality_issues if i.get("tool") == "mypy"]
+                    ),
+                    "bandit_issues_count": len(
+                        [i for i in quality_issues if i.get("tool") == "bandit"]
+                    ),
+                },
+                "maintainability_index": quality_score,
+            },
+        }
+
+    async def _run_external_test_tools(self, code: str) -> dict:
+        """Run actual external testing tools on the code."""
+        # Get project root directory for proper context
+        project_root = self._get_project_root()
+
+        # Use TemporaryDirectory context manager for better resource management
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_dir_path = Path(temp_dir)
+
+            # Create a temporary file within the temporary directory
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".py", dir=temp_dir_path, delete=False
+            ) as tmp_file:
+                tmp_file.write(code)
+                tmp_file_path = tmp_file.name
+            # File is now properly closed
+
+            try:
+                # Run pytest to check if the code has testable functions
+                test_results = await self._run_pytest_analysis(
+                    tmp_file_path, code, cwd=project_root
+                )
+
+                # Generate test suggestions based on actual code analysis
+                test_suggestions = self._generate_real_test_suggestions(code, tmp_file_path)
+
+                # Run coverage analysis if possible
+                coverage_results = await self._analyze_test_coverage(
+                    tmp_file_path, code, cwd=project_root
+                )
+
+                return {
+                    "tests_run": test_results.get("tests_run", 0),
+                    "tests_passed": test_results.get("tests_passed", 0),
+                    "tests_failed": test_results.get("tests_failed", 0),
+                    "coverage_percentage": coverage_results.get("coverage_percentage", 0),
+                    "testability_score": self._calculate_testability_score(code),
+                    "test_suggestions": test_suggestions,
+                    "test_execution_output": test_results.get("output", ""),
+                    "tool_results": {
+                        "pytest_available": test_results.get("pytest_available", False),
+                        "coverage_tool_available": coverage_results.get("tool_available", False),
+                    },
+                }
+            finally:
+                # Clean up temporary file (directory will be cleaned up automatically)
+                try:
+                    Path(tmp_file_path).unlink()
+                except OSError:
+                    # File already deleted or other issue
+                    pass
+        # The temporary directory and its contents are automatically cleaned up here
+
+    async def _run_mypy_analysis(self, file_path: str, cwd: str | None = None) -> list[dict]:
+        """Run mypy type checker on the code file using uv's environment management."""
+        try:
+            # Use uv run without manual PYTHONPATH manipulation
+            # uv automatically manages the Python environment and paths
+            process = await asyncio.create_subprocess_exec(
+                "uv",
+                "run",
+                "mypy",
+                file_path,
+                "--show-error-codes",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=cwd or self._get_project_root(),
+            )
+
+            try:
+                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30)
+                stdout = stdout.decode("utf-8") if stdout else ""
+                stderr = stderr.decode("utf-8") if stderr else ""
+
+                # Use dedicated parser for robust output handling
+                parser = MypyOutputParser()
+                return parser.parse(stdout, stderr)
+            except asyncio.TimeoutError:
+                process.kill()
+                await process.wait()
+                raise subprocess.TimeoutExpired(["uv", "run", "mypy"], 30) from None
+
+        except FileNotFoundError:
+            logger.warning("mypy not found in the environment. Skipping mypy analysis.")
+        except subprocess.TimeoutExpired as e:
+            logger.warning(f"mypy analysis timed out: {e}")
+            raise
+
+        return []
+
+    async def _run_pytest_analysis(self, file_path: str, code: str, cwd: str | None = None) -> dict:
+        """Run pytest to analyze test execution possibilities."""
+        try:
+            # Check if the code contains any test functions
+            has_tests = self._contains_test_functions(code)
+
+            if has_tests:
+                # Prepare environment with proper PYTHONPATH
+                env = os.environ.copy()
+                if cwd:
+                    # Add source directories to PYTHONPATH for local imports
+                    cwd_path = Path(cwd)
+                    # Use configurable source paths instead of hardcoded directories
+                    src_paths = []
+                    for path_str in agent_config.SOURCE_PATHS:
+                        if path_str.strip() == ".":
+                            src_paths.append(cwd)
+                        else:
+                            src_paths.append(str(cwd_path / path_str.strip()))
+                    pythonpath = os.pathsep.join([p for p in src_paths if Path(p).exists()])
+                    if env.get("PYTHONPATH"):
+                        env["PYTHONPATH"] = f"{pythonpath}{os.pathsep}{env['PYTHONPATH']}"
+                    else:
+                        env["PYTHONPATH"] = pythonpath
+
+                # Run pytest on the file
+                process = await asyncio.create_subprocess_exec(
+                    "uv",
+                    "run",
+                    "pytest",
+                    file_path,
+                    "-v",
+                    "--tb=short",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    cwd=cwd,
+                    env=env,
+                )
+
+                try:
+                    stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30)
+                    result_stdout = stdout.decode("utf-8") if stdout else ""
+                    result_stderr = stderr.decode("utf-8") if stderr else ""
+
+                    # Use dedicated parser for robust output handling
+                    parser = PytestOutputParser()
+                    return parser.parse(result_stdout, result_stderr)
+                except asyncio.TimeoutError:
+                    process.kill()
+                    await process.wait()
+                    raise subprocess.TimeoutExpired(["uv", "run", "pytest"], 30) from None
+            # No tests in the code, but pytest is available
+            return {
+                "tests_run": 0,
+                "tests_passed": 0,
+                "tests_failed": 0,
+                "output": "No test functions found in code",
+                "pytest_available": True,
+            }
+
+        except (subprocess.TimeoutExpired, subprocess.CalledProcessError, FileNotFoundError):
+            # pytest not available or failed
+            return {
+                "tests_run": 0,
+                "tests_passed": 0,
+                "tests_failed": 0,
+                "output": "pytest not available or failed to execute",
+                "pytest_available": False,
+            }
+
+    async def _run_ruff_analysis(self, file_path: str, cwd: str | None = None) -> list[dict]:
+        """Run ruff linter on the code file using uv's environment management."""
+        try:
+            # Use uv run without manual PYTHONPATH manipulation
+            # uv automatically manages the Python environment and paths
+            process = await asyncio.create_subprocess_exec(
+                "uv",
+                "run",
+                "ruff",
+                "check",
+                file_path,
+                "--output-format=json",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=cwd or self._get_project_root(),
+            )
+
+            try:
+                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30)
+                stdout = stdout.decode("utf-8") if stdout else ""
+                stderr = stderr.decode("utf-8") if stderr else ""
+
+                # Create result object compatible with subprocess.run
+                class AsyncResult:
+                    def __init__(self, stdout, stderr, returncode):
+                        self.stdout = stdout
+                        self.stderr = stderr
+                        self.returncode = returncode
+
+                result = AsyncResult(stdout, stderr, process.returncode)
+            except asyncio.TimeoutError:
+                process.kill()
+                await process.wait()
+                raise subprocess.TimeoutExpired(["uv", "run", "ruff"], 30) from None
+
+            # Use dedicated parser for robust output handling
+            parser = RuffOutputParser()
+            return parser.parse(result.stdout, result.stderr)
+
+        except FileNotFoundError:
+            logger.warning("ruff not found in the environment. Skipping ruff analysis.")
+        except subprocess.TimeoutExpired as e:
+            logger.warning(f"ruff analysis timed out: {e}")
+            raise
+
+        return []
 
     def _basic_quality_analysis(self, code: str) -> dict:
         """Fallback basic quality analysis when external tools fail."""
@@ -635,324 +956,3 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
             return int(matches[-1])  # Take the last percentage found
 
         return 0
-
-    async def _run_external_quality_tools(self, code: str) -> dict:
-        """Run actual external code quality tools on the code."""
-        quality_issues = []
-        quality_score = 100
-
-        # Get project root directory for proper context
-        project_root = self._get_project_root()
-
-        # Use TemporaryDirectory for robust cross-platform temporary file handling
-        # This avoids Windows file locking issues with NamedTemporaryFile(delete=True)
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_dir_path = Path(temp_dir)
-
-            # Create a temporary file within the temporary directory
-            with tempfile.NamedTemporaryFile(
-                mode="w", suffix=".py", dir=temp_dir_path, delete=False
-            ) as tmp_file:
-                tmp_file.write(code)
-                tmp_file_path = tmp_file.name
-            # File is now properly closed before analysis tools access it
-
-            # Run ruff for linting
-            ruff_issues = await self._run_ruff_analysis(tmp_file_path, cwd=project_root)
-            quality_issues.extend(ruff_issues)
-
-            # Run mypy for type checking (if possible)
-            mypy_issues = await self._run_mypy_analysis(tmp_file_path, cwd=project_root)
-            quality_issues.extend(mypy_issues)
-
-            # Run bandit for security analysis
-            bandit_issues = await self._run_bandit_analysis(tmp_file_path, cwd=project_root)
-            quality_issues.extend(bandit_issues)
-
-        # Calculate quality score based on issues
-        for issue in quality_issues:
-            if issue["severity"] == "high":
-                quality_score -= 15
-            elif issue["severity"] == "medium":
-                quality_score -= 8
-            elif issue["severity"] == "low":
-                quality_score -= 3
-
-        return {
-            "overall_score": max(0, quality_score),
-            "issues": quality_issues,
-            "issues_by_severity": {
-                "high": [issue for issue in quality_issues if issue["severity"] == "high"],
-                "medium": [issue for issue in quality_issues if issue["severity"] == "medium"],
-                "low": [issue for issue in quality_issues if issue["severity"] == "low"],
-            },
-            "metrics": {
-                "lines_of_code": len(code.split("\n")),
-                "tool_results": {
-                    "ruff_issues_count": len(
-                        [i for i in quality_issues if i.get("tool") == "ruff"]
-                    ),
-                    "mypy_issues_count": len(
-                        [i for i in quality_issues if i.get("tool") == "mypy"]
-                    ),
-                    "bandit_issues_count": len(
-                        [i for i in quality_issues if i.get("tool") == "bandit"]
-                    ),
-                },
-                "maintainability_index": quality_score,
-            },
-        }
-
-    async def _run_ruff_analysis(self, file_path: str, cwd: str | None = None) -> list[dict]:
-        """Run ruff linter on the code file using uv's environment management."""
-        try:
-            # Use uv run without manual PYTHONPATH manipulation
-            # uv automatically manages the Python environment and paths
-            process = await asyncio.create_subprocess_exec(
-                "uv",
-                "run",
-                "ruff",
-                "check",
-                file_path,
-                "--output-format=json",
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=cwd or self._get_project_root(),
-            )
-
-            try:
-                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30)
-                stdout = stdout.decode("utf-8") if stdout else ""
-                stderr = stderr.decode("utf-8") if stderr else ""
-
-                # Create result object compatible with subprocess.run
-                class AsyncResult:
-                    def __init__(self, stdout, stderr, returncode):
-                        self.stdout = stdout
-                        self.stderr = stderr
-                        self.returncode = returncode
-
-                result = AsyncResult(stdout, stderr, process.returncode)
-            except asyncio.TimeoutError:
-                process.kill()
-                await process.wait()
-                raise subprocess.TimeoutExpired(["uv", "run", "ruff"], 30) from None
-
-            # Use dedicated parser for robust output handling
-            parser = RuffOutputParser()
-            return parser.parse(result.stdout, result.stderr)
-
-        except FileNotFoundError:
-            logger.warning("ruff not found in the environment. Skipping ruff analysis.")
-        except subprocess.TimeoutExpired as e:
-            logger.warning(f"ruff analysis timed out: {e}")
-            raise
-
-        return []
-
-    async def _run_mypy_analysis(self, file_path: str, cwd: str | None = None) -> list[dict]:
-        """Run mypy type checker on the code file using uv's environment management."""
-        try:
-            # Use uv run without manual PYTHONPATH manipulation
-            # uv automatically manages the Python environment and paths
-            process = await asyncio.create_subprocess_exec(
-                "uv",
-                "run",
-                "mypy",
-                file_path,
-                "--show-error-codes",
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=cwd or self._get_project_root(),
-            )
-
-            try:
-                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30)
-                stdout = stdout.decode("utf-8") if stdout else ""
-                stderr = stderr.decode("utf-8") if stderr else ""
-
-                # Use dedicated parser for robust output handling
-                parser = MypyOutputParser()
-                return parser.parse(stdout, stderr)
-            except asyncio.TimeoutError:
-                process.kill()
-                await process.wait()
-                raise subprocess.TimeoutExpired(["uv", "run", "mypy"], 30) from None
-
-        except FileNotFoundError:
-            logger.warning("mypy not found in the environment. Skipping mypy analysis.")
-        except subprocess.TimeoutExpired as e:
-            logger.warning(f"mypy analysis timed out: {e}")
-            raise
-
-        return []
-
-    async def _run_bandit_analysis(self, file_path: str, cwd: str | None = None) -> list[dict]:
-        """Run bandit security analysis on the code file using uv's environment management."""
-        try:
-            # Use uv run without manual PYTHONPATH manipulation
-            # uv automatically manages the Python environment and paths
-            process = await asyncio.create_subprocess_exec(
-                "uv",
-                "run",
-                "bandit",
-                "-f",
-                "json",
-                file_path,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=cwd or self._get_project_root(),
-            )
-
-            try:
-                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30)
-                stdout = stdout.decode("utf-8") if stdout else ""
-                stderr = stderr.decode("utf-8") if stderr else ""
-
-                # Use dedicated parser for robust output handling
-                parser = BanditOutputParser()
-                return parser.parse(stdout, stderr)
-            except asyncio.TimeoutError:
-                process.kill()
-                await process.wait()
-                raise subprocess.TimeoutExpired(["uv", "run", "bandit"], 30) from None
-
-        except FileNotFoundError:
-            logger.warning("bandit not found in the environment. Skipping bandit analysis.")
-        except subprocess.TimeoutExpired as e:
-            logger.warning(f"bandit analysis timed out: {e}")
-            raise
-
-        return []
-
-    async def _run_code_tests(self, code: str) -> dict:
-        """Run actual tests on the current code."""
-        try:
-            # Use actual test execution tools
-            return await self._run_external_test_tools(code)
-        except Exception:
-            # Fallback to basic test analysis if external tools fail
-            return self._basic_test_analysis(code)
-
-    async def _run_external_test_tools(self, code: str) -> dict:
-        """Run actual external testing tools on the code."""
-        # Get project root directory for proper context
-        project_root = self._get_project_root()
-
-        # Use TemporaryDirectory context manager for better resource management
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_dir_path = Path(temp_dir)
-
-            # Create a temporary file within the temporary directory
-            with tempfile.NamedTemporaryFile(
-                mode="w", suffix=".py", dir=temp_dir_path, delete=False
-            ) as tmp_file:
-                tmp_file.write(code)
-                tmp_file_path = tmp_file.name
-            # File is now properly closed
-
-            try:
-                # Run pytest to check if the code has testable functions
-                test_results = await self._run_pytest_analysis(
-                    tmp_file_path, code, cwd=project_root
-                )
-
-                # Generate test suggestions based on actual code analysis
-                test_suggestions = self._generate_real_test_suggestions(code, tmp_file_path)
-
-                # Run coverage analysis if possible
-                coverage_results = await self._analyze_test_coverage(
-                    tmp_file_path, code, cwd=project_root
-                )
-
-                return {
-                    "tests_run": test_results.get("tests_run", 0),
-                    "tests_passed": test_results.get("tests_passed", 0),
-                    "tests_failed": test_results.get("tests_failed", 0),
-                    "coverage_percentage": coverage_results.get("coverage_percentage", 0),
-                    "testability_score": self._calculate_testability_score(code),
-                    "test_suggestions": test_suggestions,
-                    "test_execution_output": test_results.get("output", ""),
-                    "tool_results": {
-                        "pytest_available": test_results.get("pytest_available", False),
-                        "coverage_tool_available": coverage_results.get("tool_available", False),
-                    },
-                }
-            finally:
-                # Clean up temporary file (directory will be cleaned up automatically)
-                try:
-                    Path(tmp_file_path).unlink()
-                except OSError:
-                    # File already deleted or other issue
-                    pass
-        # The temporary directory and its contents are automatically cleaned up here
-
-    async def _run_pytest_analysis(self, file_path: str, code: str, cwd: str | None = None) -> dict:
-        """Run pytest to analyze test execution possibilities."""
-        try:
-            # Check if the code contains any test functions
-            has_tests = self._contains_test_functions(code)
-
-            if has_tests:
-                # Prepare environment with proper PYTHONPATH
-                env = os.environ.copy()
-                if cwd:
-                    # Add source directories to PYTHONPATH for local imports
-                    cwd_path = Path(cwd)
-                    # Use configurable source paths instead of hardcoded directories
-                    src_paths = []
-                    for path_str in agent_config.SOURCE_PATHS:
-                        if path_str.strip() == ".":
-                            src_paths.append(cwd)
-                        else:
-                            src_paths.append(str(cwd_path / path_str.strip()))
-                    pythonpath = os.pathsep.join([p for p in src_paths if Path(p).exists()])
-                    if env.get("PYTHONPATH"):
-                        env["PYTHONPATH"] = f"{pythonpath}{os.pathsep}{env['PYTHONPATH']}"
-                    else:
-                        env["PYTHONPATH"] = pythonpath
-
-                # Run pytest on the file
-                process = await asyncio.create_subprocess_exec(
-                    "uv",
-                    "run",
-                    "pytest",
-                    file_path,
-                    "-v",
-                    "--tb=short",
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                    cwd=cwd,
-                    env=env,
-                )
-
-                try:
-                    stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30)
-                    result_stdout = stdout.decode("utf-8") if stdout else ""
-                    result_stderr = stderr.decode("utf-8") if stderr else ""
-
-                    # Use dedicated parser for robust output handling
-                    parser = PytestOutputParser()
-                    return parser.parse(result_stdout, result_stderr)
-                except asyncio.TimeoutError:
-                    process.kill()
-                    await process.wait()
-                    raise subprocess.TimeoutExpired(["uv", "run", "pytest"], 30) from None
-            # No tests in the code, but pytest is available
-            return {
-                "tests_run": 0,
-                "tests_passed": 0,
-                "tests_failed": 0,
-                "output": "No test functions found in code",
-                "pytest_available": True,
-            }
-
-        except (subprocess.TimeoutExpired, subprocess.CalledProcessError, FileNotFoundError):
-            # pytest not available or failed
-            return {
-                "tests_run": 0,
-                "tests_passed": 0,
-                "tests_failed": 0,
-                "output": "pytest not available or failed to execute",
-                "pytest_available": False,
-            }

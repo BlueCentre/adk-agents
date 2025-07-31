@@ -149,136 +149,6 @@ Return only the revised code without additional explanation.
 
         return revision_header + revised_code
 
-    def _parse_llm_revision_response(self, response_text: str, original_code: str) -> str | None:  # noqa: ARG002
-        """Parse and validate LLM revision response."""
-        try:
-            # Clean the response text
-            cleaned_response = response_text.strip()
-
-            # Try to extract code blocks (```python ... ```)
-            import re
-
-            # Look for python code blocks
-            python_code_pattern = r"```python\s*\n(.*?)\n```"
-            python_matches = re.findall(python_code_pattern, cleaned_response, re.DOTALL)
-            if python_matches:
-                # Use the first (or largest) code block
-                revised_code = max(python_matches, key=len).strip()
-                if self._validate_python_code(revised_code):
-                    return revised_code
-
-            # Look for any code blocks (``` ... ```)
-            code_block_pattern = r"```\s*\n(.*?)\n```"
-            code_matches = re.findall(code_block_pattern, cleaned_response, re.DOTALL)
-            if code_matches:
-                # Use the first (or largest) code block
-                revised_code = max(code_matches, key=len).strip()
-                if self._validate_python_code(revised_code):
-                    return revised_code
-
-            # If no code blocks, try to use the entire response if it looks like code
-            if self._validate_python_code(cleaned_response):
-                return cleaned_response
-
-            # Try to extract lines that look like Python code
-            lines = cleaned_response.split("\n")
-            code_lines = []
-            for line in lines:
-                # Skip lines that look like explanations
-                if any(
-                    line.strip().startswith(prefix)
-                    for prefix in ["Here", "The", "This", "I", "Note:", "Explanation:"]
-                ):
-                    continue
-                # Keep lines that look like code
-                if line.strip() and (
-                    line.startswith(" ")
-                    or any(
-                        keyword in line
-                        for keyword in [
-                            "def ",
-                            "class ",
-                            "import ",
-                            "from ",
-                            "if ",
-                            "for ",
-                            "while ",
-                            "=",
-                            "return",
-                            "print",
-                        ]
-                    )
-                ):
-                    code_lines.append(line)
-
-            if code_lines:
-                potential_code = "\n".join(code_lines)
-                if self._validate_python_code(potential_code):
-                    return potential_code
-
-            # If all else fails, return None
-            logger.warning("Could not extract valid Python code from LLM response")
-            return None
-
-        except Exception as e:
-            logger.warning(f"Error parsing LLM revision response: {e}")
-            return None
-
-    def _validate_python_code(self, code: str) -> bool:
-        """Validate that the code is syntactically correct Python."""
-        try:
-            # Try to parse the code as Python
-            ast.parse(code)
-            # Basic sanity checks
-            if len(code.strip()) < 10:  # Too short to be meaningful
-                return False
-            if not any(char.isalnum() for char in code):  # No alphanumeric characters
-                return False
-            return True
-        except SyntaxError:
-            return False
-        except Exception:
-            return False
-
-    def _create_revision_event(self, feedback: dict) -> Event:
-        """Create the event to be yielded after a successful revision."""
-        return Event(
-            author=self.name,
-            content=genai_types.Content(
-                parts=[
-                    genai_types.Part(
-                        text=f"Code revised based on {feedback['category']} feedback: "
-                        f'"{feedback["feedback_text"]}"'
-                    )
-                ]
-            ),
-            actions=EventActions(),
-        )
-
-    def _get_revision_context(self, ctx: InvocationContext) -> tuple[str | None, dict | None]:
-        """Get the current code and latest feedback from the session context."""
-        current_code = ctx.session.state.get("current_code", "")
-        feedback_list = ctx.session.state.get("refinement_feedback", [])
-        latest_feedback = feedback_list[-1] if feedback_list else None
-        return current_code, latest_feedback
-
-    def _update_session_state(
-        self, ctx: InvocationContext, original_code: str, revised_code: str, feedback: dict
-    ):
-        """Update the session state with the revised code and revision history."""
-        ctx.session.state["current_code"] = revised_code
-        revision_history = ctx.session.state.get("revision_history", [])
-        revision_history.append(
-            {
-                "iteration": feedback.get("iteration", 0),
-                "original_code": original_code,
-                "revised_code": revised_code,
-                "feedback_applied": feedback,
-                "timestamp": datetime.now().isoformat(),
-            }
-        )
-        ctx.session.state["revision_history"] = revision_history
-
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
         """Revise code based on user feedback."""
         current_code, latest_feedback = self._get_revision_context(ctx)
@@ -310,6 +180,21 @@ Return only the revised code without additional explanation.
         revised_code = await self._apply_feedback_to_code(current_code, latest_feedback)
         self._update_session_state(ctx, current_code, revised_code, latest_feedback)
         yield self._create_revision_event(latest_feedback)
+
+    def _create_revision_event(self, feedback: dict) -> Event:
+        """Create the event to be yielded after a successful revision."""
+        return Event(
+            author=self.name,
+            content=genai_types.Content(
+                parts=[
+                    genai_types.Part(
+                        text=f"Code revised based on {feedback['category']} feedback: "
+                        f'"{feedback["feedback_text"]}"'
+                    )
+                ]
+            ),
+            actions=EventActions(),
+        )
 
     def _create_contextual_revision_prompt(self, code: str, feedback: dict) -> str:
         """Create a detailed prompt for contextual code revision."""
@@ -402,6 +287,13 @@ Please provide the revised code that addresses the feedback: "{feedback_text}"
             return getattr(last_stmt, "lineno", func_node.lineno) - 1
         # Empty function, just use the def line
         return func_node.lineno - 1
+
+    def _get_revision_context(self, ctx: InvocationContext) -> tuple[str | None, dict | None]:
+        """Get the current code and latest feedback from the session context."""
+        current_code = ctx.session.state.get("current_code", "")
+        feedback_list = ctx.session.state.get("refinement_feedback", [])
+        latest_feedback = feedback_list[-1] if feedback_list else None
+        return current_code, latest_feedback
 
     def _find_function_body_start(self, lines: list[str], func_start: int, func_node) -> int:
         """Find where the actual function body starts, skipping def line and docstring."""
@@ -796,3 +688,111 @@ Please provide the revised code that addresses the feedback: "{feedback_text}"
         except Exception:
             # If anything goes wrong, return original code unchanged
             return code
+
+    def _parse_llm_revision_response(self, response_text: str, original_code: str) -> str | None:  # noqa: ARG002
+        """Parse and validate LLM revision response."""
+        try:
+            # Clean the response text
+            cleaned_response = response_text.strip()
+
+            # Try to extract code blocks (```python ... ```)
+            import re
+
+            # Look for python code blocks
+            python_code_pattern = r"```python\s*\n(.*?)\n```"
+            python_matches = re.findall(python_code_pattern, cleaned_response, re.DOTALL)
+            if python_matches:
+                # Use the first (or largest) code block
+                revised_code = max(python_matches, key=len).strip()
+                if self._validate_python_code(revised_code):
+                    return revised_code
+
+            # Look for any code blocks (``` ... ```)
+            code_block_pattern = r"```\s*\n(.*?)\n```"
+            code_matches = re.findall(code_block_pattern, cleaned_response, re.DOTALL)
+            if code_matches:
+                # Use the first (or largest) code block
+                revised_code = max(code_matches, key=len).strip()
+                if self._validate_python_code(revised_code):
+                    return revised_code
+
+            # If no code blocks, try to use the entire response if it looks like code
+            if self._validate_python_code(cleaned_response):
+                return cleaned_response
+
+            # Try to extract lines that look like Python code
+            lines = cleaned_response.split("\n")
+            code_lines = []
+            for line in lines:
+                # Skip lines that look like explanations
+                if any(
+                    line.strip().startswith(prefix)
+                    for prefix in ["Here", "The", "This", "I", "Note:", "Explanation:"]
+                ):
+                    continue
+                # Keep lines that look like code
+                if line.strip() and (
+                    line.startswith(" ")
+                    or any(
+                        keyword in line
+                        for keyword in [
+                            "def ",
+                            "class ",
+                            "import ",
+                            "from ",
+                            "if ",
+                            "for ",
+                            "while ",
+                            "=",
+                            "return",
+                            "print",
+                        ]
+                    )
+                ):
+                    code_lines.append(line)
+
+            if code_lines:
+                potential_code = "\n".join(code_lines)
+                if self._validate_python_code(potential_code):
+                    return potential_code
+
+            # If all else fails, return None
+            logger.warning("Could not extract valid Python code from LLM response")
+            return None
+
+        except Exception as e:
+            logger.warning(f"Error parsing LLM revision response: {e}")
+            return None
+
+    def _update_session_state(
+        self, ctx: InvocationContext, original_code: str, revised_code: str, feedback: dict
+    ):
+        """Update the session state with the revised code and revision history."""
+        ctx.session.state["current_code"] = revised_code
+        revision_history = ctx.session.state.get("revision_history", [])
+        revision_history.append(
+            {
+                "iteration": feedback.get("iteration", 0),
+                "original_code": original_code,
+                "revised_code": revised_code,
+                "feedback_applied": feedback,
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
+        ctx.session.state["revision_history"] = revision_history
+
+    def _validate_python_code(self, code: str) -> bool:
+        """Validate that the code is syntactically correct Python."""
+        try:
+            # Try to parse the code as Python
+            ast.parse(code)
+            # Basic sanity checks
+            if len(code.strip()) < 10:  # Too short to be meaningful
+                return False
+            if not any(char.isalnum() for char in code):  # No alphanumeric characters
+                return False
+            return True
+        except SyntaxError:
+            return False
+        except Exception:
+            return False
