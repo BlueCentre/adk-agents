@@ -258,8 +258,8 @@ Type your feedback or 'satisfied' if you're happy with the code.
             try:
                 # In a real implementation, this would be an async call to the LLM
                 # For now, we simulate an LLM failure to test the fallback mechanism
-                if attempt < max_retries - 1:  # Fail on all but the last attempt
-                    raise ConnectionError("Simulated LLM API failure")
+                # In a real implementation, this would be an async call to the LLM.
+                # The LLM call should be made here.
 
                 # On the final attempt, this is where the actual LLM call would be made.
                 # Since we don't have a real LLM, we'll just log a success message.
