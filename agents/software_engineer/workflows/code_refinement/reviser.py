@@ -379,21 +379,13 @@ Please provide the revised code that addresses the feedback: "{feedback_text}"
 
         feedback.get("feedback_text", "").lower()
 
-        # Check if code already has try-catch
+        # Check if code already has try-catch and enhance using AST
         if "try:" in code:
-            # Enhance existing error handling by improving exception specificity
-            enhanced_code = code
-            if "except Exception as e:" in enhanced_code:
-                replacement = (
-                    "except ValueError as e:\n    logger.error(f'Value error: {e}')\n    "
-                    "raise\nexcept Exception as e:"
-                )
-                enhanced_code = enhanced_code.replace(
-                    "except Exception as e:",
-                    replacement,
-                    1,  # Replace only the first occurrence
-                )
-            return enhanced_code
+            try:
+                return self._enhance_existing_error_handling_with_ast(code)
+            except SyntaxError:
+                # If AST parsing fails, return original code unchanged
+                return code
 
         # Add comprehensive error handling using AST parsing for proper structure
         try:
@@ -623,3 +615,53 @@ Please provide the revised code that addresses the feedback: "{feedback_text}"
         except Exception:
             # Fallback to simple wrapping
             return self._wrap_code_block_with_error_handling(code)
+
+    def _enhance_existing_error_handling_with_ast(self, code: str) -> str:
+        """Enhance existing error handling using AST to preserve proper structure."""
+        import ast
+
+        try:
+            tree = ast.parse(code)
+            lines = code.split("\n")
+
+            # Find all try blocks with generic Exception handlers
+            modified = False
+            result_lines = lines[:]
+
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Try):
+                    # Look for generic "except Exception as e:" handlers
+                    for _i, handler in enumerate(node.handlers):
+                        if (
+                            isinstance(handler.type, ast.Name)
+                            and handler.type.id == "Exception"
+                            and handler.name
+                        ):
+                            # Get the line number and indentation of the except block
+                            except_line_num = handler.lineno - 1  # Convert to 0-indexed
+                            except_line = result_lines[except_line_num]
+                            base_indent = len(except_line) - len(except_line.lstrip())
+                            indent = " " * base_indent
+                            handler_indent = " " * (base_indent + 4)
+
+                            # Create specific exception handlers
+                            new_handlers = [
+                                f"{indent}except ValueError as e:",
+                                f"{handler_indent}logger.error(f'Value error: {{e}}')",
+                                f"{handler_indent}raise",
+                                f"{indent}except TypeError as e:",
+                                f"{handler_indent}logger.error(f'Type error: {{e}}')",
+                                f"{handler_indent}raise",
+                                f"{except_line}",  # Keep original Exception handler
+                            ]
+
+                            # Replace the original except line
+                            result_lines[except_line_num : except_line_num + 1] = new_handlers
+                            modified = True
+                            break  # Only modify the first generic handler per try block
+
+            return "\n".join(result_lines) if modified else code
+
+        except Exception:
+            # If anything goes wrong, return original code unchanged
+            return code

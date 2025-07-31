@@ -1,9 +1,9 @@
 """Code refinement feedback collector agent for iterative workflows."""
 
+import asyncio
 from collections.abc import AsyncGenerator
 import logging
 import re
-import time
 
 from google.adk.agents import LlmAgent
 from google.adk.agents.invocation_context import InvocationContext
@@ -108,7 +108,7 @@ Type your feedback or 'satisfied' if you're happy with the code.
             return
 
         # Process the feedback
-        feedback_data = self._process_feedback(user_feedback, current_iteration)
+        feedback_data = await self._process_feedback(user_feedback, current_iteration)
 
         # Update session state
         feedback_list = ctx.session.state.get("refinement_feedback", [])
@@ -131,7 +131,7 @@ Type your feedback or 'satisfied' if you're happy with the code.
             actions=EventActions(),
         )
 
-    def _categorize_feedback_enhanced(self, feedback: str) -> str:
+    async def _categorize_feedback_enhanced(self, feedback: str) -> str:
         """Enhanced feedback categorization with LLM fallback for better accuracy."""
         feedback_lower = feedback.lower()
 
@@ -244,12 +244,16 @@ Type your feedback or 'satisfied' if you're happy with the code.
 
             # If there are ties or low confidence, use LLM for disambiguation
             if len(tied_categories) > 1:
-                return self._categorize_feedback_with_llm(feedback, tied_categories)
+                return await self._categorize_feedback_with_llm(feedback, tied_categories)
 
         # No clear keyword matches, use LLM for categorization
-        return self._categorize_feedback_with_llm(feedback, list(categorization_patterns.keys()))
+        return await self._categorize_feedback_with_llm(
+            feedback, list(categorization_patterns.keys())
+        )
 
-    def _categorize_feedback_with_llm(self, feedback: str, candidate_categories: list[str]) -> str:
+    async def _categorize_feedback_with_llm(
+        self, feedback: str, candidate_categories: list[str]
+    ) -> str:
         """Use LLM to categorize feedback, with a keyword-based fallback."""
         max_retries = 3
         retry_delay_seconds = 1
@@ -379,7 +383,7 @@ Type your feedback or 'satisfied' if you're happy with the code.
 
         return "\n".join(formatted)
 
-    def _process_feedback(self, user_feedback: str, iteration: int) -> dict:
+    async def _process_feedback(self, user_feedback: str, iteration: int) -> dict:
         """Process and categorize user feedback using enhanced logic."""
         feedback_lower = user_feedback.lower()
 
@@ -388,7 +392,7 @@ Type your feedback or 'satisfied' if you're happy with the code.
         user_satisfied = any(word in feedback_lower for word in satisfaction_words)
 
         # Enhanced categorization with better pattern matching
-        category = self._categorize_feedback_enhanced(user_feedback)
+        category = await self._categorize_feedback_enhanced(user_feedback)
 
         # Enhanced priority determination
         priority = self._determine_feedback_priority(user_feedback)

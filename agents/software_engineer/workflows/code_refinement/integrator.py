@@ -1,5 +1,6 @@
 """Code quality and testing integrator for iterative workflows."""
 
+import asyncio
 from collections.abc import AsyncGenerator
 import logging
 import os
@@ -73,7 +74,7 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
             return
 
         # Run code quality analysis
-        quality_results = self._analyze_code_quality(current_code)
+        quality_results = await self._analyze_code_quality(current_code)
 
         # Run testing if applicable
         testing_results = self._run_code_tests(current_code)
@@ -99,12 +100,12 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
             actions=EventActions(),
         )
 
-    def _analyze_code_quality(self, code: str) -> dict:
+    async def _analyze_code_quality(self, code: str) -> dict:
         """Analyze code quality using various metrics."""
 
         try:
             # Use actual external tools for code quality analysis
-            return self._run_external_quality_tools(code)
+            return await self._run_external_quality_tools(code)
         except Exception:
             # Fallback to basic analysis if external tools fail
             return self._basic_quality_analysis(code)
@@ -601,7 +602,7 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
 
         return 0
 
-    def _run_external_quality_tools(self, code: str) -> dict:
+    async def _run_external_quality_tools(self, code: str) -> dict:
         """Run actual external code quality tools on the code."""
         quality_issues = []
         quality_score = 100
@@ -619,7 +620,7 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
             tmp_file_path = tmp_file.name
 
             # Run ruff for linting
-            ruff_issues = self._run_ruff_analysis(tmp_file_path, cwd=project_root)
+            ruff_issues = await self._run_ruff_analysis(tmp_file_path, cwd=project_root)
             quality_issues.extend(ruff_issues)
 
             # Run mypy for type checking (if possible)
@@ -664,18 +665,40 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
             },
         }
 
-    def _run_ruff_analysis(self, file_path: str, cwd: str | None = None) -> list[dict]:
+    async def _run_ruff_analysis(self, file_path: str, cwd: str | None = None) -> list[dict]:
         """Run ruff linter on the code file using uv's environment management."""
         try:
             # Use uv run without manual PYTHONPATH manipulation
             # uv automatically manages the Python environment and paths
-            result = subprocess.run(
-                ["uv", "run", "ruff", "check", file_path, "--output-format=json"],
-                capture_output=True,
-                text=True,
-                timeout=30,
+            process = await asyncio.create_subprocess_exec(
+                "uv",
+                "run",
+                "ruff",
+                "check",
+                file_path,
+                "--output-format=json",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
                 cwd=cwd or self._get_project_root(),
             )
+
+            try:
+                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30)
+                stdout = stdout.decode("utf-8") if stdout else ""
+                stderr = stderr.decode("utf-8") if stderr else ""
+
+                # Create result object compatible with subprocess.run
+                class AsyncResult:
+                    def __init__(self, stdout, stderr, returncode):
+                        self.stdout = stdout
+                        self.stderr = stderr
+                        self.returncode = returncode
+
+                result = AsyncResult(stdout, stderr, process.returncode)
+            except asyncio.TimeoutError:
+                process.kill()
+                await process.wait()
+                raise subprocess.TimeoutExpired(["uv", "run", "ruff"], 30) from None
 
             # Use dedicated parser for robust output handling
             parser = RuffOutputParser()

@@ -31,7 +31,7 @@ class CodeImprover(LlmAgent):
         # Get feedback from previous iteration
         code_quality_issues = ctx.session.state.get("code_quality", {}).get("issues", [])
         code_review_issues = ctx.session.state.get("code_review", {}).get("issues", [])
-        ctx.session.state.get("testing", {}).get("issues", [])
+        testing_issues = ctx.session.state.get("testing", {}).get("issues", [])
 
         # Aggregate improvement suggestions
         improvements = []
@@ -52,6 +52,17 @@ class CodeImprover(LlmAgent):
             improvements.append(
                 {
                     "type": "review",
+                    "description": issue.get("description", ""),
+                    "severity": issue.get("severity", "medium"),
+                    "suggestion": issue.get("suggestion", ""),
+                }
+            )
+
+        # Process testing issues
+        for issue in testing_issues[:3]:  # Top 3 issues
+            improvements.append(
+                {
+                    "type": "testing",
                     "description": issue.get("description", ""),
                     "severity": issue.get("severity", "medium"),
                     "suggestion": issue.get("suggestion", ""),
