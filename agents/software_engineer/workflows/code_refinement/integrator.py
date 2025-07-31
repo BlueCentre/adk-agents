@@ -738,12 +738,9 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
 
         except FileNotFoundError:
             logger.warning("ruff not found in the environment. Skipping ruff analysis.")
-        except (
-            subprocess.TimeoutExpired,
-            subprocess.CalledProcessError,
-        ):
-            # If ruff execution fails, return empty list
-            pass
+        except subprocess.TimeoutExpired as e:
+            logger.warning(f"ruff analysis timed out: {e}")
+            raise
 
         return []
 
@@ -778,9 +775,9 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
 
         except FileNotFoundError:
             logger.warning("mypy not found in the environment. Skipping mypy analysis.")
-        except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
-            # If mypy execution fails, return empty list
-            pass
+        except subprocess.TimeoutExpired as e:
+            logger.warning(f"mypy analysis timed out: {e}")
+            raise
 
         return []
 
@@ -816,12 +813,9 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
 
         except FileNotFoundError:
             logger.warning("bandit not found in the environment. Skipping bandit analysis.")
-        except (
-            subprocess.TimeoutExpired,
-            subprocess.CalledProcessError,
-        ):
-            # If bandit execution fails, return empty list
-            pass
+        except subprocess.TimeoutExpired as e:
+            logger.warning(f"bandit analysis timed out: {e}")
+            raise
 
         return []
 
