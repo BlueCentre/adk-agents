@@ -635,7 +635,7 @@ def _execute_code_refinement_workflow(
     tool_context.state["workflow_state"] = "code_refinement_in_progress"
     tool_context.state["iteration_state"] = {
         "current_iteration": 0,
-        "max_iterations": 5,
+        "max_iterations": agent_config.CODE_REFINEMENT_MAX_ITERATIONS,
         "should_stop": False,
         "reason": "Starting code refinement workflow",
     }

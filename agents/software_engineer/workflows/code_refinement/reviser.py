@@ -1,5 +1,6 @@
 """Code refinement reviser agent for iterative workflows."""
 
+import ast
 from collections.abc import AsyncGenerator
 from datetime import datetime
 import logging
@@ -285,7 +286,6 @@ Please provide the revised code that addresses the feedback: "{feedback_text}"
 
     def _find_function_body_start(self, lines: list[str], func_start: int, func_node) -> int:
         """Find where the actual function body starts, skipping def line and docstring."""
-        import ast
 
         current_line = func_start + 1  # Start after the def line
 
@@ -613,7 +613,9 @@ Please provide the revised code that addresses the feedback: "{feedback_text}"
             return "\n".join(result_lines)
 
         except Exception as e:
-            logger.warning(f"AST-based function body wrapping failed: {e}, falling back to simple wrapping.")
+            logger.warning(
+                f"AST-based function body wrapping failed: {e}, falling back to simple wrapping."
+            )
             # Fallback to simple wrapping
             return self._wrap_code_block_with_error_handling(code)
 
