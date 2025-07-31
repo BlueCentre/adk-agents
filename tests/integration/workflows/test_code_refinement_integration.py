@@ -1,12 +1,28 @@
 """
-Integration Tests for Code Refinement Workflow (Milestone 4.2)
+Integration Tests for the Code Refinement Workflow (Milestone 4.2)
 
-This module contains integration tests for the code refinement workflow
-implemented in Milestone 4.2, which supports iterative code improvement
-based on user feedback with integrated quality analysis and testing.
+This module provides a comprehensive suite of integration tests for the code
+refinement workflow, a key feature of the software engineer agent introduced
+in Milestone 4.2. These tests are designed to verify the seamless
+collaboration of the five specialized sub-agents that make up the iterative
+refinement loop.
 
-These tests use the actual create_code_refinement_loop agent implementation
-to ensure proper integration testing rather than simulating workflow logic.
+The primary goal is to ensure that the entire workflow—from initialization
+to user satisfaction—functions correctly, rather than testing each sub-agent
+in isolation. This is achieved by using the actual `create_code_refinement_loop`
+agent implementation, which provides a realistic testing environment that
+mirrors production usage.
+
+Key tested scenarios include:
+- Successful creation and structural integrity of the main refinement agent.
+- End-to-end execution of the workflow with a practical example (e.g., a factorial function).
+- Graceful handling of common edge cases, such as syntax errors in the code.
+- Robustness in processing ambiguous or contradictory user feedback.
+- Adherence to `max_iterations` to prevent infinite loops.
+- Correct handling of empty or invalid user input and code.
+
+By simulating various user interactions and edge cases, these tests ensure
+the stability, reliability, and correctness of the code refinement workflow.
 """
 
 from dataclasses import dataclass

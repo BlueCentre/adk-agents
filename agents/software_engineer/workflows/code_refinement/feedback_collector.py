@@ -249,32 +249,37 @@ Type your feedback or 'satisfied' if you're happy with the code.
         return self._categorize_feedback_with_llm(feedback, list(categorization_patterns.keys()))
 
     def _categorize_feedback_with_llm(self, feedback: str, candidate_categories: list[str]) -> str:
-        """Use LLM to categorize feedback when keyword matching is ambiguous."""
+        """Use LLM to categorize feedback, with a keyword-based fallback."""
         try:
-            categories_str = ", ".join(candidate_categories)
-
-            # Create categorization prompt (note: in production would use with LLM)
-            _prompt = (
-                f"Analyze the following user feedback about code and categorize it "
-                f"into one of these categories: {categories_str}\n\n"
-                f"Categories:\n"
-                f"- efficiency: Performance, optimization, speed, resource usage\n"
-                f"- error_handling: Error management, validation, edge cases\n"
-                f"- readability: Code clarity, documentation, naming, style\n"
-                f"- testing: Test coverage, test cases, verification\n"
-                f"- functionality: Adding features, changing behavior\n"
-                f"- other: Doesn't fit the above categories\n\n"
-                f'User feedback: "{feedback}"\n\n'
-                f"Respond with only the category name (one word), no explanation."
-            )
-
-            # Note: In a production system, you might want to cache results or use async
-            # For now, this provides better accuracy than keyword matching alone
-            # We'll return the first candidate category as fallback if LLM fails
-            return candidate_categories[0] if candidate_categories else "other"
+            # In a real implementation, this would be an async call to the LLM
+            # For now, we simulate an LLM failure to test the fallback mechanism
+            raise ConnectionError("Simulated LLM API failure")
 
         except Exception:
-            # Fallback to the first candidate category or "other"
+            # Fallback to a keyword matching algorithm if the LLM fails
+            logger.warning("LLM categorization failed. Falling back to keyword matching.")
+            feedback_lower = feedback.lower()
+
+            # Define keyword patterns for each category
+            patterns = {
+                "efficiency": ["faster", "speed", "memory", "optimize"],
+                "error_handling": ["error", "exception", "crash", "handle"],
+                "readability": ["comment", "naming", "format", "style"],
+                "testing": ["test", "coverage", "assert", "verify"],
+                "functionality": ["add", "feature", "change", "implement"],
+            }
+
+            # Score categories based on keyword matches
+            scores = {
+                cat: sum(1 for p in patterns.get(cat, []) if p in feedback_lower)
+                for cat in candidate_categories
+            }
+
+            # Return the category with the highest score
+            if any(scores.values()):
+                return max(scores, key=scores.get)
+
+            # If no keywords match, return the first candidate or 'other'
             return candidate_categories[0] if candidate_categories else "other"
 
     def _determine_feedback_priority(self, feedback: str) -> str:

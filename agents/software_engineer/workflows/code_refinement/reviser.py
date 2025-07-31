@@ -558,8 +558,8 @@ except Exception as e:
                     end_line = self._get_function_end_line(node, lines)
                     function_ranges.append((start_line, end_line, node))
 
-            # Sort by start line to process in order
-            function_ranges.sort(key=lambda x: x[0])
+            # Sort by start line in reverse order to process from bottom to top
+            function_ranges.sort(key=lambda x: x[0], reverse=True)
 
             # If no functions found, fall back to block wrapping
             if not function_ranges:
@@ -567,23 +567,18 @@ except Exception as e:
 
             # Process each function to add error handling
             result_lines = lines[:]
-            offset = 0  # Track line additions for subsequent functions
 
             for start_line, end_line, func_node in function_ranges:
-                # Adjust for previous insertions
-                adj_start = start_line + offset
-                adj_end = end_line + offset
-
                 # Get function indentation
-                func_def_line = result_lines[adj_start]
+                func_def_line = result_lines[start_line]
                 base_indent = len(func_def_line) - len(func_def_line.lstrip())
                 function_indent = " " * (base_indent + 4)
 
                 # Find where the function body starts (after def line and docstring)
-                body_start = self._find_function_body_start(result_lines, adj_start, func_node)
+                body_start = self._find_function_body_start(result_lines, start_line, func_node)
 
                 # Extract the original function body
-                original_body = result_lines[body_start : adj_end + 1]
+                original_body = result_lines[body_start : end_line + 1]
 
                 # Create the wrapped body
                 wrapped_body = [f"{function_indent}try:"]
@@ -599,22 +594,19 @@ except Exception as e:
                 wrapped_body.extend(
                     [
                         f"{function_indent}except ValueError as e:",
-                        f"{function_indent}    print(f'Invalid input value: {{e}}')",
+                        f"{function_indent}    logger.warning(f'Invalid input value: {{e}}')",
                         f"{function_indent}    raise",
                         f"{function_indent}except TypeError as e:",
-                        f"{function_indent}    print(f'Type error: {{e}}')",
+                        f"{function_indent}    logger.warning(f'Type error: {{e}}')",
                         f"{function_indent}    raise",
                         f"{function_indent}except Exception as e:",
-                        f"{function_indent}    print(f'Unexpected error: {{e}}')",
+                        f"{function_indent}    logger.error(f'Unexpected error: {{e}}')",
                         f"{function_indent}    raise",
                     ]
                 )
 
                 # Replace the original body with the wrapped version
-                result_lines[body_start : adj_end + 1] = wrapped_body
-
-                # Update offset for next function
-                offset += len(wrapped_body) - (adj_end - body_start + 1)
+                result_lines[body_start : end_line + 1] = wrapped_body
 
             return "\n".join(result_lines)
 

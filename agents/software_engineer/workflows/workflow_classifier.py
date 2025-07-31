@@ -366,12 +366,28 @@ class WorkflowClassifier:
 
     def update_patterns(self, workflow_name: str, new_patterns: list[tuple[str, int]]):
         """
-        Update patterns for a specific workflow.
+        Update patterns for a specific workflow with validation.
 
-        This allows for dynamic tuning of the classifier without code changes.
+        Args:
+            workflow_name: The name of the workflow to update.
+            new_patterns: A list of tuples, where each tuple contains a
+                          pattern (str) and a weight (int).
+
+        Raises:
+            ValueError: If the workflow name is unknown or if the new_patterns
+                        are not in the expected format.
         """
-        if workflow_name in self.workflow_patterns:
-            self.workflow_patterns[workflow_name]["patterns"].extend(new_patterns)
-            logger.info(f"Updated patterns for workflow: {workflow_name}")
-        else:
-            logger.warning(f"Unknown workflow: {workflow_name}")
+        if workflow_name not in self.workflow_patterns:
+            raise ValueError(f"Unknown workflow: {workflow_name}")
+
+        # Validate the format of the new patterns
+        if not isinstance(new_patterns, list) or not all(
+            isinstance(p, tuple) and len(p) == 2 and isinstance(p[0], str) and isinstance(p[1], int)
+            for p in new_patterns
+        ):
+            raise ValueError(
+                "Invalid format for new_patterns. Expected a list of (string, integer) tuples."
+            )
+
+        self.workflow_patterns[workflow_name]["patterns"].extend(new_patterns)
+        logger.info(f"Updated patterns for workflow: {workflow_name}")

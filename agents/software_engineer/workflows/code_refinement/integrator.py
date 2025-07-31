@@ -336,15 +336,23 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
         return bool(re.search(test_function_pattern, code))
 
     def _estimate_coverage_from_code(self, code: str) -> int:
-        """Estimate test coverage based on code analysis."""
-        total_lines = len([line for line in code.split("\n") if line.strip()])
-        test_lines = len([line for line in code.split("\n") if "test_" in line or "assert" in line])
-
-        if total_lines == 0:
+        """Estimate test coverage based on the number of assert statements."""
+        lines = [line.strip() for line in code.split("\n") if line.strip()]
+        if not lines:
             return 0
 
-        # Simple estimation: more test-related lines = higher coverage
-        return min(90, (test_lines * 20) + 10)
+        # Count the number of assert statements to estimate test coverage
+        assert_statements = sum(1 for line in lines if line.startswith("assert "))
+
+        # Assume that a higher number of asserts indicates better test coverage
+        # This is a simplified heuristic and should be tuned based on project standards
+        coverage_percentage = min(100, int((assert_statements / len(lines)) * 200))
+
+        # Ensure a baseline coverage for files with at least one test
+        if assert_statements > 0 and coverage_percentage < 15:
+            return 15
+
+        return coverage_percentage
 
     def _generate_comprehensive_feedback_message(
         self, quality_results: dict, testing_results: dict, integrated_feedback: dict
@@ -597,13 +605,14 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
         # Get project root directory for proper context
         project_root = self._get_project_root()
 
-        # Create a temporary file for the code
-        tmp_file_path = None
-        try:
-            with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as tmp_file:
-                tmp_file.write(code)
-                tmp_file_path = tmp_file.name
-            # File is now properly closed
+        # Create a temporary file to store the code for analysis.
+        # The with statement ensures the file is automatically cleaned up.
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".py", delete=True, dir=project_root
+        ) as tmp_file:
+            tmp_file.write(code)
+            tmp_file.flush()  # Ensure code is written to disk before analysis
+            tmp_file_path = tmp_file.name
 
             # Run ruff for linting
             ruff_issues = self._run_ruff_analysis(tmp_file_path, cwd=project_root)
@@ -616,15 +625,6 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
             # Run bandit for security analysis
             bandit_issues = self._run_bandit_analysis(tmp_file_path, cwd=project_root)
             quality_issues.extend(bandit_issues)
-
-        finally:
-            # Clean up temporary file - file is guaranteed to be closed
-            if tmp_file_path:
-                try:
-                    Path(tmp_file_path).unlink()
-                except OSError:
-                    # File already deleted or other issue
-                    pass
 
         # Calculate quality score based on issues
         for issue in quality_issues:
