@@ -37,7 +37,7 @@ class CodeImprover(LlmAgent):
         improvements = []
 
         # Process quality issues
-        for issue in code_quality_issues[:3]:  # Top 3 issues
+        for issue in code_quality_issues[: agent_config.MAX_ISSUES_PER_CATEGORY]:  # Top N issues
             improvements.append(
                 {
                     "type": "quality",
@@ -48,7 +48,7 @@ class CodeImprover(LlmAgent):
             )
 
         # Process review issues
-        for issue in code_review_issues[:3]:  # Top 3 issues
+        for issue in code_review_issues[: agent_config.MAX_ISSUES_PER_CATEGORY]:  # Top N issues
             improvements.append(
                 {
                     "type": "review",
@@ -59,7 +59,7 @@ class CodeImprover(LlmAgent):
             )
 
         # Process testing issues
-        for issue in testing_issues[:3]:  # Top 3 issues
+        for issue in testing_issues[: agent_config.MAX_ISSUES_PER_CATEGORY]:  # Top N issues
             improvements.append(
                 {
                     "type": "testing",

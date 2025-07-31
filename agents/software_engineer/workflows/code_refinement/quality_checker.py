@@ -50,14 +50,16 @@ class IterativeQualityChecker(LlmAgent):
             quality_score += 1
 
         # Check testing
-        if testing_result.get("coverage", 0) >= 80:  # 80% coverage threshold
+        coverage_threshold = agent_config.REFINEMENT_COVERAGE_THRESHOLD
+        if testing_result.get("coverage", 0) >= coverage_threshold:
             quality_score += 1
 
         # Decision logic
         should_stop = False
         reason = ""
 
-        if quality_score >= 2:  # At least 2 out of 3 quality checks pass
+        quality_threshold = agent_config.REFINEMENT_QUALITY_SCORE_THRESHOLD
+        if quality_score >= quality_threshold:
             should_stop = True
             reason = f"Quality standards met (score: {quality_score}/3)"
         elif current_iteration >= max_iterations:

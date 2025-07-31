@@ -198,6 +198,19 @@ DEFAULT_TOKEN_LIMIT_FALLBACK = 1000000
 # ACTUAL_LLM_TOKEN_LIMIT will be determined dynamically in devops_agent.py
 # by inspecting the model_info, with fallback to these constants.
 
+# --- Code Refinement Configuration ---
+# Maximum number of issues to process per category (quality, review, testing)
+MAX_ISSUES_PER_CATEGORY = int(os.getenv("MAX_ISSUES_PER_CATEGORY", "3"))
+
+# Maximum iterations for code refinement loop
+CODE_REFINEMENT_MAX_ITERATIONS = int(os.getenv("CODE_REFINEMENT_MAX_ITERATIONS", "5"))
+
+# Quality score threshold (minimum quality score to pass)
+REFINEMENT_QUALITY_SCORE_THRESHOLD = int(os.getenv("REFINEMENT_QUALITY_SCORE_THRESHOLD", "2"))
+
+# Coverage threshold percentage (minimum coverage to pass)
+REFINEMENT_COVERAGE_THRESHOLD = int(os.getenv("REFINEMENT_COVERAGE_THRESHOLD", "80"))
+
 # --- Context Management Configuration ---
 # Parameters for tuning the context manager's behavior
 CONTEXT_TARGET_RECENT_TURNS = 15

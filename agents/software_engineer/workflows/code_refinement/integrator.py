@@ -77,7 +77,7 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
         quality_results = await self._analyze_code_quality(current_code)
 
         # Run testing if applicable
-        testing_results = self._run_code_tests(current_code)
+        testing_results = await self._run_code_tests(current_code)
 
         # Integrate results and generate feedback
         integrated_feedback = self._integrate_quality_and_testing_feedback(
@@ -110,7 +110,9 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
             # Fallback to basic analysis if external tools fail
             return self._basic_quality_analysis(code)
 
-    def _analyze_test_coverage(self, file_path: str, _code: str, cwd: str | None = None) -> dict:
+    async def _analyze_test_coverage(
+        self, file_path: str, _code: str, cwd: str | None = None
+    ) -> dict:
         """Analyze potential test coverage."""
         try:
             # Prepare environment with proper PYTHONPATH
@@ -126,28 +128,54 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
                     env["PYTHONPATH"] = pythonpath
 
             # Try to run coverage analysis (basic approach)
-            result = subprocess.run(
-                ["uv", "run", "coverage", "run", "--source=.", file_path],
-                capture_output=True,
-                text=True,
-                timeout=30,
+            process = await asyncio.create_subprocess_exec(
+                "uv",
+                "run",
+                "coverage",
+                "run",
+                "--source=.",
+                file_path,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
                 cwd=cwd,
                 env=env,
             )
 
-            if result.returncode == 0:
+            try:
+                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30)
+                result_returncode = process.returncode
+            except asyncio.TimeoutError:
+                process.kill()
+                await process.wait()
+                raise subprocess.TimeoutExpired(["uv", "run", "coverage"], 30) from None
+
+            if result_returncode == 0:
                 # Get coverage report
-                coverage_result = subprocess.run(
-                    ["uv", "run", "coverage", "report"],
-                    capture_output=True,
-                    text=True,
-                    timeout=15,
+                coverage_process = await asyncio.create_subprocess_exec(
+                    "uv",
+                    "run",
+                    "coverage",
+                    "report",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
                     cwd=cwd,
                     env=env,
                 )
 
+                try:
+                    coverage_stdout, coverage_stderr = await asyncio.wait_for(
+                        coverage_process.communicate(), timeout=15
+                    )
+                    coverage_result_stdout = (
+                        coverage_stdout.decode("utf-8") if coverage_stdout else ""
+                    )
+                except asyncio.TimeoutError:
+                    coverage_process.kill()
+                    await coverage_process.wait()
+                    raise subprocess.TimeoutExpired(["uv", "run", "coverage"], 15) from None
+
                 # Parse coverage percentage (simplified)
-                coverage_percentage = self._parse_coverage_output(coverage_result.stdout)
+                coverage_percentage = self._parse_coverage_output(coverage_result_stdout)
 
                 return {"coverage_percentage": coverage_percentage, "tool_available": True}
 
@@ -610,25 +638,29 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
         # Get project root directory for proper context
         project_root = self._get_project_root()
 
-        # Create a temporary file to store the code for analysis.
-        # The with statement ensures the file is automatically cleaned up.
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".py", delete=True, dir=project_root
-        ) as tmp_file:
-            tmp_file.write(code)
-            tmp_file.flush()  # Ensure code is written to disk before analysis
-            tmp_file_path = tmp_file.name
+        # Use TemporaryDirectory for robust cross-platform temporary file handling
+        # This avoids Windows file locking issues with NamedTemporaryFile(delete=True)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_dir_path = Path(temp_dir)
+
+            # Create a temporary file within the temporary directory
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".py", dir=temp_dir_path, delete=False
+            ) as tmp_file:
+                tmp_file.write(code)
+                tmp_file_path = tmp_file.name
+            # File is now properly closed before analysis tools access it
 
             # Run ruff for linting
             ruff_issues = await self._run_ruff_analysis(tmp_file_path, cwd=project_root)
             quality_issues.extend(ruff_issues)
 
             # Run mypy for type checking (if possible)
-            mypy_issues = self._run_mypy_analysis(tmp_file_path, cwd=project_root)
+            mypy_issues = await self._run_mypy_analysis(tmp_file_path, cwd=project_root)
             quality_issues.extend(mypy_issues)
 
             # Run bandit for security analysis
-            bandit_issues = self._run_bandit_analysis(tmp_file_path, cwd=project_root)
+            bandit_issues = await self._run_bandit_analysis(tmp_file_path, cwd=project_root)
             quality_issues.extend(bandit_issues)
 
         # Calculate quality score based on issues
@@ -715,22 +747,34 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
 
         return []
 
-    def _run_mypy_analysis(self, file_path: str, cwd: str | None = None) -> list[dict]:
+    async def _run_mypy_analysis(self, file_path: str, cwd: str | None = None) -> list[dict]:
         """Run mypy type checker on the code file using uv's environment management."""
         try:
             # Use uv run without manual PYTHONPATH manipulation
             # uv automatically manages the Python environment and paths
-            result = subprocess.run(
-                ["uv", "run", "mypy", file_path, "--show-error-codes"],
-                capture_output=True,
-                text=True,
-                timeout=30,
+            process = await asyncio.create_subprocess_exec(
+                "uv",
+                "run",
+                "mypy",
+                file_path,
+                "--show-error-codes",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
                 cwd=cwd or self._get_project_root(),
             )
 
-            # Use dedicated parser for robust output handling
-            parser = MypyOutputParser()
-            return parser.parse(result.stdout, result.stderr)
+            try:
+                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30)
+                stdout = stdout.decode("utf-8") if stdout else ""
+                stderr = stderr.decode("utf-8") if stderr else ""
+
+                # Use dedicated parser for robust output handling
+                parser = MypyOutputParser()
+                return parser.parse(stdout, stderr)
+            except asyncio.TimeoutError:
+                process.kill()
+                await process.wait()
+                raise subprocess.TimeoutExpired(["uv", "run", "mypy"], 30) from None
 
         except FileNotFoundError:
             logger.warning("mypy not found in the environment. Skipping mypy analysis.")
@@ -740,22 +784,35 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
 
         return []
 
-    def _run_bandit_analysis(self, file_path: str, cwd: str | None = None) -> list[dict]:
+    async def _run_bandit_analysis(self, file_path: str, cwd: str | None = None) -> list[dict]:
         """Run bandit security analysis on the code file using uv's environment management."""
         try:
             # Use uv run without manual PYTHONPATH manipulation
             # uv automatically manages the Python environment and paths
-            result = subprocess.run(
-                ["uv", "run", "bandit", "-f", "json", file_path],
-                capture_output=True,
-                text=True,
-                timeout=30,
+            process = await asyncio.create_subprocess_exec(
+                "uv",
+                "run",
+                "bandit",
+                "-f",
+                "json",
+                file_path,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
                 cwd=cwd or self._get_project_root(),
             )
 
-            # Use dedicated parser for robust output handling
-            parser = BanditOutputParser()
-            return parser.parse(result.stdout, result.stderr)
+            try:
+                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30)
+                stdout = stdout.decode("utf-8") if stdout else ""
+                stderr = stderr.decode("utf-8") if stderr else ""
+
+                # Use dedicated parser for robust output handling
+                parser = BanditOutputParser()
+                return parser.parse(stdout, stderr)
+            except asyncio.TimeoutError:
+                process.kill()
+                await process.wait()
+                raise subprocess.TimeoutExpired(["uv", "run", "bandit"], 30) from None
 
         except FileNotFoundError:
             logger.warning("bandit not found in the environment. Skipping bandit analysis.")
@@ -768,16 +825,16 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
 
         return []
 
-    def _run_code_tests(self, code: str) -> dict:
+    async def _run_code_tests(self, code: str) -> dict:
         """Run actual tests on the current code."""
         try:
             # Use actual test execution tools
-            return self._run_external_test_tools(code)
+            return await self._run_external_test_tools(code)
         except Exception:
             # Fallback to basic test analysis if external tools fail
             return self._basic_test_analysis(code)
 
-    def _run_external_test_tools(self, code: str) -> dict:
+    async def _run_external_test_tools(self, code: str) -> dict:
         """Run actual external testing tools on the code."""
         # Get project root directory for proper context
         project_root = self._get_project_root()
@@ -796,13 +853,15 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
 
             try:
                 # Run pytest to check if the code has testable functions
-                test_results = self._run_pytest_analysis(tmp_file_path, code, cwd=project_root)
+                test_results = await self._run_pytest_analysis(
+                    tmp_file_path, code, cwd=project_root
+                )
 
                 # Generate test suggestions based on actual code analysis
                 test_suggestions = self._generate_real_test_suggestions(code, tmp_file_path)
 
                 # Run coverage analysis if possible
-                coverage_results = self._analyze_test_coverage(
+                coverage_results = await self._analyze_test_coverage(
                     tmp_file_path, code, cwd=project_root
                 )
 
@@ -828,7 +887,7 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
                     pass
         # The temporary directory and its contents are automatically cleaned up here
 
-    def _run_pytest_analysis(self, file_path: str, code: str, cwd: str | None = None) -> dict:
+    async def _run_pytest_analysis(self, file_path: str, code: str, cwd: str | None = None) -> dict:
         """Run pytest to analyze test execution possibilities."""
         try:
             # Check if the code contains any test functions
@@ -848,18 +907,31 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
                         env["PYTHONPATH"] = pythonpath
 
                 # Run pytest on the file
-                result = subprocess.run(
-                    ["uv", "run", "pytest", file_path, "-v", "--tb=short"],
-                    capture_output=True,
-                    text=True,
-                    timeout=30,
+                process = await asyncio.create_subprocess_exec(
+                    "uv",
+                    "run",
+                    "pytest",
+                    file_path,
+                    "-v",
+                    "--tb=short",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
                     cwd=cwd,
                     env=env,
                 )
 
-                # Use dedicated parser for robust output handling
-                parser = PytestOutputParser()
-                return parser.parse(result.stdout, result.stderr)
+                try:
+                    stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30)
+                    result_stdout = stdout.decode("utf-8") if stdout else ""
+                    result_stderr = stderr.decode("utf-8") if stderr else ""
+
+                    # Use dedicated parser for robust output handling
+                    parser = PytestOutputParser()
+                    return parser.parse(result_stdout, result_stderr)
+                except asyncio.TimeoutError:
+                    process.kill()
+                    await process.wait()
+                    raise subprocess.TimeoutExpired(["uv", "run", "pytest"], 30) from None
             # No tests in the code, but pytest is available
             return {
                 "tests_run": 0,

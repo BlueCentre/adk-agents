@@ -136,7 +136,7 @@ def create_code_refinement_loop() -> LoopAgent:
         name="code_refinement_loop",
         description="Iteratively refines code based on user feedback with integrated "
         "quality analysis and testing",
-        max_iterations=5,
+        max_iterations=agent_config.CODE_REFINEMENT_MAX_ITERATIONS,
         sub_agents=[
             init_agent,  # Initialize (runs once)
             feedback_collector,  # Collect user feedback
