@@ -507,19 +507,28 @@ Please provide the revised code that addresses the feedback: "{feedback_text}"
                 return code
 
         # Add comprehensive error handling using AST parsing for proper structure
+        revised_code = code
         try:
             # Parse the code to understand its structure
             tree = ast.parse(code)
 
             # If the code contains function definitions, wrap only the function body
             if any(isinstance(node, ast.FunctionDef) for node in tree.body):
-                return self._wrap_function_bodies_with_error_handling(code)
+                revised_code = self._wrap_function_bodies_with_error_handling(code)
             # For non-function code, wrap the entire code block
-            return self._wrap_code_block_with_error_handling(code)
+            else:
+                revised_code = self._wrap_code_block_with_error_handling(code)
 
         except SyntaxError:
             # If AST parsing fails, fall back to simple wrapping with proper indentation detection
-            return self._wrap_code_block_with_error_handling(code)
+            revised_code = self._wrap_code_block_with_error_handling(code)
+
+        # Ensure logger is available if logging calls were injected
+        if "logger." in revised_code and "import logging" not in revised_code:
+            header = "import logging\nlogger = logging.getLogger(__name__)\n\n"
+            revised_code = header + revised_code
+
+        return revised_code
 
     def _apply_functionality_improvements(self, code: str, feedback: dict) -> str:
         """Apply functionality improvements with context awareness."""
