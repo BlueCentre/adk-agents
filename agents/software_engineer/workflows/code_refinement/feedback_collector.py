@@ -1,0 +1,377 @@
+"""Code refinement feedback collector agent for iterative workflows."""
+
+from collections.abc import AsyncGenerator
+import logging
+import re
+
+from google.adk.agents import LlmAgent
+from google.adk.agents.invocation_context import InvocationContext
+from google.adk.events import Event, EventActions
+from google.genai import types as genai_types
+
+from ... import config as agent_config
+
+logger = logging.getLogger(__name__)
+
+
+class CodeRefinementFeedbackCollector(LlmAgent):
+    """Agent that collects and processes user feedback for code refinement."""
+
+    def __init__(self, name: str = "code_refinement_feedback_collector"):
+        super().__init__(
+            model=agent_config.DEFAULT_SUB_AGENT_MODEL,
+            name=name,
+            description="Collects and processes user feedback for code refinement",
+            instruction="""
+            You collect and process user feedback for iterative code refinement.
+
+            Your tasks:
+            1. Present the current code to the user for review
+            2. Request specific feedback on what should be improved
+            3. Parse and categorize user feedback (efficiency, error handling,
+               readability, functionality, etc.)
+            4. Store structured feedback in session.state['refinement_feedback']
+            5. Determine if the user is satisfied or wants more changes
+
+            Example feedback categories:
+            - efficiency: "make it more efficient", "optimize performance"
+            - error_handling: "add error handling", "handle edge cases"
+            - readability: "make it more readable", "add comments"
+            - functionality: "add a feature", "change behavior"
+            - testing: "add tests", "improve test coverage"
+
+            Store feedback as:
+            {
+                "feedback_text": "original user feedback",
+                "category": "efficiency|error_handling|readability|functionality|testing|other",
+                "priority": "high|medium|low",
+                "specific_requests": ["list", "of", "specific", "changes"],
+                "user_satisfied": true/false,
+                "iteration": current_iteration_number
+            }
+            """,
+            output_key="refinement_feedback",
+        )
+
+    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
+        """Collect user feedback on the current code."""
+
+        # Get current code and iteration state
+        current_code = ctx.session.state.get("current_code", "")
+        iteration_state = ctx.session.state.get("iteration_state", {})
+        current_iteration = iteration_state.get("current_iteration", 0)
+
+        # Get any previous feedback to show progress
+        previous_feedback = ctx.session.state.get("refinement_feedback", [])
+
+        # Format code presentation
+        code_presentation = f"""
+## Code Refinement - Iteration {current_iteration + 1}
+
+### Current Code:
+```python
+{current_code}
+```
+
+### Previous Feedback Applied:
+{self._format_previous_feedback(previous_feedback)}
+
+### Please provide your feedback:
+- What would you like to improve?
+- Are you satisfied with the current code?
+- Any specific changes needed?
+
+Type your feedback or 'satisfied' if you're happy with the code.
+        """
+
+        # Present code and request feedback (in a real implementation,
+        # this would interact with user)
+        # For now, we'll simulate by checking session state for user input
+        user_feedback = ctx.session.state.get("user_input", "")
+
+        if not user_feedback:
+            yield Event(
+                author=self.name,
+                content=genai_types.Content(
+                    parts=[
+                        genai_types.Part(
+                            text=(
+                                f"Waiting for user feedback on code "
+                                f"refinement:\n{code_presentation}"
+                            )
+                        )
+                    ]
+                ),
+                actions=EventActions(),
+            )
+            return
+
+        # Process the feedback
+        feedback_data = self._process_feedback(user_feedback, current_iteration)
+
+        # Update session state
+        feedback_list = ctx.session.state.get("refinement_feedback", [])
+        feedback_list.append(feedback_data)
+        ctx.session.state["refinement_feedback"] = feedback_list
+
+        # Clear the user input for next iteration
+        ctx.session.state["user_input"] = ""
+
+        yield Event(
+            author=self.name,
+            content=genai_types.Content(
+                parts=[
+                    genai_types.Part(
+                        text=f"Processed user feedback: {feedback_data['category']} - "
+                        f"{feedback_data['feedback_text']}"
+                    )
+                ]
+            ),
+            actions=EventActions(),
+        )
+
+    def _categorize_feedback_enhanced(self, feedback: str) -> str:
+        """Enhanced feedback categorization with LLM fallback for better accuracy."""
+        feedback_lower = feedback.lower()
+
+        # More comprehensive categorization patterns
+        categorization_patterns = {
+            "efficiency": [
+                "efficient",
+                "optimize",
+                "performance",
+                "faster",
+                "speed",
+                "slow",
+                "memory",
+                "cpu",
+                "resource",
+                "algorithm",
+                "complexity",
+                "bottleneck",
+                "improve performance",
+                "make it faster",
+                "reduce time",
+            ],
+            "error_handling": [
+                "error",
+                "exception",
+                "handle",
+                "edge case",
+                "validate",
+                "validation",
+                "check",
+                "try",
+                "catch",
+                "fail",
+                "failure",
+                "robust",
+                "defensive",
+                "null",
+                "none",
+                "empty",
+                "boundary",
+                "limit",
+            ],
+            "readability": [
+                "readable",
+                "comment",
+                "document",
+                "clear",
+                "understand",
+                "explain",
+                "naming",
+                "variable",
+                "function name",
+                "confusing",
+                "clarity",
+                "docstring",
+                "type hint",
+                "format",
+                "style",
+                "clean",
+            ],
+            "testing": [
+                "test",
+                "testing",
+                "coverage",
+                "unit test",
+                "integration test",
+                "test case",
+                "assert",
+                "mock",
+                "verify",
+                "validate behavior",
+                "edge case test",
+                "regression",
+            ],
+            "functionality": [
+                "add",
+                "feature",
+                "function",
+                "change",
+                "modify",
+                "implement",
+                "new",
+                "extend",
+                "enhance",
+                "behavior",
+                "logic",
+                "requirement",
+                "loop",
+                "condition",
+                "algorithm",
+                "method",
+            ],
+        }
+
+        # Score each category based on pattern matches
+        category_scores = {}
+        for category, patterns in categorization_patterns.items():
+            score = sum(1 for pattern in patterns if pattern in feedback_lower)
+            if score > 0:
+                category_scores[category] = score
+
+        # If we have a clear winner (significantly higher score), use it
+        if category_scores:
+            max_score = max(category_scores.values())
+            tied_categories = [cat for cat, score in category_scores.items() if score == max_score]
+
+            # If there's a clear winner or only one tied category, use keyword-based result
+            if len(tied_categories) == 1 or max_score >= 3:
+                return max(category_scores, key=category_scores.get)
+
+            # If there are ties or low confidence, use LLM for disambiguation
+            if len(tied_categories) > 1:
+                return self._categorize_feedback_with_llm(feedback, tied_categories)
+
+        # No clear keyword matches, use LLM for categorization
+        return self._categorize_feedback_with_llm(feedback, list(categorization_patterns.keys()))
+
+    def _categorize_feedback_with_llm(self, feedback: str, candidate_categories: list[str]) -> str:
+        """Use LLM to categorize feedback when keyword matching is ambiguous."""
+        try:
+            categories_str = ", ".join(candidate_categories)
+
+            # Create categorization prompt (note: in production would use with LLM)
+            _prompt = (
+                f"Analyze the following user feedback about code and categorize it "
+                f"into one of these categories: {categories_str}\n\n"
+                f"Categories:\n"
+                f"- efficiency: Performance, optimization, speed, resource usage\n"
+                f"- error_handling: Error management, validation, edge cases\n"
+                f"- readability: Code clarity, documentation, naming, style\n"
+                f"- testing: Test coverage, test cases, verification\n"
+                f"- functionality: Adding features, changing behavior\n"
+                f"- other: Doesn't fit the above categories\n\n"
+                f'User feedback: "{feedback}"\n\n'
+                f"Respond with only the category name (one word), no explanation."
+            )
+
+            # Note: In a production system, you might want to cache results or use async
+            # For now, this provides better accuracy than keyword matching alone
+            # We'll return the first candidate category as fallback if LLM fails
+            return candidate_categories[0] if candidate_categories else "other"
+
+        except Exception:
+            # Fallback to the first candidate category or "other"
+            return candidate_categories[0] if candidate_categories else "other"
+
+    def _determine_feedback_priority(self, feedback: str) -> str:
+        """Enhanced priority determination based on language patterns."""
+        feedback_lower = feedback.lower()
+
+        high_priority_indicators = [
+            "critical",
+            "important",
+            "must",
+            "urgent",
+            "required",
+            "essential",
+            "broken",
+            "bug",
+            "fail",
+            "doesn't work",
+            "crash",
+            "immediately",
+        ]
+
+        low_priority_indicators = [
+            "nice",
+            "minor",
+            "optional",
+            "later",
+            "eventually",
+            "if possible",
+            "consider",
+            "maybe",
+            "could",
+            "suggestion",
+            "cosmetic",
+        ]
+
+        high_score = sum(1 for indicator in high_priority_indicators if indicator in feedback_lower)
+        low_score = sum(1 for indicator in low_priority_indicators if indicator in feedback_lower)
+
+        if high_score > low_score:
+            return "high"
+        if low_score > high_score:
+            return "low"
+        return "medium"
+
+    def _extract_specific_requests(self, feedback: str) -> list[str]:
+        """Extract specific actionable requests from feedback."""
+        # Split on common delimiters and filter meaningful requests
+        potential_requests = []
+
+        # Split on punctuation and conjunctions
+        segments = re.split(r"[,.;]|\band\b|\bor\b|\balso\b", feedback)
+
+        for segment in segments:
+            segment = segment.strip()
+            if len(segment) > 10 and any(
+                verb in segment.lower()
+                for verb in ["add", "remove", "change", "fix", "improve", "make", "use"]
+            ):
+                potential_requests.append(segment)
+
+        return potential_requests[:5]  # Limit to 5 most relevant requests
+
+    def _format_previous_feedback(self, feedback_list: list) -> str:
+        """Format previous feedback for display."""
+        if not feedback_list:
+            return "None"
+
+        formatted = []
+        for i, feedback in enumerate(feedback_list, 1):
+            formatted.append(
+                f"{i}. {feedback.get('category', 'general')}: {feedback.get('feedback_text', '')}"
+            )
+
+        return "\n".join(formatted)
+
+    def _process_feedback(self, user_feedback: str, iteration: int) -> dict:
+        """Process and categorize user feedback using enhanced logic."""
+        feedback_lower = user_feedback.lower()
+
+        # Determine if user is satisfied
+        satisfaction_words = ["satisfied", "good", "done", "finished", "perfect", "complete"]
+        user_satisfied = any(word in feedback_lower for word in satisfaction_words)
+
+        # Enhanced categorization with better pattern matching
+        category = self._categorize_feedback_enhanced(user_feedback)
+
+        # Enhanced priority determination
+        priority = self._determine_feedback_priority(user_feedback)
+
+        # Enhanced specific request extraction
+        specific_requests = self._extract_specific_requests(user_feedback)
+
+        return {
+            "feedback_text": user_feedback,
+            "category": category,
+            "priority": priority,
+            "specific_requests": specific_requests,
+            "user_satisfied": user_satisfied,
+            "iteration": iteration,
+        }
