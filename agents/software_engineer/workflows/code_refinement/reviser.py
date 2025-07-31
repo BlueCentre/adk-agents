@@ -77,8 +77,36 @@ Please revise the code to address the user's feedback. Focus on:
 Return only the revised code without additional explanation.
 """
 
-            # TODO: Integrate with actual LLM model from agent context
-            # For now, provide enhanced rule-based revision logic
+            # Make LLM call for code revision
+            llm_request = genai_types.GenerateContentRequest(
+                contents=[
+                    genai_types.Content(role="user", parts=[genai_types.Part(text=full_prompt)])
+                ]
+            )
+
+            logger.debug("Making LLM call for contextual code revision")
+            response_stream = self.model.generate_content_async(llm_request)
+
+            # Collect response content
+            response_text = ""
+            async for response in response_stream:
+                if response.candidates and response.candidates[0].content.parts:
+                    for part in response.candidates[0].content.parts:
+                        if part.text:
+                            response_text += part.text
+
+            # Parse and validate the LLM response
+            if response_text.strip():
+                revised_code = self._parse_llm_revision_response(response_text, code)
+                if revised_code:
+                    logger.info("LLM-based code revision successful")
+                    return revised_code
+                logger.warning("LLM returned invalid code revision")
+            else:
+                logger.warning("LLM returned empty response for code revision")
+
+            # If LLM fails, fall back to rule-based revision
+            logger.info("Falling back to rule-based code revision")
             return await self._generate_enhanced_revision(code, feedback, full_prompt)
 
         except Exception as e:
@@ -120,6 +148,97 @@ Return only the revised code without additional explanation.
         revised_code = handler(code, feedback)
 
         return revision_header + revised_code
+
+    def _parse_llm_revision_response(self, response_text: str, original_code: str) -> str | None:  # noqa: ARG002
+        """Parse and validate LLM revision response."""
+        try:
+            # Clean the response text
+            cleaned_response = response_text.strip()
+
+            # Try to extract code blocks (```python ... ```)
+            import re
+
+            # Look for python code blocks
+            python_code_pattern = r"```python\s*\n(.*?)\n```"
+            python_matches = re.findall(python_code_pattern, cleaned_response, re.DOTALL)
+            if python_matches:
+                # Use the first (or largest) code block
+                revised_code = max(python_matches, key=len).strip()
+                if self._validate_python_code(revised_code):
+                    return revised_code
+
+            # Look for any code blocks (``` ... ```)
+            code_block_pattern = r"```\s*\n(.*?)\n```"
+            code_matches = re.findall(code_block_pattern, cleaned_response, re.DOTALL)
+            if code_matches:
+                # Use the first (or largest) code block
+                revised_code = max(code_matches, key=len).strip()
+                if self._validate_python_code(revised_code):
+                    return revised_code
+
+            # If no code blocks, try to use the entire response if it looks like code
+            if self._validate_python_code(cleaned_response):
+                return cleaned_response
+
+            # Try to extract lines that look like Python code
+            lines = cleaned_response.split("\n")
+            code_lines = []
+            for line in lines:
+                # Skip lines that look like explanations
+                if any(
+                    line.strip().startswith(prefix)
+                    for prefix in ["Here", "The", "This", "I", "Note:", "Explanation:"]
+                ):
+                    continue
+                # Keep lines that look like code
+                if line.strip() and (
+                    line.startswith(" ")
+                    or any(
+                        keyword in line
+                        for keyword in [
+                            "def ",
+                            "class ",
+                            "import ",
+                            "from ",
+                            "if ",
+                            "for ",
+                            "while ",
+                            "=",
+                            "return",
+                            "print",
+                        ]
+                    )
+                ):
+                    code_lines.append(line)
+
+            if code_lines:
+                potential_code = "\n".join(code_lines)
+                if self._validate_python_code(potential_code):
+                    return potential_code
+
+            # If all else fails, return None
+            logger.warning("Could not extract valid Python code from LLM response")
+            return None
+
+        except Exception as e:
+            logger.warning(f"Error parsing LLM revision response: {e}")
+            return None
+
+    def _validate_python_code(self, code: str) -> bool:
+        """Validate that the code is syntactically correct Python."""
+        try:
+            # Try to parse the code as Python
+            ast.parse(code)
+            # Basic sanity checks
+            if len(code.strip()) < 10:  # Too short to be meaningful
+                return False
+            if not any(char.isalnum() for char in code):  # No alphanumeric characters
+                return False
+            return True
+        except SyntaxError:
+            return False
+        except Exception:
+            return False
 
     def _create_revision_event(self, feedback: dict) -> Event:
         """Create the event to be yielded after a successful revision."""

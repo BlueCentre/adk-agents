@@ -260,18 +260,51 @@ Type your feedback or 'satisfied' if you're happy with the code.
 
         for attempt in range(max_retries):
             try:
-                # In a real implementation, this would be an async call to the LLM
-                # For now, we simulate an LLM failure to test the fallback mechanism
-                # In a real implementation, this would be an async call to the LLM.
-                # The LLM call should be made here.
+                # Create structured prompt for LLM categorization
+                categorization_prompt = self._create_categorization_prompt(
+                    feedback, candidate_categories
+                )
 
-                # On the final attempt, this is where the actual LLM call would be made.
-                # Since we don't have a real LLM, we'll just log a success message.
-                logger.info("Simulated LLM call successful on attempt %d", attempt + 1)
+                # Make LLM call using genai types
+                llm_request = genai_types.GenerateContentRequest(
+                    contents=[
+                        genai_types.Content(
+                            role="user", parts=[genai_types.Part(text=categorization_prompt)]
+                        )
+                    ]
+                )
 
-                # If the LLM call were real, we'd return the result here.
-                # For now, we'll fall through to the keyword-based fallback as if the
-                # LLM returned an empty or ambiguous result.
+                # Call the LLM model
+                logger.debug(
+                    "Making LLM call for feedback categorization (attempt %d/%d)",
+                    attempt + 1,
+                    max_retries,
+                )
+                response_stream = self.model.generate_content_async(llm_request)
+
+                # Collect response content
+                response_text = ""
+                async for response in response_stream:
+                    if response.candidates and response.candidates[0].content.parts:
+                        for part in response.candidates[0].content.parts:
+                            if part.text:
+                                response_text += part.text
+
+                # Parse and validate the LLM response
+                if response_text.strip():
+                    categorization = self._parse_llm_categorization_response(
+                        response_text, candidate_categories
+                    )
+                    if categorization:
+                        logger.info(
+                            "LLM categorization successful on attempt %d: %s",
+                            attempt + 1,
+                            categorization,
+                        )
+                        return categorization
+                    logger.warning("LLM returned invalid category on attempt %d", attempt + 1)
+                else:
+                    logger.warning("LLM returned empty response on attempt %d", attempt + 1)
 
             except Exception as e:
                 logger.warning(
@@ -309,6 +342,63 @@ Type your feedback or 'satisfied' if you're happy with the code.
 
         # If no keywords match, return the first candidate or 'other'
         return candidate_categories[0] if candidate_categories else "other"
+
+    def _create_categorization_prompt(self, feedback: str, candidate_categories: list[str]) -> str:
+        """Create a structured prompt for LLM-based feedback categorization."""
+        categories_str = "\n".join([f"- {cat}" for cat in candidate_categories])
+
+        return f"""You are an expert code reviewer analyzing user feedback about code.
+
+Your task is to categorize the following feedback into one of the provided categories.
+
+FEEDBACK TO CATEGORIZE:
+"{feedback}"
+
+AVAILABLE CATEGORIES:
+{categories_str}
+
+INSTRUCTIONS:
+1. Analyze the feedback content carefully
+2. Choose the MOST APPROPRIATE category from the list above
+3. Respond with ONLY the category name, no additional text
+4. If the feedback doesn't clearly fit any category, choose the closest match
+
+CATEGORY:"""
+
+    def _parse_llm_categorization_response(
+        self, response_text: str, candidate_categories: list[str]
+    ) -> str | None:
+        """Parse and validate LLM categorization response."""
+        # Clean the response text
+        cleaned_response = response_text.strip().lower()
+
+        # Try direct match first
+        for category in candidate_categories:
+            if category.lower() == cleaned_response:
+                return category
+
+        # Try partial match (in case LLM adds extra text)
+        for category in candidate_categories:
+            if category.lower() in cleaned_response:
+                return category
+
+        # Try fuzzy matching for common variations
+        category_variations = {
+            "error_handling": ["error", "exception", "handling", "try", "catch"],
+            "efficiency": ["performance", "speed", "optimization", "memory", "time"],
+            "readability": ["readable", "clarity", "clean", "documentation", "comments"],
+            "testing": ["test", "testing", "coverage", "assert", "verification"],
+            "functionality": ["feature", "function", "behavior", "logic", "implementation"],
+        }
+
+        for category in candidate_categories:
+            variations = category_variations.get(category, [])
+            for variation in variations:
+                if variation in cleaned_response:
+                    return category
+
+        # No valid category found
+        return None
 
     def _determine_feedback_priority(self, feedback: str) -> str:
         """Enhanced priority determination based on language patterns."""
