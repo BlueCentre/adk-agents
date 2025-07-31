@@ -13,13 +13,14 @@ from .human_in_loop_workflows import (
     human_in_the_loop_approval,
     setup_approval_proposal,
 )
-from .iterative_workflows import create_iterative_refinement_workflow
+from .iterative_workflows import create_code_refinement_loop, create_iterative_refinement_workflow
 from .parallel_workflows import create_parallel_analysis_workflow
 from .sequential_workflows import create_feature_development_workflow
 
 __all__ = [
     "HumanApprovalWorkflow",
     "create_architecture_proposal",
+    "create_code_refinement_loop",
     "create_deployment_proposal",
     "create_feature_development_workflow",
     "create_file_edit_proposal",

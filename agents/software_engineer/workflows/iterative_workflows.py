@@ -1,151 +1,151 @@
 """Iterative workflow patterns for the Software Engineer Agent."""
 
 from collections.abc import AsyncGenerator
+import logging
 
 from google.adk.agents import BaseAgent, LlmAgent, LoopAgent
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events import Event, EventActions
+from google.genai import types as genai_types
 
 from .. import config as agent_config
 from ..sub_agents.code_quality.agent import code_quality_agent
 from ..sub_agents.code_review.agent import code_review_agent
 from ..sub_agents.debugging.agent import debugging_agent
 from ..sub_agents.testing.agent import testing_agent
+from .code_refinement import (
+    CodeImprover,
+    CodeQualityAndTestingIntegrator,
+    CodeRefinementFeedbackCollector,
+    CodeRefinementReviser,
+    IterativeQualityChecker,
+)
+
+logger = logging.getLogger(__name__)
 
 
-class IterativeQualityChecker(LlmAgent):
-    """Agent that checks if quality standards are met and decides whether to continue iterating."""
+class CodeRefinementSatisfactionChecker(BaseAgent):
+    """Checks if the user is satisfied with the code refinement."""
 
-    def __init__(self, name: str = "iterative_quality_checker"):
-        super().__init__(
-            model=agent_config.DEFAULT_SUB_AGENT_MODEL,
-            name=name,
-            description="Checks if quality standards are met for iterative workflows",
-            instruction="Check quality standards and decide whether to continue iterating",
-            output_key="quality_checker",
-        )
+    def __init__(self, name: str = "code_refinement_satisfaction_checker"):
+        super().__init__(name=name)
 
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
-        """Check quality and decide whether to escalate (stop) or continue."""
+        """Check if user is satisfied or if we should continue refining."""
 
-        # Get current iteration state
+        # Get feedback and iteration state
+        feedback_list = ctx.session.state.get("refinement_feedback", [])
         iteration_state = ctx.session.state.get("iteration_state", {})
         current_iteration = iteration_state.get("current_iteration", 0)
         max_iterations = iteration_state.get("max_iterations", 5)
 
-        # Get quality metrics from various agents
-        code_quality_result = ctx.session.state.get("code_quality", {})
-        code_review_result = ctx.session.state.get("code_review", {})
-        testing_result = ctx.session.state.get("testing", {})
-
-        # Simple quality check logic (can be enhanced with more sophisticated criteria)
-        quality_score = 0
-
-        # Check code quality
-        if code_quality_result.get("status") == "pass":
-            quality_score += 1
-
-        # Check code review
-        if code_review_result.get("issues_count", 0) == 0:
-            quality_score += 1
-
-        # Check testing
-        if testing_result.get("coverage", 0) >= 80:  # 80% coverage threshold
-            quality_score += 1
-
-        # Decision logic
         should_stop = False
         reason = ""
 
-        if quality_score >= 2:  # At least 2 out of 3 quality checks pass
-            should_stop = True
-            reason = f"Quality standards met (score: {quality_score}/3)"
-        elif current_iteration >= max_iterations:
-            should_stop = True
-            reason = f"Maximum iterations reached ({max_iterations})"
+        if feedback_list:
+            latest_feedback = feedback_list[-1]
+            user_satisfied = latest_feedback.get("user_satisfied", False)
+
+            if user_satisfied:
+                should_stop = True
+                reason = "User is satisfied with the code"
+            elif current_iteration >= max_iterations:
+                should_stop = True
+                reason = f"Maximum iterations reached ({max_iterations})"
+            else:
+                reason = f"Continuing refinement - iteration {current_iteration + 1}"
         else:
-            reason = (
-                f"Quality needs improvement (score: {quality_score}/3), "
-                f"continuing iteration {current_iteration + 1}"
-            )
+            # No feedback yet, continue to collect it
+            reason = "Waiting for initial user feedback"
 
         # Update iteration state
         iteration_state.update(
             {
                 "current_iteration": current_iteration + 1,
-                "quality_score": quality_score,
                 "should_stop": should_stop,
                 "reason": reason,
             }
         )
         ctx.session.state["iteration_state"] = iteration_state
 
-        # Generate event with escalation decision
         yield Event(
             author=self.name,
-            text=f"Quality check complete: {reason}",
+            content=genai_types.Content(
+                parts=[genai_types.Part(text=f"Refinement check: {reason}")]
+            ),
             actions=EventActions(escalate=should_stop),
         )
 
 
-class CodeImprover(LlmAgent):
-    """Agent that improves code based on feedback from quality checks."""
+def create_code_refinement_loop() -> LoopAgent:
+    """
+    Creates a code refinement loop workflow for iterative code improvement based on user feedback.
 
-    def __init__(self, name: str = "code_improver"):
-        super().__init__(
-            model=agent_config.DEFAULT_SUB_AGENT_MODEL,
-            name=name,
-            description="Improves code based on quality feedback",
-            instruction="Improve code based on quality feedback",
-            output_key="code_improver",
-        )
+    This implements the ADK Iterative Refinement Pattern for user-driven code improvement:
+    1. Present code → 2. Collect feedback → 3. Revise code → 4. Run integrated
+    quality/testing checks → 5. Repeat until user satisfied
 
-    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
-        """Improve code based on previous iteration feedback."""
+    The workflow creates a mini "red-green-refactor" cycle:
+    - RED: Identify quality issues and testing gaps
+    - GREEN: Ensure code meets basic standards
+    - REFACTOR: Apply user feedback for continuous improvement
+    """
 
-        # Get feedback from previous iteration
-        code_quality_issues = ctx.session.state.get("code_quality", {}).get("issues", [])
-        code_review_issues = ctx.session.state.get("code_review", {}).get("issues", [])
-        ctx.session.state.get("testing", {}).get("issues", [])
+    # Create feedback collector
+    feedback_collector = CodeRefinementFeedbackCollector()
 
-        # Aggregate improvement suggestions
-        improvements = []
+    # Create code reviser
+    code_reviser = CodeRefinementReviser()
 
-        # Process quality issues
-        for issue in code_quality_issues[:3]:  # Top 3 issues
-            improvements.append(
-                {
-                    "type": "quality",
-                    "description": issue.get("description", ""),
-                    "severity": issue.get("severity", "medium"),
-                    "suggestion": issue.get("suggestion", ""),
-                }
-            )
+    # Create integrated quality and testing analyzer
+    quality_testing_integrator = CodeQualityAndTestingIntegrator()
 
-        # Process review issues
-        for issue in code_review_issues[:3]:  # Top 3 issues
-            improvements.append(
-                {
-                    "type": "review",
-                    "description": issue.get("description", ""),
-                    "severity": issue.get("severity", "medium"),
-                    "suggestion": issue.get("suggestion", ""),
-                }
-            )
+    # Create satisfaction checker
+    satisfaction_checker = CodeRefinementSatisfactionChecker()
 
-        # Store improvement plan
-        ctx.session.state["improvement_plan"] = {
-            "improvements": improvements,
-            "total_improvements": len(improvements),
-            "iteration": ctx.session.state.get("iteration_state", {}).get("current_iteration", 0),
-        }
+    # Create initialization agent
+    init_agent = LlmAgent(
+        model=agent_config.DEFAULT_SUB_AGENT_MODEL,
+        name="code_refinement_init_agent",
+        description="Initializes code refinement process",
+        instruction="""
+        You initialize the code refinement process.
 
-        # Generate improvement event
-        yield Event(
-            author=self.name,
-            text=f"Code improvement plan created with {len(improvements)} improvements",
-            actions=EventActions(),
-        )
+        Your tasks:
+        1. Set up iteration_state in session.state
+        2. Ensure initial code is available in session.state['current_code']
+        3. Initialize refinement_feedback list
+        4. Set up revision_history tracking
+        5. Initialize quality and testing tracking
+        6. Prepare context for iterative user-driven improvement
+
+        If no initial code is provided, you should generate a basic implementation
+        based on the task description.
+
+        The refinement process integrates:
+        - User feedback collection and processing
+        - Contextual code revision based on feedback
+        - Integrated code quality analysis and testing
+        - Mini red-green-refactor cycles for continuous improvement
+        """,
+        output_key="refinement_init",
+    )
+
+    # Create iterative code refinement loop with integrated quality & testing
+    return LoopAgent(
+        name="code_refinement_loop",
+        description="Iteratively refines code based on user feedback with integrated "
+        "quality analysis and testing",
+        max_iterations=agent_config.CODE_REFINEMENT_MAX_ITERATIONS,
+        sub_agents=[
+            init_agent,  # Initialize (runs once)
+            feedback_collector,  # Collect user feedback
+            code_reviser,  # Revise code based on feedback
+            quality_testing_integrator,  # Integrated quality analysis and testing
+            # (RED-GREEN-REFACTOR)
+            satisfaction_checker,  # Check if user is satisfied
+        ],
+    )
 
 
 def create_iterative_refinement_workflow() -> LoopAgent:
@@ -238,7 +238,9 @@ def create_iterative_debug_workflow() -> LoopAgent:
 
             yield Event(
                 author=self.name,
-                text=f"Debug check: {reason}",
+                content=genai_types.Content(
+                    parts=[genai_types.Part(text=f"Debug check: {reason}")]
+                ),
                 actions=EventActions(escalate=should_stop),
             )
 
@@ -305,7 +307,9 @@ def create_iterative_test_improvement_workflow() -> LoopAgent:
 
             yield Event(
                 author=self.name,
-                text=f"Coverage check: {reason}",
+                content=genai_types.Content(
+                    parts=[genai_types.Part(text=f"Coverage check: {reason}")]
+                ),
                 actions=EventActions(escalate=should_stop),
             )
 
@@ -377,7 +381,9 @@ def create_iterative_code_generation_workflow() -> LoopAgent:
 
             yield Event(
                 author=self.name,
-                text=f"Generation quality check: {reason}",
+                content=genai_types.Content(
+                    parts=[genai_types.Part(text=f"Generation quality check: {reason}")]
+                ),
                 actions=EventActions(escalate=should_stop),
             )
 

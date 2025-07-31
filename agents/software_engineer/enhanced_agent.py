@@ -480,111 +480,37 @@ def state_manager_tool(
 
 def workflow_selector_tool(tool_context: ToolContext, task_description: str) -> dict[str, Any]:
     """
-    Intelligent workflow selection based on task characteristics.
+    Intelligent workflow selection using sophisticated classification.
 
-    Analyzes task requirements and recommends the most appropriate workflow pattern
-    from the available ADK workflow orchestration options.
+    Analyzes task requirements using a weighted scoring system to recommend
+    the most appropriate workflow pattern from available ADK options.
 
     Args:
         tool_context: ADK tool context providing access to session state
         task_description: Description of the task to analyze
 
     Returns:
-        dict: Workflow recommendation with reasoning and configuration
+        dict: Workflow recommendation with detailed reasoning and confidence scoring
     """
-    # Task analysis patterns
-    complexity_indicators = {
-        "high": ["refactor", "architecture", "design", "migration", "integration"],
-        "medium": ["implement", "fix", "optimize", "enhance", "update"],
-        "low": ["debug", "review", "format", "document", "test"],
-    }
+    from .workflows.workflow_classifier import WorkflowClassifier
 
-    approval_indicators = [
-        "deploy",
-        "release",
-        "merge",
-        "production",
-        "critical",
-        "security",
-        "architecture",
-    ]
-
-    parallel_indicators = [
-        "multiple files",
-        "batch",
-        "several",
-        "various",
-        "different modules",
-    ]
-
-    iterative_indicators = [
-        "improve",
-        "refine",
-        "optimize",
-        "gradually",
-        "step by step",
-        "iterative",
-    ]
-
-    # Analyze task characteristics
-    task_lower = task_description.lower()
-
-    # Determine complexity
-    complexity = "low"
-    for level, indicators in complexity_indicators.items():
-        if any(indicator in task_lower for indicator in indicators):
-            complexity = level
-            break
-
-    # Check other characteristics
-    requires_approval = any(indicator in task_lower for indicator in approval_indicators)
-    parallel_capable = any(indicator in task_lower for indicator in parallel_indicators)
-    iterative = any(indicator in task_lower for indicator in iterative_indicators)
-
-    # Determine task type
-    task_type = "general"
-
-    # Default
-    if any(word in task_lower for word in ["test", "testing", "spec"]):
-        task_type = "testing"
-    elif any(word in task_lower for word in ["deploy", "build", "ci/cd"]):
-        task_type = "deployment"
-    elif any(word in task_lower for word in ["review", "analyze", "audit"]):
-        task_type = "analysis"
-
-    # Select workflow
-    if requires_approval:
-        selected_workflow = "human_in_loop"
-    elif iterative and complexity == "high":
-        selected_workflow = "iterative_refinement"
-    elif parallel_capable:
-        selected_workflow = "parallel_execution"
-    else:
-        selected_workflow = "standard_sequential"
+    # Use the sophisticated classifier instead of hardcoded indicators
+    classifier = WorkflowClassifier()
+    result = classifier.classify_workflow(task_description)
 
     # Update workflow state in session if available
     if tool_context and hasattr(tool_context, "state") and tool_context.state is not None:
-        tool_context.state["workflow_state"] = selected_workflow
-        tool_context.state["task_analysis"] = {
-            "task_type": task_type,
-            "complexity": complexity,
-            "requires_approval": requires_approval,
-            "parallel_capable": parallel_capable,
-            "iterative": iterative,
-        }
+        tool_context.state["workflow_state"] = result["selected_workflow"]
+        tool_context.state["task_analysis"] = result["task_characteristics"]
+        tool_context.state["workflow_scores"] = result["workflow_scores"]
 
     return {
-        "selected_workflow": selected_workflow,
-        "task_characteristics": {
-            "task_type": task_type,
-            "complexity": complexity,
-            "requires_approval": requires_approval,
-            "parallel_capable": parallel_capable,
-            "iterative": iterative,
-        },
-        "recommendation_reason": (
-            f"Selected {selected_workflow} based on task complexity and requirements",
-        ),
+        "selected_workflow": result["selected_workflow"],
+        "task_characteristics": result["task_characteristics"],
+        "reasoning": result["reasoning"],
+        "confidence": result["confidence"],
+        "workflow_scores": result["workflow_scores"],
+        "pattern_coverage": classifier.get_pattern_coverage(task_description),
     }
 
 
@@ -614,6 +540,8 @@ def workflow_execution_tool(
     try:
         if workflow_type == "human_in_loop":
             return _execute_human_approval_workflow(tool_context, task_description, proposal_data)
+        if workflow_type == "code_refinement":
+            return _execute_code_refinement_workflow(tool_context, task_description)
         if workflow_type == "iterative_refinement":
             return _execute_iterative_workflow(tool_context, task_description)
         if workflow_type == "parallel_execution":
@@ -695,6 +623,37 @@ def _execute_human_approval_workflow(
         "proposal_type": proposal.get("type", "unknown"),
         "message": f"Approval workflow completed: {'Approved' if approved else 'Rejected'}",
         "next_step": tool_context.state["workflow_next_step"],
+    }
+
+
+def _execute_code_refinement_workflow(
+    tool_context: ToolContext,
+    task_description: str,
+) -> dict[str, Any]:
+    """Execute the code refinement workflow."""
+    # Initialize code refinement workflow state
+    tool_context.state["workflow_state"] = "code_refinement_in_progress"
+    tool_context.state["iteration_state"] = {
+        "current_iteration": 0,
+        "max_iterations": agent_config.CODE_REFINEMENT_MAX_ITERATIONS,
+        "should_stop": False,
+        "reason": "Starting code refinement workflow",
+    }
+    tool_context.state["refinement_feedback"] = []
+    tool_context.state["revision_history"] = []
+
+    return {
+        "status": "initiated",
+        "workflow_type": "code_refinement",
+        "message": "Code refinement workflow initiated - ready for user feedback",
+        "task_description": task_description,
+        "next_steps": [
+            "Present initial code for review",
+            "Collect user feedback",
+            "Apply revisions based on feedback",
+            "Run quality checks",
+            "Repeat until user satisfaction",
+        ],
     }
 
 
