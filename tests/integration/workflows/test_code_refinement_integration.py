@@ -18,7 +18,7 @@ from google.adk.agents.invocation_context import InvocationContext
 from google.adk.agents.run_config import RunConfig
 from google.adk.sessions.base_session_service import BaseSessionService
 from google.adk.sessions.session import Session
-from google.genai import types
+from google.genai import types, types as genai_types
 import pytest
 
 # Import the real agent for testing
@@ -255,4 +255,253 @@ class TestCodeRefinementWorkflow:
             # Verify initial session state is preserved
             assert mock_invocation_context.session.state["current_code"] == test_code
 
-    # All simulation methods removed - tests now use real agent implementation
+    @patch("google.adk.agents.llm_agent.LlmAgent._llm_flow", new_callable=AsyncMock)
+    @pytest.mark.asyncio
+    async def test_code_refinement_syntax_error_handling(
+        self, mock_llm_flow, mock_invocation_context
+    ):
+        """Test that the workflow handles syntax errors gracefully."""
+
+        # Mock the async streaming response
+        async def mock_stream():
+            yield MagicMock(text="Syntax error detected")
+            yield MagicMock(text="Attempting to fix...")
+
+        async def mock_run_async(*_args, **_kwargs):
+            async for item in mock_stream():
+                yield item
+
+        mock_llm_flow.run_async = mock_run_async
+
+        # Mock MCP session to avoid external dependencies
+        with patch(
+            "google.adk.tools.mcp_tool.mcp_session_manager.MCPSessionManager.create_session",
+            new_callable=AsyncMock,
+        ) as mock_create_session:
+            mock_session = AsyncMock()
+            mock_session.list_tools.return_value = MagicMock(tools=[])
+            mock_create_session.return_value = mock_session
+
+            # Arrange - code with syntax error
+            invalid_code = """def broken_function(
+                return "missing closing parenthesis"
+            """
+
+            mock_invocation_context.session.state["current_code"] = invalid_code
+            mock_invocation_context.session.state["user_input"] = "fix the syntax error"
+
+            refinement_agent = mock_invocation_context.agent
+            mock_invocation_context.user_content = genai_types.Content(
+                parts=[genai_types.Part(text="Please fix this syntax error.")]
+            )
+
+            # Act - Run the agent with syntax error
+            start_time = time.time()
+            results = []
+
+            try:
+                result_generator = refinement_agent.run_async(mock_invocation_context)
+                async for result in result_generator:
+                    results.append(result)
+                    if time.time() - start_time > 30:  # Shorter timeout for error case
+                        break
+
+                # Assert - Should handle error gracefully
+                assert len(results) > 0, "Agent should produce results even with syntax errors"
+
+            except Exception as e:
+                # Should not crash, but handle gracefully
+                assert "syntax" in str(e).lower() or "parse" in str(e).lower()
+
+    @patch("google.adk.agents.llm_agent.LlmAgent._llm_flow", new_callable=AsyncMock)
+    @pytest.mark.asyncio
+    async def test_code_refinement_ambiguous_feedback(self, mock_llm_flow, mock_invocation_context):
+        """Test that the workflow handles ambiguous or contradictory feedback."""
+
+        # Mock the async streaming response
+        async def mock_stream():
+            yield MagicMock(text="Processing ambiguous feedback")
+            yield MagicMock(text="Applying best interpretation")
+
+        async def mock_run_async(*_args, **_kwargs):
+            async for item in mock_stream():
+                yield item
+
+        mock_llm_flow.run_async = mock_run_async
+
+        # Mock MCP session to avoid external dependencies
+        with patch(
+            "google.adk.tools.mcp_tool.mcp_session_manager.MCPSessionManager.create_session",
+            new_callable=AsyncMock,
+        ) as mock_create_session:
+            mock_session = AsyncMock()
+            mock_session.list_tools.return_value = MagicMock(tools=[])
+            mock_create_session.return_value = mock_session
+
+            # Arrange - ambiguous feedback
+            simple_code = "def process_data(data): return data.upper()"
+            ambiguous_feedback = (
+                "make it faster but also more readable and add error handling but keep it simple"
+            )
+
+            mock_invocation_context.session.state["current_code"] = simple_code
+            mock_invocation_context.session.state["user_input"] = ambiguous_feedback
+
+            refinement_agent = mock_invocation_context.agent
+            mock_invocation_context.user_content = genai_types.Content(
+                parts=[genai_types.Part(text=ambiguous_feedback)]
+            )
+
+            # Act - Run the agent with ambiguous feedback
+            start_time = time.time()
+            results = []
+
+            try:
+                result_generator = refinement_agent.run_async(mock_invocation_context)
+                async for result in result_generator:
+                    results.append(result)
+                    if time.time() - start_time > 30:
+                        break
+
+                # Assert - Should process ambiguous feedback without crashing
+                assert len(results) > 0, "Agent should handle ambiguous feedback gracefully"
+
+            except Exception as e:
+                pytest.fail(f"Agent should handle ambiguous feedback gracefully: {e}")
+
+    @patch("google.adk.agents.llm_agent.LlmAgent._llm_flow", new_callable=AsyncMock)
+    @pytest.mark.asyncio
+    async def test_code_refinement_max_iterations_limit(
+        self, mock_llm_flow, mock_invocation_context
+    ):
+        """Test that the workflow respects the max_iterations limit."""
+
+        # Mock the async streaming response to simulate never being satisfied
+        async def mock_stream():
+            yield MagicMock(text="Not satisfied yet, continuing...")
+
+        async def mock_run_async(*_args, **_kwargs):
+            async for item in mock_stream():
+                yield item
+
+        mock_llm_flow.run_async = mock_run_async
+
+        # Mock MCP session to avoid external dependencies
+        with patch(
+            "google.adk.tools.mcp_tool.mcp_session_manager.MCPSessionManager.create_session",
+            new_callable=AsyncMock,
+        ) as mock_create_session:
+            mock_session = AsyncMock()
+            mock_session.list_tools.return_value = MagicMock(tools=[])
+            mock_create_session.return_value = mock_session
+
+            # Arrange - setup for max iterations test
+            test_code = "def simple_function(): return 42"
+            mock_invocation_context.session.state["current_code"] = test_code
+            mock_invocation_context.session.state["user_input"] = "keep improving this code"
+
+            # Modify the iteration state to simulate multiple iterations
+            mock_invocation_context.session.state["iteration_state"] = {
+                "current_iteration": 0,
+                "max_iterations": 2,  # Set low limit for testing
+                "should_stop": False,
+                "reason": "Testing max iterations",
+            }
+
+            refinement_agent = mock_invocation_context.agent
+            # Verify max_iterations is set correctly
+            assert refinement_agent.max_iterations == 5  # Default from create_code_refinement_loop
+
+            mock_invocation_context.user_content = genai_types.Content(
+                parts=[genai_types.Part(text="Keep improving this code")]
+            )
+
+            # Act - Run the agent with max iterations constraint
+            start_time = time.time()
+            results = []
+            iteration_count = 0
+
+            try:
+                result_generator = refinement_agent.run_async(mock_invocation_context)
+                async for result in result_generator:
+                    results.append(result)
+                    iteration_count += 1
+
+                    # Safety check to prevent infinite loop in test
+                    if iteration_count > 10 or time.time() - start_time > 15:
+                        break
+
+                # Assert - Should respect iteration limits
+                assert iteration_count <= 10, "Agent should respect max iteration limits"
+                assert len(results) > 0, "Agent should produce results within iteration limits"
+
+            except Exception as e:
+                # This is acceptable as the test is about limits
+                assert (
+                    "iteration" in str(e).lower() or "limit" in str(e).lower() or len(results) > 0
+                )
+
+    @pytest.mark.asyncio
+    async def test_code_refinement_edge_case_empty_feedback(self, mock_invocation_context):
+        """Test handling of empty or whitespace-only feedback."""
+
+        # Mock MCP session to avoid external dependencies
+        with patch(
+            "google.adk.tools.mcp_tool.mcp_session_manager.MCPSessionManager.create_session",
+            new_callable=AsyncMock,
+        ) as mock_create_session:
+            mock_session = AsyncMock()
+            mock_session.list_tools.return_value = MagicMock(tools=[])
+            mock_create_session.return_value = mock_session
+
+            # Arrange - empty feedback
+            test_code = "def test(): pass"
+            mock_invocation_context.session.state["current_code"] = test_code
+            mock_invocation_context.session.state["user_input"] = "   "  # Whitespace only
+
+            refinement_agent = mock_invocation_context.agent
+
+            # Test that agent structure is valid for empty feedback
+            assert refinement_agent is not None
+            assert refinement_agent.max_iterations == 5
+
+            # Verify the session state handling
+            session_state = mock_invocation_context.session.state
+            assert session_state["current_code"] == test_code
+            assert session_state["user_input"].strip() == ""
+
+    @pytest.mark.asyncio
+    async def test_code_refinement_invalid_code_input(self, mock_invocation_context):
+        """Test handling of completely invalid or malformed code input."""
+
+        # Mock MCP session to avoid external dependencies
+        with patch(
+            "google.adk.tools.mcp_tool.mcp_session_manager.MCPSessionManager.create_session",
+            new_callable=AsyncMock,
+        ) as mock_create_session:
+            mock_session = AsyncMock()
+            mock_session.list_tools.return_value = MagicMock(tools=[])
+            mock_create_session.return_value = mock_session
+
+            # Arrange - completely invalid code
+            invalid_inputs = [
+                "this is not code at all",
+                "12345 !@#$% invalid",
+                "",  # Empty string
+                None,  # None value would cause issues if not handled
+            ]
+
+            for invalid_code in invalid_inputs:
+                if invalid_code is not None:
+                    mock_invocation_context.session.state["current_code"] = invalid_code
+                    mock_invocation_context.session.state["user_input"] = "fix this code"
+
+                    refinement_agent = mock_invocation_context.agent
+
+                    # Test that agent can be created even with invalid input
+                    assert refinement_agent is not None
+                    assert hasattr(refinement_agent, "max_iterations")
+
+                    # Verify session state is preserved
+                    if invalid_code is not None:
+                        assert mock_invocation_context.session.state["current_code"] == invalid_code

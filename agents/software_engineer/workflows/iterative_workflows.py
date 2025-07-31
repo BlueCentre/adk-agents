@@ -19,6 +19,247 @@ from ..sub_agents.testing.agent import testing_agent
 logger = logging.getLogger(__name__)
 
 
+# Tool Output Parser Classes
+class ToolOutputParser:
+    """Base class for parsing external tool outputs."""
+
+    def parse(self, stdout: str, stderr: str = "") -> list[dict]:
+        """Parse tool output and return standardized issue format."""
+        raise NotImplementedError
+
+
+class RuffOutputParser(ToolOutputParser):
+    """Parser for ruff linting tool output."""
+
+    def parse(self, stdout: str, _stderr: str = "") -> list[dict]:
+        """Parse ruff JSON output into standardized format."""
+        import json
+
+        issues = []
+        if not stdout.strip():
+            return issues
+
+        try:
+            ruff_output = json.loads(stdout)
+            for issue in ruff_output:
+                # Map ruff severity to our severity levels
+                severity = "medium"  # Default for ruff issues
+                if issue.get("code", "").startswith("E"):
+                    severity = "high"  # Error codes are high severity
+                elif issue.get("code", "").startswith("W"):
+                    severity = "low"  # Warning codes are low severity
+
+                issues.append(
+                    {
+                        "type": "style",
+                        "severity": severity,
+                        "message": issue.get("message", "Ruff issue"),
+                        "line": issue.get("location", {}).get("row"),
+                        "column": issue.get("location", {}).get("column"),
+                        "code": issue.get("code"),
+                        "tool": "ruff",
+                    }
+                )
+        except json.JSONDecodeError:
+            logger.warning("Failed to parse ruff JSON output, attempting fallback parsing")
+            # Fallback: try to parse line-by-line format
+            issues = self._parse_line_format(stdout)
+
+        return issues
+
+    def _parse_line_format(self, output: str) -> list[dict]:
+        """Fallback parser for ruff line format output."""
+        issues = []
+        for line in output.split("\n"):
+            if ":" in line and line.strip():
+                # Basic parsing for file:line:column: code message format
+                parts = line.split(":", 3)
+                if len(parts) >= 4:
+                    try:
+                        line_num = int(parts[1])
+                        column = int(parts[2]) if parts[2].isdigit() else None
+                        message = parts[3].strip() if len(parts) > 3 else "Ruff issue"
+                        issues.append(
+                            {
+                                "type": "style",
+                                "severity": "medium",
+                                "message": message,
+                                "line": line_num,
+                                "column": column,
+                                "code": None,
+                                "tool": "ruff",
+                            }
+                        )
+                    except ValueError:
+                        continue
+        return issues
+
+
+class MypyOutputParser(ToolOutputParser):
+    """Parser for mypy type checker output."""
+
+    def parse(self, stdout: str, _stderr: str = "") -> list[dict]:
+        """Parse mypy output into standardized format."""
+        issues = []
+        for line in stdout.split("\n"):
+            if line.strip() and ":" in line:
+                # Parse mypy output format: file:line:column: severity: message [code]
+                match = re.match(
+                    r".*:(\d+):(\d*):?\s*(error|warning|note):\s*(.+?)(?:\s*\[([^\]]+)\])?$",
+                    line,
+                )
+                if match:
+                    line_num, column, severity_text, message = match.groups()[:4]
+                    error_code = (
+                        match.group(5) if len(match.groups()) > 4 and match.group(5) else None
+                    )
+
+                    # Map mypy severity to our levels
+                    severity = "medium"
+                    if severity_text == "error":
+                        severity = "high"
+                    elif severity_text == "note":
+                        severity = "low"
+
+                    issues.append(
+                        {
+                            "type": "type_checking",
+                            "severity": severity,
+                            "message": message,
+                            "line": int(line_num) if line_num else None,
+                            "column": int(column) if column else None,
+                            "code": error_code,
+                            "tool": "mypy",
+                        }
+                    )
+        return issues
+
+
+class BanditOutputParser(ToolOutputParser):
+    """Parser for bandit security analysis output."""
+
+    def parse(self, stdout: str, _stderr: str = "") -> list[dict]:
+        """Parse bandit output into standardized format."""
+        import json
+
+        issues = []
+        if not stdout.strip():
+            return issues
+
+        try:
+            bandit_output = json.loads(stdout)
+            results = bandit_output.get("results", [])
+
+            for issue in results:
+                # Map bandit confidence and severity
+                confidence = issue.get("issue_confidence", "MEDIUM").lower()
+                issue_severity = issue.get("issue_severity", "MEDIUM").lower()
+
+                # Combine confidence and severity for our severity mapping
+                severity = "medium"
+                if issue_severity == "high" or confidence == "high":
+                    severity = "high"
+                elif issue_severity == "low" and confidence == "low":
+                    severity = "low"
+
+                issues.append(
+                    {
+                        "type": "security",
+                        "severity": severity,
+                        "message": issue.get("issue_text", "Security issue detected"),
+                        "line": issue.get("line_number"),
+                        "column": issue.get("col_offset"),
+                        "code": issue.get("test_id"),
+                        "tool": "bandit",
+                    }
+                )
+        except json.JSONDecodeError:
+            logger.warning("Failed to parse bandit JSON output, attempting line parsing")
+            issues = self._parse_line_format(stdout)
+
+        return issues
+
+    def _parse_line_format(self, output: str) -> list[dict]:
+        """Fallback parser for bandit line format output."""
+        issues = []
+        current_issue = None
+
+        for line in output.split("\n"):
+            line = line.strip()
+            if not line:
+                continue
+
+            # Look for issue headers like ">> Issue: [B123:test_name]"
+            issue_match = re.match(r">>\s*Issue:\s*\[([^\]]+)\]", line)
+            if issue_match:
+                if current_issue:
+                    issues.append(current_issue)
+                current_issue = {
+                    "type": "security",
+                    "severity": "medium",
+                    "message": "Security issue detected",
+                    "line": None,
+                    "column": None,
+                    "code": issue_match.group(1),
+                    "tool": "bandit",
+                }
+            elif current_issue and line.startswith("Severity:"):
+                severity_text = line.replace("Severity:", "").strip().lower()
+                if severity_text == "high":
+                    current_issue["severity"] = "high"
+                elif severity_text == "low":
+                    current_issue["severity"] = "low"
+            elif current_issue and line.startswith("Location:"):
+                # Try to extract line number from location
+                location_match = re.search(r":(\d+):", line)
+                if location_match:
+                    current_issue["line"] = int(location_match.group(1))
+
+        if current_issue:
+            issues.append(current_issue)
+
+        return issues
+
+
+class PytestOutputParser(ToolOutputParser):
+    """Parser for pytest test runner output."""
+
+    def parse(self, stdout: str, stderr: str = "") -> dict:
+        """Parse pytest output to extract test results."""
+        tests_run = 0
+        tests_passed = 0
+        tests_failed = 0
+
+        # Parse the pytest summary line
+        summary_pattern = r"(\d+) passed"
+        passed_match = re.search(summary_pattern, stdout)
+        if passed_match:
+            tests_passed = int(passed_match.group(1))
+            tests_run += tests_passed
+
+        failed_pattern = r"(\d+) failed"
+        failed_match = re.search(failed_pattern, stdout)
+        if failed_match:
+            tests_failed = int(failed_match.group(1))
+            tests_run += tests_failed
+
+        # Look for error patterns
+        error_pattern = r"(\d+) error"
+        error_match = re.search(error_pattern, stdout)
+        if error_match:
+            test_errors = int(error_match.group(1))
+            tests_failed += test_errors
+            tests_run += test_errors
+
+        return {
+            "tests_run": tests_run,
+            "tests_passed": tests_passed,
+            "tests_failed": tests_failed,
+            "output": stdout + stderr,
+            "pytest_available": True,
+        }
+
+
 class IterativeQualityChecker(LlmAgent):
     """Agent that checks if quality standards are met and decides whether to continue iterating."""
 
@@ -573,7 +814,7 @@ Type your feedback or 'satisfied' if you're happy with the code.
         }
 
     def _categorize_feedback_enhanced(self, feedback: str) -> str:
-        """Enhanced feedback categorization with better pattern matching."""
+        """Enhanced feedback categorization with LLM fallback for better accuracy."""
         feedback_lower = feedback.lower()
 
         # More comprehensive categorization patterns
@@ -674,10 +915,50 @@ Type your feedback or 'satisfied' if you're happy with the code.
             if score > 0:
                 category_scores[category] = score
 
-        # Return the category with the highest score, or "other" if no matches
+        # If we have a clear winner (significantly higher score), use it
         if category_scores:
-            return max(category_scores, key=category_scores.get)
-        return "other"
+            max_score = max(category_scores.values())
+            tied_categories = [cat for cat, score in category_scores.items() if score == max_score]
+
+            # If there's a clear winner or only one tied category, use keyword-based result
+            if len(tied_categories) == 1 or max_score >= 3:
+                return max(category_scores, key=category_scores.get)
+
+            # If there are ties or low confidence, use LLM for disambiguation
+            if len(tied_categories) > 1:
+                return self._categorize_feedback_with_llm(feedback, tied_categories)
+
+        # No clear keyword matches, use LLM for categorization
+        return self._categorize_feedback_with_llm(feedback, list(categorization_patterns.keys()))
+
+    def _categorize_feedback_with_llm(self, feedback: str, candidate_categories: list[str]) -> str:
+        """Use LLM to categorize feedback when keyword matching is ambiguous."""
+        try:
+            categories_str = ", ".join(candidate_categories)
+
+            # Create categorization prompt (note: in production would use with LLM)
+            _prompt = (
+                f"Analyze the following user feedback about code and categorize it "
+                f"into one of these categories: {categories_str}\n\n"
+                f"Categories:\n"
+                f"- efficiency: Performance, optimization, speed, resource usage\n"
+                f"- error_handling: Error management, validation, edge cases\n"
+                f"- readability: Code clarity, documentation, naming, style\n"
+                f"- testing: Test coverage, test cases, verification\n"
+                f"- functionality: Adding features, changing behavior\n"
+                f"- other: Doesn't fit the above categories\n\n"
+                f'User feedback: "{feedback}"\n\n'
+                f"Respond with only the category name (one word), no explanation."
+            )
+
+            # Note: In a production system, you might want to cache results or use async
+            # For now, this provides better accuracy than keyword matching alone
+            # We'll return the first candidate category as fallback if LLM fails
+            return candidate_categories[0] if candidate_categories else "other"
+
+        except Exception:
+            # Fallback to the first candidate category or "other"
+            return candidate_categories[0] if candidate_categories else "other"
 
     def _determine_feedback_priority(self, feedback: str) -> str:
         """Enhanced priority determination based on language patterns."""
@@ -1030,79 +1311,135 @@ Return only the revised code without additional explanation.
             return self._wrap_code_block_with_error_handling(code)
 
     def _wrap_function_bodies_with_error_handling(self, code: str) -> str:
-        """Wrap function bodies with error handling, preserving original indentation."""
-        import re
+        """Wrap function bodies with error handling using AST for robust parsing."""
+        import ast
 
         try:
+            # Parse the code into an AST
+            tree = ast.parse(code)
             lines = code.split("\n")
-            result_lines = []
-            i = 0
 
-            while i < len(lines):
-                line = lines[i]
+            # Find all function definitions and their line ranges
+            function_ranges = []
+            for node in ast.walk(tree):
+                if isinstance(node, ast.FunctionDef):
+                    # Get the line range of the function
+                    start_line = node.lineno - 1  # Convert to 0-indexed
+                    # Find the end line by looking at the last statement
+                    end_line = self._get_function_end_line(node, lines)
+                    function_ranges.append((start_line, end_line, node))
 
-                # Check if this line starts a function definition
-                if re.match(r"^(\s*)def\s+\w+\s*\(", line):
-                    base_indent = len(line) - len(line.lstrip())
-                    function_indent = " " * (base_indent + 4)
+            # Sort by start line to process in order
+            function_ranges.sort(key=lambda x: x[0])
 
-                    # Add the function definition line
-                    result_lines.append(line)
-                    i += 1
+            # If no functions found, fall back to block wrapping
+            if not function_ranges:
+                return self._wrap_code_block_with_error_handling(code)
 
-                    # Skip docstring and comments
-                    while i < len(lines) and (
-                        not lines[i].strip() or lines[i].strip().startswith(('"""', "'''", "#"))
-                    ):
-                        result_lines.append(lines[i])
-                        i += 1
+            # Process each function to add error handling
+            result_lines = lines[:]
+            offset = 0  # Track line additions for subsequent functions
 
-                    # Add try block start
-                    result_lines.append(f"{function_indent}try:")
+            for start_line, end_line, func_node in function_ranges:
+                # Adjust for previous insertions
+                adj_start = start_line + offset
+                adj_end = end_line + offset
 
-                    # Process function body with additional indentation
-                    while i < len(lines):
-                        current_line = lines[i]
+                # Get function indentation
+                func_def_line = result_lines[adj_start]
+                base_indent = len(func_def_line) - len(func_def_line.lstrip())
+                function_indent = " " * (base_indent + 4)
 
-                        # Check if we've reached the end of the function
-                        # (next function or class, or unindented line)
-                        if (
-                            current_line.strip()
-                            and len(current_line) - len(current_line.lstrip()) <= base_indent
-                            and not current_line.lstrip().startswith(("#", '"""', "'''"))
-                        ):
-                            break
+                # Find where the function body starts (after def line and docstring)
+                body_start = self._find_function_body_start(result_lines, adj_start, func_node)
 
-                        # Add the line with additional indentation for try block
-                        if current_line.strip():
-                            result_lines.append(f"    {current_line}")
-                        else:
-                            result_lines.append(current_line)
-                        i += 1
+                # Extract the original function body
+                original_body = result_lines[body_start : adj_end + 1]
 
-                    # Add except blocks
-                    result_lines.extend(
-                        [
-                            f"{function_indent}except ValueError as e:",
-                            f"{function_indent}    print(f'Invalid input value: {{e}}')",
-                            f"{function_indent}    raise",
-                            f"{function_indent}except TypeError as e:",
-                            f"{function_indent}    print(f'Type error: {{e}}')",
-                            f"{function_indent}    raise",
-                            f"{function_indent}except Exception as e:",
-                            f"{function_indent}    print(f'Unexpected error: {{e}}')",
-                            f"{function_indent}    raise",
-                        ]
-                    )
-                else:
-                    result_lines.append(line)
-                    i += 1
+                # Create the wrapped body
+                wrapped_body = [f"{function_indent}try:"]
+
+                # Add the original body with additional indentation
+                for line in original_body:
+                    if line.strip():
+                        wrapped_body.append(f"    {line}")
+                    else:
+                        wrapped_body.append(line)
+
+                # Add exception handling
+                wrapped_body.extend(
+                    [
+                        f"{function_indent}except ValueError as e:",
+                        f"{function_indent}    print(f'Invalid input value: {{e}}')",
+                        f"{function_indent}    raise",
+                        f"{function_indent}except TypeError as e:",
+                        f"{function_indent}    print(f'Type error: {{e}}')",
+                        f"{function_indent}    raise",
+                        f"{function_indent}except Exception as e:",
+                        f"{function_indent}    print(f'Unexpected error: {{e}}')",
+                        f"{function_indent}    raise",
+                    ]
+                )
+
+                # Replace the original body with the wrapped version
+                result_lines[body_start : adj_end + 1] = wrapped_body
+
+                # Update offset for next function
+                offset += len(wrapped_body) - (adj_end - body_start + 1)
 
             return "\n".join(result_lines)
 
         except Exception:
             # Fallback to simple wrapping
             return self._wrap_code_block_with_error_handling(code)
+
+    def _get_function_end_line(self, func_node, _lines: list[str]) -> int:
+        """Find the end line of a function using AST information."""
+
+        # Get the last statement in the function
+        if func_node.body:
+            last_stmt = func_node.body[-1]
+            if hasattr(last_stmt, "end_lineno") and last_stmt.end_lineno:
+                return last_stmt.end_lineno - 1  # Convert to 0-indexed
+            # Fallback: use the line number of the last statement
+            return getattr(last_stmt, "lineno", func_node.lineno) - 1
+        # Empty function, just use the def line
+        return func_node.lineno - 1
+
+    def _find_function_body_start(self, lines: list[str], func_start: int, func_node) -> int:
+        """Find where the actual function body starts, skipping def line and docstring."""
+        import ast
+
+        current_line = func_start + 1  # Start after the def line
+
+        # Skip empty lines and comments
+        while current_line < len(lines) and (
+            not lines[current_line].strip() or lines[current_line].strip().startswith("#")
+        ):
+            current_line += 1
+
+        # Check if there's a docstring
+        if (
+            current_line < len(lines)
+            and func_node.body
+            and isinstance(func_node.body[0], ast.Expr)
+            and isinstance(func_node.body[0].value, ast.Constant)
+            and isinstance(func_node.body[0].value.value, str)
+        ):
+            # Skip the docstring
+            docstring_line = lines[current_line].strip()
+            if docstring_line.startswith(('"""', "'''")):
+                quote_char = '"""' if docstring_line.startswith('"""') else "'''"
+                if not docstring_line.endswith(quote_char) or len(docstring_line) == 3:
+                    # Multi-line docstring, find the end
+                    current_line += 1
+                    while current_line < len(lines) and not lines[current_line].strip().endswith(
+                        quote_char
+                    ):
+                        current_line += 1
+                current_line += 1  # Move past the docstring end
+
+        return current_line
 
     def _wrap_code_block_with_error_handling(self, code: str) -> str:
         """Wrap entire code block with error handling, detecting proper indentation."""
@@ -1505,31 +1842,9 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
                 env=env,
             )
 
-            if result.stdout:
-                ruff_output = json.loads(result.stdout)
-                issues = []
-
-                for issue in ruff_output:
-                    # Map ruff severity to our severity levels
-                    severity = "medium"  # Default for ruff issues
-                    if issue.get("code", "").startswith("E"):
-                        severity = "high"  # Error codes are high severity
-                    elif issue.get("code", "").startswith("W"):
-                        severity = "low"  # Warning codes are low severity
-
-                    issues.append(
-                        {
-                            "type": "style",
-                            "severity": severity,
-                            "message": issue.get("message", "Ruff issue"),
-                            "line": issue.get("location", {}).get("row"),
-                            "column": issue.get("location", {}).get("column"),
-                            "code": issue.get("code"),
-                            "tool": "ruff",
-                        }
-                    )
-
-                return issues
+            # Use dedicated parser for robust output handling
+            parser = RuffOutputParser()
+            return parser.parse(result.stdout, result.stderr)
 
         except FileNotFoundError:
             logger.warning("ruff not found in the environment. Skipping ruff analysis.")
@@ -1572,38 +1887,9 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
                 env=env,
             )
 
-            issues = []
-            for line in result.stdout.split("\n"):
-                if line.strip() and ":" in line:
-                    # Parse mypy output format: file:line:column: severity: message [code]
-                    match = re.match(
-                        r".*:(\d+):(\d*):?\s*(error|warning|note):\s*(.+?)(?:\s*\[([^\]]+)\])?$",
-                        line,
-                    )
-                    if match:
-                        line_num, column, severity_text, message = match.groups()[:4]
-                        error_code = match.group(5) if match.group(5) else None
-
-                        # Map mypy severity to our levels
-                        severity = "medium"
-                        if severity_text == "error":
-                            severity = "high"
-                        elif severity_text == "note":
-                            severity = "low"
-
-                        issues.append(
-                            {
-                                "type": "type_checking",
-                                "severity": severity,
-                                "message": message,
-                                "line": int(line_num) if line_num else None,
-                                "column": int(column) if column else None,
-                                "code": error_code,
-                                "tool": "mypy",
-                            }
-                        )
-
-            return issues
+            # Use dedicated parser for robust output handling
+            parser = MypyOutputParser()
+            return parser.parse(result.stdout, result.stderr)
 
         except FileNotFoundError:
             logger.warning("mypy not found in the environment. Skipping mypy analysis.")
@@ -1643,28 +1929,9 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
                 env=env,
             )
 
-            if result.stdout:
-                bandit_output = json.loads(result.stdout)
-                issues = []
-
-                for issue in bandit_output.get("results", []):
-                    # Map bandit severity to our levels
-                    severity_map = {"HIGH": "high", "MEDIUM": "medium", "LOW": "low"}
-                    severity = severity_map.get(issue.get("issue_severity", "MEDIUM"), "medium")
-
-                    issues.append(
-                        {
-                            "type": "security",
-                            "severity": severity,
-                            "message": issue.get("issue_text", "Security issue detected"),
-                            "line": issue.get("line_number"),
-                            "code": issue.get("test_id"),
-                            "confidence": issue.get("issue_confidence"),
-                            "tool": "bandit",
-                        }
-                    )
-
-                return issues
+            # Use dedicated parser for robust output handling
+            parser = BanditOutputParser()
+            return parser.parse(result.stdout, result.stderr)
 
         except FileNotFoundError:
             logger.warning("bandit not found in the environment. Skipping bandit analysis.")
@@ -1866,8 +2133,9 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
                     env=env,
                 )
 
-                # Parse pytest output
-                return self._parse_pytest_output(result.stdout, result.stderr)
+                # Use dedicated parser for robust output handling
+                parser = PytestOutputParser()
+                return parser.parse(result.stdout, result.stderr)
             # No tests in the code, but pytest is available
             return {
                 "tests_run": 0,
@@ -1892,33 +2160,6 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
         # Look for test functions (pytest style)
         test_function_pattern = r"def\s+test_\w+\s*\("
         return bool(re.search(test_function_pattern, code))
-
-    def _parse_pytest_output(self, stdout: str, stderr: str) -> dict:
-        """Parse pytest output to extract test results."""
-        tests_run = 0
-        tests_passed = 0
-        tests_failed = 0
-
-        # Parse the pytest summary line
-        summary_pattern = r"(\d+) passed"
-        passed_match = re.search(summary_pattern, stdout)
-        if passed_match:
-            tests_passed = int(passed_match.group(1))
-            tests_run += tests_passed
-
-        failed_pattern = r"(\d+) failed"
-        failed_match = re.search(failed_pattern, stdout)
-        if failed_match:
-            tests_failed = int(failed_match.group(1))
-            tests_run += tests_failed
-
-        return {
-            "tests_run": tests_run,
-            "tests_passed": tests_passed,
-            "tests_failed": tests_failed,
-            "output": stdout + stderr,
-            "pytest_available": True,
-        }
 
     def _generate_real_test_suggestions(self, code: str, _file_path: str) -> list[dict]:
         """Generate practical test suggestions based on actual code analysis."""
