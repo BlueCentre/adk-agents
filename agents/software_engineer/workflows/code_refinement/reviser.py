@@ -651,13 +651,13 @@ Please provide the revised code that addresses the feedback: "{feedback_text}"
         return f"""{base_indent}try:
 {indented_code}
 {base_indent}except ValueError as e:
-{base_indent}    print(f"Invalid input value: {{e}}")
+{base_indent}    logger.warning(f"Invalid input value: {{e}}")
 {base_indent}    raise
 {base_indent}except TypeError as e:
-{base_indent}    print(f"Type error: {{e}}")
+{base_indent}    logger.warning(f"Type error: {{e}}")
 {base_indent}    raise
 {base_indent}except Exception as e:
-{base_indent}    print(f"Unexpected error: {{e}}")
+{base_indent}    logger.error(f"Unexpected error: {{e}}")
 {base_indent}    raise"""
 
     def _wrap_function_bodies_with_error_handling(self, code: str) -> str:
@@ -769,10 +769,10 @@ Please provide the revised code that addresses the feedback: "{feedback_text}"
                             # Create specific exception handlers
                             new_handlers = [
                                 f"{indent}except ValueError as e:",
-                                f"{handler_indent}logger.error(f'Value error: {{e}}')",
+                                f"{handler_indent}logger.warning(f'Value error: {{e}}')",
                                 f"{handler_indent}raise",
                                 f"{indent}except TypeError as e:",
-                                f"{handler_indent}logger.error(f'Type error: {{e}}')",
+                                f"{handler_indent}logger.warning(f'Type error: {{e}}')",
                                 f"{handler_indent}raise",
                                 f"{except_line}",  # Keep original Exception handler
                             ]
