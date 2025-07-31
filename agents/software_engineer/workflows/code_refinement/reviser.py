@@ -86,7 +86,7 @@ Return only the revised code without additional explanation.
                 f"LLM-based code revision failed: {e}. Falling back to basic improvements."
             )
             # Fallback to basic improvement if revision fails
-            return self._apply_basic_improvements(code, feedback.get("feedback_text", ""))
+            return self._apply_basic_improvements(code, feedback)
 
     async def _apply_feedback_to_code(self, code: str, feedback: dict) -> str:
         """Apply user feedback to revise the code using contextual understanding."""
@@ -105,29 +105,65 @@ Return only the revised code without additional explanation.
 
         revision_header = f"# Code revision: {category} - {feedback_text}\n"
 
-        if category == "error_handling":
-            revised_code = self._apply_error_handling_improvements(code, feedback)
-        elif category == "efficiency":
-            revised_code = self._apply_efficiency_improvements(code, feedback)
-        elif category == "readability":
-            revised_code = self._apply_readability_improvements(code, feedback)
-        elif category == "functionality":
-            revised_code = self._apply_functionality_improvements(code, feedback)
-        elif category == "testing":
-            revised_code = self._apply_testing_improvements(code, feedback)
-        else:
-            revised_code = self._apply_general_improvements(code, feedback)
+        # Use a dictionary to map feedback categories to handler functions
+        handler_map = {
+            "error_handling": self._apply_error_handling_improvements,
+            "efficiency": self._apply_efficiency_improvements,
+            "readability": self._apply_readability_improvements,
+            "functionality": self._apply_functionality_improvements,
+            "testing": self._apply_testing_improvements,
+        }
+
+        # Get the appropriate handler and apply the revision
+        handler = handler_map.get(category, self._apply_general_improvements)
+        revised_code = handler(code, feedback)
 
         return revision_header + revised_code
 
-    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
-        """Revise code based on user feedback."""
+    def _create_revision_event(self, feedback: dict) -> Event:
+        """Create the event to be yielded after a successful revision."""
+        return Event(
+            author=self.name,
+            content=genai_types.Content(
+                parts=[
+                    genai_types.Part(
+                        text=f"Code revised based on {feedback['category']} feedback: "
+                        f'"{feedback["feedback_text"]}"'
+                    )
+                ]
+            ),
+            actions=EventActions(),
+        )
 
-        # Get current code and feedback
+    def _get_revision_context(self, ctx: InvocationContext) -> tuple[str | None, dict | None]:
+        """Get the current code and latest feedback from the session context."""
         current_code = ctx.session.state.get("current_code", "")
         feedback_list = ctx.session.state.get("refinement_feedback", [])
+        latest_feedback = feedback_list[-1] if feedback_list else None
+        return current_code, latest_feedback
 
-        if not feedback_list:
+    def _update_session_state(
+        self, ctx: InvocationContext, original_code: str, revised_code: str, feedback: dict
+    ):
+        """Update the session state with the revised code and revision history."""
+        ctx.session.state["current_code"] = revised_code
+        revision_history = ctx.session.state.get("revision_history", [])
+        revision_history.append(
+            {
+                "iteration": feedback.get("iteration", 0),
+                "original_code": original_code,
+                "revised_code": revised_code,
+                "feedback_applied": feedback,
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
+        ctx.session.state["revision_history"] = revision_history
+
+    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
+        """Revise code based on user feedback."""
+        current_code, latest_feedback = self._get_revision_context(ctx)
+
+        if not latest_feedback:
             yield Event(
                 author=self.name,
                 content=genai_types.Content(
@@ -137,10 +173,6 @@ Return only the revised code without additional explanation.
             )
             return
 
-        # Get the latest feedback
-        latest_feedback = feedback_list[-1]
-
-        # Skip revision if user is satisfied
         if latest_feedback.get("user_satisfied", False):
             yield Event(
                 author=self.name,
@@ -155,37 +187,9 @@ Return only the revised code without additional explanation.
             )
             return
 
-        # Apply revision based on feedback
         revised_code = await self._apply_feedback_to_code(current_code, latest_feedback)
-
-        # Update session state
-        ctx.session.state["current_code"] = revised_code
-
-        # Store revision history
-        revision_history = ctx.session.state.get("revision_history", [])
-        revision_history.append(
-            {
-                "iteration": latest_feedback.get("iteration", 0),
-                "original_code": current_code,
-                "revised_code": revised_code,
-                "feedback_applied": latest_feedback,
-                "timestamp": datetime.now().isoformat(),
-            }
-        )
-        ctx.session.state["revision_history"] = revision_history
-
-        yield Event(
-            author=self.name,
-            content=genai_types.Content(
-                parts=[
-                    genai_types.Part(
-                        text=f"Code revised based on {latest_feedback['category']} feedback: "
-                        f"{latest_feedback['feedback_text']}"
-                    )
-                ]
-            ),
-            actions=EventActions(),
-        )
+        self._update_session_state(ctx, current_code, revised_code, latest_feedback)
+        yield self._create_revision_event(latest_feedback)
 
     def _create_contextual_revision_prompt(self, code: str, feedback: dict) -> str:
         """Create a detailed prompt for contextual code revision."""
@@ -314,32 +318,38 @@ Please provide the revised code that addresses the feedback: "{feedback_text}"
 
         return current_line
 
-    def _apply_basic_improvements(self, code: str, feedback_text: str) -> str:
+    def _apply_basic_improvements(self, code: str, feedback: dict) -> str:
         """Apply basic improvements as a fallback when LLM revision fails."""
+        category = feedback.get("category", "other")
+        feedback_text = feedback.get("feedback_text", "")
+
         # Add a header comment explaining the fallback
-        improved_code = f"# Basic improvements applied (fallback mode): {feedback_text}\n"
+        improved_code = (
+            f"# Basic improvements applied for {category} (fallback mode): {feedback_text}\n"
+        )
 
-        # Add some basic improvements based on common patterns
-        if "error" in feedback_text.lower() or "handle" in feedback_text.lower():
-            # Add basic error handling
-            lines = code.split("\n")
-            indented_code = "\n".join("    " + line if line.strip() else line for line in lines)
-            improved_code += f"""try:
-{indented_code}
-except Exception as e:
-    print(f"Error occurred: {{e}}")
-    raise"""
-        elif "comment" in feedback_text.lower() or "document" in feedback_text.lower():
-            # Add basic documentation
-            improved_code += f"# Code documented based on feedback: {feedback_text}\n{code}"
-        elif "optimize" in feedback_text.lower() or "efficient" in feedback_text.lower():
+        # Apply more targeted fallbacks based on feedback category
+        if category == "error_handling":
+            # Use a more specific error handling wrapper that handles multiple exception types
+            return self._wrap_code_block_with_error_handling(code)
+
+        if category == "readability":
+            # Add basic documentation comment
+            return f"{improved_code}{code}"
+
+        if category == "efficiency":
             # Add optimization comment
-            improved_code += f"# Performance optimized based on feedback\n{code}"
-        else:
-            # Generic improvement
-            improved_code += f"# Code improved based on user feedback\n{code}"
+            return (
+                f"{improved_code}# Consider using more efficient algorithms or data "
+                f"structures\n{code}"
+            )
 
-        return improved_code
+        if category == "testing":
+            # Add a placeholder for tests
+            return f"{code}\n\n# TODO: Add test cases based on feedback: {feedback_text}\n"
+
+        # For 'functionality' or 'other' categories, provide a generic improvement comment
+        return f"{improved_code}{code}"
 
     def _apply_efficiency_improvements(self, code: str, feedback: dict) -> str:
         """Apply efficiency improvements with context awareness."""

@@ -109,7 +109,7 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
             # Fallback to basic analysis if external tools fail
             return self._basic_quality_analysis(code)
 
-    def _analyze_test_coverage(self, file_path: str, code: str, cwd: str | None = None) -> dict:
+    def _analyze_test_coverage(self, file_path: str, _code: str, cwd: str | None = None) -> dict:
         """Analyze potential test coverage."""
         try:
             # Prepare environment with proper PYTHONPATH
@@ -153,10 +153,11 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
         except (subprocess.TimeoutExpired, subprocess.CalledProcessError, FileNotFoundError):
             pass
 
-        # Fallback: estimate coverage based on code structure
+        # Fallback: if coverage tool fails, clearly state that coverage could not be determined
         return {
-            "coverage_percentage": self._estimate_coverage_from_code(code),
+            "coverage_percentage": None,
             "tool_available": False,
+            "message": "Test coverage could not be determined as the coverage tool failed to run.",
         }
 
     def _basic_quality_analysis(self, code: str) -> dict:
@@ -297,7 +298,7 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
             "tests_run": len(test_suggestions),
             "tests_passed": len(test_suggestions),
             "tests_failed": 0,
-            "coverage_percentage": 70,
+            "coverage_percentage": None,
             "testability_score": 80,
             "test_suggestions": test_suggestions,
             "test_execution_output": "External testing tools not available - using basic analysis",
@@ -393,12 +394,15 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
             message_parts.append("")
 
         # Testing feedback
-        coverage = testing_results.get("coverage_percentage", 0)
+        coverage = testing_results.get("coverage_percentage")
         tests_run = testing_results.get("tests_run", 0)
         tests_passed = testing_results.get("tests_passed", 0)
 
         message_parts.append("### 🧪 Testing Status:")
-        message_parts.append(f"- **Test Coverage:** {coverage}%")
+        if coverage is not None:
+            message_parts.append(f"- **Test Coverage:** {coverage}%")
+        else:
+            message_parts.append("- **Test Coverage:** Could not be determined")
         message_parts.append(f"- **Tests Run:** {tests_run} (Passed: {tests_passed})")
         message_parts.append("")
 

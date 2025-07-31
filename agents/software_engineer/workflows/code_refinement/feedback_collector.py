@@ -3,6 +3,7 @@
 from collections.abc import AsyncGenerator
 import logging
 import re
+import time
 
 from google.adk.agents import LlmAgent
 from google.adk.agents.invocation_context import InvocationContext
@@ -250,37 +251,60 @@ Type your feedback or 'satisfied' if you're happy with the code.
 
     def _categorize_feedback_with_llm(self, feedback: str, candidate_categories: list[str]) -> str:
         """Use LLM to categorize feedback, with a keyword-based fallback."""
-        try:
-            # In a real implementation, this would be an async call to the LLM
-            # For now, we simulate an LLM failure to test the fallback mechanism
-            raise ConnectionError("Simulated LLM API failure")
+        max_retries = 3
+        retry_delay_seconds = 1
 
-        except Exception:
-            # Fallback to a keyword matching algorithm if the LLM fails
-            logger.warning("LLM categorization failed. Falling back to keyword matching.")
-            feedback_lower = feedback.lower()
+        for attempt in range(max_retries):
+            try:
+                # In a real implementation, this would be an async call to the LLM
+                # For now, we simulate an LLM failure to test the fallback mechanism
+                if attempt < max_retries - 1:  # Fail on all but the last attempt
+                    raise ConnectionError("Simulated LLM API failure")
 
-            # Define keyword patterns for each category
-            patterns = {
-                "efficiency": ["faster", "speed", "memory", "optimize"],
-                "error_handling": ["error", "exception", "crash", "handle"],
-                "readability": ["comment", "naming", "format", "style"],
-                "testing": ["test", "coverage", "assert", "verify"],
-                "functionality": ["add", "feature", "change", "implement"],
-            }
+                # On the final attempt, this is where the actual LLM call would be made.
+                # Since we don't have a real LLM, we'll just log a success message.
+                logger.info("Simulated LLM call successful on attempt %d", attempt + 1)
 
-            # Score categories based on keyword matches
-            scores = {
-                cat: sum(1 for p in patterns.get(cat, []) if p in feedback_lower)
-                for cat in candidate_categories
-            }
+                # If the LLM call were real, we'd return the result here.
+                # For now, we'll fall through to the keyword-based fallback as if the
+                # LLM returned an empty or ambiguous result.
 
-            # Return the category with the highest score
-            if any(scores.values()):
-                return max(scores, key=scores.get)
+            except Exception as e:
+                logger.warning(
+                    "LLM categorization attempt %d/%d failed: %s",
+                    attempt + 1,
+                    max_retries,
+                    e,
+                )
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay_seconds)  # Wait before retrying
+                continue  # Go to the next retry attempt
 
-            # If no keywords match, return the first candidate or 'other'
-            return candidate_categories[0] if candidate_categories else "other"
+        # Fallback to a keyword matching algorithm if the LLM fails after all retries
+        logger.warning("LLM categorization failed. Falling back to keyword matching.")
+        feedback_lower = feedback.lower()
+
+        # Define keyword patterns for each category
+        patterns = {
+            "efficiency": ["faster", "speed", "memory", "optimize"],
+            "error_handling": ["error", "exception", "crash", "handle"],
+            "readability": ["comment", "naming", "format", "style"],
+            "testing": ["test", "coverage", "assert", "verify"],
+            "functionality": ["add", "feature", "change", "implement"],
+        }
+
+        # Score categories based on keyword matches
+        scores = {
+            cat: sum(1 for p in patterns.get(cat, []) if p in feedback_lower)
+            for cat in candidate_categories
+        }
+
+        # Return the category with the highest score
+        if any(scores.values()):
+            return max(scores, key=scores.get)
+
+        # If no keywords match, return the first candidate or 'other'
+        return candidate_categories[0] if candidate_categories else "other"
 
     def _determine_feedback_priority(self, feedback: str) -> str:
         """Enhanced priority determination based on language patterns."""

@@ -364,14 +364,21 @@ class WorkflowClassifier:
 
         return coverage
 
-    def update_patterns(self, workflow_name: str, new_patterns: list[tuple[str, int]]):
+    def update_patterns(
+        self,
+        workflow_name: str,
+        add: list[tuple[str, int]] | None = None,
+        modify: dict[str, int] | None = None,
+        remove: list[str] | None = None,
+    ):
         """
         Update patterns for a specific workflow with validation.
 
         Args:
             workflow_name: The name of the workflow to update.
-            new_patterns: A list of tuples, where each tuple contains a
-                          pattern (str) and a weight (int).
+            add: A list of (pattern, weight) tuples to add.
+            modify: A dictionary of {pattern: new_weight} to modify.
+            remove: A list of patterns to remove.
 
         Raises:
             ValueError: If the workflow name is unknown or if the new_patterns
@@ -380,14 +387,32 @@ class WorkflowClassifier:
         if workflow_name not in self.workflow_patterns:
             raise ValueError(f"Unknown workflow: {workflow_name}")
 
-        # Validate the format of the new patterns
-        if not isinstance(new_patterns, list) or not all(
-            isinstance(p, tuple) and len(p) == 2 and isinstance(p[0], str) and isinstance(p[1], int)
-            for p in new_patterns
-        ):
-            raise ValueError(
-                "Invalid format for new_patterns. Expected a list of (string, integer) tuples."
-            )
+        patterns = self.workflow_patterns[workflow_name]["patterns"]
 
-        self.workflow_patterns[workflow_name]["patterns"].extend(new_patterns)
-        logger.info(f"Updated patterns for workflow: {workflow_name}")
+        # Remove patterns
+        if remove:
+            patterns[:] = [p for p in patterns if p[0] not in remove]
+            logger.info(f"Removed {len(remove)} patterns from {workflow_name}")
+
+        # Modify patterns
+        if modify:
+            for i, (pattern, _) in enumerate(patterns):
+                if pattern in modify:
+                    patterns[i] = (pattern, modify[pattern])
+            logger.info(f"Modified {len(modify)} patterns in {workflow_name}")
+
+        # Add new patterns
+        if add:
+            # Validate the format of the new patterns
+            if not isinstance(add, list) or not all(
+                isinstance(p, tuple)
+                and len(p) == 2
+                and isinstance(p[0], str)
+                and isinstance(p[1], int)
+                for p in add
+            ):
+                raise ValueError(
+                    "Invalid format for 'add'. Expected a list of (string, integer) tuples."
+                )
+            patterns.extend(add)
+            logger.info(f"Added {len(add)} new patterns to {workflow_name}")
