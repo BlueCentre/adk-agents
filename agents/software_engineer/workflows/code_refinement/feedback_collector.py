@@ -277,7 +277,7 @@ Type your feedback or 'satisfied' if you're happy with the code.
                     e,
                 )
                 if attempt < max_retries - 1:
-                    time.sleep(retry_delay_seconds)  # Wait before retrying
+                    await asyncio.sleep(retry_delay_seconds)  # Wait before retrying
                 continue  # Go to the next retry attempt
 
         # Fallback to a keyword matching algorithm if the LLM fails after all retries
