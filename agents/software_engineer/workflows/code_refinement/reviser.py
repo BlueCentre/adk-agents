@@ -129,25 +129,7 @@ Return only the revised code without additional explanation.
 
     async def _generate_enhanced_revision(self, code: str, feedback: dict, _prompt: str) -> str:
         """Generate enhanced code revision with improved logic."""
-        category = feedback.get("category", "other")
-        feedback_text = feedback.get("feedback_text", "")
-
-        revision_header = f"# Code revision: {category} - {feedback_text}\n"
-
-        # Use a dictionary to map feedback categories to handler functions
-        handler_map = {
-            "error_handling": self._apply_error_handling_improvements,
-            "efficiency": self._apply_efficiency_improvements,
-            "readability": self._apply_readability_improvements,
-            "functionality": self._apply_functionality_improvements,
-            "testing": self._apply_testing_improvements,
-        }
-
-        # Get the appropriate handler and apply the revision
-        handler = handler_map.get(category, self._apply_general_improvements)
-        revised_code = handler(code, feedback)
-
-        return revision_header + revised_code
+        return self._apply_basic_improvements(code, feedback)
 
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
         """Revise code based on user feedback."""
@@ -180,154 +162,6 @@ Return only the revised code without additional explanation.
         revised_code = await self._apply_feedback_to_code(current_code, latest_feedback)
         self._update_session_state(ctx, current_code, revised_code, latest_feedback)
         yield self._create_revision_event(latest_feedback)
-
-    def _create_revision_event(self, feedback: dict) -> Event:
-        """Create the event to be yielded after a successful revision."""
-        return Event(
-            author=self.name,
-            content=genai_types.Content(
-                parts=[
-                    genai_types.Part(
-                        text=f"Code revised based on {feedback['category']} feedback: "
-                        f'"{feedback["feedback_text"]}"'
-                    )
-                ]
-            ),
-            actions=EventActions(),
-        )
-
-    def _create_contextual_revision_prompt(self, code: str, feedback: dict) -> str:
-        """Create a detailed prompt for contextual code revision."""
-        category = feedback.get("category", "other")
-        feedback_text = feedback.get("feedback_text", "")
-        specific_requests = feedback.get("specific_requests", [])
-        priority = feedback.get("priority", "medium")
-
-        prompt = f"""
-You are tasked with revising the following code based on user feedback:
-
-CURRENT CODE:
-```python
-{code}
-```
-
-USER FEEDBACK:
-- Category: {category}
-- Feedback: {feedback_text}
-- Priority: {priority}
-- Specific Requests: {", ".join(specific_requests)}
-
-REVISION GUIDELINES:
-1. Preserve the original functionality unless explicitly asked to change it
-2. Make targeted changes that directly address the user's feedback
-3. Consider the context and structure of the existing code
-4. Maintain code style and naming conventions
-5. Add appropriate comments for significant changes
-
-CATEGORY-SPECIFIC INSTRUCTIONS:
-"""
-
-        if category == "efficiency":
-            prompt += """
-- Optimize algorithms and data structures
-- Reduce time/space complexity where possible
-- Use more efficient built-in functions
-- Eliminate redundant operations
-- Consider caching for repeated computations
-"""
-        elif category == "error_handling":
-            prompt += """
-- Add try-catch blocks for potential exceptions
-- Validate input parameters
-- Handle edge cases gracefully
-- Provide meaningful error messages
-- Use appropriate exception types
-"""
-        elif category == "readability":
-            prompt += """
-- Add clear docstrings and comments
-- Use descriptive variable and function names
-- Break down complex logic into smaller functions
-- Format code according to PEP 8 standards
-- Add type hints where appropriate
-"""
-        elif category == "functionality":
-            prompt += """
-- Implement the requested new features
-- Modify existing behavior as specified
-- Ensure backward compatibility unless told otherwise
-- Add necessary imports and dependencies
-- Update function signatures if needed
-"""
-        elif category == "testing":
-            prompt += """
-- Make code more testable with dependency injection
-- Add assertion statements for critical invariants
-- Include example usage in docstrings
-- Structure code to allow easy mocking
-- Consider edge cases in the implementation
-"""
-
-        prompt += f"""
-
-Please provide the revised code that addresses the feedback: "{feedback_text}"
-"""
-
-        return prompt
-
-    def _get_function_end_line(self, func_node, _lines: list[str]) -> int:
-        """Find the end line of a function using AST information."""
-
-        # Get the last statement in the function
-        if func_node.body:
-            last_stmt = func_node.body[-1]
-            if hasattr(last_stmt, "end_lineno") and last_stmt.end_lineno:
-                return last_stmt.end_lineno - 1  # Convert to 0-indexed
-            # Fallback: use the line number of the last statement
-            return getattr(last_stmt, "lineno", func_node.lineno) - 1
-        # Empty function, just use the def line
-        return func_node.lineno - 1
-
-    def _get_revision_context(self, ctx: InvocationContext) -> tuple[str | None, dict | None]:
-        """Get the current code and latest feedback from the session context."""
-        current_code = ctx.session.state.get("current_code", "")
-        feedback_list = ctx.session.state.get("refinement_feedback", [])
-        latest_feedback = feedback_list[-1] if feedback_list else None
-        return current_code, latest_feedback
-
-    def _find_function_body_start(self, lines: list[str], func_start: int, func_node) -> int:
-        """Find where the actual function body starts, skipping def line and docstring."""
-
-        current_line = func_start + 1  # Start after the def line
-
-        # Skip empty lines and comments
-        while current_line < len(lines) and (
-            not lines[current_line].strip() or lines[current_line].strip().startswith("#")
-        ):
-            current_line += 1
-
-        # Check if there's a docstring
-        if (
-            current_line < len(lines)
-            and func_node.body
-            and isinstance(func_node.body[0], ast.Expr)
-            and isinstance(func_node.body[0].value, ast.Constant)
-            and isinstance(func_node.body[0].value.value, str)
-        ):
-            # Skip the docstring
-            docstring_line = lines[current_line].strip()
-            if docstring_line.startswith(('"""', "'''")):
-                quote_char = '"""' if docstring_line.startswith('"""') else "'''"
-                if not docstring_line.endswith(quote_char) or len(docstring_line) == 3:
-                    # Multi-line docstring, find the end
-                    current_line += 1
-                    while current_line < len(lines) and not lines[current_line].strip().endswith(
-                        quote_char
-                    ):
-                        current_line += 1
-                current_line += 1  # Move past the docstring end
-
-        return current_line
 
     def _apply_basic_improvements(self, code: str, feedback: dict) -> str:
         """Apply basic improvements as a fallback when LLM revision fails."""
@@ -526,6 +360,312 @@ Please provide the revised code that addresses the feedback: "{feedback_text}"
 
         return improved_code
 
+    def _create_contextual_revision_prompt(self, code: str, feedback: dict) -> str:
+        """Create a detailed prompt for contextual code revision."""
+        category = feedback.get("category", "other")
+        feedback_text = feedback.get("feedback_text", "")
+        specific_requests = feedback.get("specific_requests", [])
+        priority = feedback.get("priority", "medium")
+
+        prompt = f"""
+You are tasked with revising the following code based on user feedback:
+
+CURRENT CODE:
+```python
+{code}
+```
+
+USER FEEDBACK:
+- Category: {category}
+- Feedback: {feedback_text}
+- Priority: {priority}
+- Specific Requests: {", ".join(specific_requests)}
+
+REVISION GUIDELINES:
+1. Preserve the original functionality unless explicitly asked to change it
+2. Make targeted changes that directly address the user's feedback
+3. Consider the context and structure of the existing code
+4. Maintain code style and naming conventions
+5. Add appropriate comments for significant changes
+
+CATEGORY-SPECIFIC INSTRUCTIONS:
+"""
+
+        if category == "efficiency":
+            prompt += """
+- Optimize algorithms and data structures
+- Reduce time/space complexity where possible
+- Use more efficient built-in functions
+- Eliminate redundant operations
+- Consider caching for repeated computations
+"""
+        elif category == "error_handling":
+            prompt += """
+- Add try-catch blocks for potential exceptions
+- Validate input parameters
+- Handle edge cases gracefully
+- Provide meaningful error messages
+- Use appropriate exception types
+"""
+        elif category == "readability":
+            prompt += """
+- Add clear docstrings and comments
+- Use descriptive variable and function names
+- Break down complex logic into smaller functions
+- Format code according to PEP 8 standards
+- Add type hints where appropriate
+"""
+        elif category == "functionality":
+            prompt += """
+- Implement the requested new features
+- Modify existing behavior as specified
+- Ensure backward compatibility unless told otherwise
+- Add necessary imports and dependencies
+- Update function signatures if needed
+"""
+        elif category == "testing":
+            prompt += """
+- Make code more testable with dependency injection
+- Add assertion statements for critical invariants
+- Include example usage in docstrings
+- Structure code to allow easy mocking
+- Consider edge cases in the implementation
+"""
+
+        prompt += f"""
+
+Please provide the revised code that addresses the feedback: "{feedback_text}"
+"""
+
+        return prompt
+
+    def _create_revision_event(self, feedback: dict) -> Event:
+        """Create the event to be yielded after a successful revision."""
+        return Event(
+            author=self.name,
+            content=genai_types.Content(
+                parts=[
+                    genai_types.Part(
+                        text=f"Code revised based on {feedback['category']} feedback: "
+                        f'"{feedback["feedback_text"]}"'
+                    )
+                ]
+            ),
+            actions=EventActions(),
+        )
+
+    def _enhance_existing_error_handling_with_ast(self, code: str) -> str:
+        """Enhance existing error handling using AST to preserve proper structure."""
+        import ast
+
+        try:
+            tree = ast.parse(code)
+            lines = code.split("\n")
+
+            # Find all try blocks with generic Exception handlers
+            modified = False
+            result_lines = lines[:]
+
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Try):
+                    # Look for generic "except Exception as e:" handlers
+                    for _i, handler in enumerate(node.handlers):
+                        if (
+                            isinstance(handler.type, ast.Name)
+                            and handler.type.id == "Exception"
+                            and handler.name
+                        ):
+                            # Get the line number and indentation of the except block
+                            except_line_num = handler.lineno - 1  # Convert to 0-indexed
+                            except_line = result_lines[except_line_num]
+                            base_indent = len(except_line) - len(except_line.lstrip())
+                            indent = " " * base_indent
+                            handler_indent = " " * (base_indent + 4)
+
+                            # Create specific exception handlers
+                            new_handlers = [
+                                f"{indent}except ValueError as e:",
+                                f"{handler_indent}logger.warning(f'Value error: {{e}}')",
+                                f"{handler_indent}raise",
+                                f"{indent}except TypeError as e:",
+                                f"{handler_indent}logger.warning(f'Type error: {{e}}')",
+                                f"{handler_indent}raise",
+                                f"{except_line}",  # Keep original Exception handler
+                            ]
+
+                            # Replace the original except line
+                            result_lines[except_line_num : except_line_num + 1] = new_handlers
+                            modified = True
+                            break  # Only modify the first generic handler per try block
+
+            return "\n".join(result_lines) if modified else code
+
+        except Exception:
+            # If anything goes wrong, return original code unchanged
+            return code
+
+    def _find_function_body_start(self, lines: list[str], func_start: int, func_node) -> int:
+        """Find where the actual function body starts, skipping def line and docstring."""
+
+        current_line = func_start + 1  # Start after the def line
+
+        # Skip empty lines and comments
+        while current_line < len(lines) and (
+            not lines[current_line].strip() or lines[current_line].strip().startswith("#")
+        ):
+            current_line += 1
+
+        # Check if there's a docstring
+        if (
+            current_line < len(lines)
+            and func_node.body
+            and isinstance(func_node.body[0], ast.Expr)
+            and isinstance(func_node.body[0].value, ast.Constant)
+            and isinstance(func_node.body[0].value.value, str)
+        ):
+            # Skip the docstring
+            docstring_line = lines[current_line].strip()
+            if docstring_line.startswith(('"""', "'''")):
+                quote_char = '"""' if docstring_line.startswith('"""') else "'''"
+                if not docstring_line.endswith(quote_char) or len(docstring_line) == 3:
+                    # Multi-line docstring, find the end
+                    current_line += 1
+                    while current_line < len(lines) and not lines[current_line].strip().endswith(
+                        quote_char
+                    ):
+                        current_line += 1
+                current_line += 1  # Move past the docstring end
+
+        return current_line
+
+    def _get_function_end_line(self, func_node, _lines: list[str]) -> int:
+        """Find the end line of a function using AST information."""
+
+        # Get the last statement in the function
+        if func_node.body:
+            last_stmt = func_node.body[-1]
+            if hasattr(last_stmt, "end_lineno") and last_stmt.end_lineno:
+                return last_stmt.end_lineno - 1  # Convert to 0-indexed
+            # Fallback: use the line number of the last statement
+            return getattr(last_stmt, "lineno", func_node.lineno) - 1
+        # Empty function, just use the def line
+        return func_node.lineno - 1
+
+    def _get_revision_context(self, ctx: InvocationContext) -> tuple[str | None, dict | None]:
+        """Get the current code and latest feedback from the session context."""
+        current_code = ctx.session.state.get("current_code", "")
+        feedback_list = ctx.session.state.get("refinement_feedback", [])
+        latest_feedback = feedback_list[-1] if feedback_list else None
+        return current_code, latest_feedback
+
+    def _parse_llm_revision_response(self, response_text: str, original_code: str) -> str | None:  # noqa: ARG002
+        """Parse and validate LLM revision response."""
+        try:
+            # Clean the response text
+            cleaned_response = response_text.strip()
+
+            # Try to extract code blocks (```python ... ```)
+            import re
+
+            # Look for python code blocks
+            python_code_pattern = r"```python\s*\n(.*?)\n```"
+            python_matches = re.findall(python_code_pattern, cleaned_response, re.DOTALL)
+            if python_matches:
+                # Use the first (or largest) code block
+                revised_code = max(python_matches, key=len).strip()
+                if self._validate_python_code(revised_code):
+                    return revised_code
+
+            # Look for any code blocks (``` ... ```)
+            code_block_pattern = r"```\s*\n(.*?)\n```"
+            code_matches = re.findall(code_block_pattern, cleaned_response, re.DOTALL)
+            if code_matches:
+                # Use the first (or largest) code block
+                revised_code = max(code_matches, key=len).strip()
+                if self._validate_python_code(revised_code):
+                    return revised_code
+
+            # If no code blocks, try to use the entire response if it looks like code
+            if self._validate_python_code(cleaned_response):
+                return cleaned_response
+
+            # Try to extract lines that look like Python code
+            lines = cleaned_response.split("\n")
+            code_lines = []
+            for line in lines:
+                # Skip lines that look like explanations
+                if any(
+                    line.strip().startswith(prefix)
+                    for prefix in ["Here", "The", "This", "I", "Note:", "Explanation:"]
+                ):
+                    continue
+                # Keep lines that look like code
+                if line.strip() and (
+                    line.startswith(" ")
+                    or any(
+                        keyword in line
+                        for keyword in [
+                            "def ",
+                            "class ",
+                            "import ",
+                            "from ",
+                            "if ",
+                            "for ",
+                            "while ",
+                            "=",
+                            "return",
+                            "print",
+                        ]
+                    )
+                ):
+                    code_lines.append(line)
+
+            if code_lines:
+                potential_code = "\n".join(code_lines)
+                if self._validate_python_code(potential_code):
+                    return potential_code
+
+            # If all else fails, return None
+            logger.warning("Could not extract valid Python code from LLM response")
+            return None
+
+        except Exception as e:
+            logger.warning(f"Error parsing LLM revision response: {e}")
+            return None
+
+    def _update_session_state(
+        self, ctx: InvocationContext, original_code: str, revised_code: str, feedback: dict
+    ):
+        """Update the session state with the revised code and revision history."""
+        ctx.session.state["current_code"] = revised_code
+        revision_history = ctx.session.state.get("revision_history", [])
+        revision_history.append(
+            {
+                "iteration": feedback.get("iteration", 0),
+                "original_code": original_code,
+                "revised_code": revised_code,
+                "feedback_applied": feedback,
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
+        ctx.session.state["revision_history"] = revision_history
+
+    def _validate_python_code(self, code: str) -> bool:
+        """Validate that the code is syntactically correct Python."""
+        try:
+            # Try to parse the code as Python
+            ast.parse(code)
+            # Basic sanity checks
+            if len(code.strip()) < 10:  # Too short to be meaningful
+                return False
+            if not any(char.isalnum() for char in code):  # No alphanumeric characters
+                return False
+            return True
+        except SyntaxError:
+            return False
+        except Exception:
+            return False
+
     def _wrap_code_block_with_error_handling(self, code: str) -> str:
         """Wrap entire code block with error handling, detecting proper indentation."""
         lines = code.split("\n")
@@ -638,161 +778,3 @@ Please provide the revised code that addresses the feedback: "{feedback_text}"
             )
             # Fallback to simple wrapping
             return self._wrap_code_block_with_error_handling(code)
-
-    def _enhance_existing_error_handling_with_ast(self, code: str) -> str:
-        """Enhance existing error handling using AST to preserve proper structure."""
-        import ast
-
-        try:
-            tree = ast.parse(code)
-            lines = code.split("\n")
-
-            # Find all try blocks with generic Exception handlers
-            modified = False
-            result_lines = lines[:]
-
-            for node in ast.walk(tree):
-                if isinstance(node, ast.Try):
-                    # Look for generic "except Exception as e:" handlers
-                    for _i, handler in enumerate(node.handlers):
-                        if (
-                            isinstance(handler.type, ast.Name)
-                            and handler.type.id == "Exception"
-                            and handler.name
-                        ):
-                            # Get the line number and indentation of the except block
-                            except_line_num = handler.lineno - 1  # Convert to 0-indexed
-                            except_line = result_lines[except_line_num]
-                            base_indent = len(except_line) - len(except_line.lstrip())
-                            indent = " " * base_indent
-                            handler_indent = " " * (base_indent + 4)
-
-                            # Create specific exception handlers
-                            new_handlers = [
-                                f"{indent}except ValueError as e:",
-                                f"{handler_indent}logger.warning(f'Value error: {{e}}')",
-                                f"{handler_indent}raise",
-                                f"{indent}except TypeError as e:",
-                                f"{handler_indent}logger.warning(f'Type error: {{e}}')",
-                                f"{handler_indent}raise",
-                                f"{except_line}",  # Keep original Exception handler
-                            ]
-
-                            # Replace the original except line
-                            result_lines[except_line_num : except_line_num + 1] = new_handlers
-                            modified = True
-                            break  # Only modify the first generic handler per try block
-
-            return "\n".join(result_lines) if modified else code
-
-        except Exception:
-            # If anything goes wrong, return original code unchanged
-            return code
-
-    def _parse_llm_revision_response(self, response_text: str, original_code: str) -> str | None:  # noqa: ARG002
-        """Parse and validate LLM revision response."""
-        try:
-            # Clean the response text
-            cleaned_response = response_text.strip()
-
-            # Try to extract code blocks (```python ... ```)
-            import re
-
-            # Look for python code blocks
-            python_code_pattern = r"```python\s*\n(.*?)\n```"
-            python_matches = re.findall(python_code_pattern, cleaned_response, re.DOTALL)
-            if python_matches:
-                # Use the first (or largest) code block
-                revised_code = max(python_matches, key=len).strip()
-                if self._validate_python_code(revised_code):
-                    return revised_code
-
-            # Look for any code blocks (``` ... ```)
-            code_block_pattern = r"```\s*\n(.*?)\n```"
-            code_matches = re.findall(code_block_pattern, cleaned_response, re.DOTALL)
-            if code_matches:
-                # Use the first (or largest) code block
-                revised_code = max(code_matches, key=len).strip()
-                if self._validate_python_code(revised_code):
-                    return revised_code
-
-            # If no code blocks, try to use the entire response if it looks like code
-            if self._validate_python_code(cleaned_response):
-                return cleaned_response
-
-            # Try to extract lines that look like Python code
-            lines = cleaned_response.split("\n")
-            code_lines = []
-            for line in lines:
-                # Skip lines that look like explanations
-                if any(
-                    line.strip().startswith(prefix)
-                    for prefix in ["Here", "The", "This", "I", "Note:", "Explanation:"]
-                ):
-                    continue
-                # Keep lines that look like code
-                if line.strip() and (
-                    line.startswith(" ")
-                    or any(
-                        keyword in line
-                        for keyword in [
-                            "def ",
-                            "class ",
-                            "import ",
-                            "from ",
-                            "if ",
-                            "for ",
-                            "while ",
-                            "=",
-                            "return",
-                            "print",
-                        ]
-                    )
-                ):
-                    code_lines.append(line)
-
-            if code_lines:
-                potential_code = "\n".join(code_lines)
-                if self._validate_python_code(potential_code):
-                    return potential_code
-
-            # If all else fails, return None
-            logger.warning("Could not extract valid Python code from LLM response")
-            return None
-
-        except Exception as e:
-            logger.warning(f"Error parsing LLM revision response: {e}")
-            return None
-
-    def _update_session_state(
-        self, ctx: InvocationContext, original_code: str, revised_code: str, feedback: dict
-    ):
-        """Update the session state with the revised code and revision history."""
-        ctx.session.state["current_code"] = revised_code
-        revision_history = ctx.session.state.get("revision_history", [])
-        revision_history.append(
-            {
-                "iteration": feedback.get("iteration", 0),
-                "original_code": original_code,
-                "revised_code": revised_code,
-                "feedback_applied": feedback,
-                "timestamp": datetime.now().isoformat(),
-            }
-        )
-        ctx.session.state["revision_history"] = revision_history
-
-    def _validate_python_code(self, code: str) -> bool:
-        """Validate that the code is syntactically correct Python."""
-        try:
-            # Try to parse the code as Python
-            ast.parse(code)
-            # Basic sanity checks
-            if len(code.strip()) < 10:  # Too short to be meaningful
-                return False
-            if not any(char.isalnum() for char in code):  # No alphanumeric characters
-                return False
-            return True
-        except SyntaxError:
-            return False
-        except Exception:
-            return False
