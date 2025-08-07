@@ -583,18 +583,47 @@ CATEGORY-SPECIFIC INSTRUCTIONS:
 
         return current_line
 
-    def _get_function_end_line(self, func_node, _lines: list[str]) -> int:
-        """Find the end line of a function using AST information."""
+    def _get_function_end_line(self, func_node, lines: list[str]) -> int:
+        """Find the end line of a function in a robust way.
 
-        # Get the last statement in the function
-        if func_node.body:
+        Prefer end_lineno when present, otherwise traverse all descendants to
+        compute the maximum available line index. As a final fallback, use the
+        last non-empty line within the function block heuristically.
+        """
+
+        # Best-effort: scan all nodes in the function body for maximum end position
+        try:
+            import ast
+
+            max_end = None
+            for node in ast.walk(func_node):
+                end = getattr(node, "end_lineno", None)
+                if end is None:
+                    end = getattr(node, "lineno", None)
+                if isinstance(end, int):
+                    max_end = end if max_end is None else max(max_end, end)
+
+            if isinstance(max_end, int):
+                return max_end - 1  # zero-indexed
+        except Exception:
+            # Parsing issues should not break the reviser; fall through to heuristics
+            pass
+
+        # Heuristic: fall back to the last statement line if available
+        if getattr(func_node, "body", None):
             last_stmt = func_node.body[-1]
-            if hasattr(last_stmt, "end_lineno") and last_stmt.end_lineno:
-                return last_stmt.end_lineno - 1  # Convert to 0-indexed
-            # Fallback: use the line number of the last statement
-            return getattr(last_stmt, "lineno", func_node.lineno) - 1
-        # Empty function, just use the def line
-        return func_node.lineno - 1
+            lineno = getattr(last_stmt, "end_lineno", None) or getattr(last_stmt, "lineno", None)
+            if isinstance(lineno, int):
+                return lineno - 1
+
+        # Final fallback: use the last non-empty line after function start
+        func_start = getattr(func_node, "lineno", 1) - 1
+        for idx in range(len(lines) - 1, func_start, -1):
+            if lines[idx].strip():
+                return idx
+
+        # Empty function or could not determine; default to def line
+        return max(0, func_start)
 
     def _get_revision_context(self, ctx: InvocationContext) -> tuple[str | None, dict | None]:
         """Get the current code and latest feedback from the session context."""

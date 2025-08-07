@@ -867,22 +867,33 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
         return suggestions[:10]  # Limit to 10 suggestions
 
     def _get_project_root(self, project_root: str | None = None) -> str:
-        """Get the project root directory for proper subprocess execution context."""
+        """Resolve the project root for subprocess execution.
+
+        Priority order:
+        1) Explicit override passed in
+        2) Environment variables: PROJECT_ROOT or AGENT_PROJECT_ROOT
+        3) Walk up from this file's directory looking for common markers,
+           including a .git directory
+        4) Current working directory
+        """
         if project_root:
             return project_root
 
-        # Try to find project root by looking for common project indicators
-        current_path = Path(__file__).resolve()
+        # Env var override to aid tests/packaged usage
+        env_override = os.getenv("PROJECT_ROOT") or os.getenv("AGENT_PROJECT_ROOT")
+        if env_override and Path(env_override).exists():
+            return str(Path(env_override).resolve())
 
-        # Look for project markers (pyproject.toml, setup.py, .git, etc.)
-        project_markers = ["pyproject.toml", "setup.py", ".git", "poetry.lock", "requirements.txt"]
+        # Walk up from the file's directory, not the file path itself
+        start_dir = Path(__file__).resolve().parent
+        project_markers = {"pyproject.toml", "setup.py", ".git", "poetry.lock", "requirements.txt"}
 
-        for parent in [current_path, *list(current_path.parents)]:
-            for marker in project_markers:
-                if (parent / marker).exists():
-                    return str(parent)
+        for parent in [start_dir, *list(start_dir.parents)]:
+            # If any file marker exists or .git directory exists, consider this the root
+            if any((parent / marker).exists() for marker in project_markers):
+                return str(parent)
 
-        # Fallback to current working directory
+        # Fallback to cwd
         return str(Path.cwd())
 
     def _integrate_quality_and_testing_feedback(

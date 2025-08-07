@@ -3,6 +3,8 @@
 import logging
 from typing import Any
 
+from .. import config as agent_config
+
 logger = logging.getLogger(__name__)
 
 
@@ -231,13 +233,19 @@ class WorkflowClassifier:
         return "low"
 
     def _get_complexity_score(self, text: str) -> float:
-        """Get numeric complexity score for multiplier calculations."""
+        """Get numeric complexity score for multiplier calculations using configurable weights."""
         high_score = self._calculate_pattern_score(text, self.complexity_patterns["high"])
         medium_score = self._calculate_pattern_score(text, self.complexity_patterns["medium"])
         low_score = self._calculate_pattern_score(text, self.complexity_patterns["low"])
 
-        # Weight by complexity level
-        return high_score * 3 + medium_score * 2 + low_score
+        weights = getattr(
+            agent_config, "COMPLEXITY_WEIGHTS", {"high": 3.0, "medium": 2.0, "low": 1.0}
+        )
+        return (
+            high_score * float(weights.get("high", 3.0))
+            + medium_score * float(weights.get("medium", 2.0))
+            + low_score * float(weights.get("low", 1.0))
+        )
 
     def _generate_reasoning(
         self,

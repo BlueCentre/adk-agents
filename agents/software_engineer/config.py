@@ -211,10 +211,23 @@ REFINEMENT_QUALITY_SCORE_THRESHOLD = int(os.getenv("REFINEMENT_QUALITY_SCORE_THR
 # Coverage threshold percentage (minimum coverage to pass)
 REFINEMENT_COVERAGE_THRESHOLD = int(os.getenv("REFINEMENT_COVERAGE_THRESHOLD", "80"))
 
-# Source paths for PYTHONPATH construction (comma-separated list)
+# Source paths for PYTHONPATH construction
 # Default includes common Python project structures
-DEFAULT_SOURCE_PATHS = "src,agents,."
-SOURCE_PATHS = os.getenv("SOURCE_PATHS", DEFAULT_SOURCE_PATHS).split(",")
+DEFAULT_SOURCE_PATHS: list[str] = ["src", "agents", "."]
+
+# Allow override via env var (comma-separated) while keeping type as list[str]
+_SOURCE_PATHS_ENV = os.getenv("SOURCE_PATHS")
+if _SOURCE_PATHS_ENV:
+    SOURCE_PATHS: list[str] = [p.strip() for p in _SOURCE_PATHS_ENV.split(",") if p.strip()]
+else:
+    SOURCE_PATHS = DEFAULT_SOURCE_PATHS
+
+# Workflow classification complexity weights (configurable)
+COMPLEXITY_WEIGHTS = {
+    "high": float(os.getenv("COMPLEXITY_WEIGHT_HIGH", "3.0")),
+    "medium": float(os.getenv("COMPLEXITY_WEIGHT_MEDIUM", "2.0")),
+    "low": float(os.getenv("COMPLEXITY_WEIGHT_LOW", "1.0")),
+}
 
 # --- Context Management Configuration ---
 # Parameters for tuning the context manager's behavior

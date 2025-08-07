@@ -23,6 +23,13 @@ Key tested scenarios include:
 
 By simulating various user interactions and edge cases, these tests ensure
 the stability, reliability, and correctness of the code refinement workflow.
+
+Key sub-agents exercised in this workflow:
+- code_refinement_init_agent
+- code_refinement_feedback_collector
+- code_refinement_reviser
+- code_quality_testing_integrator
+- code_refinement_satisfaction_checker
 """
 
 from dataclasses import dataclass
