@@ -31,7 +31,8 @@ def create_ollama_agent(name_suffix=""):
         # model=LiteLlm(model="ollama_chat/llama3.2"),  # Use ollama_chat provider with LiteLlm
         # model=LiteLlm(model="hosted_vllm/llama3.2"),  # Use ollama_chat provider with LiteLlm
         model=LiteLlm(
-            model="hosted_vllm/llama3.2",
+            # model="hosted_vllm/llama3.2",
+            model="hosted_vllm/gpt-oss:20b",
         ),
         # generate_content_config=types.GenerateContentConfig(
         #     temperature=0.2, # More deterministic output

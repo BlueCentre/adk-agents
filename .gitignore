@@ -6,6 +6,7 @@
 # testing
 /coverage
 .coverage
+.coverage.*
 htmlcov/
 .pytest_cache/
 .tox/

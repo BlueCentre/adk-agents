@@ -198,6 +198,40 @@ DEFAULT_TOKEN_LIMIT_FALLBACK = 1000000
 # ACTUAL_LLM_TOKEN_LIMIT will be determined dynamically in devops_agent.py
 # by inspecting the model_info, with fallback to these constants.
 
+# --- Code Refinement Configuration ---
+# Maximum number of issues to process per category (quality, review, testing)
+MAX_ISSUES_PER_CATEGORY = int(os.getenv("MAX_ISSUES_PER_CATEGORY", "3"))
+
+# Maximum iterations for code refinement loop
+CODE_REFINEMENT_MAX_ITERATIONS = int(os.getenv("CODE_REFINEMENT_MAX_ITERATIONS", "5"))
+
+# Quality score threshold (minimum quality score to pass)
+REFINEMENT_QUALITY_SCORE_THRESHOLD = int(os.getenv("REFINEMENT_QUALITY_SCORE_THRESHOLD", "2"))
+
+# Coverage threshold percentage (minimum coverage to pass)
+REFINEMENT_COVERAGE_THRESHOLD = int(os.getenv("REFINEMENT_COVERAGE_THRESHOLD", "80"))
+
+# Source paths for PYTHONPATH construction
+# Default includes common Python project structures
+DEFAULT_SOURCE_PATHS: list[str] = ["src", "agents", "."]
+
+# Allow override via env var (comma-separated) while keeping type as list[str]
+_SOURCE_PATHS_ENV = os.getenv("SOURCE_PATHS")
+if _SOURCE_PATHS_ENV:
+    SOURCE_PATHS: list[str] = [p.strip() for p in _SOURCE_PATHS_ENV.split(",") if p.strip()]
+else:
+    SOURCE_PATHS = DEFAULT_SOURCE_PATHS
+
+# Workflow classification complexity weights (configurable)
+COMPLEXITY_WEIGHTS = {
+    # These weights influence workflow selection where higher perceived complexity
+    # amplifies scores for complexity-sensitive workflows (e.g., iterative refinement).
+    # Tune via env vars to adjust how aggressively complex tasks steer the workflow.
+    "high": float(os.getenv("COMPLEXITY_WEIGHT_HIGH", "3.0")),
+    "medium": float(os.getenv("COMPLEXITY_WEIGHT_MEDIUM", "2.0")),
+    "low": float(os.getenv("COMPLEXITY_WEIGHT_LOW", "1.0")),
+}
+
 # --- Context Management Configuration ---
 # Parameters for tuning the context manager's behavior
 CONTEXT_TARGET_RECENT_TURNS = 15

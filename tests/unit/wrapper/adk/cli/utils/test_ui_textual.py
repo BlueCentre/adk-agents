@@ -1,4 +1,5 @@
 import asyncio
+import unittest
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -328,3 +329,78 @@ async def test_start_stop_thinking_animation():
         pilot.app.stop_thinking()
         assert pilot.app.agent_thinking is False
         assert pilot.app._thinking_timer is None
+
+
+class TestAgentTUI(unittest.TestCase):
+    """Test cases for the AgentTUI class."""
+
+    def setUp(self):
+        """Set up a mock theme and renderer for testing."""
+        self.mock_theme = UITheme.DARK
+        self.mock_renderer = RichRenderer(self.mock_theme)
+
+    def test_add_output(self):
+        """Test that add_output correctly formats and writes messages."""
+
+        async def run_test():
+            app = AgentTUI(theme=self.mock_theme, rich_renderer=self.mock_renderer)
+            async with app.run_test():
+                app.add_output("Test message", author="User")
+                # Verification would require inspecting the RichLog, which is complex in tests.
+                # This test primarily ensures the method runs without errors.
+
+        asyncio.run(run_test())
+
+    def test_start_and_stop_thinking(self):
+        """Test the thinking animation starts and stops correctly."""
+
+        async def run_test():
+            app = AgentTUI(theme=self.mock_theme, rich_renderer=self.mock_renderer)
+            async with app.run_test() as pilot:
+                app.start_thinking()
+                self.assertTrue(app.agent_thinking)
+                self.assertIsNotNone(app._thinking_timer)
+
+                # Let the timer run for a bit to update the status bar
+                await pilot.pause(0.5)
+                self.assertIn("Thinking", str(app.query_one("#status-bar").renderable))
+
+                app.stop_thinking()
+                self.assertFalse(app.agent_thinking)
+                self.assertIsNone(app._thinking_timer)
+                self.assertNotIn("Thinking", str(app.query_one("#status-bar").renderable))
+
+        asyncio.run(run_test())
+
+    def test_toggle_theme(self):
+        """Test that the theme toggles correctly between dark and light."""
+
+        async def run_test():
+            app = AgentTUI(theme=UITheme.DARK)
+            async with app.run_test() as pilot:
+                self.assertEqual(app._current_ui_theme, UITheme.DARK)
+                await pilot.press("ctrl+t")
+                self.assertEqual(app._current_ui_theme, UITheme.LIGHT)
+                await pilot.press("ctrl+t")
+                self.assertEqual(app._current_ui_theme, UITheme.DARK)
+
+        asyncio.run(run_test())
+
+    def test_toggle_agent_thought(self):
+        """Test that the agent thought pane toggles correctly."""
+
+        async def run_test():
+            app = AgentTUI()
+            async with app.run_test() as pilot:
+                self.assertTrue(app.agent_thought_enabled)
+                self.assertTrue(app.query_one("#event-log").display)
+
+                await pilot.press("ctrl+y")
+                self.assertFalse(app.agent_thought_enabled)
+                self.assertFalse(app.query_one("#event-log").display)
+
+                await pilot.press("ctrl+y")
+                self.assertTrue(app.agent_thought_enabled)
+                self.assertTrue(app.query_one("#event-log").display)
+
+        asyncio.run(run_test())

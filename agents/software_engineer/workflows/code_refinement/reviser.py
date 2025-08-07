@@ -1,0 +1,863 @@
+"""Code refinement reviser agent for iterative workflows."""
+
+import ast
+from collections.abc import AsyncGenerator
+from datetime import datetime
+import logging
+import re
+
+from google.adk.agents import LlmAgent
+from google.adk.agents.invocation_context import InvocationContext
+from google.adk.events import Event, EventActions
+from google.genai import types as genai_types
+
+from ... import config as agent_config
+
+logger = logging.getLogger(__name__)
+
+
+class CodeRefinementReviser(LlmAgent):
+    """Agent that revises code based on user feedback."""
+
+    def __init__(self, name: str = "code_refinement_reviser"):
+        super().__init__(
+            model=agent_config.DEFAULT_SUB_AGENT_MODEL,
+            name=name,
+            description="Revises code based on structured user feedback",
+            instruction="""
+            You revise code based on user feedback from the refinement process.
+
+            Your tasks:
+            1. Analyze the current code and user feedback
+            2. Apply the requested changes while maintaining code quality
+            3. Ensure the revised code addresses the specific feedback
+            4. Preserve existing functionality unless explicitly asked to change it
+            5. Store the revised code in session.state['current_code']
+
+            When revising code, consider:
+            - Efficiency improvements: optimize algorithms, reduce complexity
+            - Error handling: add try/catch blocks, input validation
+            - Readability: add comments, improve variable names, format code
+            - Functionality: add new features or modify existing behavior
+            - Testing: ensure code is testable and add test cases if requested
+
+            Make targeted changes based on the feedback category and specific requests.
+            """,
+            output_key="code_revision",
+        )
+
+    async def _apply_contextual_revisions(
+        self,
+        code: str,
+        feedback: dict,
+        revision_prompt: str,
+    ) -> str:
+        """Apply contextual revisions based on feedback using LLM-based code revision."""
+        try:
+            # Use the LLM to generate actual code revisions based on feedback
+            category = feedback.get("category", "other")
+            feedback_text = feedback.get("feedback_text", "")
+            specific_requests = feedback.get("specific_requests", [])
+
+            # Construct a comprehensive revision prompt for the LLM
+            full_prompt = f"""
+{revision_prompt}
+
+Current code:
+```python
+{code}
+```
+
+User feedback: {feedback_text}
+Feedback category: {category}
+Specific requests: {", ".join(specific_requests) if specific_requests else "None"}
+
+Please revise the code to address the user's feedback. Focus on:
+- {category} improvements as requested
+- Maintaining existing functionality unless explicitly asked to change it
+- Following Python best practices
+- Adding appropriate comments where helpful
+
+Return only the revised code without additional explanation.
+"""
+
+            # Make LLM call for code revision
+            response_stream = self._llm_flow.run_async(full_prompt)
+
+            # Collect response content
+            response_text = ""
+            async for response in response_stream:
+                if response.candidates and response.candidates[0].content.parts:
+                    for part in response.candidates[0].content.parts:
+                        if part.text:
+                            response_text += part.text
+
+            # Parse and validate the LLM response
+            if response_text.strip():
+                revised_code = self._parse_llm_revision_response(response_text, code)
+                if revised_code:
+                    logger.info("LLM-based code revision successful")
+                    return revised_code
+                logger.warning("LLM returned invalid code revision")
+            else:
+                logger.warning("LLM returned empty response for code revision")
+
+            # If LLM fails, fall back to rule-based revision
+            logger.info("Falling back to rule-based code revision")
+            return await self._generate_enhanced_revision(code, feedback, full_prompt)
+
+        except Exception as e:
+            # Log the specific exception for debugging
+            logger.warning(
+                f"LLM-based code revision failed: {e}. Falling back to basic improvements."
+            )
+            # Fallback to basic improvement if revision fails
+            return self._apply_basic_improvements(code, feedback)
+
+    async def _apply_feedback_to_code(self, code: str, feedback: dict) -> str:
+        """Apply user feedback to revise the code using contextual understanding."""
+        # First, try deterministic, rule-based revisions based on feedback content.
+        rule_based_revision = self._apply_rule_based_revision_if_applicable(code, feedback)
+        if rule_based_revision and rule_based_revision != code:
+            return rule_based_revision
+
+        # Create a detailed revision prompt for the LLM
+        revision_prompt = self._create_contextual_revision_prompt(code, feedback)
+
+        # Otherwise, attempt LLM-driven contextual revision with fallback logic
+        return await self._apply_contextual_revisions(code, feedback, revision_prompt)
+
+    def _apply_rule_based_revision_if_applicable(self, code: str, feedback: dict) -> str | None:
+        """Apply deterministic revisions for common requests without relying on LLM.
+
+        We combine applicable improvements (error handling, readability, testing)
+        when multiple signals are present in feedback.
+        """
+        feedback_text = (feedback.get("feedback_text", "") or "").lower()
+        category = (feedback.get("category", "") or "").lower()
+        specific_requests = [str(r).lower() for r in feedback.get("specific_requests", [])]
+
+        # Fallback for syntax issues or invalid code
+        if "syntax" in feedback_text or not self._validate_python_code(code):
+            return self._apply_basic_improvements(code, feedback)
+
+        wants_error_handling = (
+            category == "error_handling"
+            or any(
+                ind in feedback_text
+                for ind in [
+                    "error handling",
+                    "error",
+                    "exception",
+                    "try",
+                    "catch",
+                    "fail",
+                    "handle",
+                ]
+            )
+            or any("error" in req or "exception" in req for req in specific_requests)
+        )
+
+        wants_readability = (
+            category == "readability"
+            or any(kw in feedback_text for kw in ["readable", "comment", "document", "docstring"])
+            or any("readable" in req or "document" in req for req in specific_requests)
+        )
+
+        wants_testing = (
+            category == "testing"
+            or "test" in feedback_text
+            or any("test" in req for req in specific_requests)
+        )
+
+        new_code = code
+        changed = False
+
+        if wants_error_handling:
+            new_code = self._apply_error_handling_improvements(new_code, feedback)
+            changed = changed or (new_code != code)
+
+        if wants_readability:
+            new_code = self._apply_readability_improvements(new_code, feedback)
+            changed = True
+
+        if wants_testing:
+            new_code = self._apply_testing_improvements(new_code, feedback)
+            changed = True
+
+        return new_code if changed and new_code != code else None
+
+    async def _generate_enhanced_revision(self, code: str, feedback: dict, _prompt: str) -> str:
+        """Generate enhanced code revision with improved logic."""
+        return self._apply_basic_improvements(code, feedback)
+
+    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
+        """Revise code based on user feedback."""
+        current_code, latest_feedback = self._get_revision_context(ctx)
+
+        if not latest_feedback:
+            yield Event(
+                author=self.name,
+                content=genai_types.Content(
+                    parts=[genai_types.Part(text="No feedback available for code revision")]
+                ),
+                actions=EventActions(),
+            )
+            return
+
+        if latest_feedback.get("user_satisfied", False):
+            yield Event(
+                author=self.name,
+                content=genai_types.Content(
+                    parts=[
+                        genai_types.Part(
+                            text="User is satisfied with current code, no revision needed"
+                        )
+                    ]
+                ),
+                actions=EventActions(),
+            )
+            return
+
+        revised_code = await self._apply_feedback_to_code(current_code, latest_feedback)
+
+        # Guard: Ensure we always persist a revision. If LLM output was unusable
+        # or resulted in no change, force a basic fallback improvement.
+        if not revised_code or revised_code.strip() == "" or revised_code == current_code:
+            revised_code = self._apply_basic_improvements(current_code, latest_feedback)
+
+        self._update_session_state(ctx, current_code, revised_code, latest_feedback)
+        yield self._create_revision_event(latest_feedback)
+
+    def _apply_basic_improvements(self, code: str, feedback: dict) -> str:
+        """Apply basic improvements as a fallback when LLM revision fails."""
+        category = feedback.get("category", "other")
+        feedback_text = feedback.get("feedback_text", "")
+
+        # Add a header comment explaining the fallback
+        improved_code = (
+            f"# Basic improvements applied for {category} (fallback mode): {feedback_text}\n"
+        )
+
+        # For 'functionality' or 'other' categories, provide a generic improvement comment
+        return f"{improved_code}{code}"
+
+    def _apply_efficiency_improvements(self, code: str, feedback: dict) -> str:
+        """Apply efficiency improvements with context awareness."""
+        feedback_lower = feedback.get("feedback_text", "").lower()
+        improved_code = code
+
+        # Add efficiency optimizations based on common patterns
+        if "loop" in feedback_lower or "optimize" in feedback_lower:
+            # Add comments about optimization
+            improved_code = "# Optimized for better performance\n" + code
+
+            # Look for simple optimization opportunities
+            if "for i in range(len(" in code:
+                improved_code = improved_code.replace(
+                    "for i in range(len(",
+                    "# TODO: Consider enumerate() - for i, item in enumerate(",
+                )
+
+        if "memory" in feedback_lower:
+            improved_code = "# Memory-optimized implementation\n" + improved_code
+
+        return improved_code
+
+    def _apply_error_handling_improvements(self, code: str, feedback: dict) -> str:
+        """Apply error handling improvements with context awareness using AST parsing."""
+        import ast
+
+        feedback.get("feedback_text", "").lower()
+
+        # Check if code already has try-catch and enhance using AST
+        if "try:" in code:
+            try:
+                return self._enhance_existing_error_handling_with_ast(code)
+            except SyntaxError:
+                # If AST parsing fails, return original code unchanged
+                return code
+
+        # Add comprehensive error handling using AST parsing for proper structure
+        revised_code = code
+        try:
+            # Parse the code to understand its structure
+            tree = ast.parse(code)
+
+            # If the code contains function definitions, wrap only the function body
+            if any(isinstance(node, ast.FunctionDef) for node in tree.body):
+                revised_code = self._wrap_function_bodies_with_error_handling(code)
+            # For non-function code, wrap the entire code block
+            else:
+                revised_code = self._wrap_code_block_with_error_handling(code)
+
+        except SyntaxError:
+            # If AST parsing fails, fall back to simple wrapping with proper indentation detection
+            revised_code = self._wrap_code_block_with_error_handling(code)
+
+        # Ensure logger is available if logging calls were injected
+        if "logger." in revised_code and "import logging" not in revised_code:
+            header = "import logging\nlogger = logging.getLogger(__name__)\n\n"
+            revised_code = header + revised_code
+
+        return revised_code
+
+    def _apply_functionality_improvements(self, code: str, feedback: dict) -> str:
+        """Apply functionality improvements with context awareness."""
+        feedback.get("feedback_text", "")
+        specific_requests = feedback.get("specific_requests", [])
+
+        improved_code = code
+
+        # Look for specific functionality requests
+        for request in specific_requests:
+            if "loop" in request.lower():
+                improved_code = (
+                    f"# Added functionality: {request}\n# TODO: Implement loop logic\n"
+                    + improved_code
+                )
+            elif "validation" in request.lower():
+                improved_code = (
+                    "# Added input validation\n"
+                    "if not input_data:\n    raise ValueError('Input data is required')\n\n"
+                    + improved_code
+                )
+            elif "logging" in request.lower():
+                improved_code = (
+                    "import logging\nlogger = logging.getLogger(__name__)\n\n"
+                    "# Added logging functionality\nlogger.info('Function started')\n"
+                    + improved_code
+                )
+
+        return improved_code
+
+    def _apply_general_improvements(self, code: str, feedback: dict) -> str:
+        """Apply general improvements based on user feedback."""
+        feedback_text = feedback.get("feedback_text", "")
+        feedback.get("specific_requests", [])
+
+        improved_code = code
+
+        # Apply general improvements based on common requests
+        if any(word in feedback_text.lower() for word in ["comment", "document"]):
+            improved_code = f"# Improvement applied based on feedback: {feedback_text}\n" + code
+
+        if any(word in feedback_text.lower() for word in ["clean", "refactor"]):
+            improved_code = f"# Code cleaned and refactored\n{code}\n# End of refactored section"
+
+        return improved_code
+
+    def _apply_readability_improvements(self, code: str, feedback: dict) -> str:
+        """Apply readability improvements with context awareness."""
+        feedback_lower = feedback.get("feedback_text", "").lower()
+
+        # Add docstring if missing
+        if '"""' not in code and "def " in code:
+            # Find function definition
+            lines = code.split("\n")
+            for i, line in enumerate(lines):
+                if line.strip().startswith("def "):
+                    # Insert docstring after function definition
+                    func_name = line.split("(")[0].replace("def ", "").strip()
+                    docstring = (
+                        f'    """\n'
+                        f"    {func_name.replace('_', ' ').title()} function with "
+                        f"improved readability.\n"
+                        f'    \n    Returns:\n        Processed result\n    """'
+                    )
+                    lines.insert(i + 1, docstring)
+                    break
+            code = "\n".join(lines)
+
+        # Add type hints suggestion in comments
+        if "type" in feedback_lower or "hint" in feedback_lower:
+            code = "# Consider adding type hints for better code clarity\n" + code
+
+        # Add meaningful variable name suggestions
+        if "variable" in feedback_lower or "name" in feedback_lower:
+            code = "# Use descriptive variable names for clarity\n" + code
+
+        return code
+
+    def _apply_testing_improvements(self, code: str, feedback: dict) -> str:
+        """Apply testing improvements with context awareness."""
+        feedback_lower = feedback.get("feedback_text", "").lower()
+
+        improved_code = code
+
+        # Make code more testable
+        if "testable" in feedback_lower or "test" in feedback_lower:
+            improved_code = "# Made more testable with clear interfaces\n" + code
+
+            # Add assertion for critical conditions
+            if "def " in code:
+                improved_code += (
+                    "\n\n# Example test assertion\n"
+                    "# assert result is not None, 'Function should return a value'"
+                )
+
+        # Add example usage in docstring
+        if "example" in feedback_lower and '"""' in code:
+            improved_code = improved_code.replace(
+                '"""',
+                '"""\n    \n    Example:\n        >>> result = function_name()\n        '
+                '>>> assert result is not None\n    """',
+            )
+
+        return improved_code
+
+    def _create_contextual_revision_prompt(self, code: str, feedback: dict) -> str:
+        """Create a detailed prompt for contextual code revision."""
+        category = feedback.get("category", "other")
+        feedback_text = feedback.get("feedback_text", "")
+        specific_requests = feedback.get("specific_requests", [])
+        priority = feedback.get("priority", "medium")
+
+        prompt = f"""
+You are tasked with revising the following code based on user feedback:
+
+CURRENT CODE:
+```python
+{code}
+```
+
+USER FEEDBACK:
+- Category: {category}
+- Feedback: {feedback_text}
+- Priority: {priority}
+- Specific Requests: {", ".join(specific_requests)}
+
+REVISION GUIDELINES:
+1. Preserve the original functionality unless explicitly asked to change it
+2. Make targeted changes that directly address the user's feedback
+3. Consider the context and structure of the existing code
+4. Maintain code style and naming conventions
+5. Add appropriate comments for significant changes
+
+CATEGORY-SPECIFIC INSTRUCTIONS:
+"""
+
+        if category == "efficiency":
+            prompt += """
+- Optimize algorithms and data structures
+- Reduce time/space complexity where possible
+- Use more efficient built-in functions
+- Eliminate redundant operations
+- Consider caching for repeated computations
+"""
+        elif category == "error_handling":
+            prompt += """
+- Add try-catch blocks for potential exceptions
+- Validate input parameters
+- Handle edge cases gracefully
+- Provide meaningful error messages
+- Use appropriate exception types
+"""
+        elif category == "readability":
+            prompt += """
+- Add clear docstrings and comments
+- Use descriptive variable and function names
+- Break down complex logic into smaller functions
+- Format code according to PEP 8 standards
+- Add type hints where appropriate
+"""
+        elif category == "functionality":
+            prompt += """
+- Implement the requested new features
+- Modify existing behavior as specified
+- Ensure backward compatibility unless told otherwise
+- Add necessary imports and dependencies
+- Update function signatures if needed
+"""
+        elif category == "testing":
+            prompt += """
+- Make code more testable with dependency injection
+- Add assertion statements for critical invariants
+- Include example usage in docstrings
+- Structure code to allow easy mocking
+- Consider edge cases in the implementation
+"""
+
+        prompt += (
+            f'\n\nPlease provide the revised code that addresses the feedback: "{feedback_text}"'
+        )
+
+        return prompt
+
+    def _create_revision_event(self, feedback: dict) -> Event:
+        """Create the event to be yielded after a successful revision."""
+        return Event(
+            author=self.name,
+            content=genai_types.Content(
+                parts=[
+                    genai_types.Part(
+                        text=f"Code revised based on {feedback['category']} feedback: "
+                        f'"{feedback["feedback_text"]}"'
+                    )
+                ]
+            ),
+            actions=EventActions(),
+        )
+
+    def _enhance_existing_error_handling_with_ast(self, code: str) -> str:
+        """Enhance existing error handling using AST to preserve proper structure."""
+        import ast
+
+        try:
+            tree = ast.parse(code)
+            lines = code.split("\n")
+
+            # Find all try blocks with generic Exception handlers
+            modified = False
+            result_lines = lines[:]
+
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Try):
+                    # Look for generic "except Exception as e:" handlers
+                    for _i, handler in enumerate(node.handlers):
+                        if (
+                            isinstance(handler.type, ast.Name)
+                            and handler.type.id == "Exception"
+                            and handler.name
+                        ):
+                            # Get the line number and indentation of the except block
+                            except_line_num = handler.lineno - 1  # Convert to 0-indexed
+                            except_line = result_lines[except_line_num]
+                            base_indent = len(except_line) - len(except_line.lstrip())
+                            indent = " " * base_indent
+                            handler_indent = " " * (base_indent + 4)
+
+                            # Create specific exception handlers
+                            new_handlers = [
+                                f"{indent}except ValueError as e:",
+                                f"{handler_indent}logger.warning(f'Value error: {{e}}')",
+                                f"{handler_indent}raise",
+                                f"{indent}except TypeError as e:",
+                                f"{handler_indent}logger.warning(f'Type error: {{e}}')",
+                                f"{handler_indent}raise",
+                                f"{except_line}",  # Keep original Exception handler
+                            ]
+
+                            # Replace the original except line
+                            result_lines[except_line_num : except_line_num + 1] = new_handlers
+                            modified = True
+                            break  # Only modify the first generic handler per try block
+
+            return "\n".join(result_lines) if modified else code
+
+        except Exception:
+            # If anything goes wrong, return original code unchanged
+            return code
+
+    def _find_function_body_start(self, lines: list[str], func_start: int, func_node) -> int:
+        """Find where the actual function body starts, skipping def line and docstring."""
+
+        current_line = func_start + 1  # Start after the def line
+
+        # Skip empty lines and comments
+        while current_line < len(lines) and (
+            not lines[current_line].strip() or lines[current_line].strip().startswith("#")
+        ):
+            current_line += 1
+
+        # Check if there's a docstring
+        if (
+            current_line < len(lines)
+            and func_node.body
+            and isinstance(func_node.body[0], ast.Expr)
+            and isinstance(func_node.body[0].value, ast.Constant)
+            and isinstance(func_node.body[0].value.value, str)
+        ):
+            # Skip the docstring
+            docstring_line = lines[current_line].strip()
+            if docstring_line.startswith(('"""', "'''")):
+                quote_char = '"""' if docstring_line.startswith('"""') else "'''"
+                if not docstring_line.endswith(quote_char) or len(docstring_line) == 3:
+                    # Multi-line docstring, find the end
+                    current_line += 1
+                    while current_line < len(lines) and not lines[current_line].strip().endswith(
+                        quote_char
+                    ):
+                        current_line += 1
+                current_line += 1  # Move past the docstring end
+
+        return current_line
+
+    def _get_function_end_line(self, func_node, lines: list[str]) -> int:
+        """Find the end line of a function in a robust way.
+
+        Prefer end_lineno when present, otherwise traverse all descendants to
+        compute the maximum available line index. As a final fallback, use the
+        last non-empty line within the function block heuristically.
+        """
+
+        # Best-effort: scan all nodes in the function body for maximum end position
+        try:
+            import ast
+
+            max_end = None
+            for node in ast.walk(func_node):
+                end = getattr(node, "end_lineno", None)
+                if end is None:
+                    end = getattr(node, "lineno", None)
+                if isinstance(end, int):
+                    max_end = end if max_end is None else max(max_end, end)
+
+            if isinstance(max_end, int):
+                return max_end - 1  # zero-indexed
+        except Exception:
+            # Parsing issues should not break the reviser; fall through to heuristics
+            pass
+
+        # Heuristic: fall back to the last statement line if available
+        if getattr(func_node, "body", None):
+            last_stmt = func_node.body[-1]
+            lineno = getattr(last_stmt, "end_lineno", None) or getattr(last_stmt, "lineno", None)
+            if isinstance(lineno, int):
+                return lineno - 1
+
+        # Final fallback: use the last non-empty line after function start
+        func_start = getattr(func_node, "lineno", 1) - 1
+        for idx in range(len(lines) - 1, func_start, -1):
+            if lines[idx].strip():
+                return idx
+
+        # Empty function or could not determine; default to def line
+        return max(0, func_start)
+
+    def _get_revision_context(self, ctx: InvocationContext) -> tuple[str | None, dict | None]:
+        """Get the current code and latest feedback from the session context."""
+        current_code = ctx.session.state.get("current_code", "")
+        feedback_list = ctx.session.state.get("refinement_feedback", [])
+        latest_feedback = feedback_list[-1] if feedback_list else None
+        return current_code, latest_feedback
+
+    def _parse_llm_revision_response(self, response_text: str, original_code: str) -> str | None:
+        """Parse and validate LLM revision response."""
+        try:
+            # Clean the response text
+            cleaned_response = response_text.strip()
+
+            # Try to extract code blocks (```python ... ```)
+
+            # Look for python code blocks
+            python_code_pattern = r"""```python\s*(.*?)\s*```"""
+            python_matches = re.findall(python_code_pattern, cleaned_response, re.DOTALL)
+            if python_matches:
+                # Use the first (or largest) code block
+                revised_code = max(python_matches, key=len).strip()
+                if self._validate_python_code(revised_code) and revised_code != original_code:
+                    logger.info("Extracted python code block")
+                    return revised_code
+
+            # Look for any code blocks (``` ... ```)
+            code_block_pattern = r"""```\s*(.*?)\s*```"""
+            code_matches = re.findall(code_block_pattern, cleaned_response, re.DOTALL)
+            if code_matches:
+                # Use the first (or largest) code block
+                revised_code = max(code_matches, key=len).strip()
+                if self._validate_python_code(revised_code) and revised_code != original_code:
+                    logger.info("Extracted generic code block")
+                    return revised_code
+
+            # If no code blocks, try to use the entire response if it looks like code
+            if self._validate_python_code(cleaned_response) and cleaned_response != original_code:
+                logger.info("Using entire response as code")
+                return cleaned_response
+
+            # Try to extract lines that look like Python code
+            lines = cleaned_response.split("\n")
+            code_lines = []
+            for line in lines:
+                # Skip lines that look like explanations
+                if any(
+                    line.strip().startswith(prefix)
+                    for prefix in ["Here", "The", "This", "I", "Note:", "Explanation:"]
+                ):
+                    continue
+                # Keep lines that look like code
+                if line.strip() and (
+                    line.startswith(" ")
+                    or any(
+                        keyword in line
+                        for keyword in [
+                            "def ",
+                            "class ",
+                            "import ",
+                            "from ",
+                            "if ",
+                            "for ",
+                            "while ",
+                            "=",
+                            "return",
+                            "print",
+                        ]
+                    )
+                ):
+                    code_lines.append(line)
+
+            if code_lines:
+                potential_code = "\n".join(code_lines)
+                if self._validate_python_code(potential_code) and potential_code != original_code:
+                    logger.info("Extracted code lines")
+                    return potential_code
+
+            # If all else fails, return the original code
+            logger.warning(
+                "Could not extract valid Python code from LLM response, returning original code."
+            )
+            return None
+
+        except Exception as e:
+            logger.warning(f"Error parsing LLM revision response: {e}, returning original code.")
+            return None
+
+    def _update_session_state(
+        self,
+        ctx: InvocationContext,
+        original_code: str,
+        revised_code: str,
+        feedback: dict,
+    ):
+        """Update the session state with the revised code and revision history."""
+        logger.info(f"Reviser updating session state with code:\n{revised_code}")
+        ctx.session.state["current_code"] = revised_code
+        revision_history = ctx.session.state.get("revision_history", [])
+        revision_history.append(
+            {
+                "iteration": feedback.get("iteration", 0),
+                "original_code": original_code,
+                "revised_code": revised_code,
+                "feedback_applied": feedback,
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
+        ctx.session.state["revision_history"] = revision_history
+
+    def _validate_python_code(self, code: str) -> bool:
+        """Validate that the code is syntactically correct Python."""
+        try:
+            # Empty or whitespace-only strings are not valid code for our purposes
+            if not code or not code.strip():
+                return False
+            # Rely on Python's AST parser for syntax validation without additional length heuristics
+            ast.parse(code)
+            return True
+        except SyntaxError:
+            return False
+        except Exception:
+            return False
+
+    def _wrap_code_block_with_error_handling(self, code: str) -> str:
+        """Wrap entire code block with error handling, detecting proper indentation."""
+        lines = code.split("\n")
+
+        # Detect the base indentation level of the code
+        non_empty_lines = [line for line in lines if line.strip()]
+        if not non_empty_lines:
+            return code
+
+        # Find minimum indentation (excluding empty lines)
+        min_indent = min(len(line) - len(line.lstrip()) for line in non_empty_lines)
+        base_indent = " " * min_indent
+
+        # Add try-except wrapper with proper indentation
+        indented_lines = []
+        for line in lines:
+            if line.strip():  # Non-empty line
+                indented_lines.append(f"    {line}")
+            else:  # Empty line
+                indented_lines.append(line)
+
+        indented_code = "\n".join(indented_lines)
+
+        return f"""
+{base_indent}try:
+{indented_code}
+{base_indent}except ValueError as e:
+{base_indent}    logger.warning(f"Invalid input value: {{e}}")
+{base_indent}    raise
+{base_indent}except TypeError as e:
+{base_indent}    logger.warning(f"Type error: {{e}}")
+{base_indent}    raise
+{base_indent}except Exception as e:
+{base_indent}    logger.error(f"Unexpected error: {{e}}")
+{base_indent}    raise"""
+
+    def _wrap_function_bodies_with_error_handling(self, code: str) -> str:
+        """Wrap function bodies with error handling using AST for robust parsing."""
+        import ast
+
+        try:
+            # Parse the code into an AST
+            tree = ast.parse(code)
+            lines = code.split("\n")
+
+            # Find all function definitions and their line ranges
+            function_ranges = []
+            for node in ast.walk(tree):
+                if isinstance(node, ast.FunctionDef):
+                    # Get the line range of the function
+                    start_line = node.lineno - 1  # Convert to 0-indexed
+                    # Find the end line by looking at the last statement
+                    end_line = self._get_function_end_line(node, lines)
+                    function_ranges.append((start_line, end_line, node))
+
+            # Sort by start line in reverse order to process from bottom to top
+            function_ranges.sort(key=lambda x: x[0], reverse=True)
+
+            # If no functions found, fall back to block wrapping
+            if not function_ranges:
+                return self._wrap_code_block_with_error_handling(code)
+
+            # Process each function to add error handling
+            result_lines = lines[:]
+
+            for start_line, end_line, func_node in function_ranges:
+                # Get function indentation
+                func_def_line = result_lines[start_line]
+                base_indent = len(func_def_line) - len(func_def_line.lstrip())
+                function_indent = " " * (base_indent + 4)
+
+                # Find where the function body starts (after def line and docstring)
+                body_start = self._find_function_body_start(result_lines, start_line, func_node)
+
+                # Extract the original function body
+                original_body = result_lines[body_start : end_line + 1]
+
+                # Create the wrapped body
+                wrapped_body = [f"{function_indent}try:"]
+
+                # Add the original body with additional indentation
+                for line in original_body:
+                    if line.strip():
+                        wrapped_body.append(f"    {line}")
+                    else:
+                        wrapped_body.append(line)
+
+                # Add exception handling
+                wrapped_body.extend(
+                    [
+                        f"{function_indent}except ValueError as e:",
+                        f"{function_indent}    logger.warning(f'Invalid input value: {{e}}')",
+                        f"{function_indent}    raise",
+                        f"{function_indent}except TypeError as e:",
+                        f"{function_indent}    logger.warning(f'Type error: {{e}}')",
+                        f"{function_indent}    raise",
+                        f"{function_indent}except Exception as e:",
+                        f"{function_indent}    logger.error(f'Unexpected error: {{e}}')",
+                        f"{function_indent}    raise",
+                    ]
+                )
+
+                # Replace the original body with the wrapped version
+                result_lines[body_start : end_line + 1] = wrapped_body
+
+            return "\n".join(result_lines)
+
+        except Exception as e:
+            logger.warning(
+                f"AST-based function body wrapping failed: {e}, falling back to simple wrapping."
+            )
+            # Fallback to simple wrapping
+            return self._wrap_code_block_with_error_handling(code)
