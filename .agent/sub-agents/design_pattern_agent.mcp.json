@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "drawio":{
+      "command":"npx",
+      "args":[
+        "-y",
+        "drawio-mcp-server"
+      ]
+    }
+  },
+  "globalServers": ["filesystem", "memory"],
+  "excludedServers": ["github", "sonarqube", "playwright"]
+}

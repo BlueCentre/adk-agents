@@ -4,6 +4,7 @@ import ast
 from collections.abc import AsyncGenerator
 from datetime import datetime
 import logging
+import re
 
 from google.adk.agents import LlmAgent
 from google.adk.agents.invocation_context import InvocationContext
@@ -46,7 +47,10 @@ class CodeRefinementReviser(LlmAgent):
         )
 
     async def _apply_contextual_revisions(
-        self, code: str, feedback: dict, revision_prompt: str
+        self,
+        code: str,
+        feedback: dict,
+        revision_prompt: str,
     ) -> str:
         """Apply contextual revisions based on feedback using LLM-based code revision."""
         try:
@@ -78,14 +82,7 @@ Return only the revised code without additional explanation.
 """
 
             # Make LLM call for code revision
-            llm_request = genai_types.GenerateContentRequest(
-                contents=[
-                    genai_types.Content(role="user", parts=[genai_types.Part(text=full_prompt)])
-                ]
-            )
-
-            logger.debug("Making LLM call for contextual code revision")
-            response_stream = self.model.generate_content_async(llm_request)
+            response_stream = self._llm_flow.run_async(full_prompt)
 
             # Collect response content
             response_text = ""
@@ -119,13 +116,76 @@ Return only the revised code without additional explanation.
 
     async def _apply_feedback_to_code(self, code: str, feedback: dict) -> str:
         """Apply user feedback to revise the code using contextual understanding."""
+        # First, try deterministic, rule-based revisions based on feedback content.
+        rule_based_revision = self._apply_rule_based_revision_if_applicable(code, feedback)
+        if rule_based_revision and rule_based_revision != code:
+            return rule_based_revision
+
         # Create a detailed revision prompt for the LLM
         revision_prompt = self._create_contextual_revision_prompt(code, feedback)
 
-        # For a complete implementation, this would call the LLM with the revision prompt
-        # For now, we'll implement rule-based revisions with more context awareness
-
+        # Otherwise, attempt LLM-driven contextual revision with fallback logic
         return await self._apply_contextual_revisions(code, feedback, revision_prompt)
+
+    def _apply_rule_based_revision_if_applicable(self, code: str, feedback: dict) -> str | None:
+        """Apply deterministic revisions for common requests without relying on LLM.
+
+        We combine applicable improvements (error handling, readability, testing)
+        when multiple signals are present in feedback.
+        """
+        feedback_text = (feedback.get("feedback_text", "") or "").lower()
+        category = (feedback.get("category", "") or "").lower()
+        specific_requests = [str(r).lower() for r in feedback.get("specific_requests", [])]
+
+        # Fallback for syntax issues or invalid code
+        if "syntax" in feedback_text or not self._validate_python_code(code):
+            return self._apply_basic_improvements(code, feedback)
+
+        wants_error_handling = (
+            category == "error_handling"
+            or any(
+                ind in feedback_text
+                for ind in [
+                    "error handling",
+                    "error",
+                    "exception",
+                    "try",
+                    "catch",
+                    "fail",
+                    "handle",
+                ]
+            )
+            or any("error" in req or "exception" in req for req in specific_requests)
+        )
+
+        wants_readability = (
+            category == "readability"
+            or any(kw in feedback_text for kw in ["readable", "comment", "document", "docstring"])
+            or any("readable" in req or "document" in req for req in specific_requests)
+        )
+
+        wants_testing = (
+            category == "testing"
+            or "test" in feedback_text
+            or any("test" in req for req in specific_requests)
+        )
+
+        new_code = code
+        changed = False
+
+        if wants_error_handling:
+            new_code = self._apply_error_handling_improvements(new_code, feedback)
+            changed = changed or (new_code != code)
+
+        if wants_readability:
+            new_code = self._apply_readability_improvements(new_code, feedback)
+            changed = True
+
+        if wants_testing:
+            new_code = self._apply_testing_improvements(new_code, feedback)
+            changed = True
+
+        return new_code if changed and new_code != code else None
 
     async def _generate_enhanced_revision(self, code: str, feedback: dict, _prompt: str) -> str:
         """Generate enhanced code revision with improved logic."""
@@ -160,6 +220,12 @@ Return only the revised code without additional explanation.
             return
 
         revised_code = await self._apply_feedback_to_code(current_code, latest_feedback)
+
+        # Guard: Ensure we always persist a revision. If LLM output was unusable
+        # or resulted in no change, force a basic fallback improvement.
+        if not revised_code or revised_code.strip() == "" or revised_code == current_code:
+            revised_code = self._apply_basic_improvements(current_code, latest_feedback)
+
         self._update_session_state(ctx, current_code, revised_code, latest_feedback)
         yield self._create_revision_event(latest_feedback)
 
@@ -172,26 +238,6 @@ Return only the revised code without additional explanation.
         improved_code = (
             f"# Basic improvements applied for {category} (fallback mode): {feedback_text}\n"
         )
-
-        # Apply more targeted fallbacks based on feedback category
-        if category == "error_handling":
-            # Use a more specific error handling wrapper that handles multiple exception types
-            return self._wrap_code_block_with_error_handling(code)
-
-        if category == "readability":
-            # Add basic documentation comment
-            return f"{improved_code}{code}"
-
-        if category == "efficiency":
-            # Add optimization comment
-            return (
-                f"{improved_code}# Consider using more efficient algorithms or data "
-                f"structures\n{code}"
-            )
-
-        if category == "testing":
-            # Add a placeholder for tests
-            return f"{code}\n\n# TODO: Add test cases based on feedback: {feedback_text}\n"
 
         # For 'functionality' or 'other' categories, provide a generic improvement comment
         return f"{improved_code}{code}"
@@ -432,10 +478,9 @@ CATEGORY-SPECIFIC INSTRUCTIONS:
 - Consider edge cases in the implementation
 """
 
-        prompt += f"""
-
-Please provide the revised code that addresses the feedback: "{feedback_text}"
-"""
+        prompt += (
+            f'\n\nPlease provide the revised code that addresses the feedback: "{feedback_text}"'
+        )
 
         return prompt
 
@@ -558,35 +603,37 @@ Please provide the revised code that addresses the feedback: "{feedback_text}"
         latest_feedback = feedback_list[-1] if feedback_list else None
         return current_code, latest_feedback
 
-    def _parse_llm_revision_response(self, response_text: str, original_code: str) -> str | None:  # noqa: ARG002
+    def _parse_llm_revision_response(self, response_text: str, original_code: str) -> str | None:
         """Parse and validate LLM revision response."""
         try:
             # Clean the response text
             cleaned_response = response_text.strip()
 
             # Try to extract code blocks (```python ... ```)
-            import re
 
             # Look for python code blocks
-            python_code_pattern = r"```python\s*\n(.*?)\n```"
+            python_code_pattern = r"""```python\s*(.*?)\s*```"""
             python_matches = re.findall(python_code_pattern, cleaned_response, re.DOTALL)
             if python_matches:
                 # Use the first (or largest) code block
                 revised_code = max(python_matches, key=len).strip()
-                if self._validate_python_code(revised_code):
+                if self._validate_python_code(revised_code) and revised_code != original_code:
+                    logger.info("Extracted python code block")
                     return revised_code
 
             # Look for any code blocks (``` ... ```)
-            code_block_pattern = r"```\s*\n(.*?)\n```"
+            code_block_pattern = r"""```\s*(.*?)\s*```"""
             code_matches = re.findall(code_block_pattern, cleaned_response, re.DOTALL)
             if code_matches:
                 # Use the first (or largest) code block
                 revised_code = max(code_matches, key=len).strip()
-                if self._validate_python_code(revised_code):
+                if self._validate_python_code(revised_code) and revised_code != original_code:
+                    logger.info("Extracted generic code block")
                     return revised_code
 
             # If no code blocks, try to use the entire response if it looks like code
-            if self._validate_python_code(cleaned_response):
+            if self._validate_python_code(cleaned_response) and cleaned_response != original_code:
+                logger.info("Using entire response as code")
                 return cleaned_response
 
             # Try to extract lines that look like Python code
@@ -622,21 +669,29 @@ Please provide the revised code that addresses the feedback: "{feedback_text}"
 
             if code_lines:
                 potential_code = "\n".join(code_lines)
-                if self._validate_python_code(potential_code):
+                if self._validate_python_code(potential_code) and potential_code != original_code:
+                    logger.info("Extracted code lines")
                     return potential_code
 
-            # If all else fails, return None
-            logger.warning("Could not extract valid Python code from LLM response")
+            # If all else fails, return the original code
+            logger.warning(
+                "Could not extract valid Python code from LLM response, returning original code."
+            )
             return None
 
         except Exception as e:
-            logger.warning(f"Error parsing LLM revision response: {e}")
+            logger.warning(f"Error parsing LLM revision response: {e}, returning original code.")
             return None
 
     def _update_session_state(
-        self, ctx: InvocationContext, original_code: str, revised_code: str, feedback: dict
+        self,
+        ctx: InvocationContext,
+        original_code: str,
+        revised_code: str,
+        feedback: dict,
     ):
         """Update the session state with the revised code and revision history."""
+        logger.info(f"Reviser updating session state with code:\n{revised_code}")
         ctx.session.state["current_code"] = revised_code
         revision_history = ctx.session.state.get("revision_history", [])
         revision_history.append(
@@ -689,7 +744,8 @@ Please provide the revised code that addresses the feedback: "{feedback_text}"
 
         indented_code = "\n".join(indented_lines)
 
-        return f"""{base_indent}try:
+        return f"""
+{base_indent}try:
 {indented_code}
 {base_indent}except ValueError as e:
 {base_indent}    logger.warning(f"Invalid input value: {{e}}")

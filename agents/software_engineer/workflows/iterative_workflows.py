@@ -77,6 +77,40 @@ class CodeRefinementSatisfactionChecker(BaseAgent):
         )
 
 
+class CodeRefinementInitAgent(BaseAgent):
+    """Initializes the code refinement process deterministically (no LLM)."""
+
+    def __init__(self, name: str = "code_refinement_init_agent"):
+        super().__init__(name=name)
+
+    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
+        # Ensure iteration state exists
+        iteration_state = ctx.session.state.get("iteration_state") or {}
+        iteration_state.setdefault("current_iteration", 0)
+        iteration_state.setdefault("max_iterations", agent_config.CODE_REFINEMENT_MAX_ITERATIONS)
+        iteration_state.setdefault("should_stop", False)
+        iteration_state.setdefault("reason", "Starting code refinement workflow")
+        ctx.session.state["iteration_state"] = iteration_state
+
+        # Ensure required lists/structures exist
+        ctx.session.state.setdefault("refinement_feedback", [])
+        ctx.session.state.setdefault("revision_history", [])
+        ctx.session.state.setdefault("quality_analysis_results", {})
+        ctx.session.state.setdefault("testing_results", {})
+        ctx.session.state.setdefault("integrated_feedback", {})
+        ctx.session.state.setdefault("current_code", ctx.session.state.get("current_code", ""))
+
+        yield Event(
+            author=self.name,
+            content=genai_types.Content(
+                parts=[
+                    genai_types.Part(text="Initialization complete for code refinement workflow")
+                ]
+            ),
+            actions=EventActions(),  # Do not escalate; continue to next agents
+        )
+
+
 def create_code_refinement_loop() -> LoopAgent:
     """
     Creates a code refinement loop workflow for iterative code improvement based on user feedback.
@@ -104,32 +138,7 @@ def create_code_refinement_loop() -> LoopAgent:
     satisfaction_checker = CodeRefinementSatisfactionChecker()
 
     # Create initialization agent
-    init_agent = LlmAgent(
-        model=agent_config.DEFAULT_SUB_AGENT_MODEL,
-        name="code_refinement_init_agent",
-        description="Initializes code refinement process",
-        instruction="""
-        You initialize the code refinement process.
-
-        Your tasks:
-        1. Set up iteration_state in session.state
-        2. Ensure initial code is available in session.state['current_code']
-        3. Initialize refinement_feedback list
-        4. Set up revision_history tracking
-        5. Initialize quality and testing tracking
-        6. Prepare context for iterative user-driven improvement
-
-        If no initial code is provided, you should generate a basic implementation
-        based on the task description.
-
-        The refinement process integrates:
-        - User feedback collection and processing
-        - Contextual code revision based on feedback
-        - Integrated code quality analysis and testing
-        - Mini red-green-refactor cycles for continuous improvement
-        """,
-        output_key="refinement_init",
-    )
+    init_agent = CodeRefinementInitAgent()
 
     # Create iterative code refinement loop with integrated quality & testing
     return LoopAgent(

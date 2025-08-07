@@ -85,6 +85,15 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
                 else:
                     env["PYTHONPATH"] = pythonpath
 
+            # Ensure coverage data is written to a temp file to avoid polluting pytest-cov results
+            try:
+                temp_cov_dir = tempfile.mkdtemp(prefix="adk_cov_")
+            except Exception:
+                temp_cov_dir = None
+
+            if temp_cov_dir:
+                env["COVERAGE_FILE"] = str(Path(temp_cov_dir) / ".coverage")
+
             # Try to run coverage analysis (basic approach)
             process = await asyncio.create_subprocess_exec(
                 "uv",

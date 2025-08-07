@@ -149,15 +149,30 @@ class TestCodeRefinementWorkflow:
     async def test_code_refinement_factorial_example(self, mock_llm_flow, mock_invocation_context):
         """Test complete code refinement workflow with factorial function example."""
 
-        # Mock the async streaming response
-        async def mock_stream():
-            yield MagicMock(text="response part 1")
-            yield MagicMock(text="response part 2")
+        # Mock the LLM response to return actual improved code
+        improved_factorial = '''def factorial(n):
+    """Calculate factorial of n with input validation."""
+    if n < 0:
+        raise ValueError("Factorial is not defined for negative numbers")
+    if n == 0 or n == 1:
+        return 1
+    result = 1
+    for i in range(2, n + 1):
+        result *= i
+    return result'''
 
-        # This is the key fix: run_async is an async generator
+        # Create mock response that matches the expected structure
+        mock_part = MagicMock()
+        mock_part.text = improved_factorial
+
+        mock_candidate = MagicMock()
+        mock_candidate.content.parts = [mock_part]
+
+        mock_response = MagicMock()
+        mock_response.candidates = [mock_candidate]
+
         async def mock_run_async(*_args, **_kwargs):
-            async for item in mock_stream():
-                yield item
+            yield mock_response
 
         mock_llm_flow.run_async = mock_run_async
 
@@ -177,11 +192,22 @@ class TestCodeRefinementWorkflow:
         result *= i
     return result"""
 
-            # Set up initial session state
+            # Set up initial session state with proper feedback structure
             mock_invocation_context.session.state["current_code"] = initial_code
             mock_invocation_context.session.state["user_input"] = (
                 "add input validation to handle negative numbers"
             )
+            # Add structured feedback to the refinement_feedback list
+            mock_invocation_context.session.state["refinement_feedback"] = [
+                {
+                    "feedback_text": "add input validation to handle negative numbers",
+                    "category": "error_handling",
+                    "priority": "high",
+                    "specific_requests": ["add input validation", "handle negative numbers"],
+                    "user_satisfied": False,
+                    "iteration": 0,
+                }
+            ]
 
             # The real agent is already set in the fixture
             refinement_agent = mock_invocation_context.agent
@@ -206,8 +232,29 @@ class TestCodeRefinementWorkflow:
 
                 _execution_time = time.time() - start_time
 
-                # Assert - Verify agent execution completed
+                # Assert - Verify agent execution completed and state is correct
                 assert len(results) > 0, "Agent should produce at least one result"
+
+                final_state = mock_invocation_context.session.state
+                final_code = final_state.get("current_code", "")
+
+                # 1. Check that the code was actually revised with improvements
+                assert "ValueError" in final_code, (
+                    "Final code should include input validation for negative numbers"
+                )
+                assert "Calculate factorial" in final_code or "factorial" in final_code.lower(), (
+                    "Final code should have improved documentation"
+                )
+
+                # 2. Check if feedback was processed
+                feedback_list = final_state.get("refinement_feedback", [])
+                assert len(feedback_list) > 0, "Feedback should have been processed"
+
+                # 3. Check revision history
+                revision_history = final_state.get("revision_history", [])
+                assert len(revision_history) > 0, "Revision history should be populated"
+                expected_feedback = "add input validation to handle negative numbers"
+                assert revision_history[0]["feedback_applied"]["feedback_text"] == expected_feedback
 
             except Exception as e:
                 # This test should catch implementation issues
@@ -278,14 +325,18 @@ class TestCodeRefinementWorkflow:
     ):
         """Test that the workflow handles syntax errors gracefully."""
 
-        # Mock the async streaming response
-        async def mock_stream():
-            yield MagicMock(text="Syntax error detected")
-            yield MagicMock(text="Attempting to fix...")
+        # Mock the LLM to return invalid response to trigger fallback
+        mock_part = MagicMock()
+        mock_part.text = "I cannot parse this code properly due to syntax issues"
+
+        mock_candidate = MagicMock()
+        mock_candidate.content.parts = [mock_part]
+
+        mock_response = MagicMock()
+        mock_response.candidates = [mock_candidate]
 
         async def mock_run_async(*_args, **_kwargs):
-            async for item in mock_stream():
-                yield item
+            yield mock_response
 
         mock_llm_flow.run_async = mock_run_async
 
@@ -305,6 +356,17 @@ class TestCodeRefinementWorkflow:
 
             mock_invocation_context.session.state["current_code"] = invalid_code
             mock_invocation_context.session.state["user_input"] = "fix the syntax error"
+            # Add structured feedback to the refinement_feedback list
+            mock_invocation_context.session.state["refinement_feedback"] = [
+                {
+                    "feedback_text": "fix the syntax error",
+                    "category": "other",
+                    "priority": "high",
+                    "specific_requests": ["fix syntax error"],
+                    "user_satisfied": False,
+                    "iteration": 0,
+                }
+            ]
 
             refinement_agent = mock_invocation_context.agent
             mock_invocation_context.user_content = genai_types.Content(
@@ -322,8 +384,33 @@ class TestCodeRefinementWorkflow:
                     if time.time() - start_time > 30:  # Shorter timeout for error case
                         break
 
-                # Assert - Should handle error gracefully
+                # Assert - Should handle error gracefully and apply fallback logic
                 assert len(results) > 0, "Agent should produce results even with syntax errors"
+
+                final_state = mock_invocation_context.session.state
+                final_code = final_state.get("current_code", "")
+
+                # 1. Check that fallback logic was applied (basic improvements with comment)
+                fallback_applied = (
+                    "# Basic improvements applied for" in final_code
+                    and "fallback mode" in final_code
+                )
+                assert fallback_applied, (
+                    "Fallback reviser should add improvement comments with correct format"
+                )
+                assert "fix the syntax error" in final_code, (
+                    "Should include original feedback in comments"
+                )
+
+                # 2. Check if feedback was processed
+                feedback_list = final_state.get("refinement_feedback", [])
+                assert len(feedback_list) > 0, "Feedback should have been processed"
+
+                # 3. Check revision history
+                revision_history = final_state.get("revision_history", [])
+                assert len(revision_history) > 0, (
+                    "Revision history should be populated with changes"
+                )
 
             except Exception as e:
                 # Should not crash, but handle gracefully
@@ -334,14 +421,29 @@ class TestCodeRefinementWorkflow:
     async def test_code_refinement_ambiguous_feedback(self, mock_llm_flow, mock_invocation_context):
         """Test that the workflow handles ambiguous or contradictory feedback."""
 
-        # Mock the async streaming response
-        async def mock_stream():
-            yield MagicMock(text="Processing ambiguous feedback")
-            yield MagicMock(text="Applying best interpretation")
+        # Mock the LLM response to return improved code with error handling
+        improved_code = '''def process_data(data):
+    """Process data with error handling and improved readability."""
+    try:
+        if not data:
+            raise ValueError("Data cannot be empty")
+        # Convert to uppercase for faster processing
+        return data.upper()
+    except Exception as e:
+        raise ValueError(f"Processing failed: {e}")'''
+
+        # Create mock response that matches the expected structure
+        mock_part = MagicMock()
+        mock_part.text = improved_code
+
+        mock_candidate = MagicMock()
+        mock_candidate.content.parts = [mock_part]
+
+        mock_response = MagicMock()
+        mock_response.candidates = [mock_candidate]
 
         async def mock_run_async(*_args, **_kwargs):
-            async for item in mock_stream():
-                yield item
+            yield mock_response
 
         mock_llm_flow.run_async = mock_run_async
 
@@ -362,6 +464,22 @@ class TestCodeRefinementWorkflow:
 
             mock_invocation_context.session.state["current_code"] = simple_code
             mock_invocation_context.session.state["user_input"] = ambiguous_feedback
+            # Add structured feedback to the refinement_feedback list
+            mock_invocation_context.session.state["refinement_feedback"] = [
+                {
+                    "feedback_text": ambiguous_feedback,
+                    "category": "other",
+                    "priority": "medium",
+                    "specific_requests": [
+                        "make it faster",
+                        "more readable",
+                        "add error handling",
+                        "keep it simple",
+                    ],
+                    "user_satisfied": False,
+                    "iteration": 0,
+                }
+            ]
 
             refinement_agent = mock_invocation_context.agent
             mock_invocation_context.user_content = genai_types.Content(
@@ -379,8 +497,30 @@ class TestCodeRefinementWorkflow:
                     if time.time() - start_time > 30:
                         break
 
-                # Assert - Should process ambiguous feedback without crashing
+                # Assert - Should process ambiguous feedback without crashing and apply fallback
                 assert len(results) > 0, "Agent should handle ambiguous feedback gracefully"
+
+                final_state = mock_invocation_context.session.state
+                final_code = final_state.get("current_code", "")
+
+                # 1. Check that the ambiguous feedback was successfully processed with improvements
+                assert "try:" in final_code and "except" in final_code, (
+                    "Should add error handling as requested"
+                )
+                assert '"""' in final_code, "Should add documentation for readability"
+                assert "faster processing" in final_code or "ValueError" in final_code, (
+                    "Should address performance and error handling requirements"
+                )
+
+                # 2. Check if feedback was processed
+                feedback_list = final_state.get("refinement_feedback", [])
+                assert len(feedback_list) > 0, "Feedback should have been processed"
+
+                # 3. Check revision history
+                revision_history = final_state.get("revision_history", [])
+                assert len(revision_history) > 0, (
+                    "Revision history should be populated with changes"
+                )
 
             except Exception as e:
                 pytest.fail(f"Agent should handle ambiguous feedback gracefully: {e}")
