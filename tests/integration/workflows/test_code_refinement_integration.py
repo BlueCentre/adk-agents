@@ -249,6 +249,11 @@ class TestCodeRefinementWorkflow:
                 # 2. Check if feedback was processed
                 feedback_list = final_state.get("refinement_feedback", [])
                 assert len(feedback_list) > 0, "Feedback should have been processed"
+                # Ensure the expected feedback text is present
+                expected_feedback = "add input validation to handle negative numbers"
+                assert expected_feedback in [fb.get("feedback_text", "") for fb in feedback_list], (
+                    "Expected feedback text should be present in refinement_feedback"
+                )
 
                 # 3. Check revision history
                 revision_history = final_state.get("revision_history", [])
@@ -405,6 +410,11 @@ class TestCodeRefinementWorkflow:
                 # 2. Check if feedback was processed
                 feedback_list = final_state.get("refinement_feedback", [])
                 assert len(feedback_list) > 0, "Feedback should have been processed"
+                # Ensure the expected feedback text is present
+                expected_feedback_text = "fix the syntax error"
+                assert expected_feedback_text in [
+                    fb.get("feedback_text", "") for fb in feedback_list
+                ], "Expected feedback text should be present in refinement_feedback"
 
                 # 3. Check revision history
                 revision_history = final_state.get("revision_history", [])
