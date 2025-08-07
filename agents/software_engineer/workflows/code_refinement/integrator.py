@@ -108,13 +108,18 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
                 env=env,
             )
 
+            timeout_seconds = int(os.getenv("ANALYZE_COVERAGE_TIMEOUT", "30"))
             try:
-                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30)
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(), timeout=timeout_seconds
+                )
                 result_returncode = process.returncode
             except asyncio.TimeoutError:
                 process.kill()
                 await process.wait()
-                raise subprocess.TimeoutExpired(["uv", "run", "coverage"], 30) from None
+                raise subprocess.TimeoutExpired(
+                    ["uv", "run", "coverage"], timeout_seconds
+                ) from None
 
             if result_returncode == 0:
                 # Get coverage report
@@ -129,9 +134,10 @@ class CodeQualityAndTestingIntegrator(LlmAgent):
                     env=env,
                 )
 
+                coverage_timeout_seconds = int(os.getenv("COVERAGE_REPORT_TIMEOUT", "15"))
                 try:
                     coverage_stdout, coverage_stderr = await asyncio.wait_for(
-                        coverage_process.communicate(), timeout=15
+                        coverage_process.communicate(), timeout=coverage_timeout_seconds
                     )
                     coverage_result_stdout = (
                         coverage_stdout.decode("utf-8") if coverage_stdout else ""

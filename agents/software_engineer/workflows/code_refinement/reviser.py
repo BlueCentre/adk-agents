@@ -737,13 +737,11 @@ CATEGORY-SPECIFIC INSTRUCTIONS:
     def _validate_python_code(self, code: str) -> bool:
         """Validate that the code is syntactically correct Python."""
         try:
-            # Try to parse the code as Python
+            # Empty or whitespace-only strings are not valid code for our purposes
+            if not code or not code.strip():
+                return False
+            # Rely on Python's AST parser for syntax validation without additional length heuristics
             ast.parse(code)
-            # Basic sanity checks
-            if len(code.strip()) < 10:  # Too short to be meaningful
-                return False
-            if not any(char.isalnum() for char in code):  # No alphanumeric characters
-                return False
             return True
         except SyntaxError:
             return False

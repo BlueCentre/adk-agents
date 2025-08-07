@@ -224,6 +224,9 @@ else:
 
 # Workflow classification complexity weights (configurable)
 COMPLEXITY_WEIGHTS = {
+    # These weights influence workflow selection where higher perceived complexity
+    # amplifies scores for complexity-sensitive workflows (e.g., iterative refinement).
+    # Tune via env vars to adjust how aggressively complex tasks steer the workflow.
     "high": float(os.getenv("COMPLEXITY_WEIGHT_HIGH", "3.0")),
     "medium": float(os.getenv("COMPLEXITY_WEIGHT_MEDIUM", "2.0")),
     "low": float(os.getenv("COMPLEXITY_WEIGHT_LOW", "1.0")),

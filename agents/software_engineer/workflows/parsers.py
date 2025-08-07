@@ -33,12 +33,21 @@ class BanditOutputParser(ToolOutputParser):
                 confidence = issue.get("issue_confidence", "MEDIUM").lower()
                 issue_severity = issue.get("issue_severity", "MEDIUM").lower()
 
-                # Combine confidence and severity for our severity mapping
-                severity = "medium"
-                if issue_severity == "high" or confidence == "high":
-                    severity = "high"
-                elif issue_severity == "low" and confidence == "low":
-                    severity = "low"
+                # Combine severity and confidence with a small matrix
+                # high+high -> high; medium+high -> high; high+medium -> high
+                # low+high -> medium; high+low -> medium; medium+medium -> medium; low+low -> low
+                matrix = {
+                    ("high", "high"): "high",
+                    ("high", "medium"): "high",
+                    ("medium", "high"): "high",
+                    ("low", "high"): "medium",
+                    ("high", "low"): "medium",
+                    ("medium", "medium"): "medium",
+                    ("low", "medium"): "low",
+                    ("medium", "low"): "low",
+                    ("low", "low"): "low",
+                }
+                severity = matrix.get((issue_severity, confidence), "medium")
 
                 issues.append(
                     {
