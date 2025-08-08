@@ -313,7 +313,7 @@ def _run_pytest(args: dict, tool_context: ToolContext) -> RunPytestOutput:
 
     logger.info("Running tests: %s", " ".join(cmd))
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
         stdout = result.stdout or ""
         stderr = result.stderr or ""
         parsed = _parse_pytest_output(stdout + "\n" + stderr)
@@ -356,8 +356,6 @@ def _parse_pytest_output(combined_output: str) -> dict[str, object]:
     - Includes optional 'errors' token
     Returns a dict containing optional keys matching RunPytestOutput extras.
     """
-    import re
-
     metrics: dict[str, object] = {}
 
     # Find a summary line (usually the last line containing 'in X.XXs')
