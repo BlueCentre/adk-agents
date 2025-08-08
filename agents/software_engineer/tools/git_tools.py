@@ -65,7 +65,7 @@ def _get_staged_numstat(tool_context: ToolContext, cwd: str | None) -> list[tupl
                 added = int(parts[0]) if parts[0].isdigit() else 0
                 deleted = int(parts[1]) if parts[1].isdigit() else 0
                 rows.append((parts[2], added, deleted))
-            except Exception:
+            except (ValueError, IndexError):
                 continue
     return rows
 
@@ -312,10 +312,7 @@ def _commit_staged_changes(
 
     # Cleanup pending proposal
     if "pending_commit_proposal" in tool_context.state:
-        try:
-            del tool_context.state["pending_commit_proposal"]
-        except Exception:
-            pass
+        del tool_context.state["pending_commit_proposal"]
 
     return CommitStagedChangesOutput(
         status="success",
