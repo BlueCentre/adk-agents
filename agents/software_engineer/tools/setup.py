@@ -30,8 +30,12 @@ from .code_search import codebase_search_tool
 from .filesystem import edit_file_content_tool, list_directory_contents_tool, read_file_content_tool
 from .git_tools import (
     commit_staged_changes_tool,
+    create_branch_tool,
+    detect_merge_conflicts_tool,
     generate_commit_message_tool,
     get_staged_diff_tool,
+    suggest_branch_name_tool,
+    suggest_staging_groups_tool,
 )
 from .persistent_memory_tool import (
     load_memory_from_file_tool,
@@ -99,10 +103,14 @@ def load_core_tools_and_toolsets():
         # Testing tools
         generate_test_stub_tool,
         run_pytest_tool,
-        # Git tools (Milestone 6.1)
+        # Git tools (Milestone 6.1 & 6.2)
         get_staged_diff_tool,
         generate_commit_message_tool,
         commit_staged_changes_tool,
+        suggest_staging_groups_tool,
+        suggest_branch_name_tool,
+        create_branch_tool,
+        detect_merge_conflicts_tool,
         # System info tools
         get_os_info_tool,
         # Code analysis tools

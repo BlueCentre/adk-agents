@@ -1,4 +1,4 @@
-"""Git-related tools for version control workflows (Milestone 6.1).
+"""Git-related tools for version control workflows (Milestones 6.1 and 6.2).
 
 Implements:
 - _get_staged_diff: obtain staged diff for context-aware commit messages
@@ -35,6 +35,18 @@ def _run_git(
 def _get_current_branch(tool_context: ToolContext, cwd: str | None) -> str:
     code, out, _ = _run_git("git rev-parse --abbrev-ref HEAD", tool_context, cwd)
     return out.strip() if code == 0 else ""
+
+
+def _get_git_status_porcelain(tool_context: ToolContext, cwd: str | None) -> list[str]:
+    """Return lines from `git status --porcelain=v1 -b`.
+
+    Includes branch header followed by file status entries.
+    """
+    code, out, err = _run_git("git status --porcelain=v1 -b", tool_context, cwd)
+    if code != 0:
+        logger.warning("Failed to get git status: %s", err.strip())
+        return []
+    return [ln for ln in out.splitlines() if ln]
 
 
 def _get_staged_files(tool_context: ToolContext, cwd: str | None) -> list[str]:
@@ -123,6 +135,15 @@ def _summarize_changes(numstats: list[tuple[str, int, int]]) -> str:
 def _shell_quote_single(s: str) -> str:
     """Safely quote a string for single-quoted shell arg: ' -> '\'' pattern."""
     return "'" + s.replace("'", "'\\''") + "'"
+
+
+def _slugify_topic(text: str) -> str:
+    """Create a lowercase, hyphenated slug from the topic text."""
+    text = (text or "").strip().lower()
+    # Replace non-alphanumeric with hyphen, collapse duplicates
+    text = re.sub(r"[^a-z0-9]+", "-", text)
+    text = re.sub(r"-+", "-", text).strip("-")
+    return text or "topic"
 
 
 @dataclass
@@ -351,4 +372,271 @@ __all__ = [
     "commit_staged_changes_tool",
     "generate_commit_message_tool",
     "get_staged_diff_tool",
+]
+
+
+# ------------------------------ Tool: staging suggestions ------------------------------
+
+
+class SuggestStagingGroupsInput(BaseModel):
+    working_directory: str | None = Field(default=None)
+
+
+class SuggestStagingGroupsOutput(BaseModel):
+    success: bool
+    groups: list[dict]
+    message: str
+
+
+def _cluster_files_for_staging(files: list[str]) -> list[dict]:
+    """Cluster files into logical staging groups.
+
+    Heuristics:
+    - Group by top-level directory (e.g., agents/, src/, tests/, docs/, scripts/)
+    - Separate tests from src when stems match
+    - Fallback single group for remaining files
+    """
+    from collections import defaultdict
+    from pathlib import Path
+
+    buckets: dict[str, list[str]] = defaultdict(list)
+    for path in files:
+        if "/" in path:
+            top = path.split("/", 1)[0]
+        else:
+            top = "root"
+        key = top
+        # Normalize some common folders
+        if top in {"tests", "test"}:
+            key = "tests"
+        elif top in {"docs"}:
+            key = "docs"
+        elif top in {"scripts"}:
+            key = "scripts"
+        buckets[key].append(path)
+
+    groups: list[dict] = []
+    for key, members in buckets.items():
+        rationale = f"Files under {key}/" if key != "root" else "Repository root files"
+        # Provide a suggested command
+        file_list = " ".join(_shell_quote_single(m) for m in members)
+        groups.append(
+            {
+                "name": f"stage-{key}",
+                "files": members,
+                "rationale": rationale,
+                "suggested_command": f"git add {file_list}",
+            }
+        )
+
+    # Additional test/src pairing suggestion
+    stems = {}
+    for f in files:
+        stems.setdefault(Path(f).stem, []).append(f)
+    for stem, members in stems.items():
+        if len(members) > 1 and any("test" in m for m in members):
+            quoted_members = " ".join(_shell_quote_single(m) for m in members)
+            groups.append(
+                {
+                    "name": f"stage-related-{stem}",
+                    "files": members,
+                    "rationale": (f"Related files by stem '{stem}' (tests and implementation)"),
+                    "suggested_command": f"git add {quoted_members}",
+                }
+            )
+
+    return groups
+
+
+def _suggest_staging_groups_tool(
+    args: dict, tool_context: ToolContext
+) -> SuggestStagingGroupsOutput:
+    input_data = SuggestStagingGroupsInput(**(args or {}))
+    status_lines = _get_git_status_porcelain(tool_context, input_data.working_directory)
+    if not status_lines:
+        return SuggestStagingGroupsOutput(success=False, groups=[], message="No changes detected")
+
+    # Parse porcelain lines: status columns then path; ignore branch header starting with '##'
+    changed_files: list[str] = []
+    for ln in status_lines:
+        if ln.startswith("##"):
+            continue
+        # format: XY path (or rename format 'R path1 -> path2')
+        # We take the last path token after space or arrow
+        try:
+            if "->" in ln:
+                path = ln.split("->", 1)[1].strip()
+            else:
+                path = ln[3:].strip()
+        except Exception:
+            continue
+        if path:
+            changed_files.append(path)
+
+    if not changed_files:
+        return SuggestStagingGroupsOutput(success=False, groups=[], message="No modified files")
+
+    groups = _cluster_files_for_staging(changed_files)
+    return SuggestStagingGroupsOutput(
+        success=True, groups=groups, message="Staging suggestions ready"
+    )
+
+
+suggest_staging_groups_tool = FunctionTool(func=_suggest_staging_groups_tool)
+
+
+# ------------------------------ Tools: branching assistance -----------------------------
+
+
+class SuggestBranchNameInput(BaseModel):
+    intent: str = Field(description="Short description of the work, e.g., 'authentication feature'")
+    kind: str | None = Field(
+        default=None,
+        description="Optional type: feature|fix|chore|docs|refactor|test. Guessed if omitted.",
+    )
+    working_directory: str | None = Field(default=None)
+
+
+class SuggestBranchNameOutput(BaseModel):
+    success: bool
+    branch_name: str
+    message: str
+
+
+def _suggest_branch_name_tool(args: dict, tool_context: ToolContext) -> SuggestBranchNameOutput:  # noqa: ARG001
+    input_data = SuggestBranchNameInput(**(args or {}))
+    # Prefer 'feature' by default when intent is provided; allow override via kind.
+    guessed_kind = input_data.kind or "feat"
+    # Map Conventional Commit type to common branch prefixes
+    prefix_map = {
+        "feat": "feature",
+        "fix": "fix",
+        "refactor": "refactor",
+        "docs": "docs",
+        "test": "test",
+        "chore": "chore",
+    }
+    prefix = prefix_map.get(guessed_kind, "feature")
+    slug = _slugify_topic(input_data.intent)
+    suggested = f"{prefix}/{slug}"
+    return SuggestBranchNameOutput(
+        success=True, branch_name=suggested, message="Suggested branch name"
+    )
+
+
+class CreateBranchInput(BaseModel):
+    name: str | None = Field(
+        default=None, description="Branch name to create. If omitted, derive from intent."
+    )
+    intent: str | None = Field(
+        default=None, description="Optional intent to derive name when `name` absent"
+    )
+    kind: str | None = Field(default=None, description="Optional type to influence naming")
+    working_directory: str | None = Field(default=None)
+
+
+class CreateBranchOutput(BaseModel):
+    status: str
+    message: str
+    branch: str | None = None
+
+
+def _create_branch_tool(args: dict, tool_context: ToolContext) -> CreateBranchOutput | dict:
+    """Create a new branch after human approval.
+
+    First call returns a pending approval proposal with the suggested name and commands.
+    On approval (agent sets force_edit), the branch is created via `git checkout -b`.
+    """
+    input_data = CreateBranchInput(**(args or {}))
+    cwd = input_data.working_directory
+
+    branch_name = input_data.name
+    if not branch_name:
+        # Derive from intent/kind
+        if not input_data.intent:
+            return CreateBranchOutput(
+                status="error", message="Branch name or intent is required", branch=None
+            )
+        suggested = _suggest_branch_name_tool(
+            {"intent": input_data.intent, "kind": input_data.kind, "working_directory": cwd},
+            tool_context,
+        )
+        branch_name = suggested.branch_name
+
+    # If approval not granted yet, return proposal
+    if not tool_context.state.get("force_edit", False):
+        details = f"This will create and switch to a new branch: {branch_name}"
+        tool_context.state["pending_branch_proposal"] = {
+            "branch_name": branch_name,
+            "working_directory": cwd,
+        }
+        return {
+            "status": "pending_approval",
+            "type": "generic",
+            "title": "Create Git Branch",
+            "description": "Proposed new branch creation",
+            "details": details,
+            "message": f"Run: git checkout -b {_shell_quote_single(branch_name)}",
+        }
+
+    # Approval granted: execute command
+    quoted_branch = _shell_quote_single(branch_name)
+    code, out, err = _run_git(f"git checkout -b {quoted_branch}", tool_context, cwd)
+    # Clear proposal
+    tool_context.state.pop("pending_branch_proposal", None)
+    if code != 0:
+        return CreateBranchOutput(status="error", message=(err.strip() or out.strip()), branch=None)
+    return CreateBranchOutput(status="success", message="Branch created", branch=branch_name)
+
+
+suggest_branch_name_tool = FunctionTool(func=_suggest_branch_name_tool)
+create_branch_tool = FunctionTool(func=_create_branch_tool)
+
+
+# --------------------------- Tool: detect merge conflicts (basic) ---------------------------
+
+
+class DetectMergeConflictsInput(BaseModel):
+    working_directory: str | None = Field(default=None)
+
+
+class DetectMergeConflictsOutput(BaseModel):
+    success: bool
+    conflicts: list[str]
+    message: str
+
+
+def _detect_merge_conflicts_tool(
+    args: dict, tool_context: ToolContext
+) -> DetectMergeConflictsOutput:
+    input_data = DetectMergeConflictsInput(**(args or {}))
+    status_lines = _get_git_status_porcelain(tool_context, input_data.working_directory)
+    conflicts: list[str] = []
+    for ln in status_lines:
+        if ln.startswith("##"):
+            continue
+        # X or Y value of 'U' indicates unmerged path
+        if ln and (ln[0] == "U" or (len(ln) > 1 and ln[1] == "U")):
+            path = ln[3:].strip()
+            if path:
+                conflicts.append(path)
+
+    if not conflicts:
+        return DetectMergeConflictsOutput(
+            success=True, conflicts=[], message="No merge conflicts detected"
+        )
+    return DetectMergeConflictsOutput(
+        success=True, conflicts=conflicts, message="Merge conflicts detected"
+    )
+
+
+detect_merge_conflicts_tool = FunctionTool(func=_detect_merge_conflicts_tool)
+
+
+# Extend exports
+__all__ += [
+    "create_branch_tool",
+    "detect_merge_conflicts_tool",
+    "suggest_branch_name_tool",
+    "suggest_staging_groups_tool",
 ]

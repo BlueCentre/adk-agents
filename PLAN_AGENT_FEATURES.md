@@ -549,25 +549,18 @@ print(last.get("summary_line"), last.get("success"))
 4.  Accept the message and verify the commit is made with the proposed message.
 5.  Reject/edit the message and verify the commit is made with your edited message.
 
-### Milestone 6.2: Intelligent Staging and Branching Assistance
+### Milestone 6.2: Intelligent Staging and Branching Assistance ✅ **COMPLETED**
 
 **Objective:** Help developers intelligently stage changes and manage branches based on inferred intent.
 
+**🎉 Completion Summary:** Implemented intelligent version control assistance including staging group suggestions, branch naming guidance, approval-gated branch creation, and merge conflict detection. Wired new tools into the software engineer toolkit and added real integration tests. Addressed security feedback by quoting file paths in suggested commands and branch names. Changes tracked in [PR #47](https://github.com/BlueCentre/adk-agents/pull/47). Completed: 2025-08-08.
+
 **Tasks:**
 
-*   - [ ] **Task 6.2.1: Intelligent Staging Suggestions:**
-    *   When a user asks to "stage changes" or "add files," analyze the modified/untracked files (using `git status` via `execute_shell_command`).
-    *   Propose logical groupings of files to stage (e.g., all files related to a specific feature, only bug fixes).
-    *   **Implementation Note:** This involves mapping file paths to likely features/components.
-*   - [ ] **Task 6.2.2: Branching Strategy Guidance:**
-    *   When a user asks to "create a new branch" or "start a new feature," suggest a branch naming convention or ask clarifying questions about the feature to recommend a suitable branch type (e.g., `feature/`, `bugfix/`).
-    *   **Implementation Note:** Leverage the LLM's ability to understand intent and knowledge of common Git workflows.
-*   - [ ] **Task 6.2.3: Conflict Resolution Guidance (Basic):**
-    *   If `git status` indicates merge conflicts, proactively identify the conflicting files and suggest basic steps for resolution (e.g., "Open `file.js` to resolve conflicts," "Use `git status` to see conflict markers").
-    *   **Implementation Note:** This is basic guidance, not automated resolution.
-*   - [ ] **Task 6.2.4: Integration Tests:**
-    *   Create scenarios with un-staged changes and modified files. Verify the agent suggests intelligent staging.
-    *   Test the branch creation guidance by asking the agent to "start a new feature" and verify its suggestions.
+*   - [x] **Task 6.2.1: Intelligent Staging Suggestions:** Implemented `suggest_staging_groups_tool` parsing `git status --porcelain=v1 -b`, clustering by component and related stems; returns suggested `git add` groups with rationale. Quoted file paths in suggested commands.
+*   - [x] **Task 6.2.2: Branching Strategy Guidance:** Implemented `suggest_branch_name_tool` (defaults to `feature/` when intent provided, configurable by kind) and `create_branch_tool` with `pending_approval`; on approval runs `git checkout -b <name>` with safe quoting.
+*   - [x] **Task 6.2.3: Conflict Resolution Guidance (Basic):** Implemented `detect_merge_conflicts_tool` parsing porcelain status for unmerged paths and returning guidance.
+*   - [x] **Task 6.2.4: Integration Tests:** Added `tests/integration/version_control/test_git_staging_and_branching.py` covering staging suggestions, branch naming and creation with approval, and conflict detection.
 
 **User Verification Steps:**
 
