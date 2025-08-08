@@ -520,6 +520,7 @@ def _suggest_branch_name_tool(args: dict, tool_context: ToolContext) -> SuggestB
         "chore": "chore",
     }
     prefix = prefix_map.get(guessed_kind, "feature")
+    # Fallback to "topic" if no intent is provided
     slug = _slugify_topic(input_data.intent or "topic")
     suggested = f"{prefix}/{slug}"
     return SuggestBranchNameOutput(
