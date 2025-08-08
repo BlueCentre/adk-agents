@@ -52,7 +52,11 @@ def test_always_passes():
 
     assert result.exit_code == 0
     assert result.success is True
-    assert "1 passed" in (result.stdout + result.stderr)
+    out = result.stdout + result.stderr
+    assert "1 passed" in out
+    # Enhanced reporting should populate summary_line and counts
+    assert (result.summary_line or "").strip() != ""
+    assert (result.tests_passed or 0) >= 1
 
 
 def test_generate_test_stub_pending_approval(tmp_path: Path, mock_tool_context):

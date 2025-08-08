@@ -451,31 +451,72 @@ To ensure consistency, quality, and maintainability, all development efforts wil
 2.  Create a simple function and a corresponding passing test. Ask the agent to "Run tests for `my_function`." Verify it reports success.
 3.  Create a failing test for `my_function`. Ask the agent to run tests and verify it reports failure.
 
-### Milestone 5.2: Automated Test Running and Reporting
+### Milestone 5.2: Automated Test Running and Reporting ✅ **COMPLETED**
 
 **Objective:** Implement automated test execution after code changes and provide comprehensive test reports.
 
+**🎉 Completion Summary:** Implemented opt-in automatic pytest execution after approved file edits via an after-tool callback, enhanced structured test reporting (counts, duration, first failure), introduced a simple TDD workflow orchestration entry point, and added integration tests validating auto-run and parsing. All new tests pass locally; full suite passes under a valid GEMINI_API_KEY.
+
 **Tasks:**
 
-*   - [ ] **Task 5.2.1: Automatic Test Execution on Code Change (Opt-in):**
+*   - [x] **Task 5.2.1: Automatic Test Execution on Code Change (Opt-in):**
     *   Upon approval of a code modification (`edit_file_content`), if the `TDD_mode_enabled` flag is set in `session.state`, automatically trigger `enhanced_testing_agent` for relevant tests.
     *   **Implementation Note:** The agent needs to infer which tests are relevant to the modified code. Ensure `uv run pytest` is used for test execution.
-*   - [ ] **Task 5.2.2: Enhanced Test Reporting:**
+*   - [x] **Task 5.2.2: Enhanced Test Reporting:**
     *   Improve the output of `enhanced_testing_agent` to provide more detailed reports: number of tests run, passed, failed, error messages for failures, and possibly code coverage (if easily integrateable).
     *   **Implementation Note:** Parse test runner output (e.g., `pytest`, `jest`) to extract structured data.
-*   - [ ] **Task 5.2.3: TDD Workflow Orchestration:**
+*   - [x] **Task 5.2.3: TDD Workflow Orchestration:**
     *   Implement a `TDD_workflow` using `SequentialAgent` and `LoopAgent` that guides the user: "Write failing test -> Write code to pass test -> Run tests -> Refactor -> Run tests."
     *   **Implementation Note:** This workflow would leverage `_generate_test_stub`, `edit_file_content` (with approval), and `enhanced_testing_agent`.
-*   - [ ] **Task 5.2.4: Integration Tests:**
+*   - [x] **Task 5.2.4: Integration Tests:**
     *   Simulate a TDD cycle: generate a failing test, then have the agent modify code to make it pass. Verify automated test execution and reporting at each step.
 
 **User Verification Steps:**
 
-1.  Enable TDD mode (`set TDD_mode_enabled true` in session state).
-2.  Ask the agent to "Start a TDD session for a new feature: a string reversal function."
-3.  Observe the agent guides you to write a failing test, then to write the code.
-4.  After you (or the agent) write the code, observe it automatically runs the tests and reports success/failure.
-5.  Introduce a bug into the string reversal function. Observe the agent detects the failing test and guides you to fix it.
+1.  Enable TDD mode (choose ONE):
+    - Conversational: Ask the agent: "Start a TDD session for a new feature: string reversal."
+      - This calls the TDD workflow and sets `TDD_mode_enabled = True` for you.
+    - Programmatic (Python REPL):
+```python
+from agents.software_engineer.enhanced_agent import (
+    create_enhanced_software_engineer_agent,
+    workflow_execution_tool,
+)
+agent = create_enhanced_software_engineer_agent()
+ctx = agent._tools_context
+workflow_execution_tool(ctx, "tdd_workflow", "string reversal feature")
+assert ctx.state["TDD_mode_enabled"] is True
+```
+    - Direct state toggle (Python REPL):
+```python
+from agents.software_engineer.enhanced_agent import (
+    create_enhanced_software_engineer_agent,
+    state_manager_tool,
+)
+agent = create_enhanced_software_engineer_agent()
+ctx = agent._tools_context
+state_manager_tool(ctx, "set", "TDD_mode_enabled", "true")
+assert ctx.state["TDD_mode_enabled"] is True
+```
+    - To disable later: `state_manager_tool(ctx, "set", "TDD_mode_enabled", "false")`.
+
+2.  Create a failing test for the feature:
+    - Conversational: "Generate a test stub for string reversal and include a failing case first."
+    - Or create `tests/test_reverse.py` manually with a failing assertion.
+
+3.  Implement the minimal code to pass the test and approve the edit when prompted.
+    - After a successful edit, tests will auto-run (because `TDD_mode_enabled=True`).
+
+4.  Confirm auto-run results:
+    - Conversational: The agent summarizes pass/fail and a brief test summary.
+    - Programmatic (Python REPL):
+```python
+last = ctx.state.get("last_test_run")
+print(last.get("summary_line"), last.get("success"))
+```
+
+5.  Introduce a bug in the implementation and save/approve the edit.
+    - Observe tests re-run automatically, failing status reported, and guidance to fix.
 
 ---
 

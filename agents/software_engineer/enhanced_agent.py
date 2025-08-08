@@ -3,6 +3,7 @@
 from collections import deque
 from datetime import datetime
 import logging
+from pathlib import Path
 import re
 from typing import Any, Optional
 import warnings
@@ -25,6 +26,7 @@ from .shared_libraries.context_callbacks import (
 )
 from .shared_libraries.workflow_guidance import suggest_next_step
 from .tools.setup import load_all_tools_and_toolsets
+from .tools.testing_tools import run_pytest_tool
 from .workflows.human_in_loop_workflows import (
     generate_diff_for_proposal,
     generate_proposal_presentation,
@@ -217,6 +219,84 @@ def _preemptive_smooth_testing_detection(tool, args, tool_context, callback_cont
 
     except Exception as e:
         logger.error(f"Error in preemptive smooth testing detection: {e}")
+
+
+def _auto_run_tests_after_edit(tool, args, tool_context, tool_response):
+    """Automatically run pytest after a successful file edit when TDD mode is enabled.
+
+    Stores structured results in `tool_context.state['last_test_run']`.
+    Attempts to infer relevant tests from the edited file path.
+    """
+    try:
+        tool_name = getattr(tool, "name", "unknown") if tool else "unknown"
+        if tool_name not in ["edit_file_content", "write_file"]:
+            return tool_response
+
+        if not isinstance(tool_response, dict) or tool_response.get("status") != "success":
+            return tool_response
+
+        # Opt-in flag for automatic TDD runs
+        tdd_enabled = bool(tool_context.state.get("TDD_mode_enabled", False))
+        if not tdd_enabled:
+            return tool_response
+
+        # Determine target tests
+        filepath = (args or {}).get("filepath") or tool_response.get("filepath")
+        target = "tests/"
+        extra_args: list[str] = []
+
+        if isinstance(filepath, str) and filepath:
+            normalized = filepath.replace("\\", "/")
+            # If the edited file is a test, just run that file
+            if "/tests/" in f"/{normalized}" or normalized.startswith("tests/"):
+                target = normalized
+            else:
+                # Use -k matching based on file stem to narrow the run
+                stem = Path(normalized).stem
+                if stem:  # simple heuristic
+                    extra_args.extend(["-k", stem])
+
+        # Execute pytest via the tool
+        try:
+            result = run_pytest_tool.func(  # type: ignore[attr-defined]
+                {"target": target, "extra_args": extra_args}, tool_context
+            )
+
+            # Persist compact summary in session state
+            summary = {
+                "success": getattr(result, "success", False),
+                "exit_code": getattr(result, "exit_code", 1),
+                "command": getattr(result, "command", ""),
+                "used_args": getattr(result, "used_args", None),
+            }
+
+            # Optional detailed metrics if available on the result
+            for key in [
+                "tests_collected",
+                "tests_passed",
+                "tests_failed",
+                "tests_skipped",
+                "tests_errors",
+                "duration_seconds",
+                "summary_line",
+                "first_failure_summary",
+            ]:
+                if hasattr(result, key):
+                    summary[key] = getattr(result, key)
+
+            tool_context.state["last_test_run"] = summary
+            logger.info(
+                "TDD auto-run completed: success=%s, exit_code=%s",
+                summary.get("success"),
+                summary.get("exit_code"),
+            )
+        except Exception as e:  # pragma: no cover - safety net
+            logger.error(f"Failed to auto-run tests: {e}")
+
+        return tool_response
+    except Exception as e:  # pragma: no cover - safety net
+        logger.error(f"Error in TDD auto-run callback: {e}")
+        return tool_response
 
 
 def add_retry_capabilities_to_agent(agent, retry_handler):
@@ -548,6 +628,8 @@ def workflow_execution_tool(
             return _execute_parallel_workflow(tool_context, task_description)
         if workflow_type == "standard_sequential":
             return _execute_sequential_workflow(tool_context, task_description)
+        if workflow_type == "tdd_workflow":
+            return _execute_tdd_workflow(tool_context, task_description)
         return {
             "status": "error",
             "message": f"Unknown workflow type: {workflow_type}",
@@ -702,6 +784,34 @@ def _execute_sequential_workflow(
     }
 
 
+def _execute_tdd_workflow(tool_context: ToolContext, task_description: str) -> dict[str, Any]:
+    """Initialize a simple TDD workflow orchestration.
+
+    - Enables TDD mode (auto test run on edits)
+    - Provides step guidance for: write failing test -> implement -> run -> refactor
+    """
+    tool_context.state["workflow_state"] = "tdd_in_progress"
+    tool_context.state["TDD_mode_enabled"] = True
+    tool_context.state["tdd_workflow"] = {
+        "feature": task_description,
+        "current_step": 1,
+        "steps": [
+            "Write a failing test (use generate_test_stub if helpful)",
+            "Implement minimal code to pass the test",
+            "Run tests (auto-runs enabled) and fix failures",
+            "Refactor and re-run tests",
+        ],
+        "created_at": datetime.now().isoformat(),
+    }
+
+    return {
+        "status": "initiated",
+        "workflow_type": "tdd_workflow",
+        "message": "TDD workflow initiated. Auto test runs are enabled after edits.",
+        "next_steps": tool_context.state["tdd_workflow"]["steps"],
+    }
+
+
 def create_enhanced_software_engineer_agent() -> Agent:
     """
     Create an enhanced software engineer agent with retry capabilities.
@@ -785,6 +895,7 @@ def create_enhanced_software_engineer_agent() -> Agent:
                 optimization_callbacks["after_tool"],
                 _proactive_code_quality_analysis,  # Proactive analysis after tool execution
                 _log_workflow_suggestion,
+                _auto_run_tests_after_edit,  # TDD: auto-run tests after successful edits
             ],
             output_key="enhanced_software_engineer",
         )
