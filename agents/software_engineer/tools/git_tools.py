@@ -440,9 +440,7 @@ def _cluster_files_for_staging(files: list[str]) -> list[dict]:
                 {
                     "name": f"stage-related-{stem}",
                     "files": members,
-                    "rationale": (
-                        f"Related files by stem '{stem}' (tests and implementation)"
-                    ),
+                    "rationale": (f"Related files by stem '{stem}' (tests and implementation)"),
                     "suggested_command": f"git add {quoted_members}",
                 }
             )
