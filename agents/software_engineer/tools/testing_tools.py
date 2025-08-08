@@ -241,6 +241,15 @@ class RunPytestOutput(BaseModel):
     stdout: str
     stderr: str
     used_args: list[str] | None = None
+    # Enhanced reporting fields (Milestone 5.2.2)
+    tests_collected: int | None = None
+    tests_passed: int | None = None
+    tests_failed: int | None = None
+    tests_skipped: int | None = None
+    tests_errors: int | None = None
+    duration_seconds: float | None = None
+    summary_line: str | None = None
+    first_failure_summary: str | None = None
 
 
 def _run_pytest(args: dict, tool_context: ToolContext) -> RunPytestOutput:
@@ -305,13 +314,17 @@ def _run_pytest(args: dict, tool_context: ToolContext) -> RunPytestOutput:
     logger.info("Running tests: %s", " ".join(cmd))
     try:
         result = subprocess.run(cmd, capture_output=True, text=True)
+        stdout = result.stdout or ""
+        stderr = result.stderr or ""
+        parsed = _parse_pytest_output(stdout + "\n" + stderr)
         return RunPytestOutput(
             command=" ".join(cmd),
             exit_code=result.returncode,
             success=result.returncode == 0,
-            stdout=result.stdout,
-            stderr=result.stderr,
+            stdout=stdout,
+            stderr=stderr,
             used_args=sanitized,
+            **parsed,
         )
     except FileNotFoundError as e:
         # uv missing
@@ -332,6 +345,70 @@ def _run_pytest(args: dict, tool_context: ToolContext) -> RunPytestOutput:
             stderr=f"Unexpected error running tests: {e}",
             used_args=sanitized,
         )
+
+
+def _parse_pytest_output(combined_output: str) -> dict[str, object]:
+    """Parse pytest output to extract summary metrics.
+
+    Handles common forms like:
+    - "1 passed in 0.02s"
+    - "2 passed, 1 failed, 1 skipped in 0.10s"
+    - Includes optional 'errors' token
+    Returns a dict containing optional keys matching RunPytestOutput extras.
+    """
+    import re
+
+    metrics: dict[str, object] = {}
+
+    # Find a summary line (usually the last line containing 'in X.XXs')
+    summary_line = None
+    lines = [ln.strip() for ln in combined_output.splitlines() if ln.strip()]
+    for ln in reversed(lines):
+        if " in " in ln and ("passed" in ln or "failed" in ln or "skipped" in ln or "error" in ln):
+            summary_line = ln
+            break
+
+    if summary_line:
+        metrics["summary_line"] = summary_line
+        # Extract duration
+        m_time = re.search(r" in ([0-9]+\.[0-9]+|[0-9]+)s", summary_line)
+        if m_time:
+            try:
+                metrics["duration_seconds"] = float(m_time.group(1))
+            except Exception:
+                pass
+
+        # Extract counts
+        def _extract_count(token: str) -> int | None:
+            m = re.search(rf"(\d+)\s+{token}", summary_line)
+            return int(m.group(1)) if m else None
+
+        metrics["tests_passed"] = _extract_count("passed")
+        metrics["tests_failed"] = _extract_count("failed")
+        metrics["tests_skipped"] = _extract_count("skipped")
+        # Pytest sometimes uses 'errors' or 'error'
+        metrics["tests_errors"] = _extract_count("errors") or _extract_count("error")
+
+        # Derive collected if possible (sum known counts)
+        counts = [
+            metrics.get("tests_passed"),
+            metrics.get("tests_failed"),
+            metrics.get("tests_skipped"),
+            metrics.get("tests_errors"),
+        ]
+        if any(c is not None for c in counts):
+            metrics["tests_collected"] = int(sum(c for c in counts if isinstance(c, int)))
+
+    # Extract a brief first failure summary if present
+    first_fail = None
+    for ln in lines:
+        if ln.startswith(("FAILED ", "E   ")):
+            first_fail = ln
+            break
+    if first_fail:
+        metrics["first_failure_summary"] = first_fail
+
+    return metrics
 
 
 run_pytest_tool = FunctionTool(func=_run_pytest)
