@@ -67,7 +67,7 @@ def _derive_test_filename(
 
         if not function_name and description:
             # slugify a bit
-            slug = re.sub(r"[^a-zA-Z0-9]+", "_", description).strip("_").lower()
+            slug = _slugify(description)
             slug = slug[:32] if slug else "placeholder"
             function_name = slug
 
@@ -98,7 +98,7 @@ def _render_python_test_stub(function_signature: str | None, description: str | 
             title_hint = m.group(1)
 
     if not title_hint and description:
-        slug = re.sub(r"[^a-zA-Z0-9]+", "_", description).strip("_").lower()
+        slug = _slugify(description)
         title_hint = slug[:24] if slug else None
 
     test_name = f"test_{title_hint}" if title_hint else "test_placeholder"
@@ -113,6 +113,41 @@ def _render_python_test_stub(function_signature: str | None, description: str | 
     )
 
     return "\n".join(header_lines + body_lines) + "\n"
+
+
+def _slugify(text: str) -> str:
+    """Convert arbitrary text to a filesystem-safe slug.
+
+    Keeps alphanumerics and underscores, collapses other chars to underscores,
+    trims leading/trailing underscores, and lowercases.
+    """
+    return re.sub(r"[^a-zA-Z0-9]+", "_", text).strip("_").lower()
+
+
+def _workspace_root(tool_context: ToolContext) -> Path:
+    """Determine the secure workspace root for path validation."""
+    # Prefer an explicit root from context, else use current working directory
+    root = tool_context.state.get("workspace_root") if tool_context and tool_context.state else None
+    try:
+        return Path(root).resolve() if root else Path.cwd().resolve()
+    except Exception:
+        return Path.cwd().resolve()
+
+
+def _resolve_and_validate_path(candidate: str | Path, root: Path) -> Path:
+    """Resolve a path and ensure it stays within the given root (no traversal)."""
+    p = Path(candidate).expanduser().resolve()
+    if not _is_within_root(p, root):
+        raise ValueError(f"Path '{p}' is outside the allowed workspace root '{root}'.")
+    return p
+
+
+def _is_within_root(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+        return True
+    except ValueError:
+        return False
 
 
 def _generate_test_stub(args: dict, tool_context: ToolContext) -> GenerateTestStubOutput:
@@ -132,12 +167,30 @@ def _generate_test_stub(args: dict, tool_context: ToolContext) -> GenerateTestSt
             ),
         )
 
-    target_file = input_data.target_file or _derive_test_filename(
-        input_data.language,
-        input_data.test_dir,
-        input_data.function_signature,
-        input_data.description,
-    )
+    # Secure path handling
+    root = _workspace_root(tool_context)
+    try:
+        if input_data.target_file:
+            target_path = _resolve_and_validate_path(input_data.target_file, root)
+        else:
+            # Derive filename under test_dir (validated)
+            derived = _derive_test_filename(
+                input_data.language,
+                input_data.test_dir,
+                input_data.function_signature,
+                input_data.description,
+            )
+            # Ensure test_dir and derived file reside within root
+            test_dir_path = _resolve_and_validate_path(input_data.test_dir, root)
+            target_path = _resolve_and_validate_path(Path(derived), root)
+            # Additionally ensure the derived path is inside the validated test_dir
+            if not _is_within_root(target_path, test_dir_path):
+                raise ValueError(
+                    f"Derived test path '{target_path}' must be within test_dir '{test_dir_path}'."
+                )
+        target_file = str(target_path)
+    except Exception as e:
+        return GenerateTestStubOutput(status="error", message=str(e))
 
     content = _render_python_test_stub(input_data.function_signature, input_data.description)
 
@@ -187,18 +240,67 @@ class RunPytestOutput(BaseModel):
     success: bool
     stdout: str
     stderr: str
+    used_args: list[str] | None = None
 
 
-def _run_pytest(args: dict, tool_context: ToolContext) -> RunPytestOutput:  # noqa: ARG001
+def _run_pytest(args: dict, tool_context: ToolContext) -> RunPytestOutput:
     """Run pytest using uv and return structured output.
 
     Always prefers the user's requirement to use `uv` for Python tasks.
     """
     input_data = RunPytestInput(**args)
-    target = input_data.target or "tests/"
-    extra_args = input_data.extra_args or []
+    root = _workspace_root(tool_context)
+    # Validate target path strictly inside workspace
+    target_input = input_data.target or "tests/"
+    allow_external = bool(
+        tool_context and getattr(tool_context, "state", {}).get("allow_external_target")
+    )
+    try:
+        target_path = (
+            Path(target_input).resolve()
+            if allow_external
+            else _resolve_and_validate_path(target_input, root)
+        )
+    except Exception as e:
+        return RunPytestOutput(
+            command="",
+            exit_code=2,
+            success=False,
+            stdout="",
+            stderr=f"Invalid target: {e}",
+            used_args=None,
+        )
 
-    cmd = ["uv", "run", "pytest", target, "-q", *extra_args]
+    # Sanitize pytest args with a conservative allow-list
+    extra_args = input_data.extra_args or []
+    safe_singletons = {"-q", "-v", "-vv", "-vvv", "-x", "-s"}
+    expects_value = {"-k", "-m", "-n"}
+    prefix_allow = {"--maxfail="}
+
+    sanitized: list[str] = []
+    i = 0
+    while i < len(extra_args):
+        arg = str(extra_args[i])
+        if arg in safe_singletons:
+            sanitized.append(arg)
+        elif any(arg.startswith(pref) for pref in prefix_allow):
+            # Only allow numeric for --maxfail=
+            try:
+                val = arg.split("=", 1)[1]
+                if val.isdigit():
+                    sanitized.append(arg)
+            except Exception:
+                pass
+        elif arg in expects_value:
+            # attach next token as value if present and safe-ish (no leading dash)
+            val = extra_args[i + 1] if i + 1 < len(extra_args) else None
+            if isinstance(val, str) and not val.startswith("-"):
+                sanitized.extend([arg, val])
+                i += 1
+        # else drop the arg silently
+        i += 1
+
+    cmd = ["uv", "run", "pytest", str(target_path), "-q", *sanitized]
 
     logger.info("Running tests: %s", " ".join(cmd))
     try:
@@ -209,6 +311,7 @@ def _run_pytest(args: dict, tool_context: ToolContext) -> RunPytestOutput:  # no
             success=result.returncode == 0,
             stdout=result.stdout,
             stderr=result.stderr,
+            used_args=sanitized,
         )
     except FileNotFoundError as e:
         # uv missing
@@ -218,6 +321,7 @@ def _run_pytest(args: dict, tool_context: ToolContext) -> RunPytestOutput:  # no
             success=False,
             stdout="",
             stderr=f"Failed to run tests: {e}",
+            used_args=sanitized,
         )
     except Exception as e:  # pragma: no cover - safety net
         return RunPytestOutput(
@@ -226,6 +330,7 @@ def _run_pytest(args: dict, tool_context: ToolContext) -> RunPytestOutput:  # no
             success=False,
             stdout="",
             stderr=f"Unexpected error running tests: {e}",
+            used_args=sanitized,
         )
 
 
