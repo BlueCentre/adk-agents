@@ -28,7 +28,7 @@ def _run_git(
 ) -> tuple[int, str, str]:
     """Run a git command via the shell tool for consistent history and error tracking."""
     result = execute_shell_command({"command": command, "working_directory": cwd}, tool_context)
-    return int(result.exit_code), str(result.stdout or ""), str(result.stderr or "")
+    return int(result.exit_code), (result.stdout or ""), (result.stderr or "")
 
 
 def _get_current_branch(tool_context: ToolContext, cwd: str | None) -> str:
@@ -71,8 +71,8 @@ def _get_staged_numstat(tool_context: ToolContext, cwd: str | None) -> list[tupl
 
 
 def _detect_ticket(text: str) -> str:
-    """Extract a JIRA-style ticket like ABC-123 from a string if present."""
-    m = re.search(r"([A-Z]{2,10}-\d{1,6})", text or "")
+    """Extract a JIRA-style ticket like ABC-123 from a string if present (case-insensitive)."""
+    m = re.search(r"([A-Z]{2,10}-\d{1,6})", text or "", re.IGNORECASE)
     return m.group(1) if m else ""
 
 
@@ -92,18 +92,22 @@ def _guess_type_from_branch(branch: str) -> str:
 
 
 def _guess_scope_from_files(files: list[str]) -> str:
-    # Prefer a directory name like agents/, src/, tests/ as scope
+    """Infer a Conventional Commits scope from file paths.
+
+    Prefer top-level directories like `src/`, `agents/`, or `tests/`. As a fallback, use
+    the stem (filename without extension) of the first changed file, truncated to 20 chars.
+    """
+    from pathlib import Path
+
     for prefix in ["src/", "agents/", "tests/", "docs/", "scripts/"]:
-        for f in files:
-            if f.startswith(prefix):
-                # Use the first path segment (without trailing slash)
+        for file_path in files:
+            if file_path.startswith(prefix):
                 return prefix.rstrip("/")
-    # Fallback to first file stem
+
     if files:
         first = files[0]
-        # Strip directories and extension
         base = first.rsplit("/", 1)[-1]
-        scope = base.split(".")[0]
+        scope = Path(base).stem
         return scope[:20]
     return ""
 
@@ -263,8 +267,7 @@ def _commit_staged_changes(
         proposed_message = gen.title if not gen.body else f"{gen.title}\n\n{gen.body}"
 
     # If approval not yet granted, return pending proposal
-    force = bool(tool_context.state.get("force_edit", False))
-    if not force:
+    if not tool_context.state.get("force_edit", False):
         numstats = _get_staged_numstat(tool_context, cwd)
         summary = _summarize_changes(numstats)
         # Persist proposal to state for the approval rerun

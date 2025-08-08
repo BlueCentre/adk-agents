@@ -70,10 +70,8 @@ def test_git_commit_flow_pending_then_commit(tmp_path: Path, mock_tool_context):
 
     # Simulate approval by setting force flag and rerunning
     mock_tool_context.state["force_edit"] = True
-    try:
-        second = _commit_staged_changes({"working_directory": str(repo)}, mock_tool_context)
-    finally:
-        mock_tool_context.state.pop("force_edit", None)
+    second = _commit_staged_changes({"working_directory": str(repo)}, mock_tool_context)
+    mock_tool_context.state.pop("force_edit", None)
 
     # On approval, commit should be created
     assert getattr(second, "status", "") == "success"
