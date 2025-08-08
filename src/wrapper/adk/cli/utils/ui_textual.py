@@ -994,6 +994,9 @@ class CategorizedInput(Input):
 class SubmittableTextArea(TextArea):
     """TextArea that can submit content on Enter."""
 
+    # Ensure component styles from base TextArea are available to theme CSS lookups
+    COMPONENT_CLASSES = TextArea.COMPONENT_CLASSES
+
     def on_key(self, event: Key) -> None:
         """Handle key events."""
         if event.key == "ctrl+s":
@@ -1006,8 +1009,10 @@ class SubmittableTextArea(TextArea):
                 submit_event = Input.Submitted(self, content)
                 self.post_message(submit_event)
             event.prevent_default()
-        # Let Enter and other keys be handled by TextArea's default behavior
-        # (Enter creates new line)
+        else:
+            # Delegate unhandled keys to parent implementation if available
+            if hasattr(TextArea, "on_key"):
+                TextArea.on_key(self, event)  # type: ignore[attr-defined]
 
 
 class CompletionWidget(ModalScreen[str]):

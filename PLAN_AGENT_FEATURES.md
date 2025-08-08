@@ -524,24 +524,22 @@ print(last.get("summary_line"), last.get("success"))
 
 **Goal:** Move beyond basic `git` command execution to a more intelligent, context-aware interaction with version control.
 
-### Milestone 6.1: Context-Aware Commit Message Generation
+### Milestone 6.1: Context-Aware Commit Message Generation ✅ **COMPLETED**
 
 **Objective:** Automatically generate meaningful commit messages based on staged changes.
 
+**🎉 Completion Summary:** Implemented Git tools for staged diff retrieval, Conventional Commits-style message suggestion using branch and context hints, and a commit workflow that leverages the existing human-in-the-loop approval mechanism before executing `git commit`. Added integration tests validating pending approval and approved commit flows. Linting and full test suite with coverage pass using uv. **Completed: 2025-08-08**
+
 **Tasks:**
 
-*   - [ ] **Task 6.1.1: Git Diff Analysis Tool:**
-    *   Create an internal tool (`_get_staged_diff`) that executes `git diff --staged` and returns the output.
-    *   **Implementation Note:** Use `execute_shell_command`.
-*   - [ ] **Task 6.1.2: Commit Message Generation Logic:**
-    *   When the user indicates a desire to commit, or a workflow reaches a commit point, use the staged diff output and the context (e.g., feature branch name, JIRA ticket ID if provided) to generate a concise and descriptive commit message using the LLM.
-    *   **Implementation Note:** Design a robust prompt for the LLM that includes the diff and contextual information.
-*   - [ ] **Task 6.1.3: User Review and Edit of Commit Message:**
-    *   Present the generated commit message to the user for review and allow them to accept it or edit it before the `git commit` command is executed.
-    *   **Implementation Note:** This can integrate with the Milestone 3.1 approval mechanism for text proposals.
-*   - [ ] **Task 6.1.4: Integration Tests:**
-    *   Create a mock Git repository with staged changes.
-    *   Write tests where the agent is asked to commit, verifying it generates a relevant message and waits for user approval.
+*   - [x] **Task 6.1.1: Git Diff Analysis Tool:**
+    *   Implemented `get_staged_diff_tool` backed by `_get_staged_diff` (executes `git diff --staged`) using the existing `execute_shell_command` for consistent history and error tracking.
+*   - [x] **Task 6.1.2: Commit Message Generation Logic:**
+    *   Implemented `generate_commit_message_tool` that suggests a Conventional Commits-style message inferred from staged files and current branch; optionally includes ticket/context hints.
+*   - [x] **Task 6.1.3: User Review and Edit of Commit Message:**
+    *   Implemented `commit_staged_changes_tool` that proposes a commit message (status: `pending_approval`) using the standardized approval workflow. On approval, performs `git commit -m` safely.
+*   - [x] **Task 6.1.4: Integration Tests:**
+    *   Added `tests/integration/version_control/test_git_commit_flow.py` validating diff retrieval, message suggestion, pending approval flow, and successful commit on approval.
 
 **User Verification Steps:**
 
@@ -665,3 +663,5 @@ print(last.get("summary_line"), last.get("success"))
 2.  Introduce the *exact same bug* again in the same project.
 3.  Observe if the agent quickly recognizes the issue and proactively suggests the previous solution or points to the relevant "lesson learned" from its memory.
 4.  Discuss a particular architectural decision with the agent. In a later, separate session, ask a question that implicitly requires recalling that decision. Verify the agent uses its memory.
+
+# REMOVE ME LATER
