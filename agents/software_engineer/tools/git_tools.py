@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import logging
 import re
+from typing import Optional  # noqa: F401
 
 from google.adk.tools import FunctionTool, ToolContext
 from pydantic import BaseModel, Field
@@ -170,7 +171,12 @@ class GetStagedDiffOutput(BaseModel):
 
 
 def _get_staged_diff_tool(args: dict, tool_context: ToolContext) -> GetStagedDiffOutput:
-    input_data = GetStagedDiffInput(**args)
+    """Return the staged diff for the current repo.
+
+    Usage: when the user asks to "show staged changes" or before proposing a commit.
+    Args may be omitted; defaults to the current working directory.
+    """
+    input_data = GetStagedDiffInput(**(args or {}))
     diff = _get_staged_diff(tool_context, input_data.working_directory)
     ok = bool(diff)
     msg = "Staged diff retrieved" if ok else "No staged changes or failed to get diff"
@@ -203,7 +209,12 @@ class GenerateCommitMessageOutput(BaseModel):
 def _generate_commit_message_tool(
     args: dict, tool_context: ToolContext
 ) -> GenerateCommitMessageOutput:
-    input_data = GenerateCommitMessageInput(**args)
+    """Suggest a Conventional Commits message for staged changes.
+
+    Works without args. Optionally provide `context_hint` (e.g., ticket ID) and
+    `working_directory`. The result follows Conventional Commits style.
+    """
+    input_data = GenerateCommitMessageInput(**(args or {}))
     branch = _get_current_branch(tool_context, input_data.working_directory)
     files = _get_staged_files(tool_context, input_data.working_directory)
     gen = _generate_conventional_message(files, branch, input_data.context_hint)
@@ -246,8 +257,15 @@ class CommitStagedChangesOutput(BaseModel):
 def _commit_staged_changes(
     args: dict, tool_context: ToolContext
 ) -> CommitStagedChangesOutput | dict:
-    """Propose a commit message for approval; on approval, perform the commit."""
-    input_data = CommitStagedChangesInput(**args)
+    """Propose a Conventional Commits message and commit upon approval.
+
+    Behavior:
+    - No args needed. If `message` is omitted, generates a Conventional Commits title
+      (with optional body) from staged files, branch and optional `context_hint`.
+    - First call returns a `pending_approval` payload with the proposal.
+    - After approval, re-run (the agent sets `force_edit`) and the commit is created.
+    """
+    input_data = CommitStagedChangesInput(**(args or {}))
     cwd = input_data.working_directory
 
     # Gather context

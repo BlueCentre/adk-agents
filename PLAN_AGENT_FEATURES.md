@@ -663,3 +663,5 @@ print(last.get("summary_line"), last.get("success"))
 2.  Introduce the *exact same bug* again in the same project.
 3.  Observe if the agent quickly recognizes the issue and proactively suggests the previous solution or points to the relevant "lesson learned" from its memory.
 4.  Discuss a particular architectural decision with the agent. In a later, separate session, ask a question that implicitly requires recalling that decision. Verify the agent uses its memory.
+
+# REMOVE ME LATER
