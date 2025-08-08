@@ -489,7 +489,10 @@ suggest_staging_groups_tool = FunctionTool(func=_suggest_staging_groups_tool)
 
 
 class SuggestBranchNameInput(BaseModel):
-    intent: str = Field(description="Short description of the work, e.g., 'authentication feature'")
+    intent: str = Field(
+        default="",
+        description="Short description of the work, e.g., 'authentication feature' (optional)",
+    )
     kind: str | None = Field(
         default=None,
         description="Optional type: feature|fix|chore|docs|refactor|test. Guessed if omitted.",
@@ -517,7 +520,7 @@ def _suggest_branch_name_tool(args: dict, tool_context: ToolContext) -> SuggestB
         "chore": "chore",
     }
     prefix = prefix_map.get(guessed_kind, "feature")
-    slug = _slugify_topic(input_data.intent)
+    slug = _slugify_topic(input_data.intent or "topic")
     suggested = f"{prefix}/{slug}"
     return SuggestBranchNameOutput(
         success=True, branch_name=suggested, message="Suggested branch name"
@@ -552,11 +555,7 @@ def _create_branch_tool(args: dict, tool_context: ToolContext) -> CreateBranchOu
 
     branch_name = input_data.name
     if not branch_name:
-        # Derive from intent/kind
-        if not input_data.intent:
-            return CreateBranchOutput(
-                status="error", message="Branch name or intent is required", branch=None
-            )
+        # Derive from intent/kind (intent optional)
         suggested = _suggest_branch_name_tool(
             {"intent": input_data.intent, "kind": input_data.kind, "working_directory": cwd},
             tool_context,
