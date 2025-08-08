@@ -994,6 +994,9 @@ class CategorizedInput(Input):
 class SubmittableTextArea(TextArea):
     """TextArea that can submit content on Enter."""
 
+    # Ensure component styles from base TextArea are available to theme CSS lookups
+    COMPONENT_CLASSES = TextArea.COMPONENT_CLASSES
+
     def on_key(self, event: Key) -> None:
         """Handle key events."""
         if event.key == "ctrl+s":
