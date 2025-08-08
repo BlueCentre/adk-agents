@@ -419,7 +419,7 @@ def _cluster_files_for_staging(files: list[str]) -> list[dict]:
     for key, members in buckets.items():
         rationale = f"Files under {key}/" if key != "root" else "Repository root files"
         # Provide a suggested command
-        file_list = " ".join(members)
+        file_list = " ".join(_shell_quote_single(m) for m in members)
         groups.append(
             {
                 "name": f"stage-{key}",
@@ -435,12 +435,15 @@ def _cluster_files_for_staging(files: list[str]) -> list[dict]:
         stems.setdefault(Path(f).stem, []).append(f)
     for stem, members in stems.items():
         if len(members) > 1 and any("test" in m for m in members):
+            quoted_members = " ".join(_shell_quote_single(m) for m in members)
             groups.append(
                 {
                     "name": f"stage-related-{stem}",
                     "files": members,
-                    "rationale": f"Related files by stem '{stem}' (tests and implementation)",
-                    "suggested_command": f"git add {' '.join(members)}",
+                    "rationale": (
+                        f"Related files by stem '{stem}' (tests and implementation)"
+                    ),
+                    "suggested_command": f"git add {quoted_members}",
                 }
             )
 
@@ -575,11 +578,12 @@ def _create_branch_tool(args: dict, tool_context: ToolContext) -> CreateBranchOu
             "title": "Create Git Branch",
             "description": "Proposed new branch creation",
             "details": details,
-            "message": f"Run: git checkout -b {branch_name}",
+            "message": f"Run: git checkout -b {_shell_quote_single(branch_name)}",
         }
 
     # Approval granted: execute command
-    code, out, err = _run_git(f"git checkout -b {branch_name}", tool_context, cwd)
+    quoted_branch = _shell_quote_single(branch_name)
+    code, out, err = _run_git(f"git checkout -b {quoted_branch}", tool_context, cwd)
     # Clear proposal
     tool_context.state.pop("pending_branch_proposal", None)
     if code != 0:
