@@ -39,6 +39,7 @@ from .realtime_feedback_handler import (
 )
 from .shell_command import execute_shell_command_tool
 from .system_info import get_os_info_tool
+from .testing_tools import generate_test_stub_tool, run_pytest_tool
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +91,9 @@ def load_core_tools_and_toolsets():
         codebase_search_tool,
         # Shell command tools
         execute_shell_command_tool,
+        # Testing tools
+        generate_test_stub_tool,
+        run_pytest_tool,
         # System info tools
         get_os_info_tool,
         # Code analysis tools

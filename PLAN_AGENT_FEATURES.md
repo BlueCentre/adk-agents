@@ -430,21 +430,20 @@ To ensure consistency, quality, and maintainability, all development efforts wil
 
 **Goal:** Provide structured support for the TDD workflow, guiding the developer through test-first development.
 
-### Milestone 5.1: Test Stub Generation & Basic Test Execution Integration
+### Milestone 5.1: Test Stub Generation & Basic Test Execution Integration ✅ **COMPLETED**
 
 **Objective:** Automate the creation of test stubs and enable direct execution of tests.
 
+**🎉 Completion Summary:** Implemented a testing tools module providing test stub generation and uv-driven pytest execution, integrated into core tools, with comprehensive integration tests validating approval flow, filename derivation, language guardrails, pytest arg pass-through, and failure reporting. All new tests pass. **Completed: 2025-08-08**
+
 **Tasks:**
 
-*   - [ ] **Task 5.1.1: Test Stub Generator Tool:**
-    *   Create a new internal tool (`_generate_test_stub`) that, given a function/method signature or a description, generates a basic test file with a placeholder test function.
-    *   **Implementation Note:** This tool would likely use the underlying LLM with a specific prompt for test generation.
-*   - [ ] **Task 5.1.2: Integrate `enhanced_testing_agent` for Execution:**
-    *   Ensure the `enhanced_testing_agent` can be easily invoked to run specific test files or test suites from the CLI, with clear pass/fail output.
-    *   **Implementation Note:** This might involve modifying `enhanced_testing_agent` to accept `test_file_path` as a parameter and explicitly using `uv run pytest`.
-*   - [ ] **Task 5.1.3: Integration Tests:**
-    *   Write tests to verify that `_generate_test_stub` correctly generates a test file for a given function.
-    *   Write tests to ensure `enhanced_testing_agent` can run these generated test files and report results.
+*   - [x] **Task 5.1.1: Test Stub Generator Tool:** ✅ **COMPLETED**
+    *   Created `generate_test_stub_tool` backed by `_generate_test_stub` in `agents/software_engineer/tools/testing_tools.py`. Generates a Python test file scaffold from a function signature or description and leverages existing `edit_file_content` approval workflow.
+*   - [x] **Task 5.1.2: Integrate `enhanced_testing_agent` for Execution:** ✅ **COMPLETED**
+    *   Added `run_pytest_tool` in the same module to execute tests via `uv run pytest` with structured output. Tool is included in core tools, making it available to agents (including the testing sub-agent) and future CLI integration.
+*   - [x] **Task 5.1.3: Integration Tests:** ✅ **COMPLETED**
+    *   Added `tests/integration/testing_tools/test_test_stub_and_run.py` covering: pending approval flow, filename derivation from description, unsupported language, pytest `-k` selection, and failure reporting.
 
 **User Verification Steps:**
 
