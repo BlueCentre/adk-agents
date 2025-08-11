@@ -41,6 +41,7 @@ from .persistent_memory_tool import (
     load_memory_from_file_tool,
     save_current_session_to_file_tool,
 )
+from .proactive_workflows import prepare_pull_request_tool
 from .realtime_feedback_handler import (
     configure_realtime_feedback_tool,
     get_feedback_options_tool,
@@ -111,6 +112,8 @@ def load_core_tools_and_toolsets():
         suggest_branch_name_tool,
         create_branch_tool,
         detect_merge_conflicts_tool,
+        # Proactive aggregated workflows
+        prepare_pull_request_tool,
         # System info tools
         get_os_info_tool,
         # Code analysis tools
