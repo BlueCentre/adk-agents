@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import logging
+import re
 
 from google.adk.tools import FunctionTool, ToolContext
 from pydantic import BaseModel, Field
@@ -64,6 +65,29 @@ def _detect_remote_origin(tool_context: ToolContext, cwd: str | None) -> bool:
     if code != 0:
         return False
     return any(line.split()[0] == "origin" for line in out.splitlines() if line.strip())
+
+
+def _get_origin_https_url(tool_context: ToolContext, cwd: str | None) -> str | None:
+    """Return the HTTPS GitHub URL for the origin remote if derivable.
+
+    Examples:
+    - git@github.com:owner/repo.git -> https://github.com/owner/repo
+    - https://github.com/owner/repo.git -> https://github.com/owner/repo
+    - other hosts return None
+    """
+    code, out, _ = _run_git("git remote get-url origin", tool_context, cwd)
+    if code != 0:
+        return None
+    url = out.strip()
+    if not url:
+        return None
+    m = re.match(r"git@github.com:(?P<owner>[^/]+)/(?P<repo>[^\.]+)(?:\.git)?$", url)
+    if m:
+        return f"https://github.com/{m.group('owner')}/{m.group('repo')}"
+    m = re.match(r"https://github.com/(?P<owner>[^/]+)/(?P<repo>[^\.]+)(?:\.git)?$", url)
+    if m:
+        return f"https://github.com/{m.group('owner')}/{m.group('repo')}"
+    return None
 
 
 def _compute_staging_commands(tool_context: ToolContext, cwd: str | None) -> list[str]:
@@ -147,9 +171,33 @@ def _prepare_pull_request(args: dict, tool_context: ToolContext) -> PreparePullR
             "branch_name": plan.branch_name,
             "commit_message": plan.commit_message,
             "push_command": plan.push_command,
+            "presented": True,
         }
 
-        details = "\n".join(f"- {s}" for s in steps)
+        # Add preflight verification block to details
+        preflight_lines: list[str] = []
+        code_branch, out_branch, _ = _run_git(
+            "git rev-parse --abbrev-ref HEAD", tool_context, plan.working_directory
+        )
+        preflight_lines.append(
+            f"Current branch: {out_branch.strip() if code_branch == 0 else 'unknown'}"
+        )
+        status_lines = _get_git_status_porcelain(tool_context, plan.working_directory)
+        if status_lines:
+            preflight_lines.append("Git status (porcelain):")
+            preflight_lines.extend([f"  {ln}" for ln in status_lines])
+        else:
+            preflight_lines.append("Git status: unavailable or clean")
+        staged_files = _get_staged_files(tool_context, plan.working_directory)
+        if staged_files:
+            preflight_lines.append("Staged files:")
+            preflight_lines.extend([f"  {p}" for p in staged_files])
+        else:
+            preflight_lines.append("Staged files: none")
+        has_origin = _detect_remote_origin(tool_context, plan.working_directory)
+        preflight_lines.append(f"Remote 'origin' configured: {has_origin}")
+
+        details = "\n".join([*(f"- {s}" for s in steps), "", "Preflight:", *preflight_lines])
         return {
             "status": "pending_approval",
             "type": "multi_step_plan",
