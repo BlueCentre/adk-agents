@@ -1,7 +1,9 @@
 """Enhanced Software Engineer Agent with ADK Workflow Patterns."""
 
 from collections import deque
+from dataclasses import dataclass, field
 from datetime import datetime
+import json
 import logging
 from pathlib import Path
 import re
@@ -46,6 +48,109 @@ logging.basicConfig(level=logging.ERROR)
 
 # logging.getLogger("LiteLLM").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
+
+
+# Data classes for VCS event structures
+@dataclass
+class VcsEventPart:
+    """Represents a part of a VCS event content."""
+
+    text: str
+    function_call: Optional[Any] = None
+    function_response: Optional[Any] = None
+    tool_response: Optional[Any] = None
+    thought: Optional[Any] = None
+    inline_data: Optional[Any] = None
+
+    def model_dump(self, *args, **kwargs) -> dict[str, Any]:  # noqa: ARG002
+        """Serialize to dict format."""
+        return {"text": self.text}
+
+    def model_dump_json(self, *args, **kwargs) -> str:  # noqa: ARG002
+        """Serialize to JSON string."""
+        return json.dumps(self.model_dump())
+
+
+@dataclass
+class VcsEventContent:
+    """Represents the content of a VCS event."""
+
+    role: str = "assistant"
+    parts: list[VcsEventPart] = field(default_factory=list)
+
+    def model_dump(self, *args, **kwargs) -> dict[str, Any]:  # noqa: ARG002
+        """Serialize to dict format."""
+        return {"role": self.role, "parts": [part.model_dump() for part in self.parts]}
+
+    def model_dump_json(self, *args, **kwargs) -> str:  # noqa: ARG002
+        """Serialize to JSON string."""
+        return json.dumps(self.model_dump())
+
+
+@dataclass
+class VcsEvent:
+    """Represents a VCS guidance event."""
+
+    content: VcsEventContent
+    partial: bool = False
+    author: str = "assistant"
+    timestamp: Optional[float] = field(default_factory=time.time)
+    actions: list[Any] = field(default_factory=list)
+
+    def model_dump(self, exclude_none: bool = True) -> dict[str, Any]:  # noqa: ARG002
+        """Serialize to dict format."""
+        return {
+            "partial": self.partial,
+            "content": self.content.model_dump(),
+            "actions": self.actions,
+        }
+
+    def get_function_calls(self) -> list[Any]:
+        """Return empty list of function calls."""
+        return []
+
+    def get_function_responses(self) -> list[Any]:
+        """Return empty list of function responses."""
+        return []
+
+
+class StateManager:
+    """Unified state management for VCS operations."""
+
+    def __init__(
+        self,
+        session_state: Optional[dict[str, Any]] = None,
+        tool_context_state: Optional[dict[str, Any]] = None,
+    ):
+        self.session_state = session_state
+        self.tool_context_state = tool_context_state
+
+    def get(self, key: str, default: Any = None) -> Any:
+        """Get value from either state source, preferring session state."""
+        if self.session_state and key in self.session_state:
+            return self.session_state[key]
+        if self.tool_context_state and key in self.tool_context_state:
+            return self.tool_context_state[key]
+        return default
+
+    def set(self, key: str, value: Any) -> None:
+        """Set value in both state sources if available."""
+        if self.session_state is not None:
+            try:
+                self.session_state[key] = value
+            except Exception as e:
+                logger.warning(f"Failed to set {key} in session state: {e}")
+
+        if self.tool_context_state is not None:
+            try:
+                self.tool_context_state[key] = value
+            except Exception as e:
+                logger.warning(f"Failed to set {key} in tool context state: {e}")
+
+    def clear(self, key: str) -> None:
+        """Clear value from both state sources."""
+        self.set(key, None)
+
 
 # Note: Removed global agent tracking to prevent concurrency issues.
 # Agent access is now handled through proper callback_context.agent or tool_context.
@@ -116,7 +221,7 @@ def _extract_user_text_from_request(llm_request) -> Optional[str]:
 
 
 def _generate_vcs_assistance(callback_context, text: str, state: dict):
-    """Generate VCS assistance and optionally wrap model for injection."""
+    """Generate VCS assistance text and store it in state for later injection."""
     try:
         vcs_text = generate_vcs_assistance_response(callback_context, text)
         if (
@@ -165,119 +270,264 @@ def _capture_user_message_before_model(callback_context, llm_request):
 def _inject_vcs_response_after_model(callback_context, llm_response):
     """If VCS assistant produced guidance, inject it into the response text."""
     try:
-        # If a synthetic VCS event was already emitted for this turn, skip injection.
+        # Get state manager for unified state access
+        session_state = getattr(getattr(callback_context, "session", None), "state", None)
+        agent_state = getattr(getattr(callback_context, "agent", None), "_tools_context", None)
+        tool_context_state = getattr(agent_state, "state", None) if agent_state else None
+
+        state_mgr = StateManager(session_state, tool_context_state)
+
+        # If a synthetic VCS event was already emitted for this turn, skip injection
         agent_obj = getattr(callback_context, "agent", None)
         if agent_obj is not None and getattr(agent_obj, "_vcs_event_emitted", False):
             try:
                 object.__setattr__(agent_obj, "_vcs_event_emitted", False)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to reset VCS event flag: {e}")
             return
 
-        state = getattr(callback_context, "state", None)
-        if not state:
+        # If we already emitted a synthetic VCS event for this turn, avoid re-injection
+        if state_mgr.get("__vcs_injected_event", False):
+            state_mgr.clear("__vcs_injected_event")
             return
-        # If we already emitted a synthetic VCS event for this turn, avoid
-        # re-injecting the same guidance into the model output.
-        if bool(state.get("__vcs_injected_event")):
-            try:
-                state["__vcs_injected_event"] = False
-            except Exception:
-                pass
-            return
-        # Prefer any pre-fulfilled response (from proactive autopilot)
-        pre_text = state.get("__pre_fulfilled_response_text")
+
+        # Handle pre-fulfilled response text (from proactive autopilot)
+        pre_text = state_mgr.get("__pre_fulfilled_response_text")
         if isinstance(pre_text, str) and pre_text.strip():
-            # Ensure content structure exists
-            if not hasattr(llm_response, "content"):
-                try:
-                    llm_response.content = type("_C", (), {})()
-                    llm_response.content.parts = [type("_P", (), {})()]
-                    llm_response.content.parts[0].text = ""
-                except Exception:
-                    pass
+            _ensure_response_content_structure(llm_response)
             if hasattr(llm_response, "content") and hasattr(llm_response.content, "parts"):
                 if not llm_response.content.parts:
-                    llm_response.content.parts = [type("_P", (), {})()]
-                    llm_response.content.parts[0].text = ""
-                base = llm_response.content.parts[0].text or ""
-                llm_response.content.parts[0].text = f"{base}\n\n{pre_text}".strip()
-            try:
-                state["__pre_fulfilled_response_text"] = None
-            except Exception:
-                pass
+                    _create_default_response_part(llm_response)
 
-        vcs_text = state.get("__vcs_assistant_response")
+                base_text = getattr(llm_response.content.parts[0], "text", "") or ""
+                llm_response.content.parts[0].text = f"{base_text}\n\n{pre_text}".strip()
+
+            state_mgr.clear("__pre_fulfilled_response_text")
+
+        # Get or generate VCS text
+        vcs_text = _get_or_generate_vcs_text(state_mgr, callback_context)
         if not vcs_text:
-            # Try generating on the fly from captured message
-            msg = state.get("current_user_message")
-            if isinstance(msg, str) and msg.strip():
-                try:
-                    # Prefer provided callback_context when it has state
-                    ctx = callback_context if hasattr(callback_context, "state") else None
-                    if ctx is None:
-                        agent_ref = getattr(callback_context, "agent", None)
-                        ctx = getattr(agent_ref, "_tools_context", None)
-                    # If no context available, VCS assistant cannot function
-                    if ctx is None:
-                        logger.debug("No tool context available for VCS assistance")
-                    vcs_text = generate_vcs_assistance_response(ctx, msg)
-                except Exception:
-                    vcs_text = None
-        if not (
-            isinstance(vcs_text, str)
-            and vcs_text.strip()
-            and vcs_text.strip() != "Acknowledged. I'll take a look."
-        ):
             return
-        # If the model output has no content/parts (as in stub),
-        # fabricate a minimal content structure
-        if not hasattr(llm_response, "content") or not hasattr(llm_response, "content"):
-            try:
-                llm_response.content = type("_C", (), {})()
-                llm_response.content.parts = [type("_P", (), {})()]
-                llm_response.content.parts[0].text = ""
-            except Exception:
-                pass
 
-        # Append/inject text into first part
+        # Inject VCS text into response
+        _ensure_response_content_structure(llm_response)
         if hasattr(llm_response, "content") and hasattr(llm_response.content, "parts"):
             if not llm_response.content.parts:
-                llm_response.content.parts = [type("_P", (), {})()]
-                llm_response.content.parts[0].text = ""
-            parts = llm_response.content.parts
-            if hasattr(parts[0], "text"):
-                base = parts[0].text or ""
-                parts[0].text = f"{base}\n\n{vcs_text}".strip()
+                _create_default_response_part(llm_response)
 
-        # Also override model_dump so downstream Event uses the appended text
+            if hasattr(llm_response.content.parts[0], "text"):
+                base_text = llm_response.content.parts[0].text or ""
+                llm_response.content.parts[0].text = f"{base_text}\n\n{vcs_text}".strip()
+
+        # Clean up stored guidance
+        state_mgr.clear("__vcs_assistant_response")
+
+    except Exception as e:
+        logger.warning(f"Failed to inject VCS response: {e}")
+
+
+def _ensure_response_content_structure(llm_response):
+    """Ensure llm_response has proper content structure without dynamic object creation."""
+    if not hasattr(llm_response, "content"):
+        logger.warning("LLM response missing content structure - cannot inject VCS guidance")
+        return False
+    return True
+
+
+def _create_default_response_part(llm_response):
+    """Create a default response part if none exists."""
+    if hasattr(llm_response, "content"):
+        # Try to create a minimal part structure, but don't use dynamic objects
         try:
+            # Create a simple object with text attribute if possible
+            class ResponsePart:
+                def __init__(self):
+                    self.text = ""
 
-            def _patched_model_dump(exclude_none: bool = True):  # noqa: ARG001
-                # Try reading back the possibly updated text
-                text_val = None
-                if hasattr(llm_response, "content") and hasattr(llm_response.content, "parts"):
-                    if llm_response.content.parts and hasattr(
-                        llm_response.content.parts[0], "text"
-                    ):
-                        text_val = llm_response.content.parts[0].text
-                if not isinstance(text_val, str):
-                    text_val = vcs_text
-                return {
-                    "partial": getattr(llm_response, "partial", False),
-                    "content": {"parts": [{"text": text_val}]},
-                }
+            llm_response.content.parts = [ResponsePart()]
+        except Exception as e:
+            logger.warning(f"Could not create response part: {e}")
 
-            object.__setattr__(llm_response, "model_dump", _patched_model_dump)
-        except Exception:
-            pass
-        # Clear the stored guidance token without relying on pop/__delitem__
+
+def _get_or_generate_vcs_text(state_mgr: StateManager, callback_context) -> Optional[str]:
+    """Get VCS text from state or generate it on the fly."""
+    vcs_text = state_mgr.get("__vcs_assistant_response")
+
+    if not vcs_text:
+        # Try generating on the fly from captured message
+        msg = state_mgr.get("current_user_message")
+        if isinstance(msg, str) and msg.strip():
+            try:
+                # Get context for VCS assistant
+                ctx = callback_context if hasattr(callback_context, "state") else None
+                if ctx is None:
+                    agent_ref = getattr(callback_context, "agent", None)
+                    ctx = getattr(agent_ref, "_tools_context", None)
+
+                if ctx is None:
+                    logger.debug("No tool context available for VCS assistance")
+                    return None
+
+                vcs_text = generate_vcs_assistance_response(ctx, msg)
+            except Exception as e:
+                logger.warning(f"Failed to generate VCS assistance response: {e}")
+                return None
+
+    # Validate the VCS text
+    if not (
+        isinstance(vcs_text, str)
+        and vcs_text.strip()
+        and vcs_text.strip() != "Acknowledged. I'll take a look."
+    ):
+        return None
+
+    return vcs_text
+
+
+def _extract_user_text_from_context(invocation_context) -> Optional[str]:
+    """Extract user text from invocation context."""
+    try:
+        uc = getattr(invocation_context, "user_content", None)
+        parts = getattr(uc, "parts", None)
+        if parts and len(parts) > 0:
+            return getattr(parts[-1], "text", None)
+    except Exception as e:
+        logger.warning(f"Failed to extract user text from context: {e}")
+    return None
+
+
+def _generate_vcs_guidance(tool_ctx, user_text: str) -> Optional[str]:
+    """Generate VCS guidance from user text."""
+    if not isinstance(user_text, str) or not user_text.strip():
+        return None
+
+    try:
+        guidance_text = generate_vcs_assistance_response(tool_ctx, user_text)
+        if (
+            isinstance(guidance_text, str)
+            and guidance_text.strip()
+            and guidance_text.strip() != "Acknowledged. I'll take a look."
+        ):
+            return guidance_text
+    except Exception as e:
+        logger.warning(f"Failed to generate VCS guidance: {e}")
+
+    return None
+
+
+def _create_vcs_event(guidance: str, agent_name: str = "assistant") -> VcsEvent:
+    """Create a VCS event using proper data classes."""
+    part = VcsEventPart(text=guidance)
+    content = VcsEventContent(parts=[part])
+    return VcsEvent(content=content, author=agent_name)
+
+
+def _update_vcs_state_after_event(state_mgr: StateManager, tool_ctx) -> None:
+    """Update state after emitting a VCS event to prevent duplication."""
+    try:
+        state_mgr.set("__vcs_injected_event", True)
+        state_mgr.clear("__vcs_assistant_response")
+
+        # Ensure current directory is set
+        if tool_ctx and hasattr(tool_ctx, "state"):
+            if not tool_ctx.state.get("current_directory"):
+                tool_ctx.state["current_directory"] = str(Path.cwd())
+    except Exception as e:
+        logger.warning(f"Failed to update VCS state: {e}")
+
+
+def _set_agent_vcs_event_flag(agent, value: bool = True) -> None:
+    """Set the VCS event flag on the agent to suppress after-model injection."""
+    try:
+        object.__setattr__(agent, "_vcs_event_emitted", value)
+    except Exception as e:
+        logger.warning(f"Failed to set agent VCS event flag: {e}")
         try:
-            state["__vcs_assistant_response"] = None
-        except Exception:
-            pass
-    except Exception as e:  # pragma: no cover - safety
-        logger.debug(f"Failed to inject VCS response: {e}")
+            agent._vcs_event_emitted = value  # type: ignore[attr-defined]
+        except Exception as e2:
+            logger.warning(f"Failed to set VCS event flag via attribute: {e2}")
+
+
+def _process_pr_intent(state_mgr: StateManager, tool_ctx, prepare_pull_request_tool) -> None:
+    """Process PR intent detection and create plan."""
+    pr_intent = state_mgr.get("pr_intent_detected")
+    if not pr_intent or not tool_ctx:
+        return
+
+    try:
+        result = prepare_pull_request_tool.func(
+            args={
+                "intent": pr_intent,
+                "working_directory": tool_ctx.state.get("current_directory"),
+            },
+            tool_context=tool_ctx,
+        )
+
+        if isinstance(result, dict) and result.get("status") == "pending_approval":
+            # Set awaiting approval flag
+            state_mgr.set("awaiting_pr_approval", True)
+            state_mgr.clear("pr_intent_detected")
+
+    except Exception as e:
+        logger.warning(f"Failed to process PR intent: {e}")
+
+
+def _execute_pr_approval(state_mgr: StateManager, tool_ctx, prepare_pull_request_tool) -> None:
+    """Execute PR approval and handle the workflow."""
+    pr_approval = state_mgr.get("pr_approval_detected")
+    awaiting = state_mgr.get("awaiting_pr_approval", False)
+
+    if not pr_approval or not awaiting or not tool_ctx:
+        return
+
+    # Save and set force_edit flag
+    prior_force = tool_ctx.state.get("force_edit", False)
+    tool_ctx.state["force_edit"] = True
+
+    try:
+        exec_res = prepare_pull_request_tool.func(
+            args={
+                "intent": pr_approval,
+                "working_directory": tool_ctx.state.get("current_directory"),
+            },
+            tool_context=tool_ctx,
+        )
+
+        # Generate summary
+        summary = _create_pr_execution_summary(exec_res)
+
+        # Set result for model injection
+        state_mgr.set("__pre_fulfilled_response_text", summary)
+
+    except Exception as e:
+        logger.warning(f"Failed to execute PR approval: {e}")
+    finally:
+        # Restore force_edit flag
+        tool_ctx.state["force_edit"] = prior_force
+
+        # Clear all PR-related flags
+        state_mgr.set("awaiting_pr_approval", False)
+        state_mgr.clear("pr_approval_detected")
+
+
+def _create_pr_execution_summary(exec_res) -> str:
+    """Create a summary of PR execution results."""
+    try:
+        branch = getattr(exec_res, "branch", None)
+        if branch is None and isinstance(exec_res, dict):
+            branch = exec_res.get("branch")
+
+        commit_msg = getattr(exec_res, "commit_message", None)
+        if commit_msg is None and isinstance(exec_res, dict):
+            commit_msg = exec_res.get("commit_message")
+
+        return (
+            f"PR preparation executed. Branch: {branch or 'unknown'}. "
+            f"Commit message: {commit_msg or 'n/a'}."
+        )
+    except Exception as e:
+        logger.warning(f"Failed to create PR execution summary: {e}")
+        return "PR preparation executed."
 
 
 def _log_workflow_suggestion(
@@ -1172,267 +1422,41 @@ def create_enhanced_software_engineer_agent() -> Agent:
             original_run_async = agent.run_async
 
             async def run_async_with_vcs(invocation_context):
-                # Attempt to detect NL VCS intents and yield a synthetic event first
+                """Simplified VCS-aware run_async using proper data classes and error handling."""
+                # Get state manager for unified state access
+                sess = getattr(invocation_context, "session", None)
+                sess_state = getattr(sess, "state", None)
+                tool_ctx = getattr(agent, "_tools_context", None)
+                tool_context_state = getattr(tool_ctx, "state", None) if tool_ctx else None
+
+                state_mgr = StateManager(sess_state, tool_context_state)
+
+                # 1. Handle VCS guidance events
                 try:
-                    user_text = None
-                    uc = getattr(invocation_context, "user_content", None)
-                    parts = getattr(uc, "parts", None)
-                    if parts and len(parts) > 0:
-                        user_text = getattr(parts[-1], "text", None)
+                    user_text = _extract_user_text_from_context(invocation_context)
+                    if user_text:
+                        guidance = _generate_vcs_guidance(tool_ctx, user_text)
+                        if guidance:
+                            # Create and emit VCS event using proper data classes
+                            agent_name = getattr(agent, "name", "assistant")
+                            evt = _create_vcs_event(guidance, agent_name)
 
-                    guidance = None
-                    tool_ctx = getattr(agent, "_tools_context", None)
-                    if isinstance(user_text, str) and user_text.strip():
-                        txt = generate_vcs_assistance_response(tool_ctx, user_text)
-                        if (
-                            isinstance(txt, str)
-                            and txt.strip()
-                            and txt.strip() != "Acknowledged. I'll take a look."
-                        ):
-                            guidance = txt
+                            # Update state to prevent duplication
+                            _update_vcs_state_after_event(state_mgr, tool_ctx)
+                            _set_agent_vcs_event_flag(agent, True)
 
-                    # Always emit a synthetic event in NL flows so CLI and tests
-                    # receive concrete guidance even when the model is stubbed.
-                    if guidance:
-                        # Yield a minimal event-like object compatible with tests
-                        evt = type("_Evt", (), {})()
-                        # Provide commonly expected attributes
-                        evt.partial = False
-                        evt.author = getattr(agent, "name", "assistant")
-                        # Some UIs expect a numeric timestamp on events
-                        try:
-                            evt.timestamp = time.time()
-                        except Exception:
-                            pass
-                        # Provide empty actions list for UIs expecting it
-                        try:
-                            evt.actions = []
-                        except Exception:
-                            pass
-                        evt.content = type("_C", (), {})()
-                        # Provide role for consumers that expect Content.role
-                        evt.content.role = "assistant"
-                        # Create a minimal Part with optional attributes expected by UIs
-                        part = type("_P", (), {})()
-                        part.text = guidance
-                        # Ensure attributes checked by event processor exist
-                        part.function_call = None
-                        part.function_response = None
-                        part.tool_response = None
-                        part.thought = None
-                        # Some renderers probe for inline_data on parts
-                        part.inline_data = None
-                        evt.content.parts = [part]
-
-                        # Provide minimal serialization helpers on Content and Part
-                        try:
-
-                            def _part_model_dump(*_args, **_kwargs):
-                                return {"text": getattr(part, "text", None)}
-
-                            def _part_model_dump_json(*_args, **_kwargs):
-                                import json as _json
-
-                                return _json.dumps(_part_model_dump())
-
-                            object.__setattr__(part, "model_dump", _part_model_dump)
-                            object.__setattr__(part, "model_dump_json", _part_model_dump_json)
-
-                            def _content_model_dump(*_args, **_kwargs):
-                                parts_list = []
-                                for p in getattr(evt.content, "parts", []) or []:
-                                    txt = getattr(p, "text", None)
-                                    parts_list.append({"text": txt})
-                                return {
-                                    "role": getattr(evt.content, "role", "assistant"),
-                                    "parts": parts_list,
-                                }
-
-                            def _content_model_dump_json(*_args, **_kwargs):
-                                import json as _json
-
-                                return _json.dumps(_content_model_dump())
-
-                            object.__setattr__(evt.content, "model_dump", _content_model_dump)
-                            object.__setattr__(
-                                evt.content, "model_dump_json", _content_model_dump_json
-                            )
-                        except Exception:
-                            pass
-
-                        # Provide model_dump-compatible method and optional helpers
-                        def _evt_model_dump(exclude_none: bool = True):  # noqa: ARG001
-                            return {
-                                "partial": getattr(evt, "partial", False),
-                                "content": {
-                                    "role": getattr(evt.content, "role", "assistant"),
-                                    "parts": [{"text": guidance}],
-                                },
-                                "actions": getattr(evt, "actions", []),
-                            }
-
-                        try:
-                            object.__setattr__(evt, "model_dump", _evt_model_dump)
-                        except Exception:
-                            evt.model_dump = _evt_model_dump  # type: ignore[attr-defined]
-
-                        # Some consumers expect these methods to exist on events
-                        try:
-
-                            def _no_function_calls():
-                                return []
-
-                            def _no_function_responses():
-                                return []
-
-                            object.__setattr__(evt, "get_function_calls", _no_function_calls)
-                            object.__setattr__(
-                                evt, "get_function_responses", _no_function_responses
-                            )
-                        except Exception:
-                            pass
-                        # Mark that guidance was surfaced as an event to avoid
-                        # duplicate after-model injection; apply to both session and tool ctx
-                        try:
-                            sess = getattr(invocation_context, "session", None)
-                            state = getattr(sess, "state", None)
-                            if state is not None:
-                                try:
-                                    state["__vcs_injected_event"] = True  # type: ignore[index]
-                                    # Clear any pre-existing assistant text to prevent duplicates
-                                    state["__vcs_assistant_response"] = None  # type: ignore[index]
-                                except Exception:
-                                    pass
-                        except Exception:
-                            pass
-                        try:
-                            if tool_ctx is not None and hasattr(tool_ctx, "state"):
-                                if not tool_ctx.state.get("current_directory"):
-                                    tool_ctx.state["current_directory"] = str(Path.cwd())
-                                tool_ctx.state["__vcs_injected_event"] = True
-                                # Clear any pre-existing assistant text to prevent duplicates
-                                tool_ctx.state["__vcs_assistant_response"] = None
-                                # PR detection moved to _on_user_message_callback
-                                # This section intentionally left empty
-                        except Exception:
-                            pass
-                        # Flag on agent to suppress after-model injection duplication
-                        try:
-                            object.__setattr__(agent, "_vcs_event_emitted", True)
-                        except Exception:
-                            try:
-                                agent._vcs_event_emitted = True  # type: ignore[attr-defined]
-                            except Exception:
-                                pass
                         yield evt
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Failed to handle VCS guidance event: {e}")
 
-                # Centralized PR handling: single source of truth for all PR operations
+                # 2. Handle PR intents and approvals using unified state management
                 try:
-                    tool_ctx = getattr(agent, "_tools_context", None)
-                    sess = getattr(invocation_context, "session", None)
-                    sess_state = getattr(sess, "state", None)
+                    _process_pr_intent(state_mgr, tool_ctx, prepare_pull_request_tool)
+                    _execute_pr_approval(state_mgr, tool_ctx, prepare_pull_request_tool)
+                except Exception as e:
+                    logger.warning(f"Failed to handle PR operations: {e}")
 
-                    # Handle PR intent detection
-                    pr_intent = None
-                    pr_approval = None
-                    try:
-                        if sess_state is not None:
-                            pr_intent = sess_state.get("pr_intent_detected")  # type: ignore[index]
-                            pr_approval = sess_state.get("pr_approval_detected")  # type: ignore[index]
-                    except Exception:
-                        pass
-                    try:
-                        if tool_ctx and tool_ctx.state:
-                            pr_intent = pr_intent or tool_ctx.state.get("pr_intent_detected")
-                            pr_approval = pr_approval or tool_ctx.state.get("pr_approval_detected")
-                    except Exception:
-                        pass
-
-                    # Process PR intent - create plan
-                    if pr_intent and tool_ctx is not None:
-                        result = prepare_pull_request_tool.func(
-                            args={
-                                "intent": pr_intent,
-                                "working_directory": tool_ctx.state.get("current_directory"),
-                            },
-                            tool_context=tool_ctx,
-                        )
-                        if isinstance(result, dict) and result.get("status") == "pending_approval":
-                            # Set awaiting flag in both places
-                            try:
-                                if sess_state is not None:
-                                    sess_state["awaiting_pr_approval"] = True  # type: ignore[index]
-                                tool_ctx.state["awaiting_pr_approval"] = True
-                                # Clear the intent flags
-                                if sess_state is not None:
-                                    sess_state["pr_intent_detected"] = None  # type: ignore[index]
-                                tool_ctx.state["pr_intent_detected"] = None
-                            except Exception:
-                                pass
-
-                    # Process PR approval - execute plan
-                    elif pr_approval and tool_ctx is not None:
-                        awaiting = False
-                        try:
-                            if sess_state is not None:
-                                awaiting = bool(sess_state.get("awaiting_pr_approval"))  # type: ignore[index]
-                            awaiting = awaiting or bool(tool_ctx.state.get("awaiting_pr_approval"))
-                        except Exception:
-                            pass
-
-                        if awaiting:
-                            prior_force = tool_ctx.state.get("force_edit", False)
-                            tool_ctx.state["force_edit"] = True
-                            try:
-                                exec_res = prepare_pull_request_tool.func(
-                                    args={
-                                        "intent": pr_approval,
-                                        "working_directory": tool_ctx.state.get(
-                                            "current_directory"
-                                        ),
-                                    },
-                                    tool_context=tool_ctx,
-                                )
-                                # Generate summary
-                                try:
-                                    branch = getattr(exec_res, "branch", None)
-                                    if branch is None and isinstance(exec_res, dict):
-                                        branch = exec_res.get("branch")
-                                    commit_msg = getattr(exec_res, "commit_message", None)
-                                    if commit_msg is None and isinstance(exec_res, dict):
-                                        commit_msg = exec_res.get("commit_message")
-                                    summary = (
-                                        f"PR preparation executed. Branch: {branch or 'unknown'}. "
-                                        f"Commit message: {commit_msg or 'n/a'}."
-                                    )
-                                except Exception:
-                                    summary = "PR preparation executed."
-
-                                # Set result for model injection
-                                try:
-                                    if sess_state is not None:
-                                        sess_state["__pre_fulfilled_response_text"] = summary  # type: ignore[index]
-                                    tool_ctx.state["__pre_fulfilled_response_text"] = summary
-                                except Exception:
-                                    pass
-                            finally:
-                                tool_ctx.state["force_edit"] = prior_force
-
-                            # Clear all flags
-                            try:
-                                if sess_state is not None:
-                                    sess_state["awaiting_pr_approval"] = False  # type: ignore[index]
-                                    sess_state["pr_approval_detected"] = None  # type: ignore[index]
-                                tool_ctx.state["awaiting_pr_approval"] = False
-                                tool_ctx.state["pr_approval_detected"] = None
-                            except Exception:
-                                pass
-                except Exception:
-                    pass
-
-                # Resume normal stream of agent events
+                # 3. Resume normal stream of agent events
                 async for e in original_run_async(invocation_context):
                     yield e
 
