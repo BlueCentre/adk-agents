@@ -196,8 +196,11 @@ def _prepare_pull_request(args: dict, tool_context: ToolContext) -> PreparePullR
             )
             pushed = bool(res.success)
 
-        # Cleanup stored plan
-        tool_context.state.pop("pending_pr_plan", None)
+        # Cleanup stored plan without relying on __delitem__ support
+        try:
+            tool_context.state["pending_pr_plan"] = None
+        except Exception:
+            pass
 
         steps_out = [
             *(["staged changes"] if plan.staging_commands else []),

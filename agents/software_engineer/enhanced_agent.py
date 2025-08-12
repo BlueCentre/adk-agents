@@ -3,8 +3,10 @@
 from collections import deque
 from datetime import datetime
 import logging
+import os
 from pathlib import Path
 import re
+import time
 from typing import Any, Optional
 import warnings
 
@@ -26,6 +28,7 @@ from .shared_libraries.context_callbacks import (
 )
 from .shared_libraries.vcs_assistant import generate_vcs_assistance_response
 from .shared_libraries.workflow_guidance import suggest_next_step
+from .tools.proactive_workflows import prepare_pull_request_tool
 from .tools.setup import load_all_tools_and_toolsets
 from .tools.testing_tools import run_pytest_tool
 from .workflows.human_in_loop_workflows import (
@@ -50,33 +53,82 @@ logger = logging.getLogger(__name__)
 _last_created_agent: Agent | None = None
 
 
-def _handle_pending_approval(tool, args, tool_context, tool_response):
-    """Handle pending approval status from a tool."""
-    if isinstance(tool_response, dict) and tool_response.get("status") == "pending_approval":
-        proposal = generate_diff_for_proposal(tool_response)
-        approved = human_in_the_loop_approval(
-            tool_context=tool_context,
-            proposal=proposal,
-            user_input_handler=input,  # Use standard input for now
-            display_handler=print,  # Use standard print for now
-        )
+def _handle_pending_approval(tool, *cb_args, **cb_kwargs):
+    """Handle pending approval for tools with flexible callback signatures.
 
-        if approved:
-            # Re-run the tool with force_edit enabled
-            tool_context.state["force_edit"] = True
-            try:
-                # Access the underlying function via the func attribute for FunctionTool
-                if isinstance(tool, FunctionTool):
-                    tool_response = tool.func(tool_context=tool_context, **args)
-                else:
-                    # Fallback for other tool types - call directly
-                    tool_response = tool(tool_context=tool_context, **args)
-            finally:
-                tool_context.state["force_edit"] = False  # Reset the flag
+    Supports both legacy and ADK after_tool signatures:
+    - Legacy: (tool, args, tool_context, tool_response)
+    - ADK after_tool: (tool, tool_response, callback_context=None, args=None, tool_context=None)
+    """
+    # Normalize inputs
+    tool_response = cb_kwargs.get("tool_response")
+    args: Optional[dict] = cb_kwargs.get("args")
+    tool_context: Optional[ToolContext] = cb_kwargs.get("tool_context")
+    callback_context = cb_kwargs.get("callback_context")
+
+    if tool_response is None:
+        # Try to infer from positional args
+        if (
+            len(cb_args) >= 3
+            and isinstance(cb_args[2], dict)
+            and cb_args[2].get("status") is not None
+        ):
+            # Legacy order: (args, tool_context, tool_response)
+            args = cb_args[0]
+            tool_context = cb_args[1]
+            tool_response = cb_args[2]
         else:
-            tool_response["message"] = "File edit rejected by user."
+            # ADK after_tool order: (tool_response, callback_context, args, tool_context)
+            tool_response = cb_args[0] if len(cb_args) > 0 else None
+            callback_context = cb_args[1] if len(cb_args) > 1 else callback_context
+            args = cb_args[2] if len(cb_args) > 2 else args
+            tool_context = cb_args[3] if len(cb_args) > 3 else tool_context
 
-    return tool_response
+    # Early exit when nothing to approve
+    if not isinstance(tool_response, dict) or tool_response.get("status") != "pending_approval":
+        return tool_response
+
+    # Recover a usable tool_context if possible
+    if (
+        tool_context is None or not hasattr(tool_context, "state")
+    ) and callback_context is not None:
+        ctx = getattr(callback_context, "tools_context", None) or getattr(
+            callback_context, "_tools_context", None
+        )
+        if ctx is not None:
+            tool_context = ctx
+
+    if tool_context is None or not hasattr(tool_context, "state"):
+        return tool_response
+
+    # Ask for approval
+    proposal = generate_diff_for_proposal(tool_response)
+    approved = human_in_the_loop_approval(
+        tool_context=tool_context,
+        proposal=proposal,
+        user_input_handler=input,
+        display_handler=print,
+    )
+
+    if not approved:
+        # Preserve and augment the original response
+        tool_response["message"] = "File edit rejected by user."
+        return tool_response
+
+    # Approval granted: re-run underlying tool with force_edit flag
+    prior_force = tool_context.state.get("force_edit", False)
+    tool_context.state["force_edit"] = True
+    try:
+        if isinstance(tool, FunctionTool):
+            # Expand original args as keyword arguments expected by the FunctionTool
+            return tool.func(tool_context=tool_context, **(args or {}))
+        if callable(tool):
+            # Fallback: call tool directly if it's a simple callable
+            return tool(tool_context=tool_context, **(args or {}))
+        # Unknown tool type; return original response
+        return tool_response
+    finally:
+        tool_context.state["force_edit"] = prior_force
 
 
 def _capture_user_message_before_model(callback_context, llm_request):
@@ -104,63 +156,174 @@ def _capture_user_message_before_model(callback_context, llm_request):
                     ):
                         state["__vcs_assistant_response"] = vcs_text
 
-                        # Wrap the current model.generate_content_async (may be test stub)
-                        # to append the VCS guidance into the emitted text.
-                        agent_obj = getattr(callback_context, "agent", None) or _last_created_agent
-                        model_obj = getattr(agent_obj, "model", None)
-                        if model_obj and hasattr(model_obj, "generate_content_async"):
-                            original_generate = model_obj.generate_content_async
+                        # Optionally wrap model.generate_content_async to append VCS guidance.
+                        # Disabled by default to avoid duplicate messages;
+                        # enable with ADK_VCS_APPEND_MODEL=1
+                        if os.environ.get("ADK_VCS_APPEND_MODEL", "0") == "1":
+                            agent_obj = (
+                                getattr(callback_context, "agent", None) or _last_created_agent
+                            )
+                            model_obj = getattr(agent_obj, "model", None)
+                            if model_obj and hasattr(model_obj, "generate_content_async"):
+                                original_generate = model_obj.generate_content_async
 
-                            async def appended_generate(llm_req, stream=False):
-                                # Pass-through to the original generator
-                                async for resp in original_generate(llm_req, stream=stream):
-                                    try:
-                                        # Build a wrapped response that mirrors the interface and
-                                        # returns appended text from model_dump as well.
-                                        original_text = None
-                                        if hasattr(resp, "content") and getattr(
-                                            resp.content, "parts", None
-                                        ):
-                                            p0 = resp.content.parts[0]
-                                            original_text = getattr(p0, "text", None)
-                                        if not isinstance(original_text, str):
-                                            original_text = ""
-                                        appended_text = f"{original_text}\n\n{vcs_text}".strip()
+                                async def appended_generate(llm_req, stream=False):
+                                    async for resp in original_generate(llm_req, stream=stream):
+                                        try:
+                                            original_text = None
+                                            if hasattr(resp, "content") and getattr(
+                                                resp.content, "parts", None
+                                            ):
+                                                p0 = resp.content.parts[0]
+                                                original_text = getattr(p0, "text", None)
+                                            if not isinstance(original_text, str):
+                                                original_text = ""
+                                            appended_text = f"{original_text}\n\n{vcs_text}".strip()
 
-                                        class WrappedResponse:
-                                            def __init__(self, base, text):
-                                                self.partial = getattr(base, "partial", False)
-                                                # Expose content.parts[0].text for consumers
-                                                self.content = type("_C", (), {})()
-                                                self.content.parts = [type("_P", (), {})()]
-                                                self.content.parts[0].text = text
-                                                self._text = text
+                                            class WrappedResponse:
+                                                def __init__(self, base, text):
+                                                    self.partial = getattr(base, "partial", False)
+                                                    self.content = type("_C", (), {})()
+                                                    self.content.parts = [type("_P", (), {})()]
+                                                    self.content.parts[0].text = text
+                                                    self._text = text
 
-                                            def model_dump(self, exclude_none: bool = True):  # noqa: ARG002
-                                                return {
-                                                    "partial": self.partial,
-                                                    "content": {"parts": [{"text": self._text}]},
-                                                }
+                                                def model_dump(self, exclude_none: bool = True):  # noqa: ARG002
+                                                    return {
+                                                        "partial": self.partial,
+                                                        "content": {
+                                                            "parts": [{"text": self._text}]
+                                                        },
+                                                    }
 
-                                        yield WrappedResponse(resp, appended_text)
-                                        continue
-                                    except Exception:  # pragma: no cover - safety
-                                        yield resp
-                                        continue
+                                            yield WrappedResponse(resp, appended_text)
+                                            continue
+                                        except Exception:  # pragma: no cover - safety
+                                            yield resp
+                                            continue
 
-                            try:
-                                object.__setattr__(
-                                    model_obj, "generate_content_async", appended_generate
-                                )
-                            except Exception:
                                 try:
-                                    model_obj.generate_content_async = appended_generate  # type: ignore[attr-defined]
-                                except Exception as e2:  # pragma: no cover - safety
-                                    logger.debug(
-                                        f"Failed to wrap model generate_content_async: {e2}"
+                                    object.__setattr__(
+                                        model_obj, "generate_content_async", appended_generate
                                     )
+                                except Exception:
+                                    try:
+                                        model_obj.generate_content_async = appended_generate  # type: ignore[attr-defined]
+                                    except Exception as e2:  # pragma: no cover - safety
+                                        logger.debug(
+                                            f"Failed to wrap model generate_content_async: {e2}"
+                                        )
                 except Exception as e:  # pragma: no cover - safety
                     logger.debug(f"VCS assistant generation failed: {e}")
+
+                # Proactive PR autopilot: detect PR prep intent and execute aggregated flow
+                try:
+                    lowered = text.lower()
+                    # If we are awaiting PR approval and the user confirms now, execute the plan
+                    try:
+                        if bool(state.get("awaiting_pr_approval")) and lowered.strip() in {
+                            "yes",
+                            "y",
+                            "approve",
+                        }:
+                            agent_obj = (
+                                getattr(callback_context, "agent", None) or _last_created_agent
+                            )
+                            tool_ctx = getattr(agent_obj, "_tools_context", None)
+                            if tool_ctx is not None:
+                                prior_force = tool_ctx.state.get("force_edit", False)
+                                tool_ctx.state["force_edit"] = True
+                                try:
+                                    exec_res = prepare_pull_request_tool.func(
+                                        args={
+                                            "intent": state.get("current_user_message"),
+                                            "working_directory": tool_ctx.state.get(
+                                                "current_directory"
+                                            ),
+                                        },
+                                        tool_context=tool_ctx,
+                                    )
+                                    # Summarize for user after model
+                                    try:
+                                        branch = getattr(exec_res, "branch", None)
+                                        if branch is None and isinstance(exec_res, dict):
+                                            branch = exec_res.get("branch")
+                                        commit_msg = getattr(exec_res, "commit_message", None)
+                                        if commit_msg is None and isinstance(exec_res, dict):
+                                            commit_msg = exec_res.get("commit_message")
+                                        summary = (
+                                            "PR preparation executed. "
+                                            f"Branch: {branch or 'unknown'}.\n"
+                                            f"Commit message: {commit_msg or 'n/a'}."
+                                        )
+                                    except Exception:
+                                        summary = "PR preparation executed."
+                                    state["__pre_fulfilled_response_text"] = summary
+                                finally:
+                                    tool_ctx.state["force_edit"] = prior_force
+                            # Clear awaiting flag regardless
+                            try:
+                                state["awaiting_pr_approval"] = False
+                            except Exception:
+                                pass
+                    except Exception:
+                        pass
+                    if ("prepare" in lowered and "pr" in lowered) or (
+                        "pull" in lowered and "request" in lowered
+                    ):
+                        agent_obj = getattr(callback_context, "agent", None) or _last_created_agent
+                        tool_ctx = getattr(agent_obj, "_tools_context", None)
+                        if tool_ctx is not None:
+                            # Build initial plan
+                            result = prepare_pull_request_tool.func(
+                                args={
+                                    "intent": text,
+                                    "working_directory": tool_ctx.state.get("current_directory"),
+                                },
+                                tool_context=tool_ctx,
+                            )
+                            if (
+                                isinstance(result, dict)
+                                and result.get("status") == "pending_approval"
+                            ):
+                                # Record that we are awaiting confirmation;
+                                # the next 'yes' will execute
+                                try:
+                                    state["awaiting_pr_approval"] = True
+                                except Exception:
+                                    pass
+                                # Surface plan details as guidance
+                                try:
+                                    details = result.get("details")
+                                    if isinstance(details, str) and details.strip():
+                                        state["__vcs_assistant_response"] = (
+                                            "I'll prepare a PR behind one confirmation.\n"
+                                            f"{details}\n"
+                                            "Say 'yes' to proceed with the aggregated PR plan."
+                                        )
+                                except Exception:
+                                    pass
+                            else:
+                                # If it directly returned success-like structure
+                                try:
+                                    branch = getattr(result, "branch", None) or (
+                                        result.get("branch") if isinstance(result, dict) else None
+                                    )
+                                    commit_msg = getattr(result, "commit_message", None) or (
+                                        result.get("commit_message")
+                                        if isinstance(result, dict)
+                                        else None
+                                    )
+                                    state["__pre_fulfilled_response_text"] = (
+                                        f"PR preparation executed. Branch: {branch or 'unknown'}.\n"
+                                        f"Commit message: {commit_msg or 'n/a'}."
+                                    )
+                                except Exception:
+                                    state["__pre_fulfilled_response_text"] = (
+                                        "PR preparation executed."
+                                    )
+                except Exception as e:  # pragma: no cover - safety
+                    logger.debug(f"Proactive PR autopilot failed: {e}")
     except Exception as e:  # pragma: no cover - safety
         logger.debug(f"Failed to capture user message: {e}")
 
@@ -168,16 +331,64 @@ def _capture_user_message_before_model(callback_context, llm_request):
 def _inject_vcs_response_after_model(callback_context, llm_response):
     """If VCS assistant produced guidance, inject it into the response text."""
     try:
+        # If a synthetic VCS event was already emitted for this turn, skip injection.
+        agent_obj = getattr(callback_context, "agent", None) or _last_created_agent
+        if agent_obj is not None and getattr(agent_obj, "_vcs_event_emitted", False):
+            try:
+                object.__setattr__(agent_obj, "_vcs_event_emitted", False)
+            except Exception:
+                pass
+            return
+
         state = getattr(callback_context, "state", None)
         if not state:
             return
-        vcs_text = state.pop("__vcs_assistant_response", None)
+        # If we already emitted a synthetic VCS event for this turn, avoid
+        # re-injecting the same guidance into the model output.
+        if bool(state.get("__vcs_injected_event")):
+            try:
+                state["__vcs_injected_event"] = False
+            except Exception:
+                pass
+            return
+        # Prefer any pre-fulfilled response (from proactive autopilot)
+        pre_text = state.get("__pre_fulfilled_response_text")
+        if isinstance(pre_text, str) and pre_text.strip():
+            # Ensure content structure exists
+            if not hasattr(llm_response, "content"):
+                try:
+                    llm_response.content = type("_C", (), {})()
+                    llm_response.content.parts = [type("_P", (), {})()]
+                    llm_response.content.parts[0].text = ""
+                except Exception:
+                    pass
+            if hasattr(llm_response, "content") and hasattr(llm_response.content, "parts"):
+                if not llm_response.content.parts:
+                    llm_response.content.parts = [type("_P", (), {})()]
+                    llm_response.content.parts[0].text = ""
+                base = llm_response.content.parts[0].text or ""
+                llm_response.content.parts[0].text = f"{base}\n\n{pre_text}".strip()
+            try:
+                state["__pre_fulfilled_response_text"] = None
+            except Exception:
+                pass
+
+        vcs_text = state.get("__vcs_assistant_response")
         if not vcs_text:
             # Try generating on the fly from captured message
             msg = state.get("current_user_message")
             if isinstance(msg, str) and msg.strip():
                 try:
-                    vcs_text = generate_vcs_assistance_response(callback_context, msg)
+                    # Prefer provided callback_context when it has state
+                    ctx = callback_context if hasattr(callback_context, "state") else None
+                    if ctx is None:
+                        agent_ref = getattr(callback_context, "agent", None)
+                        ctx = getattr(agent_ref, "_tools_context", None)
+                    if ctx is None:
+                        # Fallback to global last-created agent tools context
+                        agent_obj = _last_created_agent
+                        ctx = getattr(agent_obj, "_tools_context", None)
+                    vcs_text = generate_vcs_assistance_response(ctx, msg)
                 except Exception:
                     vcs_text = None
         if not (
@@ -227,11 +438,22 @@ def _inject_vcs_response_after_model(callback_context, llm_response):
             object.__setattr__(llm_response, "model_dump", _patched_model_dump)
         except Exception:
             pass
+        # Clear the stored guidance token without relying on pop/__delitem__
+        try:
+            state["__vcs_assistant_response"] = None
+        except Exception:
+            pass
     except Exception as e:  # pragma: no cover - safety
         logger.debug(f"Failed to inject VCS response: {e}")
 
 
-def _log_workflow_suggestion(tool, args, tool_context, tool_response):  # noqa: ARG001
+def _log_workflow_suggestion(
+    tool,  # noqa: ARG001
+    tool_response,  # noqa: ARG001
+    callback_context=None,  # noqa: ARG001
+    args: Optional[dict] = None,  # noqa: ARG001
+    tool_context: Optional[ToolContext] = None,
+):
     """Generate and store workflow suggestions after tool execution for user presentation.
 
     Args:
@@ -240,6 +462,8 @@ def _log_workflow_suggestion(tool, args, tool_context, tool_response):  # noqa: 
         tool_context: The context of the executed tool
         tool_response: The response from the tool (unused but required by callback signature)
     """
+    if tool_context is None:
+        return
     suggestion = suggest_next_step(tool_context.state)
     if suggestion:
         logger.info(suggestion)
@@ -260,7 +484,13 @@ def _log_workflow_suggestion(tool, args, tool_context, tool_response):  # noqa: 
         # Deque automatically maintains maxlen=3, discarding oldest items
 
 
-def _proactive_code_quality_analysis(tool, args, tool_context, tool_response):
+def _proactive_code_quality_analysis(
+    tool,
+    tool_response,
+    callback_context=None,
+    args: Optional[dict] = None,
+    tool_context: Optional[ToolContext] = None,
+):
     """Proactively analyze code quality after file operations.
 
     Args:
@@ -270,12 +500,29 @@ def _proactive_code_quality_analysis(tool, args, tool_context, tool_response):
         tool_response: The response from the tool
     """
     try:
+        # Backward-compat: support legacy ordering (tool, args, tool_context, tool_response)
+        # If callback_context is actually a ToolContext-like object, use it.
+        if (
+            tool_context is None
+            and callback_context is not None
+            and hasattr(callback_context, "state")
+        ):
+            tool_context = callback_context
+
+        # If args and tool_response appear swapped, correct them
+        if isinstance(args, dict) and "status" in args and isinstance(tool_response, dict):
+            # args looks like a response; tool_response likely holds original args
+            if any(k in tool_response for k in ("filepath", "working_directory", "intent")):
+                tool_response, args = args, tool_response
+
+        if tool_context is None:
+            return
         tool_name = getattr(tool, "name", "unknown") if tool else "unknown"
 
         # Only trigger for successful file operations
         if tool_name in ["edit_file_content", "write_file"] and isinstance(tool_response, dict):
             if tool_response.get("status") == "success":
-                filepath = args.get("filepath") if args else None
+                filepath = (args or {}).get("filepath")
                 if filepath:
                     # Check if optimization suggestions were already generated
                     if "optimization_suggestions" not in tool_response:
@@ -378,13 +625,33 @@ def _preemptive_smooth_testing_detection(tool, args, tool_context, callback_cont
         logger.error(f"Error in preemptive smooth testing detection: {e}")
 
 
-def _auto_run_tests_after_edit(tool, args, tool_context, tool_response):
+def _auto_run_tests_after_edit(
+    tool,
+    tool_response,
+    callback_context=None,
+    args: Optional[dict] = None,
+    tool_context: Optional[ToolContext] = None,
+):
     """Automatically run pytest after a successful file edit when TDD mode is enabled.
 
     Stores structured results in `tool_context.state['last_test_run']`.
     Attempts to infer relevant tests from the edited file path.
     """
     try:
+        # Backward-compat: support legacy ordering (tool, args, tool_context, tool_response)
+        if (
+            tool_context is None
+            and callback_context is not None
+            and hasattr(callback_context, "state")
+        ):
+            tool_context = callback_context
+
+        if isinstance(args, dict) and "status" in args and isinstance(tool_response, dict):
+            if any(k in tool_response for k in ("filepath", "working_directory", "intent")):
+                tool_response, args = args, tool_response
+
+        if tool_context is None:
+            return tool_response
         tool_name = getattr(tool, "name", "unknown") if tool else "unknown"
         if tool_name not in ["edit_file_content", "write_file"]:
             return tool_response
@@ -1066,82 +1333,85 @@ def create_enhanced_software_engineer_agent() -> Agent:
         # Add retry capabilities to the agent
         agent = add_retry_capabilities_to_agent(agent, retry_callbacks["retry_handler"])
 
-        # Wrap model.generate_content_async to append VCS guidance from NL prompts
-        try:
-            model_obj = agent.model if hasattr(agent, "model") else None
-            original_generate = getattr(model_obj, "generate_content_async", None)
+        # Optionally wrap model.generate_content_async to append VCS guidance (disabled by default)
+        if os.environ.get("ADK_VCS_APPEND_MODEL", "0") == "1":
+            try:
+                model_obj = agent.model if hasattr(agent, "model") else None
+                original_generate = getattr(model_obj, "generate_content_async", None)
 
-            if model_obj and callable(original_generate):
+                if model_obj and callable(original_generate):
 
-                async def generate_content_async_with_retry_and_vcs(llm_req, stream=False):
-                    # Derive NL user text from request
-                    user_text = None
-                    try:
-                        if hasattr(llm_req, "contents") and llm_req.contents:
-                            last = llm_req.contents[-1]
-                            user_text = getattr(last, "text", None)
-                            if not user_text and hasattr(last, "parts") and last.parts:
-                                p0 = last.parts[-1]
-                                user_text = getattr(p0, "text", None)
-                    except Exception:
+                    async def generate_content_async_with_retry_and_vcs(llm_req, stream=False):
+                        # Derive NL user text from request
                         user_text = None
-
-                    # Generate guidance using the agent's tool context when possible
-                    guidance = None
-                    try:
-                        tool_ctx = getattr(agent, "_tools_context", None)
-                        if isinstance(user_text, str) and user_text.strip():
-                            txt = generate_vcs_assistance_response(tool_ctx, user_text)
-                            if (
-                                isinstance(txt, str)
-                                and txt.strip()
-                                and txt.strip() != "Acknowledged. I'll take a look."
-                            ):
-                                guidance = txt
-                    except Exception:
-                        guidance = None
-
-                    async for resp in original_generate(llm_req, stream=stream):
-                        if not guidance:
-                            yield resp
-                            continue
-
                         try:
-                            base_text = ""
-                            if hasattr(resp, "content") and getattr(resp.content, "parts", None):
-                                p0 = resp.content.parts[0]
-                                base_text = getattr(p0, "text", "") or ""
-                            appended_text = f"{base_text}\n\n{guidance}".strip()
-
-                            class WrappedResponse:
-                                def __init__(self, base, text):
-                                    self.partial = getattr(base, "partial", False)
-                                    self.content = type("_C", (), {})()
-                                    self.content.parts = [type("_P", (), {})()]
-                                    self.content.parts[0].text = text
-
-                                def model_dump(self, exclude_none: bool = True):  # noqa: ARG002
-                                    text_val = self.content.parts[0].text
-                                    return {
-                                        "partial": self.partial,
-                                        "content": {"parts": [{"text": text_val}]},
-                                    }
-
-                            yield WrappedResponse(resp, appended_text)
+                            if hasattr(llm_req, "contents") and llm_req.contents:
+                                last = llm_req.contents[-1]
+                                user_text = getattr(last, "text", None)
+                                if not user_text and hasattr(last, "parts") and last.parts:
+                                    p0 = last.parts[-1]
+                                    user_text = getattr(p0, "text", None)
                         except Exception:
-                            yield resp
+                            user_text = None
 
-                try:
-                    object.__setattr__(
-                        model_obj,
-                        "generate_content_async",
-                        generate_content_async_with_retry_and_vcs,
-                    )
-                except Exception:
-                    # type: ignore[attr-defined]
-                    model_obj.generate_content_async = generate_content_async_with_retry_and_vcs
-        except Exception:
-            pass
+                        # Generate guidance using the agent's tool context when possible
+                        guidance = None
+                        try:
+                            tool_ctx = getattr(agent, "_tools_context", None)
+                            if isinstance(user_text, str) and user_text.strip():
+                                txt = generate_vcs_assistance_response(tool_ctx, user_text)
+                                if (
+                                    isinstance(txt, str)
+                                    and txt.strip()
+                                    and txt.strip() != "Acknowledged. I'll take a look."
+                                ):
+                                    guidance = txt
+                        except Exception:
+                            guidance = None
+
+                        async for resp in original_generate(llm_req, stream=stream):
+                            if not guidance:
+                                yield resp
+                                continue
+
+                            try:
+                                base_text = ""
+                                if hasattr(resp, "content") and getattr(
+                                    resp.content, "parts", None
+                                ):
+                                    p0 = resp.content.parts[0]
+                                    base_text = getattr(p0, "text", "") or ""
+                                appended_text = f"{base_text}\n\n{guidance}".strip()
+
+                                class WrappedResponse:
+                                    def __init__(self, base, text):
+                                        self.partial = getattr(base, "partial", False)
+                                        self.content = type("_C", (), {})()
+                                        self.content.parts = [type("_P", (), {})()]
+                                        self.content.parts[0].text = text
+
+                                    def model_dump(self, exclude_none: bool = True):  # noqa: ARG002
+                                        text_val = self.content.parts[0].text
+                                        return {
+                                            "partial": self.partial,
+                                            "content": {"parts": [{"text": text_val}]},
+                                        }
+
+                                yield WrappedResponse(resp, appended_text)
+                            except Exception:
+                                yield resp
+
+                    try:
+                        object.__setattr__(
+                            model_obj,
+                            "generate_content_async",
+                            generate_content_async_with_retry_and_vcs,
+                        )
+                    except Exception:
+                        # type: ignore[attr-defined]
+                        model_obj.generate_content_async = generate_content_async_with_retry_and_vcs
+            except Exception:
+                pass
 
         # Intercept run_async to emit VCS guidance event for NL intents (test-safe)
         try:
@@ -1167,17 +1437,235 @@ def create_enhanced_software_engineer_agent() -> Agent:
                         ):
                             guidance = txt
 
+                    # Always emit a synthetic event in NL flows so CLI and tests
+                    # receive concrete guidance even when the model is stubbed.
                     if guidance:
                         # Yield a minimal event-like object compatible with tests
                         evt = type("_Evt", (), {})()
+                        # Provide commonly expected attributes
+                        evt.partial = False
+                        evt.author = getattr(agent, "name", "assistant")
+                        # Some UIs expect a numeric timestamp on events
+                        try:
+                            evt.timestamp = time.time()
+                        except Exception:
+                            pass
+                        # Provide empty actions list for UIs expecting it
+                        try:
+                            evt.actions = []
+                        except Exception:
+                            pass
                         evt.content = type("_C", (), {})()
-                        evt.content.parts = [type("_P", (), {})()]
-                        evt.content.parts[0].text = guidance
+                        # Provide role for consumers that expect Content.role
+                        evt.content.role = "assistant"
+                        # Create a minimal Part with optional attributes expected by UIs
+                        part = type("_P", (), {})()
+                        part.text = guidance
+                        # Ensure attributes checked by event processor exist
+                        part.function_call = None
+                        part.function_response = None
+                        part.tool_response = None
+                        part.thought = None
+                        # Some renderers probe for inline_data on parts
+                        part.inline_data = None
+                        evt.content.parts = [part]
+
+                        # Provide minimal serialization helpers on Content and Part
+                        try:
+
+                            def _part_model_dump(*_args, **_kwargs):
+                                return {"text": getattr(part, "text", None)}
+
+                            def _part_model_dump_json(*_args, **_kwargs):
+                                import json as _json
+
+                                return _json.dumps(_part_model_dump())
+
+                            object.__setattr__(part, "model_dump", _part_model_dump)
+                            object.__setattr__(part, "model_dump_json", _part_model_dump_json)
+
+                            def _content_model_dump(*_args, **_kwargs):
+                                parts_list = []
+                                for p in getattr(evt.content, "parts", []) or []:
+                                    txt = getattr(p, "text", None)
+                                    parts_list.append({"text": txt})
+                                return {
+                                    "role": getattr(evt.content, "role", "assistant"),
+                                    "parts": parts_list,
+                                }
+
+                            def _content_model_dump_json(*_args, **_kwargs):
+                                import json as _json
+
+                                return _json.dumps(_content_model_dump())
+
+                            object.__setattr__(evt.content, "model_dump", _content_model_dump)
+                            object.__setattr__(
+                                evt.content, "model_dump_json", _content_model_dump_json
+                            )
+                        except Exception:
+                            pass
+
+                        # Provide model_dump-compatible method and optional helpers
+                        def _evt_model_dump(exclude_none: bool = True):  # noqa: ARG001
+                            return {
+                                "partial": getattr(evt, "partial", False),
+                                "content": {
+                                    "role": getattr(evt.content, "role", "assistant"),
+                                    "parts": [{"text": guidance}],
+                                },
+                                "actions": getattr(evt, "actions", []),
+                            }
+
+                        try:
+                            object.__setattr__(evt, "model_dump", _evt_model_dump)
+                        except Exception:
+                            evt.model_dump = _evt_model_dump  # type: ignore[attr-defined]
+
+                        # Some consumers expect these methods to exist on events
+                        try:
+
+                            def _no_function_calls():
+                                return []
+
+                            def _no_function_responses():
+                                return []
+
+                            object.__setattr__(evt, "get_function_calls", _no_function_calls)
+                            object.__setattr__(
+                                evt, "get_function_responses", _no_function_responses
+                            )
+                        except Exception:
+                            pass
+                        # Mark that guidance was surfaced as an event to avoid
+                        # duplicate after-model injection; apply to both session and tool ctx
+                        try:
+                            sess = getattr(invocation_context, "session", None)
+                            state = getattr(sess, "state", None)
+                            if state is not None:
+                                try:
+                                    state["__vcs_injected_event"] = True  # type: ignore[index]
+                                    # Clear any pre-existing assistant text to prevent duplicates
+                                    state["__vcs_assistant_response"] = None  # type: ignore[index]
+                                except Exception:
+                                    pass
+                        except Exception:
+                            pass
+                        try:
+                            if tool_ctx is not None and hasattr(tool_ctx, "state"):
+                                if not tool_ctx.state.get("current_directory"):
+                                    tool_ctx.state["current_directory"] = str(Path.cwd())
+                                tool_ctx.state["__vcs_injected_event"] = True
+                                # Clear any pre-existing assistant text to prevent duplicates
+                                tool_ctx.state["__vcs_assistant_response"] = None
+                                lowered = (user_text or "").lower()
+                                if ("prepare" in lowered and "pr" in lowered) or (
+                                    "pull" in lowered and "request" in lowered
+                                ):
+                                    # Build initial PR plan so approval can run on 'yes'
+                                    try:
+                                        result = prepare_pull_request_tool.func(
+                                            args={
+                                                "intent": user_text,
+                                                "working_directory": tool_ctx.state.get(
+                                                    "current_directory"
+                                                ),
+                                            },
+                                            tool_context=tool_ctx,
+                                        )
+                                        if (
+                                            isinstance(result, dict)
+                                            and result.get("status") == "pending_approval"
+                                        ):
+                                            try:
+                                                state = getattr(sess, "state", None)
+                                                if state is not None:
+                                                    try:
+                                                        state["awaiting_pr_approval"] = True  # type: ignore[index]
+                                                    except Exception:
+                                                        pass
+                                                try:
+                                                    tool_ctx.state["awaiting_pr_approval"] = True
+                                                except Exception:
+                                                    pass
+                                            except Exception:
+                                                pass
+                                            # Do not inject details into state text here;
+                                            # already using a synthetic event
+                                    except Exception:
+                                        pass
+                        except Exception:
+                            pass
+                        # Flag on agent to suppress after-model injection duplication
+                        try:
+                            object.__setattr__(agent, "_vcs_event_emitted", True)
+                        except Exception:
+                            try:
+                                agent._vcs_event_emitted = True  # type: ignore[attr-defined]
+                            except Exception:
+                                pass
                         yield evt
                 except Exception:
                     pass
 
-                # Continue with normal agent execution
+                # Continue with normal agent execution. Additionally, if the user's
+                # message is an approval and a PR plan is pending, execute it once.
+                try:
+                    # Derive the latest user text from invocation context to detect approvals
+                    approval_text = None
+                    uc2 = getattr(invocation_context, "user_content", None)
+                    parts2 = getattr(uc2, "parts", None)
+                    if parts2 and len(parts2) > 0:
+                        approval_text = getattr(parts2[-1], "text", None)
+                    lowered = (approval_text or "").strip().lower()
+                    if lowered in {"yes", "y", "approve"}:
+                        tool_ctx = getattr(agent, "_tools_context", None)
+                        sess = getattr(invocation_context, "session", None)
+                        sess_state = getattr(sess, "state", None)
+                        awaiting = False
+                        try:
+                            if sess_state is not None:
+                                awaiting = bool(sess_state.get("awaiting_pr_approval"))  # type: ignore[index]
+                        except Exception:
+                            awaiting = False
+                        try:
+                            awaiting = awaiting or bool(
+                                tool_ctx and tool_ctx.state.get("awaiting_pr_approval")
+                            )
+                        except Exception:
+                            pass
+                        if awaiting and tool_ctx is not None:
+                            prior_force = tool_ctx.state.get("force_edit", False)
+                            tool_ctx.state["force_edit"] = True
+                            try:
+                                prepare_pull_request_tool.func(
+                                    args={
+                                        "intent": approval_text,
+                                        "working_directory": tool_ctx.state.get(
+                                            "current_directory"
+                                        ),
+                                    },
+                                    tool_context=tool_ctx,
+                                )
+                            finally:
+                                tool_ctx.state["force_edit"] = prior_force
+                            # Clear awaiting flags in both places and provide a brief summary
+                            try:
+                                if sess_state is not None:
+                                    sess_state["awaiting_pr_approval"] = False  # type: ignore[index]
+                                    sess_state["__pre_fulfilled_response_text"] = (
+                                        "PR preparation executed."  # type: ignore[index]
+                                    )
+                            except Exception:
+                                pass
+                            try:
+                                tool_ctx.state["awaiting_pr_approval"] = False
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
+
+                # Resume normal stream of agent events
                 async for e in original_run_async(invocation_context):
                     yield e
 

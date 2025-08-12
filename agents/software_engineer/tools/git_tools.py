@@ -352,9 +352,11 @@ def _commit_staged_changes(
     _, hash_out, _ = _run_git("git rev-parse HEAD", tool_context, cwd)
     commit_hash = hash_out.strip() if hash_out else None
 
-    # Cleanup pending proposal
-    if "pending_commit_proposal" in tool_context.state:
-        del tool_context.state["pending_commit_proposal"]
+    # Cleanup pending proposal without relying on __delitem__
+    try:
+        tool_context.state["pending_commit_proposal"] = None
+    except Exception:
+        pass
 
     return CommitStagedChangesOutput(
         status="success",
@@ -582,8 +584,11 @@ def _create_branch_tool(args: dict, tool_context: ToolContext) -> CreateBranchOu
     # Approval granted: execute command
     quoted_branch = _shell_quote_single(branch_name)
     code, out, err = _run_git(f"git checkout -b {quoted_branch}", tool_context, cwd)
-    # Clear proposal
-    tool_context.state.pop("pending_branch_proposal", None)
+    # Clear proposal without relying on pop/__delitem__
+    try:
+        tool_context.state["pending_branch_proposal"] = None
+    except Exception:
+        pass
     if code != 0:
         return CreateBranchOutput(status="error", message=(err.strip() or out.strip()), branch=None)
     return CreateBranchOutput(status="success", message="Branch created", branch=branch_name)

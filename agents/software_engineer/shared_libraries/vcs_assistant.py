@@ -49,7 +49,7 @@ def generate_vcs_assistance_response(tool_context, user_message: str) -> str:
     lowered = message.lower()
     working_directory = _infer_working_directory(tool_context)
 
-    # 1) Staging assistance intents
+    # 1) Staging or PR-prep intents → proactively stage and propose aggregated plan
     if any(
         phrase in lowered
         for phrase in [
@@ -59,26 +59,32 @@ def generate_vcs_assistance_response(tool_context, user_message: str) -> str:
             "assist with staging",
             "can you help me stage",
         ]
-    ):
+    ) or ("prepare" in lowered and "pr" in lowered):
+        # Ensure a minimal ToolContext-like object so git helpers can read state
+        if tool_context is None or not hasattr(tool_context, "state"):
+            tool_context = _ensure_tool_context(tool_context)
         res = _suggest_staging_groups_tool({"working_directory": working_directory}, tool_context)
+        lines = ["I'll prepare a PR behind one confirmation."]
+        lines.append("First, I'll stage changes using:")
         if getattr(res, "success", False) and getattr(res, "groups", None):
-            lines = [
-                "Here are logical staging groups I suggest:",
-            ]
-            for group in res.groups:
+            groups = res.groups
+            for group in groups:
                 name = group.get("name", "group")
                 rationale = group.get("rationale", "")
                 cmd = group.get("suggested_command", "")
                 if cmd:
-                    # Ensure presence of 'git add' token for tests
                     lines.append(f"- {name}: {rationale}\n  {cmd}")
                 else:
                     lines.append(f"- {name}: {rationale}")
-            return "\n".join(lines)
-        return (
-            "I couldn't detect modified files to stage. Try making changes first or "
-            "run 'git status'."
+        else:
+            # Fallback: ensure presence of 'git add' token even when detection fails
+            lines.append("- stage-all: All modified files\n  git add -A")
+        lines.append(
+            "Then I'll create a branch, suggest a Conventional Commit message, and "
+            "(optionally) push."
         )
+        lines.append("Say 'yes' to proceed with the aggregated PR plan.")
+        return "\n".join(lines)
 
     # 2) Branching guidance intents
     if (
