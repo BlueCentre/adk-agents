@@ -15,7 +15,6 @@ from google.adk.tools import ToolContext
 from .constants import DEPENDENCY_FILES
 from .proactive_error_detection import detect_and_suggest_error_fixes
 from .proactive_optimization import configure_proactive_optimization
-from .vcs_assistant import generate_vcs_assistance_response
 
 logger = logging.getLogger(__name__)
 
@@ -364,22 +363,7 @@ def _preprocess_and_add_context_to_agent_prompt(callback_context: CallbackContex
                     logger.info("Detected project-related query, forcing context update")
                     _update_project_context_if_needed(session_state)
 
-                # NEW: Handle NL version-control assistance before contextual actions
-                try:
-                    vcs_text = generate_vcs_assistance_response(
-                        callback_context, recent_user_message
-                    )
-                except Exception as e:
-                    logger.debug(f"VCS assistant error: {e}")
-                    vcs_text = None
-
-                if (
-                    isinstance(vcs_text, str)
-                    and vcs_text.strip()
-                    and vcs_text.strip() != "Acknowledged. I'll take a look."
-                ):
-                    # Store assistant output for the LLM to surface
-                    session_state["__vcs_assistant_response"] = vcs_text
+                # VCS assistance is now handled centrally in enhanced_agent.py to avoid duplication
 
                 if actions:
                     logger.info(
