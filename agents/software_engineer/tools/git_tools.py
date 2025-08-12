@@ -352,9 +352,11 @@ def _commit_staged_changes(
     _, hash_out, _ = _run_git("git rev-parse HEAD", tool_context, cwd)
     commit_hash = hash_out.strip() if hash_out else None
 
-    # Cleanup pending proposal
-    if "pending_commit_proposal" in tool_context.state:
-        del tool_context.state["pending_commit_proposal"]
+    # Cleanup pending proposal without relying on __delitem__
+    try:
+        tool_context.state["pending_commit_proposal"] = None
+    except Exception:
+        pass
 
     return CommitStagedChangesOutput(
         status="success",
@@ -506,11 +508,11 @@ class SuggestBranchNameOutput(BaseModel):
     message: str
 
 
-def _suggest_branch_name_tool(args: dict, tool_context: ToolContext) -> SuggestBranchNameOutput:  # noqa: ARG001
+def _suggest_branch_name_tool(args: dict, tool_context: ToolContext) -> SuggestBranchNameOutput:
     input_data = SuggestBranchNameInput(**(args or {}))
-    # Prefer 'feature' by default when intent is provided; allow override via kind.
+    cwd = input_data.working_directory
+    # Prefer 'feature' by default; allow override via kind.
     guessed_kind = input_data.kind or "feat"
-    # Map Conventional Commit type to common branch prefixes
     prefix_map = {
         "feat": "feature",
         "fix": "fix",
@@ -520,8 +522,16 @@ def _suggest_branch_name_tool(args: dict, tool_context: ToolContext) -> SuggestB
         "chore": "chore",
     }
     prefix = prefix_map.get(guessed_kind, "feature")
-    # Fallback to "topic" if no intent is provided
-    slug = _slugify_topic(input_data.intent or "topic")
+
+    # Analyze staged files to infer a scope-based slug when available
+    files = _get_staged_files(tool_context, cwd)
+    scope = _guess_scope_from_files(files)
+    if scope:
+        slug = _slugify_topic(scope)
+    else:
+        # Fallback to intent text or generic topic
+        slug = _slugify_topic(input_data.intent or "topic")
+
     suggested = f"{prefix}/{slug}"
     return SuggestBranchNameOutput(
         success=True, branch_name=suggested, message="Suggested branch name"
@@ -557,10 +567,14 @@ def _create_branch_tool(args: dict, tool_context: ToolContext) -> CreateBranchOu
     branch_name = input_data.name
     if not branch_name:
         # Derive from intent/kind (intent optional)
-        suggested = _suggest_branch_name_tool(
-            {"intent": input_data.intent, "kind": input_data.kind, "working_directory": cwd},
-            tool_context,
-        )
+        # Filter out None values to avoid Pydantic validation errors
+        suggest_args = {"working_directory": cwd}
+        if input_data.intent is not None:
+            suggest_args["intent"] = input_data.intent
+        if input_data.kind is not None:
+            suggest_args["kind"] = input_data.kind
+
+        suggested = _suggest_branch_name_tool(suggest_args, tool_context)
         branch_name = suggested.branch_name
 
     # If approval not granted yet, return proposal
@@ -582,8 +596,11 @@ def _create_branch_tool(args: dict, tool_context: ToolContext) -> CreateBranchOu
     # Approval granted: execute command
     quoted_branch = _shell_quote_single(branch_name)
     code, out, err = _run_git(f"git checkout -b {quoted_branch}", tool_context, cwd)
-    # Clear proposal
-    tool_context.state.pop("pending_branch_proposal", None)
+    # Clear proposal without relying on pop/__delitem__
+    try:
+        tool_context.state["pending_branch_proposal"] = None
+    except Exception:
+        pass
     if code != 0:
         return CreateBranchOutput(status="error", message=(err.strip() or out.strip()), branch=None)
     return CreateBranchOutput(status="success", message="Branch created", branch=branch_name)

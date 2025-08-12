@@ -363,6 +363,8 @@ def _preprocess_and_add_context_to_agent_prompt(callback_context: CallbackContex
                     logger.info("Detected project-related query, forcing context update")
                     _update_project_context_if_needed(session_state)
 
+                # VCS assistance is now handled centrally in enhanced_agent.py to avoid duplication
+
                 if actions:
                     logger.info(
                         "[_preprocess_and_add_context_to_agent_prompt] "

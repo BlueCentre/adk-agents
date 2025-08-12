@@ -1,10 +1,13 @@
 """Enhanced Software Engineer Agent with ADK Workflow Patterns."""
 
 from collections import deque
+from dataclasses import dataclass, field
 from datetime import datetime
+import json
 import logging
 from pathlib import Path
 import re
+import time
 from typing import Any, Optional
 import warnings
 
@@ -24,7 +27,9 @@ from .shared_libraries.callbacks import (
 from .shared_libraries.context_callbacks import (
     _preprocess_and_add_context_to_agent_prompt,
 )
+from .shared_libraries.vcs_assistant import generate_vcs_assistance_response
 from .shared_libraries.workflow_guidance import suggest_next_step
+from .tools.proactive_workflows import prepare_pull_request_tool
 from .tools.setup import load_all_tools_and_toolsets
 from .tools.testing_tools import run_pytest_tool
 from .workflows.human_in_loop_workflows import (
@@ -45,44 +50,504 @@ logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger(__name__)
 
 
+# Data classes for VCS event structures
+@dataclass
+class VcsEventPart:
+    """Represents a part of a VCS event content."""
+
+    text: str
+    function_call: Optional[Any] = None
+    function_response: Optional[Any] = None
+    tool_response: Optional[Any] = None
+    thought: Optional[Any] = None
+    inline_data: Optional[Any] = None
+
+    def model_dump(self, *args, **kwargs) -> dict[str, Any]:  # noqa: ARG002
+        """Serialize to dict format."""
+        return {"text": self.text}
+
+    def model_dump_json(self, *args, **kwargs) -> str:  # noqa: ARG002
+        """Serialize to JSON string."""
+        return json.dumps(self.model_dump())
+
+
+@dataclass
+class VcsEventContent:
+    """Represents the content of a VCS event."""
+
+    role: str = "assistant"
+    parts: list[VcsEventPart] = field(default_factory=list)
+
+    def model_dump(self, *args, **kwargs) -> dict[str, Any]:  # noqa: ARG002
+        """Serialize to dict format."""
+        return {"role": self.role, "parts": [part.model_dump() for part in self.parts]}
+
+    def model_dump_json(self, *args, **kwargs) -> str:  # noqa: ARG002
+        """Serialize to JSON string."""
+        return json.dumps(self.model_dump())
+
+
+@dataclass
+class VcsEvent:
+    """Represents a VCS guidance event."""
+
+    content: VcsEventContent
+    partial: bool = False
+    author: str = "assistant"
+    timestamp: Optional[float] = field(default_factory=time.time)
+    actions: list[Any] = field(default_factory=list)
+
+    def model_dump(self, exclude_none: bool = True) -> dict[str, Any]:  # noqa: ARG002
+        """Serialize to dict format."""
+        return {
+            "partial": self.partial,
+            "content": self.content.model_dump(),
+            "actions": self.actions,
+        }
+
+    def get_function_calls(self) -> list[Any]:
+        """Return empty list of function calls."""
+        return []
+
+    def get_function_responses(self) -> list[Any]:
+        """Return empty list of function responses."""
+        return []
+
+
+class StateManager:
+    """Unified state management for VCS operations."""
+
+    def __init__(
+        self,
+        session_state: Optional[dict[str, Any]] = None,
+        tool_context_state: Optional[dict[str, Any]] = None,
+    ):
+        self.session_state = session_state
+        self.tool_context_state = tool_context_state
+
+    def get(self, key: str, default: Any = None) -> Any:
+        """Get value from either state source, preferring session state."""
+        if self.session_state and key in self.session_state:
+            return self.session_state[key]
+        if self.tool_context_state and key in self.tool_context_state:
+            return self.tool_context_state[key]
+        return default
+
+    def set(self, key: str, value: Any) -> None:
+        """Set value in both state sources if available."""
+        if self.session_state is not None:
+            try:
+                self.session_state[key] = value
+            except Exception as e:
+                logger.warning(f"Failed to set {key} in session state: {e}")
+
+        if self.tool_context_state is not None:
+            try:
+                self.tool_context_state[key] = value
+            except Exception as e:
+                logger.warning(f"Failed to set {key} in tool context state: {e}")
+
+    def clear(self, key: str) -> None:
+        """Clear value from both state sources."""
+        self.set(key, None)
+
+
+# Note: Removed global agent tracking to prevent concurrency issues.
+# Agent access is now handled through proper callback_context.agent or tool_context.
+
+
 def _handle_pending_approval(tool, args, tool_context, tool_response):
-    """Handle pending approval status from a tool."""
-    if isinstance(tool_response, dict) and tool_response.get("status") == "pending_approval":
-        proposal = generate_diff_for_proposal(tool_response)
-        approved = human_in_the_loop_approval(
-            tool_context=tool_context,
-            proposal=proposal,
-            user_input_handler=input,  # Use standard input for now
-            display_handler=print,  # Use standard print for now
+    """Handle pending approval for tools with flexible callback signatures.
+
+    Args:
+        tool: The executed tool
+        args: The arguments passed to the tool
+        tool_context: The context of the executed tool
+        tool_response: The response from the tool
+    """
+    # Early exit when nothing to approve
+    if not isinstance(tool_response, dict) or tool_response.get("status") != "pending_approval":
+        return tool_response
+
+    if tool_context is None or not hasattr(tool_context, "state"):
+        logger.warning("No valid tool_context available for approval handling")
+        return tool_response
+
+    # Ask for approval
+    proposal = generate_diff_for_proposal(tool_response)
+    approved = human_in_the_loop_approval(
+        tool_context=tool_context,
+        proposal=proposal,
+        user_input_handler=input,
+        display_handler=print,
+    )
+
+    if not approved:
+        # Preserve and augment the original response
+        tool_response["message"] = "File edit rejected by user."
+        return tool_response
+
+    # Approval granted: re-run underlying tool with force_edit flag
+    # Ensure proper state management with atomic operations
+    prior_force = tool_context.state.get("force_edit", False)
+    tool_context.state["force_edit"] = True
+    try:
+        if isinstance(tool, FunctionTool):
+            # Expand original args as keyword arguments expected by the FunctionTool
+            return tool.func(tool_context=tool_context, **(args or {}))
+        if callable(tool):
+            # Fallback: call tool directly if it's a simple callable
+            return tool(tool_context=tool_context, **(args or {}))
+        # Unknown tool type; return original response
+        logger.warning(f"Unknown tool type for re-execution: {type(tool)}")
+        return tool_response
+    finally:
+        # Always restore the original force_edit state
+        tool_context.state["force_edit"] = prior_force
+
+
+def _extract_user_text_from_request(llm_request) -> Optional[str]:
+    """Extract user text from LLM request contents."""
+    if not (hasattr(llm_request, "contents") and llm_request.contents):
+        return None
+
+    last = llm_request.contents[-1]
+    text = getattr(last, "text", None)
+    if not text and hasattr(last, "parts") and last.parts:
+        part0 = last.parts[-1]
+        text = getattr(part0, "text", None)
+
+    return text if isinstance(text, str) and text.strip() else None
+
+
+def _generate_vcs_assistance(callback_context, text: str, state: dict):
+    """Generate VCS assistance text and store it in state for later injection."""
+    try:
+        vcs_text = generate_vcs_assistance_response(callback_context, text)
+        if (
+            isinstance(vcs_text, str)
+            and vcs_text.strip()
+            and vcs_text.strip() != "Acknowledged. I'll take a look."
+        ):
+            state["__vcs_assistant_response"] = vcs_text
+    except Exception as e:  # pragma: no cover - safety
+        logger.debug(f"VCS assistant generation failed: {e}")
+
+
+def _detect_pr_intents(text: str, state: dict):
+    """Detect PR preparation and approval intents from user text."""
+    try:
+        lowered = text.lower()
+        if ("prepare" in lowered and "pr" in lowered) or (
+            "pull" in lowered and "request" in lowered
+        ):
+            state["pr_intent_detected"] = text
+        elif bool(state.get("awaiting_pr_approval")) and lowered.strip() in {"yes", "y", "approve"}:
+            state["pr_approval_detected"] = text
+    except Exception as e:  # pragma: no cover - safety
+        logger.debug(f"PR intent detection failed: {e}")
+
+
+def _capture_user_message_before_model(callback_context, llm_request):
+    """Capture the current user message text into session state for NL helpers."""
+    try:
+        state = getattr(callback_context, "state", None)
+        if state is None:
+            return
+
+        text = _extract_user_text_from_request(llm_request)
+        if not text:
+            return
+
+        state["current_user_message"] = text
+        _generate_vcs_assistance(callback_context, text, state)
+        _detect_pr_intents(text, state)
+
+    except Exception as e:  # pragma: no cover - safety
+        logger.debug(f"Failed to capture user message: {e}")
+
+
+def _inject_vcs_response_after_model(callback_context, llm_response):
+    """If VCS assistant produced guidance, inject it into the response text."""
+    try:
+        # Get state manager for unified state access
+        session_state = getattr(getattr(callback_context, "session", None), "state", None)
+        agent_state = getattr(getattr(callback_context, "agent", None), "_tools_context", None)
+        tool_context_state = getattr(agent_state, "state", None) if agent_state else None
+
+        state_mgr = StateManager(session_state, tool_context_state)
+
+        # If a synthetic VCS event was already emitted for this turn, skip injection
+        agent_obj = getattr(callback_context, "agent", None)
+        if agent_obj is not None and getattr(agent_obj, "_vcs_event_emitted", False):
+            try:
+                object.__setattr__(agent_obj, "_vcs_event_emitted", False)
+            except Exception as e:
+                logger.warning(f"Failed to reset VCS event flag: {e}")
+            return
+
+        # If we already emitted a synthetic VCS event for this turn, avoid re-injection
+        if state_mgr.get("__vcs_injected_event", False):
+            state_mgr.clear("__vcs_injected_event")
+            return
+
+        # Handle pre-fulfilled response text (from proactive autopilot)
+        pre_text = state_mgr.get("__pre_fulfilled_response_text")
+        if isinstance(pre_text, str) and pre_text.strip():
+            _ensure_response_content_structure(llm_response)
+            if hasattr(llm_response, "content") and hasattr(llm_response.content, "parts"):
+                if not llm_response.content.parts:
+                    _create_default_response_part(llm_response)
+
+                base_text = getattr(llm_response.content.parts[0], "text", "") or ""
+                llm_response.content.parts[0].text = f"{base_text}\n\n{pre_text}".strip()
+
+            state_mgr.clear("__pre_fulfilled_response_text")
+
+        # Get or generate VCS text
+        vcs_text = _get_or_generate_vcs_text(state_mgr, callback_context)
+        if not vcs_text:
+            return
+
+        # Inject VCS text into response
+        _ensure_response_content_structure(llm_response)
+        if hasattr(llm_response, "content") and hasattr(llm_response.content, "parts"):
+            if not llm_response.content.parts:
+                _create_default_response_part(llm_response)
+
+            if hasattr(llm_response.content.parts[0], "text"):
+                base_text = llm_response.content.parts[0].text or ""
+                llm_response.content.parts[0].text = f"{base_text}\n\n{vcs_text}".strip()
+
+        # Clean up stored guidance
+        state_mgr.clear("__vcs_assistant_response")
+
+    except Exception as e:
+        logger.warning(f"Failed to inject VCS response: {e}")
+
+
+def _ensure_response_content_structure(llm_response):
+    """Ensure llm_response has proper content structure without dynamic object creation."""
+    if not hasattr(llm_response, "content"):
+        logger.warning("LLM response missing content structure - cannot inject VCS guidance")
+        return False
+    return True
+
+
+def _create_default_response_part(llm_response):
+    """Create a default response part if none exists."""
+    if hasattr(llm_response, "content"):
+        # Try to create a minimal part structure, but don't use dynamic objects
+        try:
+            # Create a simple object with text attribute if possible
+            class ResponsePart:
+                def __init__(self):
+                    self.text = ""
+
+            llm_response.content.parts = [ResponsePart()]
+        except Exception as e:
+            logger.warning(f"Could not create response part: {e}")
+
+
+def _get_or_generate_vcs_text(state_mgr: StateManager, callback_context) -> Optional[str]:
+    """Get VCS text from state or generate it on the fly."""
+    vcs_text = state_mgr.get("__vcs_assistant_response")
+
+    if not vcs_text:
+        # Try generating on the fly from captured message
+        msg = state_mgr.get("current_user_message")
+        if isinstance(msg, str) and msg.strip():
+            try:
+                # Get context for VCS assistant
+                ctx = callback_context if hasattr(callback_context, "state") else None
+                if ctx is None:
+                    agent_ref = getattr(callback_context, "agent", None)
+                    ctx = getattr(agent_ref, "_tools_context", None)
+
+                if ctx is None:
+                    logger.debug("No tool context available for VCS assistance")
+                    return None
+
+                vcs_text = generate_vcs_assistance_response(ctx, msg)
+            except Exception as e:
+                logger.warning(f"Failed to generate VCS assistance response: {e}")
+                return None
+
+    # Validate the VCS text
+    if not (
+        isinstance(vcs_text, str)
+        and vcs_text.strip()
+        and vcs_text.strip() != "Acknowledged. I'll take a look."
+    ):
+        return None
+
+    return vcs_text
+
+
+def _extract_user_text_from_context(invocation_context) -> Optional[str]:
+    """Extract user text from invocation context."""
+    try:
+        uc = getattr(invocation_context, "user_content", None)
+        parts = getattr(uc, "parts", None)
+        if parts and len(parts) > 0:
+            return getattr(parts[-1], "text", None)
+    except Exception as e:
+        logger.warning(f"Failed to extract user text from context: {e}")
+    return None
+
+
+def _generate_vcs_guidance(tool_ctx, user_text: str) -> Optional[str]:
+    """Generate VCS guidance from user text."""
+    if not isinstance(user_text, str) or not user_text.strip():
+        return None
+
+    try:
+        guidance_text = generate_vcs_assistance_response(tool_ctx, user_text)
+        if (
+            isinstance(guidance_text, str)
+            and guidance_text.strip()
+            and guidance_text.strip() != "Acknowledged. I'll take a look."
+        ):
+            return guidance_text
+    except Exception as e:
+        logger.warning(f"Failed to generate VCS guidance: {e}")
+
+    return None
+
+
+def _create_vcs_event(guidance: str, agent_name: str = "assistant") -> VcsEvent:
+    """Create a VCS event using proper data classes."""
+    part = VcsEventPart(text=guidance)
+    content = VcsEventContent(parts=[part])
+    return VcsEvent(content=content, author=agent_name)
+
+
+def _update_vcs_state_after_event(state_mgr: StateManager, tool_ctx) -> None:
+    """Update state after emitting a VCS event to prevent duplication."""
+    try:
+        state_mgr.set("__vcs_injected_event", True)
+        state_mgr.clear("__vcs_assistant_response")
+
+        # Ensure current directory is set
+        if tool_ctx and hasattr(tool_ctx, "state"):
+            if not tool_ctx.state.get("current_directory"):
+                tool_ctx.state["current_directory"] = str(Path.cwd())
+    except Exception as e:
+        logger.warning(f"Failed to update VCS state: {e}")
+
+
+def _set_agent_vcs_event_flag(agent, value: bool = True) -> None:
+    """Set the VCS event flag on the agent to suppress after-model injection."""
+    try:
+        object.__setattr__(agent, "_vcs_event_emitted", value)
+    except Exception as e:
+        logger.warning(f"Failed to set agent VCS event flag: {e}")
+        try:
+            agent._vcs_event_emitted = value  # type: ignore[attr-defined]
+        except Exception as e2:
+            logger.warning(f"Failed to set VCS event flag via attribute: {e2}")
+
+
+def _process_pr_intent(state_mgr: StateManager, tool_ctx, prepare_pull_request_tool) -> None:
+    """Process PR intent detection and create plan."""
+    pr_intent = state_mgr.get("pr_intent_detected")
+    if not pr_intent or not tool_ctx:
+        return
+
+    try:
+        result = prepare_pull_request_tool.func(
+            args={
+                "intent": pr_intent,
+                "working_directory": tool_ctx.state.get("current_directory"),
+            },
+            tool_context=tool_ctx,
         )
 
-        if approved:
-            # Re-run the tool with force_edit enabled
-            tool_context.state["force_edit"] = True
-            try:
-                # Access the underlying function via the func attribute for FunctionTool
-                if isinstance(tool, FunctionTool):
-                    tool_response = tool.func(tool_context=tool_context, **args)
-                else:
-                    # Fallback for other tool types - call directly
-                    tool_response = tool(tool_context=tool_context, **args)
-            finally:
-                tool_context.state["force_edit"] = False  # Reset the flag
-        else:
-            tool_response["message"] = "File edit rejected by user."
+        if isinstance(result, dict) and result.get("status") == "pending_approval":
+            # Set awaiting approval flag
+            state_mgr.set("awaiting_pr_approval", True)
+            state_mgr.clear("pr_intent_detected")
 
-    return tool_response
+    except Exception as e:
+        logger.warning(f"Failed to process PR intent: {e}")
 
 
-def _log_workflow_suggestion(tool, args, tool_context, tool_response):  # noqa: ARG001
+def _execute_pr_approval(state_mgr: StateManager, tool_ctx, prepare_pull_request_tool) -> None:
+    """Execute PR approval and handle the workflow."""
+    pr_approval = state_mgr.get("pr_approval_detected")
+    awaiting = state_mgr.get("awaiting_pr_approval", False)
+
+    if not pr_approval or not awaiting or not tool_ctx:
+        return
+
+    # Save and set force_edit flag
+    prior_force = tool_ctx.state.get("force_edit", False)
+    tool_ctx.state["force_edit"] = True
+
+    try:
+        exec_res = prepare_pull_request_tool.func(
+            args={
+                "intent": pr_approval,
+                "working_directory": tool_ctx.state.get("current_directory"),
+            },
+            tool_context=tool_ctx,
+        )
+
+        # Generate summary
+        summary = _create_pr_execution_summary(exec_res)
+
+        # Set result for model injection
+        state_mgr.set("__pre_fulfilled_response_text", summary)
+
+    except Exception as e:
+        logger.warning(f"Failed to execute PR approval: {e}")
+    finally:
+        # Restore force_edit flag
+        tool_ctx.state["force_edit"] = prior_force
+
+        # Clear all PR-related flags
+        state_mgr.set("awaiting_pr_approval", False)
+        state_mgr.clear("pr_approval_detected")
+
+
+def _create_pr_execution_summary(exec_res) -> str:
+    """Create a summary of PR execution results."""
+    try:
+        branch = getattr(exec_res, "branch", None)
+        if branch is None and isinstance(exec_res, dict):
+            branch = exec_res.get("branch")
+
+        commit_msg = getattr(exec_res, "commit_message", None)
+        if commit_msg is None and isinstance(exec_res, dict):
+            commit_msg = exec_res.get("commit_message")
+
+        return (
+            f"PR preparation executed. Branch: {branch or 'unknown'}. "
+            f"Commit message: {commit_msg or 'n/a'}."
+        )
+    except Exception as e:
+        logger.warning(f"Failed to create PR execution summary: {e}")
+        return "PR preparation executed."
+
+
+def _log_workflow_suggestion(
+    _tool,
+    _tool_response=None,
+    _callback_context=None,
+    _args: Optional[dict] = None,
+    tool_context: Optional[ToolContext] = None,
+):
     """Generate and store workflow suggestions after tool execution for user presentation.
 
     Args:
-        tool: The executed tool (unused but required by callback signature)
-        args: The arguments passed to the tool (unused but required by callback signature)
+        _tool: The executed tool (unused)
+        _tool_response: The response from the tool (unused)
+        _callback_context: The callback context (unused)
+        _args: The arguments passed to the tool (unused)
         tool_context: The context of the executed tool
-        tool_response: The response from the tool (unused but required by callback signature)
     """
+    if tool_context is None:
+        return
     suggestion = suggest_next_step(tool_context.state)
     if suggestion:
         logger.info(suggestion)
@@ -103,7 +568,13 @@ def _log_workflow_suggestion(tool, args, tool_context, tool_response):  # noqa: 
         # Deque automatically maintains maxlen=3, discarding oldest items
 
 
-def _proactive_code_quality_analysis(tool, args, tool_context, tool_response):
+def _proactive_code_quality_analysis(
+    tool,
+    tool_response,
+    callback_context=None,
+    args: Optional[dict] = None,
+    tool_context: Optional[ToolContext] = None,
+):
     """Proactively analyze code quality after file operations.
 
     Args:
@@ -113,12 +584,29 @@ def _proactive_code_quality_analysis(tool, args, tool_context, tool_response):
         tool_response: The response from the tool
     """
     try:
+        # Backward-compat: support legacy ordering (tool, args, tool_context, tool_response)
+        # If callback_context is actually a ToolContext-like object, use it.
+        if (
+            tool_context is None
+            and callback_context is not None
+            and hasattr(callback_context, "state")
+        ):
+            tool_context = callback_context
+
+        # If args and tool_response appear swapped, correct them
+        if isinstance(args, dict) and "status" in args and isinstance(tool_response, dict):
+            # args looks like a response; tool_response likely holds original args
+            if any(k in tool_response for k in ("filepath", "working_directory", "intent")):
+                tool_response, args = args, tool_response
+
+        if tool_context is None:
+            return
         tool_name = getattr(tool, "name", "unknown") if tool else "unknown"
 
         # Only trigger for successful file operations
         if tool_name in ["edit_file_content", "write_file"] and isinstance(tool_response, dict):
             if tool_response.get("status") == "success":
-                filepath = args.get("filepath") if args else None
+                filepath = (args or {}).get("filepath")
                 if filepath:
                     # Check if optimization suggestions were already generated
                     if "optimization_suggestions" not in tool_response:
@@ -221,13 +709,33 @@ def _preemptive_smooth_testing_detection(tool, args, tool_context, callback_cont
         logger.error(f"Error in preemptive smooth testing detection: {e}")
 
 
-def _auto_run_tests_after_edit(tool, args, tool_context, tool_response):
+def _auto_run_tests_after_edit(
+    tool,
+    tool_response,
+    callback_context=None,
+    args: Optional[dict] = None,
+    tool_context: Optional[ToolContext] = None,
+):
     """Automatically run pytest after a successful file edit when TDD mode is enabled.
 
     Stores structured results in `tool_context.state['last_test_run']`.
     Attempts to infer relevant tests from the edited file path.
     """
     try:
+        # Backward-compat: support legacy ordering (tool, args, tool_context, tool_response)
+        if (
+            tool_context is None
+            and callback_context is not None
+            and hasattr(callback_context, "state")
+        ):
+            tool_context = callback_context
+
+        if isinstance(args, dict) and "status" in args and isinstance(tool_response, dict):
+            if any(k in tool_response for k in ("filepath", "working_directory", "intent")):
+                tool_response, args = args, tool_response
+
+        if tool_context is None:
+            return tool_response
         tool_name = getattr(tool, "name", "unknown") if tool else "unknown"
         if tool_name not in ["edit_file_content", "write_file"]:
             return tool_response
@@ -878,11 +1386,13 @@ def create_enhanced_software_engineer_agent() -> Agent:
                 telemetry_callbacks["before_model"],
                 model_config_callbacks["before_model"],
                 optimization_callbacks["before_model"],
+                _capture_user_message_before_model,  # Capture NL prompt for VCS assistant
             ],
             after_model_callback=[
                 retry_callbacks["after_model"],  # Retry cleanup first
                 telemetry_callbacks["after_model"],
                 optimization_callbacks["after_model"],
+                _inject_vcs_response_after_model,  # If present, surface VCS assistant text
             ],
             before_tool_callback=[
                 telemetry_callbacks["before_tool"],
@@ -900,8 +1410,61 @@ def create_enhanced_software_engineer_agent() -> Agent:
             output_key="enhanced_software_engineer",
         )
 
+        # Note: Removed global agent tracking to prevent concurrency issues
+
         # Add retry capabilities to the agent
-        return add_retry_capabilities_to_agent(agent, retry_callbacks["retry_handler"])
+        agent = add_retry_capabilities_to_agent(agent, retry_callbacks["retry_handler"])
+
+        # Removed optional model.generate_content_async VCS appending to avoid duplication.
+
+        # Intercept run_async to emit VCS guidance event for NL intents (test-safe)
+        try:
+            original_run_async = agent.run_async
+
+            async def run_async_with_vcs(invocation_context):
+                """Simplified VCS-aware run_async using proper data classes and error handling."""
+                # Get state manager for unified state access
+                sess = getattr(invocation_context, "session", None)
+                sess_state = getattr(sess, "state", None)
+                tool_ctx = getattr(agent, "_tools_context", None)
+                tool_context_state = getattr(tool_ctx, "state", None) if tool_ctx else None
+
+                state_mgr = StateManager(sess_state, tool_context_state)
+
+                # 1. Handle VCS guidance events
+                try:
+                    user_text = _extract_user_text_from_context(invocation_context)
+                    if user_text:
+                        guidance = _generate_vcs_guidance(tool_ctx, user_text)
+                        if guidance:
+                            # Create and emit VCS event using proper data classes
+                            agent_name = getattr(agent, "name", "assistant")
+                            evt = _create_vcs_event(guidance, agent_name)
+
+                            # Update state to prevent duplication
+                            _update_vcs_state_after_event(state_mgr, tool_ctx)
+                            _set_agent_vcs_event_flag(agent, True)
+
+                        yield evt
+                except Exception as e:
+                    logger.warning(f"Failed to handle VCS guidance event: {e}")
+
+                # 2. Handle PR intents and approvals using unified state management
+                try:
+                    _process_pr_intent(state_mgr, tool_ctx, prepare_pull_request_tool)
+                    _execute_pr_approval(state_mgr, tool_ctx, prepare_pull_request_tool)
+                except Exception as e:
+                    logger.warning(f"Failed to handle PR operations: {e}")
+
+                # 3. Resume normal stream of agent events
+                async for e in original_run_async(invocation_context):
+                    yield e
+
+            object.__setattr__(agent, "run_async", run_async_with_vcs)
+        except Exception:
+            pass
+
+        return agent
 
     except Exception as e:
         logger.error(f"Failed to create enhanced software engineer agent: {e!s}")

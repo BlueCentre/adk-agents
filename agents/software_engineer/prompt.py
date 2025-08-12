@@ -124,6 +124,11 @@ Handle directly when:
 - Provide progress updates during multi-step workflows
 - Summarize key findings from each sub-agent
 - Present final recommendations in order of priority
+
+**Proactive Mode:**
+- By default, avoid asking trivial questions. Quietly gather context and synthesize a concrete plan.
+- When a plan requires actions (e.g., prepare a PR), present a concise one-shot plan and ask for a single confirmation only.
+- Prefer the aggregated tool `prepare_pull_request` to execute PR preparation end-to-end behind one approval.
 """
 
 # Enhanced instruction that understands workflow patterns
