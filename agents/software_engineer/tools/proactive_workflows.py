@@ -90,10 +90,14 @@ def _build_plan(input_data: PreparePullRequestInput, tool_context: ToolContext) 
     staging_cmds = _compute_staging_commands(tool_context, cwd)
 
     # Determine branch suggestion
-    name_res = _suggest_branch_name_tool(
-        {"intent": input_data.intent, "kind": input_data.kind, "working_directory": cwd},
-        tool_context,
-    )
+    # Filter out None values to avoid Pydantic validation errors
+    name_args = {"working_directory": cwd}
+    if input_data.intent is not None:
+        name_args["intent"] = input_data.intent
+    if input_data.kind is not None:
+        name_args["kind"] = input_data.kind
+
+    name_res = _suggest_branch_name_tool(name_args, tool_context)
     branch_name = getattr(name_res, "branch_name", "feature/topic")
 
     # Determine commit message suggestion (works even if nothing staged yet)

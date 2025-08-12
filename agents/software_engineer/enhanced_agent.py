@@ -1558,42 +1558,8 @@ def create_enhanced_software_engineer_agent() -> Agent:
                                 tool_ctx.state["__vcs_injected_event"] = True
                                 # Clear any pre-existing assistant text to prevent duplicates
                                 tool_ctx.state["__vcs_assistant_response"] = None
-                                lowered = (user_text or "").lower()
-                                if ("prepare" in lowered and "pr" in lowered) or (
-                                    "pull" in lowered and "request" in lowered
-                                ):
-                                    # Build initial PR plan so approval can run on 'yes'
-                                    try:
-                                        result = prepare_pull_request_tool.func(
-                                            args={
-                                                "intent": user_text,
-                                                "working_directory": tool_ctx.state.get(
-                                                    "current_directory"
-                                                ),
-                                            },
-                                            tool_context=tool_ctx,
-                                        )
-                                        if (
-                                            isinstance(result, dict)
-                                            and result.get("status") == "pending_approval"
-                                        ):
-                                            try:
-                                                state = getattr(sess, "state", None)
-                                                if state is not None:
-                                                    try:
-                                                        state["awaiting_pr_approval"] = True  # type: ignore[index]
-                                                    except Exception:
-                                                        pass
-                                                try:
-                                                    tool_ctx.state["awaiting_pr_approval"] = True
-                                                except Exception:
-                                                    pass
-                                            except Exception:
-                                                pass
-                                            # Do not inject details into state text here;
-                                            # already using a synthetic event
-                                    except Exception:
-                                        pass
+                                # PR detection moved to _on_user_message_callback
+                                # This section intentionally left empty
                         except Exception:
                             pass
                         # Flag on agent to suppress after-model injection duplication
