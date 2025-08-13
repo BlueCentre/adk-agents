@@ -1009,7 +1009,7 @@ class SubmittableTextArea(TextArea):
                 from textual.styles import Styles
 
                 self._component_styles["text-area--gutter"] = RenderStyles(self, Styles(), Styles())
-        except Exception:
+        except (ImportError, AttributeError):
             # Best-effort compatibility without breaking UI
             pass
 
