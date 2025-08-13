@@ -235,17 +235,23 @@ def _prepare_pull_request(args: dict, tool_context: ToolContext) -> PreparePullR
             logger.info(f"Staging command '{cmd}' exit={getattr(res, 'exit_code', 'unknown')}")
 
         # Create branch (approval bypassed via force_edit)
+        branch_name = exec_plan.get("branch_name")
+        if not branch_name:
+            err_msg = "Branch name not found in execution plan. Aborting."
+            logger.error(err_msg)
+            return PreparePullRequestOutput(status="error", message=err_msg)
+
         code, out_b, err = _run_git(
-            f"git checkout -b {_shell_quote_single(exec_plan['branch_name'])}", tool_context, cwd
+            f"git checkout -b {_shell_quote_single(branch_name)}", tool_context, cwd
         )
         if code != 0:
             logger.warning("Branch creation failed or already exists: %s", err.strip())
         # Verify branch actually switched to approved branch name
         code_now, out_now, _ = _run_git("git rev-parse --abbrev-ref HEAD", tool_context, cwd)
         current_branch = out_now.strip() if code_now == 0 else "unknown"
-        if current_branch != exec_plan.get("branch_name"):
+        if current_branch != branch_name:
             err_msg = (
-                f"Failed to switch to branch '{exec_plan.get('branch_name')}' after creation attempt."  # noqa: E501
+                f"Failed to switch to branch '{branch_name}' after creation attempt."
                 f"Currently on branch '{current_branch}'. Aborting to prevent commit on wrong branch."  # noqa: E501
             )
             logger.error(err_msg)
@@ -258,7 +264,8 @@ def _prepare_pull_request(args: dict, tool_context: ToolContext) -> PreparePullR
         # Commit
         # Ensure there are staged files before committing
         if _get_staged_files(tool_context, cwd):
-            quoted_msg = _shell_quote_single(exec_plan["commit_message"])  # type: ignore[index]
+            commit_msg = exec_plan.get("commit_message") or "chore: update changes"
+            quoted_msg = _shell_quote_single(commit_msg)
             _run_git(f"git commit -m {quoted_msg}", tool_context, cwd)
 
         # Optional push
