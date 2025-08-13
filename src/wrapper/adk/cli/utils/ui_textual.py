@@ -1027,7 +1027,7 @@ class SubmittableTextArea(TextArea):
                             self, Styles(), Styles()
                         )
                     return super().get_component_styles(*names)
-                except Exception:
+                except (ImportError, AttributeError):
                     pass
             raise e
 
