@@ -2,6 +2,7 @@
 
 from datetime import datetime
 import logging
+import os
 import re
 import subprocess
 from typing import Optional
@@ -200,6 +201,19 @@ def execute_shell_command(args: dict, tool_context: ToolContext) -> ExecuteShell
         if working_directory:
             logger.info(f"Working directory: {working_directory}")
 
+        # Sanitize Git-related env so commands (especially git) operate within the provided
+        # working_directory rather than any inherited repository from the parent process
+        # (e.g., pre-commit hooks setting GIT_* vars).
+        env = os.environ.copy()
+        for var in (
+            "GIT_DIR",
+            "GIT_WORK_TREE",
+            "GIT_INDEX_FILE",
+            "GIT_OBJECT_DIRECTORY",
+            "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        ):
+            env.pop(var, None)
+
         result = subprocess.run(
             command,
             shell=True,
@@ -207,6 +221,7 @@ def execute_shell_command(args: dict, tool_context: ToolContext) -> ExecuteShell
             text=True,
             cwd=working_directory,
             timeout=60,  # 60 second timeout
+            env=env,
         )
 
         output = ExecuteShellCommandOutput(
