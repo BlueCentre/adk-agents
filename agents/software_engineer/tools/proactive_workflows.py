@@ -214,25 +214,43 @@ def _prepare_pull_request(args: dict, tool_context: ToolContext) -> PreparePullR
     prior_force = tool_context.state.get("force_edit", False)
     tool_context.state["force_edit"] = True
     try:
-        exec_plan = tool_context.state.get("pending_pr_plan") or {
-            "working_directory": plan.working_directory,
-            "staging_commands": plan.staging_commands,
-            "branch_name": plan.branch_name,
-            "commit_message": plan.commit_message,
-            "push_command": plan.push_command,
-        }
+        exec_plan = tool_context.state.get("pending_pr_plan")
+        if not exec_plan or not exec_plan.get("presented"):
+            return {
+                "status": "pending_approval",
+                "type": "multi_step_plan",
+                "title": "Prepare Pull Request Plan",
+                "description": (
+                    "Execute a streamlined PR prep: stage, branch, commit, (optional) push"
+                ),
+                "details": (
+                    "Approval required. No previously presented plan found. "
+                    "Please approve the plan first."
+                ),
+                "message": "Please confirm to proceed.",
+            }
         cwd = exec_plan.get("working_directory")
 
         # Stage
         for cmd in exec_plan.get("staging_commands", []) or []:
-            execute_shell_command({"command": cmd, "working_directory": cwd}, tool_context)
+            res = execute_shell_command({"command": cmd, "working_directory": cwd}, tool_context)
+            logger.info(f"Staging command '{cmd}' exit={getattr(res, 'exit_code', 'unknown')}")
 
         # Create branch (approval bypassed via force_edit)
-        code, _out, err = _run_git(
+        code, out_b, err = _run_git(
             f"git checkout -b {_shell_quote_single(exec_plan['branch_name'])}", tool_context, cwd
         )
         if code != 0:
             logger.warning("Branch creation failed or already exists: %s", err.strip())
+        # Verify branch actually switched to approved branch name
+        code_now, out_now, _ = _run_git("git rev-parse --abbrev-ref HEAD", tool_context, cwd)
+        current_branch = out_now.strip() if code_now == 0 else "unknown"
+        if current_branch != exec_plan.get("branch_name"):
+            logger.warning(
+                "Branch name mismatch after creation: expected '%s' but on '%s'",
+                exec_plan.get("branch_name"),
+                current_branch,
+            )
 
         # Commit
         # Ensure there are staged files before committing
