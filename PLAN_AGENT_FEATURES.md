@@ -581,26 +581,31 @@ print(last.get("summary_line"), last.get("success"))
 
 **Tasks:**
 
-*   - [ ] **Task 7.1.1: Implement `_save_current_session_to_file_impl`:**
-    *   Fully implement `_save_current_session_to_file_impl` to serialize the entire `session.state` (or a defined subset of it) into a JSON file at a specified `filepath`.
-    *   **Implementation Note:** Handle potential serialization issues (e.g., non-serializable objects) by converting them to string representations if necessary. Clearly define which parts of `session.state` are intended for persistence and which are ephemeral.
-*   - [ ] **Task 7.1.2: Implement `_load_memory_from_file_impl` for Session State:**
-    *   Fully implement `_load_memory_from_file_impl` to deserialize the `session.state` from a JSON file.
-    *   **Implementation Note:** Ensure proper error handling if the file is corrupted or not found.
+*   - [ ] **Task 7.1.1: Adopt ADK Memory Tools (`preload_memory_tool`, `load_memory_tool`):**
+    *   Integrate ADK memory tools into agent toolsets and workflows, mirroring the official pattern where the agent exposes memory tools and uses lifecycle callbacks for persistence.
+    *   **Implementation Notes:**
+        - Ensure tools include `preload_memory_tool` and `load_memory_tool` so the agent uses ADK services rather than custom file I/O. Reference: https://raw.githubusercontent.com/google/adk-python/refs/heads/main/contributing/samples/memory/agent.py
+*   - [ ] **Task 7.1.2: Define Memory Schema and State Snapshot Mapping:**
+    *   Define a clear mapping from `session.state` to ADK memory entries (e.g., one document per key namespace such as preferences, workflow state, project context), including metadata like `session_id`, `app_name`, and timestamps.
+    *   Implement helpers to snapshot selected `session.state` keys into memory via `preload_memory_tool`, and to restore keys at agent start by querying with `load_memory_tool`.
+    *   **Implementation Notes:**
+        - Mark ephemeral keys (transient flags) to exclude from snapshots.
+        - Keep existing file-based tools as an optional fallback behind a feature flag (e.g., `use_file_memory_fallback`), defaulting to ADK memory tools.
 *   - [ ] **Task 7.1.3: Automatic Session Persistence (Opt-in):**
-    *   Implement an optional feature to automatically save the session state at regular intervals or upon graceful exit of the agent.
-    *   **Implementation Note:** Use `state_manager_tool` to manage a `session_auto_save_enabled` flag and `last_save_time`.
-*   - [ ] **Task 7.1.4: Integration Tests:**
-    *   Set various values in `session.state`.
-    *   Call `_save_current_session_to_file_impl`, then `_load_memory_from_file_impl` (simulating a restart), and verify that the `session.state` is restored correctly.
+    *   Add an opt-in mechanism to automatically snapshot `session.state` to ADK memory at intervals and on graceful exit.
+    *   **Implementation Notes:** Use `state_manager_tool` to manage `session_auto_save_enabled`, `last_save_time`, and `snapshot_include_keys`. Trigger snapshots in lifecycle callbacks (e.g., after-tool/after-model) with debouncing.
+*   - [ ] **Task 7.1.4: Integration Tests (ADK Memory Path):**
+    *   Populate representative `session.state` keys (e.g., preferences, project structure summary).
+    *   Invoke the snapshot helper (uses `preload_memory_tool`), then simulate a fresh agent session and restore via `load_memory_tool`.
+    *   Verify restored `session.state` matches expectations by asserting on specific keys (e.g., `user_preferences`, `workflow_state`).
 
 **User Verification Steps:**
 
 1.  Set some custom values in the session state (e.g., `set my_pref "dark_mode"`).
-2.  Ask the agent to "Save my current session to `my_session.json`."
+2.  Ask the agent to save the session snapshot; the agent will use ADK memory tools to persist state.
 3.  Restart the agent (or simulate a restart).
-4.  Ask the agent to "Load session from `my_session.json`."
-5.  Verify that your custom preference (`my_pref`) is still set.
+4.  Ask the agent to restore session from memory; the agent will query via ADK memory and rehydrate state.
+5.  Verify that your custom preference (`my_pref`) is still set, and confirm the instruction shows the current time.
 
 ### Milestone 7.2: Structured Knowledge Graph for Project Context
 

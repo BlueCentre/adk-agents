@@ -30,6 +30,10 @@ from .shared_libraries.context_callbacks import (
 from .shared_libraries.vcs_assistant import generate_vcs_assistance_response
 from .shared_libraries.workflow_guidance import suggest_next_step
 from .tools.proactive_workflows import prepare_pull_request_tool
+from .tools.session_memory import (
+    restore_session_from_memory_tool,
+    snapshot_session_to_memory_tool,
+)
 from .tools.setup import load_all_tools_and_toolsets
 from .tools.testing_tools import run_pytest_tool
 from .workflows.human_in_loop_workflows import (
@@ -150,6 +154,47 @@ class StateManager:
     def clear(self, key: str) -> None:
         """Clear value from both state sources."""
         self.set(key, None)
+
+
+# Milestone 7.1: Optional auto-restore on agent start using ADK memory tools
+def _auto_restore_session_before_agent(callback_context) -> None:
+    """Before-agent callback that optionally restores session state from memory.
+
+    Controlled via session flags on `callback_context.state`:
+      - session_auto_restore_enabled: bool (default False)
+      - restore_filter_query: Optional[str]
+      - restore_labels: Optional[list[str]]
+    """
+    try:
+        if not callback_context or not hasattr(callback_context, "state"):
+            return
+        state = callback_context.state
+        if not isinstance(state.get("session_auto_restore_enabled", False), bool):
+            return
+        if not state.get("session_auto_restore_enabled", False):
+            return
+        # Avoid restoring multiple times per session
+        if state.get("__restored_from_memory_once", False):
+            return
+
+        agent_ref = getattr(callback_context, "agent", None)
+        tool_ctx = getattr(agent_ref, "_tools_context", None)
+        if tool_ctx is None:
+            return
+
+        restore_args = {
+            "filter_query": state.get("restore_filter_query", "agent_session_snapshot"),
+            "include_labels": state.get("restore_labels", ["agent_session_snapshot"]),
+        }
+        try:
+            restore_session_from_memory_tool.func(  # type: ignore[attr-defined]
+                args=restore_args, tool_context=tool_ctx
+            )
+            state["__restored_from_memory_once"] = True
+        except Exception as e:  # pragma: no cover - safety
+            logger.debug(f"Auto-restore failed (ignored): {e}")
+    except Exception as e:  # pragma: no cover - safety
+        logger.debug(f"Auto-restore callback error: {e}")
 
 
 # Note: Removed global agent tracking to prevent concurrency issues.
@@ -1374,6 +1419,7 @@ def create_enhanced_software_engineer_agent() -> Agent:
             # Add focused single-purpose callbacks (Contextual → Telemetry → Config → Optimization)
             before_agent_callback=[
                 _preprocess_and_add_context_to_agent_prompt,  # Process context first
+                _auto_restore_session_before_agent,  # Optional restore from memory
                 telemetry_callbacks["before_agent"],
                 optimization_callbacks["before_agent"],
             ],
@@ -1406,6 +1452,20 @@ def create_enhanced_software_engineer_agent() -> Agent:
                 _proactive_code_quality_analysis,  # Proactive analysis after tool execution
                 _log_workflow_suggestion,
                 _auto_run_tests_after_edit,  # TDD: auto-run tests after successful edits
+                # Auto-snapshot session (opt-in) after tools to persist context (Milestone 7.1)
+                lambda _tool, _resp, _cb=None, _args=None, tool_context=None: (
+                    snapshot_session_to_memory_tool.func(  # type: ignore[attr-defined]
+                        args={
+                            "include_keys": tool_context.state.get("snapshot_include_keys"),
+                            "labels": ["agent_session_snapshot"],
+                        },
+                        tool_context=tool_context,
+                    )
+                    if tool_context
+                    and isinstance(tool_context.state.get("session_auto_save_enabled", False), bool)
+                    and tool_context.state.get("session_auto_save_enabled", False)
+                    else None
+                ),
             ],
             output_key="enhanced_software_engineer",
         )

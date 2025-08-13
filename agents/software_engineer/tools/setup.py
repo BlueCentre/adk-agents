@@ -47,6 +47,10 @@ from .realtime_feedback_handler import (
     get_feedback_options_tool,
     handle_critical_issues_tool,
 )
+from .session_memory import (
+    restore_session_from_memory_tool,
+    snapshot_session_to_memory_tool,
+)
 from .shell_command import execute_shell_command_tool
 from .system_info import get_os_info_tool
 from .testing_tools import generate_test_stub_tool, run_pytest_tool
@@ -121,8 +125,10 @@ def load_core_tools_and_toolsets():
         get_analysis_issues_by_severity_tool,
         suggest_code_fixes_tool,
         # Memory tools
-        load_memory_from_file_tool,
-        save_current_session_to_file_tool,
+        load_memory_from_file_tool,  # fallback path
+        save_current_session_to_file_tool,  # fallback path
+        snapshot_session_to_memory_tool,  # ADK-aligned snapshot helper
+        restore_session_from_memory_tool,  # ADK-aligned restore helper
         # Real-time feedback tools (Milestone 4.1)
         handle_critical_issues_tool,
         get_feedback_options_tool,
