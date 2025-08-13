@@ -19,6 +19,7 @@ completed.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import subprocess
 from types import SimpleNamespace
@@ -32,7 +33,17 @@ import pytest
 
 
 def _run(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(cmd, cwd=str(cwd), text=True, capture_output=True)
+    # Isolate Git environment so commits operate on the temp repo only
+    env = os.environ.copy()
+    for var in (
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_INDEX_FILE",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    ):
+        env.pop(var, None)
+    return subprocess.run(cmd, cwd=str(cwd), text=True, capture_output=True, env=env)
 
 
 def _init_repo(repo: Path) -> None:
