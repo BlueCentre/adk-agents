@@ -245,8 +245,8 @@ def _prepare_pull_request(args: dict, tool_context: ToolContext) -> PreparePullR
         current_branch = out_now.strip() if code_now == 0 else "unknown"
         if current_branch != exec_plan.get("branch_name"):
             err_msg = (
-                f"Failed to switch to branch '{exec_plan.get('branch_name')}' after creation attempt. "
-                f"Currently on branch '{current_branch}'. Aborting to prevent commit on wrong branch."
+                f"Failed to switch to branch '{exec_plan.get('branch_name')}' after creation attempt."  # noqa: E501
+                f"Currently on branch '{current_branch}'. Aborting to prevent commit on wrong branch."  # noqa: E501
             )
             logger.error(err_msg)
             return PreparePullRequestOutput(
