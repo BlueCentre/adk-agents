@@ -995,7 +995,41 @@ class SubmittableTextArea(TextArea):
     """TextArea that can submit content on Enter."""
 
     # Ensure component styles from base TextArea are available to theme CSS lookups
-    COMPONENT_CLASSES = TextArea.COMPONENT_CLASSES
+    # and include gutter explicitly for compatibility with current Textual theme
+    COMPONENT_CLASSES = set(getattr(TextArea, "COMPONENT_CLASSES", set())) | {"text-area--gutter"}
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        # Safety: ensure component style exists to avoid KeyError in Textual theme apply_css
+        try:
+            if not hasattr(self, "_component_styles"):
+                return
+            if "text-area--gutter" not in self._component_styles:
+                from textual._compositor import RenderStyles  # type: ignore[attr-defined]
+                from textual.styles import Styles
+
+                self._component_styles["text-area--gutter"] = RenderStyles(self, Styles(), Styles())
+        except Exception:
+            # Best-effort compatibility without breaking UI
+            pass
+
+    def get_component_styles(self, *names):
+        try:
+            return super().get_component_styles(*names)
+        except KeyError as e:
+            if "text-area--gutter" in names and hasattr(self, "_component_styles"):
+                try:
+                    from textual._compositor import RenderStyles  # type: ignore[attr-defined]
+                    from textual.styles import Styles
+
+                    if "text-area--gutter" not in self._component_styles:
+                        self._component_styles["text-area--gutter"] = RenderStyles(
+                            self, Styles(), Styles()
+                        )
+                    return super().get_component_styles(*names)
+                except Exception:
+                    pass
+            raise e
 
     def on_key(self, event: Key) -> None:
         """Handle key events."""

@@ -390,6 +390,8 @@ def create_telemetry_callbacks(agent_name: str, enhanced: bool = False):
         prefix = "Enhanced" if enhanced else "Basic"
         logger.info(f"[{agent_name}] {prefix} agent session started - Session ID: {session_id}")
 
+        # Note: Removed time injection since it's unused in our prompts/tests
+
         # Track agent session start time
         start_time = time.time()
         if callback_context:
