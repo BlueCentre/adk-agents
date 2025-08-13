@@ -81,10 +81,8 @@ def _get_origin_https_url(tool_context: ToolContext, cwd: str | None) -> str | N
     url = out.strip()
     if not url:
         return None
-    m = re.match(r"git@github.com:(?P<owner>[^/]+)/(?P<repo>[^\.]+)(?:\.git)?$", url)
-    if m:
-        return f"https://github.com/{m.group('owner')}/{m.group('repo')}"
-    m = re.match(r"https://github.com/(?P<owner>[^/]+)/(?P<repo>[^\.]+)(?:\.git)?$", url)
+    pattern = r"(?:git@github\.com:|https://github\.com/)(?P<owner>[^/]+)/(?P<repo>.+?)(?:\.git)?$"
+    m = re.match(pattern, url)
     if m:
         return f"https://github.com/{m.group('owner')}/{m.group('repo')}"
     return None
