@@ -246,10 +246,15 @@ def _prepare_pull_request(args: dict, tool_context: ToolContext) -> PreparePullR
         code_now, out_now, _ = _run_git("git rev-parse --abbrev-ref HEAD", tool_context, cwd)
         current_branch = out_now.strip() if code_now == 0 else "unknown"
         if current_branch != exec_plan.get("branch_name"):
-            logger.warning(
-                "Branch name mismatch after creation: expected '%s' but on '%s'",
-                exec_plan.get("branch_name"),
-                current_branch,
+            err_msg = (
+                f"Failed to switch to branch '{exec_plan.get('branch_name')}' after creation attempt. "
+                f"Currently on branch '{current_branch}'. Aborting to prevent commit on wrong branch."
+            )
+            logger.error(err_msg)
+            return PreparePullRequestOutput(
+                status="error",
+                message=err_msg,
+                branch=current_branch,
             )
 
         # Commit
