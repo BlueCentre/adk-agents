@@ -7,7 +7,7 @@ on:
 jobs:
   lint:
     name: Lint Code
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     strategy:
       matrix:
         python-version: ["3.11"]
@@ -43,7 +43,7 @@ jobs:
 
   pr-comment-and-notify:
     name: PR Comment and Notifications
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs: [lint, call-test-coverage]
     if: always() # Run even if previous jobs fail
 
