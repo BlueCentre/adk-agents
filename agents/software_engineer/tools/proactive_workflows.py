@@ -39,6 +39,9 @@ class PreparePullRequestInput(BaseModel):
     kind: str | None = Field(
         default=None, description="Optional type: feature|fix|chore|docs|refactor|test"
     )
+    branch_name: str | None = Field(
+        default=None, description="Explicit branch name to use; bypasses suggestion when set"
+    )
     working_directory: str | None = Field(default=None)
 
 
@@ -120,7 +123,7 @@ def _build_plan(input_data: PreparePullRequestInput, tool_context: ToolContext) 
         name_args["kind"] = input_data.kind
 
     name_res = _suggest_branch_name_tool(name_args, tool_context)
-    branch_name = getattr(name_res, "branch_name", "feature/topic")
+    branch_name = input_data.branch_name or getattr(name_res, "branch_name", "feature/topic")
 
     # Determine commit message suggestion (works even if nothing staged yet)
     msg_res = _generate_commit_message_tool(
@@ -283,8 +286,8 @@ def _prepare_pull_request(args: dict, tool_context: ToolContext) -> PreparePullR
             pass
 
         steps_out = [
-            *(["staged changes"] if plan.staging_commands else []),
-            f"branch: {plan.branch_name}",
+            *(["staged changes"] if (exec_plan.get("staging_commands") or []) else []),
+            f"branch: {branch_name}",
             "commit: completed"
             if _get_staged_files(tool_context, cwd) == []
             else "commit: attempted",
@@ -294,8 +297,8 @@ def _prepare_pull_request(args: dict, tool_context: ToolContext) -> PreparePullR
             status="success",
             message="PR preparation executed",
             steps=steps_out,
-            branch=plan.branch_name,
-            commit_message=plan.commit_message,
+            branch=branch_name,
+            commit_message=exec_plan.get("commit_message"),
             pushed=pushed,
         )
     finally:
