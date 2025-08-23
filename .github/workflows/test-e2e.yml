@@ -14,7 +14,7 @@ concurrency:
 jobs:
   test-e2e:
     name: Run End-to-End Tests
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
 
     steps:
       - name: Check out repository

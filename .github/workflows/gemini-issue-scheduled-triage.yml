@@ -22,7 +22,7 @@ permissions:
 jobs:
   triage-issues:
     timeout-minutes: 5
-    runs-on: 'ubuntu-latest'
+    runs-on: 'blacksmith-4vcpu-ubuntu-2404'
 
     steps:
       - name: 'Checkout repository'
